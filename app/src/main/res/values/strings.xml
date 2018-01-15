@@ -1,0 +1,61 @@
+<resources>
+    <string name="app_name">SimpleCoil</string>
+
+    <string name="connect_weapon_button">Connect Weapon</string>
+    <string name="disconnect_weapon_button">Disconnect Weapon</string>
+    <string name="start_game_button">Start Game!</string>
+    <string name="end_game_button">End Game!</string>
+
+    <string name="connect_status_not_connected">Not Connected</string>
+    <string name="connect_status_scanning">Scanning&#8230;</string>
+    <string name="connect_status_connecting">Connecting&#8230;</string>
+    <string name="connect_status_communicating">Communicating&#8230;</string>
+
+    <string name="team_label">TEAM</string>
+    <string name="no_team">No Team</string>
+
+    <string name="eliminations_count_label">ELIMINATIONS</string>
+    <string name="shots_remaining_label">SHOTS</string>
+    <string name="shot_mode_label">MODE</string>
+    <string name="shot_mode_single">Single</string>
+    <string name="shot_mode_burst3">Burst(3)</string>
+    <string name="shot_mode_auto">Auto</string>
+    <string name="recoil_label">RECOIL</string>
+    <string name="recoil_enabled">Enabled</string>
+    <string name="recoil_disabled">Disabled</string>
+    <string name="score_label">SCORE</string>
+
+    <string name="health_label">HEALTH</string>
+
+    <string name="starting_game_label">STARTING!</string>
+    <string name="eliminated_label">ELIMINATED!</string>
+    <string name="spawn_in_label">Spawn in %1$d</string>
+
+    <string name="ble_not_supported">BLE is not supported</string>
+    <string name="error_bluetooth_not_supported">Bluetooth not supported.</string>
+    <string name="error_location_permission_required">Location permission required for Bluetooth scanning.</string>
+    <string name="error_select_team">Select a team first!</string>
+    <string name="error_same_id">Two players are using the same ID!</string>
+    <string name="error_udp_version">Network client version mismatch. Please update the app!</string>
+
+    <string name="end_game_dialog_title">End Game?</string>
+    <string name="end_game_dialog_message">Are you sure you want to stop playing?</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+
+    <string name="use_network_button">Use Network?</string>
+    <string name="no_network_button">No Network!</string>
+    <string name="ready_button">Ready!</string>
+    <string name="not_ready_button">Cancel Ready</string>
+    <string name="game_mode_label">Game Mode</string>
+    <string name="game_mode_ffa">Free For All</string>
+    <string name="game_mode_2teams">2 Teams</string>
+    <string name="game_mode_4teams">4 Teams</string>
+    <string name="game_mode_toggle_button">Toggle Mode</string>
+    <string name="scan_players_button">Search For Players</string>
+    <string name="scan_started_toast">Player scan started!</string>
+    <string name="network_player_1count">1 Player</string>
+    <string name="network_player_count">%1$d Players</string>
+    <string name="not_enough_players_toast">Not enough players!</string>
+    <string name="network_team">Team %1$d Player %2$d</string>
+</resources>
