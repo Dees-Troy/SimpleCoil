@@ -32,10 +32,13 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
+import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.AnimationDrawable;
 import android.media.MediaPlayer;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.os.Build;
 import android.os.CountDownTimer;
 import android.os.Handler;
@@ -46,12 +49,14 @@ import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.webkit.WebView;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.RelativeLayout;
@@ -95,6 +100,7 @@ public class FullscreenActivity extends AppCompatActivity {
     private TextView mSpawnInTV = null;
     private ProgressBar mHealthBar = null;
     private ProgressBar mReloadBar = null;
+    private ProgressBar mNetworkBar = null;
     private ImageView mHitIV = null;
     private ImageView mBatteryLevelIV = null;
     private AnimationDrawable mHitAnimation = null;
@@ -102,6 +108,9 @@ public class FullscreenActivity extends AppCompatActivity {
     private AnimationDrawable mHitPlayerAnimation = null;
     private ImageView mShotsFiredIV = null;
     private ImageView mScoreIncreaseIV = null;
+    private Button mCreateServerButton = null;
+    private TextView mServerIPTV = null;
+    private Button mJoinIPButton = null;
 
     private CountDownTimer mSpawnTimer = null;
     private CountDownTimer mReloadTimer = null;
@@ -201,6 +210,7 @@ public class FullscreenActivity extends AppCompatActivity {
     private int mPlayerCount = 0;
     private boolean mReady = false;
     private int mNetworkTeam = 0;
+    private boolean mIsServer = false;
 
     /* We run a continuous handler in the background while the tagger is connected to monitor the
        connection status. Simply put, we set connectionTestHandler to false every time the handler
@@ -219,6 +229,10 @@ public class FullscreenActivity extends AppCompatActivity {
 
     // Code to manage Service lifecycle.
     private ServiceConnection mBLEServiceConnection = null;
+
+    private boolean mRequestedPlayerName = false;
+    private String mPlayerName = "Player";
+    private SharedPreferences sharedPreferences = null;
 
     private void setupBLEServiceConnection() {
         mBLEServiceConnection = new ServiceConnection() {
@@ -258,6 +272,11 @@ public class FullscreenActivity extends AppCompatActivity {
 
             @Override
             public void onServiceDisconnected(ComponentName componentName) {
+                mReady = false;
+                setReady(false);
+                mIsServer = false;
+                if (mGameState != GAME_STATE_NONE)
+                    endGame();
                 mUDPListenerService = null;
             }
         };
@@ -325,7 +344,7 @@ public class FullscreenActivity extends AppCompatActivity {
                             mNetworkPlayerCountTV.setText(R.string.network_player_1count);
                             return;
                         }
-                        mUDPListenerService.sendUDPBroadcast(UDPListenerService.UDPMSG_STARTGAME);
+                        mUDPListenerService.startGame();
                     }
                     startGame();
                 }
@@ -367,6 +386,8 @@ public class FullscreenActivity extends AppCompatActivity {
         showConnectLayout();
         initBatteryQueue();
         vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+        sharedPreferences = getSharedPreferences("SimpleCoil", Context.MODE_PRIVATE);
+        mPlayerName = sharedPreferences.getString("PlayerName", "Player");
 
         try {
             // Display app version
@@ -384,6 +405,17 @@ public class FullscreenActivity extends AppCompatActivity {
                 public void onClick(View v) {
                     mUseNetwork = !mUseNetwork;
                     if (mUseNetwork) {
+                        ConnectivityManager connManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                        NetworkInfo mWifi = connManager.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+                        if (mWifi == null || !mWifi.isConnected()) {
+                            Toast.makeText(getApplicationContext(), getString(R.string.error_no_wifi), Toast.LENGTH_SHORT).show();
+                            mUseNetwork = false;
+                            return;
+                        }
+                        if (!mRequestedPlayerName) {
+                            //requestPlayerName();
+                            //return;
+                        }
                         displayAllNetworkingOptions(true);
                         mUseNetworkingButton.setText(R.string.no_network_button);
                     } else {
@@ -434,9 +466,120 @@ public class FullscreenActivity extends AppCompatActivity {
         mHitPlayerIV = findViewById(R.id.hit_player_iv);
         mShotsFiredIV = findViewById(R.id.shots_fired_iv);
         mScoreIncreaseIV = findViewById(R.id.score_increase_iv);
+        mNetworkBar = findViewById(R.id.network_pb);
+        mCreateServerButton = findViewById(R.id.create_server_button);
+        if (mCreateServerButton != null) {
+            mCreateServerButton.setOnClickListener((new View.OnClickListener() {
+                public void onClick(View v) {
+                    if (mPlayerID == 0) {
+                        Toast.makeText(getApplicationContext(), getString(R.string.error_select_team), Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    if (!mIsServer) {
+                        mUDPListenerService.setGameMode(mGameMode);
+                        mUDPListenerService.createServer();
+                        mCreateServerButton.setEnabled(false);
+                        mUseNetworkingButton.setVisibility(View.INVISIBLE);
+                    } else {
+                        mReady = false;
+                        setReady();
+                        mIsServer = false;
+                        mUDPListenerService.cancelServer();
+                        mCreateServerButton.setText(R.string.create_server_button);
+                        mServerIPTV.setVisibility(View.GONE);
+                        mUseNetworkingButton.setVisibility(View.VISIBLE);
+                    }
+                }
+            }));
+        }
+        mServerIPTV = findViewById(R.id.server_ip_tv);
+        mJoinIPButton = findViewById(R.id.join_ip_button);
+        if (mJoinIPButton != null) {
+            mJoinIPButton.setOnClickListener((new View.OnClickListener() {
+                public void onClick(View v) {
+                    if (mPlayerID == 0) {
+                        Toast.makeText(getApplicationContext(), getString(R.string.error_select_team), Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    mUDPListenerService.setPlayerID(mPlayerID);
+                    requestServerIP();
+                }
+            }));
+        }
         displayAllNetworkingOptions(false);
         mUseNetworkingButton.setVisibility(View.VISIBLE);
     }
+
+    private void requestPlayerName() {
+        mRequestedPlayerName = true;
+        LayoutInflater li = LayoutInflater.from(getApplicationContext());
+        View view = li.inflate(R.layout.player_name_dialog, null);
+
+        AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(this, R.style.Theme_AppCompat_DayNight_Dialog_Alert);
+        alertDialogBuilder.setView(view);
+
+        final EditText playerNameET = view.findViewById(R.id.player_name_et);
+        playerNameET.setText(mPlayerName);
+
+        alertDialogBuilder
+                .setCancelable(false)
+                .setPositiveButton(R.string.ok,
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog,int id) {
+                                mPlayerName = playerNameET.getText().toString();
+                                SharedPreferences.Editor editor = sharedPreferences.edit();
+                                editor.putString("PlayerName", mPlayerName);
+                                editor.apply();
+                                displayAllNetworkingOptions(true);
+                                mUseNetworkingButton.setText(R.string.no_network_button);
+                                dialog.dismiss();
+                            }
+                        })
+                .setNegativeButton(R.string.cancel,
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog,int id) {
+                                dialog.cancel();
+                            }
+                        });
+        AlertDialog alertDialog = alertDialogBuilder.create();
+        alertDialog.show();
+    }
+
+    private void requestServerIP() {
+        LayoutInflater li = LayoutInflater.from(getApplicationContext());
+        View view = li.inflate(R.layout.server_ip_dialog, null);
+
+        AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(this, R.style.Theme_AppCompat_DayNight_Dialog_Alert);
+        alertDialogBuilder.setView(view);
+
+        final EditText serverIPET = view.findViewById(R.id.server_ip_et);
+        String ip = mUDPListenerService.getIP();
+        if (ip == null)
+            ip = "";
+        if (ip.substring(0, 1).equals("/"))
+            ip = ip.substring(1);
+        serverIPET.setText(ip);
+
+        alertDialogBuilder
+                .setCancelable(false)
+                .setPositiveButton(R.string.ok,
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog,int id) {
+                                mUDPListenerService.joinServer(serverIPET.getText().toString());
+                                dialog.dismiss();
+                            }
+                        })
+                .setNegativeButton(R.string.cancel,
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog,int id) {
+                                dialog.cancel();
+                            }
+                        });
+        AlertDialog alertDialog = alertDialogBuilder.create();
+        alertDialog.show();
+    }
+
+    public String getPlayerName() { return mPlayerName; }
 
     private void setReady() { setReady(true); }
 
@@ -445,17 +588,26 @@ public class FullscreenActivity extends AppCompatActivity {
             // Start listening for broadcasts
             mNetworkPlayerCountTV.setText(R.string.network_player_1count);
             mUDPListenerService.setPlayerID(mPlayerID);
-            mUDPListenerService.startPlayerScan();
+            if (mIsServer) {
+                mReadyButton.setVisibility(View.GONE);
+                mJoinIPButton.setVisibility(View.GONE);
+            } else {
+                mUDPListenerService.joinServer();
+                mJoinIPButton.setVisibility(View.GONE);
+                mCreateServerButton.setVisibility(View.GONE);
+            }
             mReadyButton.setText(R.string.not_ready_button);
             mNetworkPlayerCountTV.setVisibility(View.VISIBLE);
             mTeamMinusButton.setVisibility(View.INVISIBLE);
             mTeamPlusButton.setVisibility(View.INVISIBLE);
             mToggleGameModeButton.setVisibility(View.GONE);
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            mNetworkBar.setVisibility(View.VISIBLE);
         } else {
             if (sendPlayerLeft)
-                mUDPListenerService.sendUDPMessageAll(UDPListenerService.UDPMSG_NOPLAYER);
-            mUDPListenerService.stopListen();
+                mUDPListenerService.sendUDPMessageAll(UDPListenerService.UDPMSG_LEAVE);
+            if (!mIsServer)
+                mUDPListenerService.stopListen();
             mReadyButton.setText(R.string.ready_button);
             mNetworkPlayerCountTV.setVisibility(View.GONE);
             mTeamMinusButton.setVisibility(View.VISIBLE);
@@ -463,6 +615,11 @@ public class FullscreenActivity extends AppCompatActivity {
             getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             mNetworkPlayerCountTV.setVisibility(View.GONE);
             mToggleGameModeButton.setVisibility(View.VISIBLE);
+            mNetworkBar.setVisibility(View.GONE);
+            mCreateServerButton.setVisibility(View.VISIBLE);
+            mJoinIPButton.setVisibility(View.VISIBLE);
+            mServerIPTV.setVisibility(View.GONE);
+            mReadyButton.setVisibility(View.VISIBLE);
         }
     }
 
@@ -519,7 +676,7 @@ public class FullscreenActivity extends AppCompatActivity {
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 if (mUseNetwork) {
-                    mUDPListenerService.sendUDPBroadcast(UDPListenerService.UDPMSG_ENDGAME);
+                    mUDPListenerService.endGame();
                 }
                 endGame();
             }
@@ -544,6 +701,8 @@ public class FullscreenActivity extends AppCompatActivity {
             setReady(false);
             mPlayerCount = 0;
             mNetworkPlayerCountTV.setText(R.string.network_player_1count);
+            mIsServer = false;
+            mCreateServerButton.setText(R.string.create_server_button);
         }
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
@@ -595,7 +754,9 @@ public class FullscreenActivity extends AppCompatActivity {
     }
 
     private void displayCurrentTeam() {
-        if (mUseNetwork && mGameMode != GAME_MODE_FFA) {
+        if (mPlayerID == 0) {
+            mTeamTV.setText(R.string.no_team);
+        } else if (mUseNetwork && mGameMode != GAME_MODE_FFA) {
             mNetworkTeam = 1;
             int x = 8;
             if (mGameMode == GAME_MODE_2TEAMS) {
@@ -1383,8 +1544,11 @@ public class FullscreenActivity extends AppCompatActivity {
                         mScoreIncreaseIV.setVisibility(View.GONE);
                     }
                 }, HIT_ANIMATION_DURATION_MILLISECONDS);
-            } else if (UDPListenerService.UDPMSG_SCAN.equals(action)) {
-                Toast.makeText(getApplicationContext(), getString(R.string.scan_started_toast), Toast.LENGTH_SHORT).show();
+            } else if (UDPListenerService.UDPMSG_JOIN.equals(action) || UDPListenerService.UDPMSG_LEAVE.equals(action)) {
+                mPlayerCount = mUDPListenerService.getPlayerCount();
+                mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, mPlayerCount));
+            } else if (UDPListenerService.UDPMSG_LISTPLAYERS.equals(action)) {
+                mNetworkBar.setVisibility(View.GONE);
                 mPlayerCount = mUDPListenerService.getPlayerCount();
                 mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, mPlayerCount));
                 String netGameMode = mUDPListenerService.getGameMode();
@@ -1399,15 +1563,17 @@ public class FullscreenActivity extends AppCompatActivity {
                     mGameModeTV.setText(R.string.game_mode_ffa);
                 }
                 setTeam();
-            } else if (UDPListenerService.UDPMSG_PLAYER.equals(action) || UDPListenerService.UDPMSG_NOPLAYER.equals(action)) {
-                mPlayerCount = mUDPListenerService.getPlayerCount();
-                mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, mPlayerCount));
             } else if (UDPListenerService.UDPMSG_STARTGAME.equals(action)) {
                 startGame();
             } else if (UDPListenerService.UDPMSG_ENDGAME.equals(action)) {
                 endGame();
             } else if (UDPListenerService.UDPMSG_ERROR.equals(action)) {
-                // Not used yet
+                String errorMessage = intent.getStringExtra("message");
+                if (errorMessage != null && !errorMessage.isEmpty()) {
+                    Toast.makeText(getApplicationContext(), errorMessage, Toast.LENGTH_SHORT).show();
+                } else {
+                    Log.d(TAG, "No error message given");
+                }
             } else if (UDPListenerService.UDPMSG_VERSIONERROR.equals(action)) {
                 Toast.makeText(getApplicationContext(), getString(R.string.error_udp_version), Toast.LENGTH_SHORT).show();
                 mReady = false;
@@ -1416,6 +1582,25 @@ public class FullscreenActivity extends AppCompatActivity {
                 Toast.makeText(getApplicationContext(), getString(R.string.error_same_id), Toast.LENGTH_SHORT).show();
                 mReady = false;
                 setReady();
+            } else if (UDPListenerService.UDPMSG_FAILEDTOJOIN.equals(action)) {
+                Toast.makeText(getApplicationContext(), getString(R.string.error_join), Toast.LENGTH_SHORT).show();
+                mReady = false;
+                setReady();
+                mUseNetworkingButton.setVisibility(View.VISIBLE);
+                mCreateServerButton.setEnabled(true);
+            } else if (UDPListenerService.UDPMSG_SERVERCREATED.equals(action)) {
+                mReady = true;
+                mIsServer = true;
+                setReady();
+                mCreateServerButton.setEnabled(true);
+                mCreateServerButton.setText(R.string.cancel_server_button);
+                mServerIPTV.setText(mUDPListenerService.getIP());
+                mServerIPTV.setVisibility(View.VISIBLE);
+                mReadyButton.setVisibility(View.GONE);
+            } else if (UDPListenerService.UDPMSG_SERVERCANCEL.equals(action)) {
+                mReady = false;
+                setReady(false);
+                Toast.makeText(getApplicationContext(), getString(R.string.error_server_cancel), Toast.LENGTH_SHORT).show();
             }
         }
     };
@@ -1426,13 +1611,17 @@ public class FullscreenActivity extends AppCompatActivity {
         intentFilter.addAction(UDPListenerService.UDPMSG_HIT);
         intentFilter.addAction(UDPListenerService.UDPMSG_OUT);
         intentFilter.addAction(UDPListenerService.UDPMSG_ELIMINATED);
-        intentFilter.addAction(UDPListenerService.UDPMSG_SCAN);
-        intentFilter.addAction(UDPListenerService.UDPMSG_PLAYER);
+        intentFilter.addAction(UDPListenerService.UDPMSG_JOIN);
+        intentFilter.addAction(UDPListenerService.UDPMSG_FAILEDTOJOIN);
+        intentFilter.addAction(UDPListenerService.UDPMSG_LEAVE);
+        intentFilter.addAction(UDPListenerService.UDPMSG_LISTPLAYERS);
         intentFilter.addAction(UDPListenerService.UDPMSG_STARTGAME);
         intentFilter.addAction(UDPListenerService.UDPMSG_ENDGAME);
         intentFilter.addAction(UDPListenerService.UDPMSG_ERROR);
         intentFilter.addAction(UDPListenerService.UDPMSG_VERSIONERROR);
         intentFilter.addAction(UDPListenerService.UDPMSG_SAMETEAM);
+        intentFilter.addAction(UDPListenerService.UDPMSG_SERVERCREATED);
+        intentFilter.addAction(UDPListenerService.UDPMSG_SERVERCANCEL);
         return intentFilter;
     }
 
@@ -1446,6 +1635,10 @@ public class FullscreenActivity extends AppCompatActivity {
         mGameModeTV.setVisibility(visibility);
         mScoreLabelTV.setVisibility(visibility);
         mScoreTV.setVisibility(visibility);
+        mCreateServerButton.setVisibility(visibility);
+        mServerIPTV.setVisibility(View.GONE);
+        mJoinIPButton.setVisibility(visibility);
+        mNetworkBar.setVisibility(View.GONE);
     }
 
     private void displayInGameNetworkingOptions() {

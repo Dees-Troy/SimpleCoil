@@ -41,11 +41,6 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
 
-
-/*
- * Linux command to send UDP:
- * #socat - UDP-DATAGRAM:192.168.1.255:11111,broadcast,sp=11111
- */
 public class UDPListenerService extends Service {
     private static final String TAG = "UDPSvc";
 
@@ -59,31 +54,30 @@ public class UDPListenerService extends Service {
     public static final String UDPMSG_HIT = "UDPHIT";
     public static final String UDPMSG_OUT = "UDPOUT";
     public static final String UDPMSG_ELIMINATED = "UDPELIMINATED";
-    public static final String UDPMSG_NOPLAYER = "UDPNOPLAYER";
+    public static final String UDPMSG_LEAVE = "UDPLEAVE";
     public static final String UDPMSG_STARTGAME = "UDPSTARTGAME";
     public static final String UDPMSG_ENDGAME = "UDPENDGAME";
     public static final String UDPMSG_ERROR = "UDPERROR";
+    public static final String UDPMSG_FAILEDTOJOIN = "UDPFAILEDTOJOIN";
     public static final String UDPMSG_VERSIONERROR = "UDPVERSIONERROR";
     public static final String UDPMSG_SAMETEAM = "UDPSAMETEAM";
+    public static final String UDPMSG_SERVERCREATED = "UDPSERVERCREATED";
+    public static final String UDPMSG_SERVERCANCEL = "UDPSERVERCANCEL";
 
-    // UDPSCAN will include UDPSCAN + 2 char version + 1 char game mode + playerID of the player who initiated this scan, so UDPSCAN0126 for version 01, 2 teams, and playerID of 6
-    public static final String UDPMSG_SCAN = "UDPSCAN";
-    // UDPPLAYER is UDPPLAYER + playerID, so UDPPLAYER2 for playerID 2
-    public static final String UDPMSG_PLAYER = "UDPPLAYER";
-    /* UDPLISTPLAYERS contains a long list of all of the players. When a scan is started, all other
-       players send their ID to the device that initiated the scan. The scanner collects all of the
+    // UDPJOIN is UDPJOIN + playerID, so UDPJOIN2 for playerID 2
+    public static final String UDPMSG_JOIN = "UDPJOIN";
+    /* UDPLISTPLAYERS contains a long list of all of the players. The server collects all of the
        IDs and IP addresses and concatenates them into a string that is sent to each player individually
-       in the format of playerID dash IPAddress underscore so something like:
-       1-11.11.11.2_2-11.11.11.3_3-11.11.11.4
-     */
+       prefixed with the game mode so something like this (the leading 4 means 4 teams):
+       41-11.11.11.2_2-11.11.11.3_3-11.11.11.4 */
     public static final String UDPMSG_LISTPLAYERS = "UDPLISTPLAYERS";
 
     private static final String MESSAGE_PREFIX = "SimpleCoil:";
-    private static final String UDP_VERSION = "01";
+    private static final String UDP_VERSION = "02";
     // 1 for FFA, 2 for 2 Teams, and 4 for 4 Teams
     private String mGameMode = "2";
 
-    private byte mPlayerID = 0;
+    private volatile byte mPlayerID = 0;
 
     DatagramSocket socketBroadcast;
     DatagramSocket socketGame;
@@ -96,11 +90,18 @@ public class UDPListenerService extends Service {
 
     private InetAddress mMyIP = null;
     private InetAddress mBroadcastAddress = null;
+    private InetAddress mServerIP = null;
 
     private static volatile boolean mSendingMessage = false;
+    private static volatile boolean keepListeningBroadcast = true;
     private static volatile boolean keepListening = true;
+    private static volatile boolean doneListeningBroadcast = true;
+    private static volatile boolean doneListening = true;
     private static volatile boolean mIsListService = false;
     private static volatile int mReadyToScan = 0;
+
+    private volatile boolean mScanRunning = false;
+    private volatile boolean mGameRunning = false;
 
     /**
      * Get IP address from first non-localhost interface
@@ -144,7 +145,8 @@ public class UDPListenerService extends Service {
         DatagramPacket packet = new DatagramPacket(recvBuf, recvBuf.length);
         Log.d(TAG, "Waiting for UDP broadcasts on " + ip.toString() + ":" + port);
         mReadyToScan++;
-        while (keepListening) {
+        doneListeningBroadcast = false;
+        while (keepListeningBroadcast) {
             try {
                 socketBroadcast.receive(packet);
                 String senderIP = packet.getAddress().getHostAddress();
@@ -171,6 +173,7 @@ public class UDPListenerService extends Service {
         DatagramPacket packet = new DatagramPacket(recvBuf, recvBuf.length);
         Log.d(TAG, "Waiting for UDP message on " + ip.toString() + ":" + port);
         mReadyToScan++;
+        doneListening = false;
         while (keepListening) {
             try {
                 socketGame.receive(packet);
@@ -213,54 +216,32 @@ public class UDPListenerService extends Service {
             } else if (message.startsWith(UDPMSG_ELIMINATED)) {
                 // you eliminated someone!
                 intent = new Intent(UDPMSG_ELIMINATED);
-            } else if (message.startsWith(UDPMSG_SCAN)) {
-                mIsListService = false; // Someone else is now the player list service
-                if (mListServiceTimer != null)
-                    mListServiceTimer.cancel();
+            } else if (message.startsWith(UDPMSG_JOIN)) {
                 if (mIPTeamMap == null)
                     mIPTeamMap = new HashMap<InetAddress, Byte>();
-                else
-                    mIPTeamMap.clear();
                 if (mTeamIPMap == null)
                     mTeamIPMap = new HashMap<Byte, InetAddress>();
-                else
-                    mTeamIPMap.clear();
-                message = message.substring(UDPMSG_SCAN.length());
+                // This is a player join message
+                message = message.substring(UDPMSG_JOIN.length());
                 String version = message.substring(0, 2);
                 if (!version.equals(UDP_VERSION)) {
-                    intent = new Intent(UDPMSG_VERSIONERROR);
-                    sendBroadcast(intent);
+                    sendUDPMessage(UDPMSG_VERSIONERROR, ip, GAME_LISTEN_PORT);
                     return;
                 }
-                mGameMode = message.substring(2, 3);
-                message = message.substring(3);
-                Byte team = (byte)(int)Integer.parseInt(message);
-                mIPTeamMap.put(ip, team);
-                mTeamIPMap.put(team, ip);
-                Log.d(TAG, "scan started by player ID " + team + " at " + ip.toString());
-                sendPlayerMessage(ip);
-                intent = new Intent(UDPMSG_SCAN);
-            } else if (message.startsWith(UDPMSG_PLAYER)) {
-                if (mIPTeamMap == null)
-                    mIPTeamMap = new HashMap<InetAddress, Byte>();
-                if (mTeamIPMap == null)
-                    mTeamIPMap = new HashMap<Byte, InetAddress>();
-                // This is a player message
-                message = message.substring(UDPMSG_PLAYER.length());
+                message = message.substring(2);
                 Byte team = (byte) (int) Integer.parseInt(message);
-                if (mTeamIPMap.get(team) != null || team == mPlayerID) {
+                if (team == mPlayerID || (mTeamIPMap.get(team) != null && !mTeamIPMap.get(team).equals(ip))) {
                     Log.e(TAG, "2 Players using same ID!");
-                    sendUDPBroadcast(UDPMSG_SAMETEAM);
-                    intent = new Intent(UDPMSG_SAMETEAM);
+                    sendUDPMessage(UDPMSG_SAMETEAM, ip, GAME_LISTEN_PORT);
                 } else {
                     mIPTeamMap.put(ip, team);
                     mTeamIPMap.put(team, ip);
                     Log.d(TAG, "player " + team + " found at " + ip.toString());
-                    if (mListServiceTimer == null)
-                        sendPlayerList();
-                    intent = new Intent(UDPMSG_PLAYER);
+                    sendPlayerList();
+                    intent = new Intent(UDPMSG_JOIN);
                 }
             } else if (message.startsWith(UDPMSG_LISTPLAYERS)) {
+                mScanRunning = false;
                 if (mIPTeamMap == null)
                     mIPTeamMap = new HashMap<InetAddress, Byte>();
                 else
@@ -270,6 +251,8 @@ public class UDPListenerService extends Service {
                 else
                     mTeamIPMap.clear();
                 message = message.substring(UDPMSG_LISTPLAYERS.length());
+                mGameMode = message.substring(0, 1);
+                message = message.substring(1);
                 String[] entries = message.split("_", 0);
                 int playersAdded = 0;
                 for (String entry : entries) {
@@ -291,18 +274,25 @@ public class UDPListenerService extends Service {
                     }
                 }
                 Log.d(TAG, "Added " + playersAdded + "players");
-                intent = new Intent(UDPMSG_PLAYER);
-            } else if (message.startsWith(UDPMSG_NOPLAYER)) {
+                mServerIP = ip;
+                intent = new Intent(UDPMSG_LISTPLAYERS);
+            } else if (message.startsWith(UDPMSG_LEAVE)) {
                 // This is a player left message
                 Byte team = mIPTeamMap.get(ip);
                 mTeamIPMap.remove(team);
                 mIPTeamMap.remove(ip);
                 Log.d(TAG, "player " + team + " left at " + ip.toString());
-                intent = new Intent(UDPMSG_PLAYER);
+                intent = new Intent(UDPMSG_LEAVE);
             } else if (message.startsWith(UDPMSG_STARTGAME)) {
+                if (mGameRunning)
+                    return;
+                mGameRunning = true;
                 // start the game!
                 intent = new Intent(UDPMSG_STARTGAME);
             } else if (message.startsWith(UDPMSG_ENDGAME)) {
+                if (!mGameRunning)
+                    return;
+                mGameRunning = false;
                 // game ends!
                 intent = new Intent(UDPMSG_ENDGAME);
             } else if (message.startsWith(UDPMSG_ERROR)) {
@@ -311,66 +301,37 @@ public class UDPListenerService extends Service {
             } else if (message.startsWith(UDPMSG_SAMETEAM)) {
                 // Two players using the same ID error!
                 intent = new Intent(UDPMSG_SAMETEAM);
+            } else if (message.startsWith(UDPMSG_SERVERCANCEL)) {
+                // Server is gone
+                intent = new Intent(UDPMSG_SERVERCANCEL);
             }
         }
         if (intent != null)
             sendBroadcast(intent);
     }
 
-    private void sendPlayerMessage(final InetAddress ip) {
-        Thread playerMessageThread = new Thread(new Runnable() {
-            public void run() {
-                try {
-                    Thread.sleep((long) mPlayerID * 100); // The hope here is to prevent everyone from sending their data all at once
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-                sendUDPMessage(MESSAGE_PREFIX + UDPMSG_PLAYER + mPlayerID, ip, GAME_LISTEN_PORT);
-            }
-        });
-        playerMessageThread.start();
-    }
-
-    private Timer mListServiceTimer = null;
-
     private void sendPlayerList() {
-        if (mListServiceTimer == null)
-            mListServiceTimer = new Timer();
-        else
-            return;
-        mListServiceTimer.schedule(new SendPlayerList(), 3000); // Finally send the list to all clients after 3 seconds
-    }
-
-    private class SendPlayerList extends TimerTask {
-        public void run() {
-            if (!mIsListService) {
-                // Someone else is now the list service
-                mListServiceTimer.cancel();
-                return;
+        Log.d(TAG, "sending player list");
+        if (mMyIP == null) {
+            try {
+                mMyIP = InetAddress.getByName(getIPAddress());
+            } catch (UnknownHostException e) {
+                e.printStackTrace();
             }
-            Log.d(TAG, "sending player list");
-            if (mMyIP == null) {
-                try {
-                    mMyIP = InetAddress.getByName(getIPAddress());
-                } catch (UnknownHostException e) {
-                    e.printStackTrace();
-                }
-            }
-            String message = "" + mPlayerID + "-" + mMyIP.toString();
-            for (Map.Entry<InetAddress, Byte> entry : mIPTeamMap.entrySet()) {
-                message += "_" + entry.getValue() + "-" + entry.getKey();
-            }
-            sendUDPBroadcast(UDPMSG_LISTPLAYERS + message);
-            mListServiceTimer.cancel();
-            mListServiceTimer.purge();
-            mListServiceTimer = null;
         }
+        String message = mGameMode + mPlayerID + "-" + mMyIP.toString();
+        for (Map.Entry<InetAddress, Byte> entry : mIPTeamMap.entrySet()) {
+            message += "_" + entry.getValue() + "-" + entry.getKey();
+        }
+        sendUDPMessageAll(UDPMSG_LISTPLAYERS + message);
+        Intent intent = new Intent(UDPMSG_LISTPLAYERS);
+        sendBroadcast(intent);
     }
 
     Thread UDPBroadcastThread;
 
     public void startListenForUDPBroadcast() {
-        keepListening = true;
+        keepListeningBroadcast = true;
         if(wm == null)wm = (WifiManager)getApplicationContext().getSystemService(Context.WIFI_SERVICE);
         if (wm == null) {
             Log.e(TAG, "Failed to get wifi manager");
@@ -385,16 +346,17 @@ public class UDPListenerService extends Service {
 
         UDPBroadcastThread = new Thread(new Runnable() {
             public void run() {
-                while (keepListening) {
+                while (keepListeningBroadcast) {
                     try {
                         InetAddress broadcastIP = InetAddress.getByName("0.0.0.0");
                         listenForBroadcast(broadcastIP, BROADCAST_LISTEN_PORT, BROADCAST_LISTEN_TIMEOUT_MS);
-                        //if (!shouldListenForUDPBroadcast) throw new ThreadDeath();
                     } catch (Exception e) {
-                        Log.i(TAG, "no longer listening for UDP broadcasts cause of error " + e.getMessage());
+                        Log.i(TAG, "no longer listening for UDP broadcasts: " + e.getMessage());
                     }
                 }
+                Log.i(TAG, "Stopped listening for UDP broadcasts");
                 if(multicastLock != null && multicastLock.isHeld()) multicastLock.release();
+                doneListeningBroadcast = true;
             }
         });
         UDPBroadcastThread.start();
@@ -410,11 +372,12 @@ public class UDPListenerService extends Service {
                     try {
                         mMyIP = InetAddress.getByName(getIPAddress());
                         listenForGame(mMyIP, GAME_LISTEN_PORT, BROADCAST_LISTEN_TIMEOUT_MS);
-                        //if (!shouldListenForUDPBroadcast) throw new ThreadDeath();
                     } catch (Exception e) {
-                        Log.i(TAG, "no longer listening for UDP game messages cause of error " + e.getMessage());
+                        Log.i(TAG, "no longer listening for UDP game messages: " + e.getMessage());
                     }
                 }
+                Log.i(TAG, "Stopped listening for UDP messages");
+                doneListening = true;
             }
         });
         UDPGameThread.start();
@@ -445,7 +408,32 @@ public class UDPListenerService extends Service {
         return ret;
     }
 
-    public void startPlayerScan() {
+    public String getIP() {
+        if (mServerIP != null)
+            return mServerIP.toString();
+        if (mMyIP == null) {
+            try {
+                mMyIP = InetAddress.getByName(getIPAddress());
+            } catch (UnknownHostException e) {
+                return null;
+            }
+        }
+        return mMyIP.toString();
+    }
+
+    public void createServer() {
+        if (!doneListening || !doneListeningBroadcast) {
+            Log.e(TAG, "Listening is still in progress");
+            sendFailedJoin();
+            return;
+        }
+        if (mBroadcastAddress == null)
+            mBroadcastAddress = getBroadcastAddress();
+        if (mBroadcastAddress == null) {
+            Log.e(TAG, "Failed to get broadcast IP address");
+            sendFailedJoin();
+            return;
+        }
         if (mIPTeamMap == null)
             mIPTeamMap = new HashMap<InetAddress, Byte>();
         else
@@ -454,23 +442,133 @@ public class UDPListenerService extends Service {
             mTeamIPMap = new HashMap<Byte, InetAddress>();
         else
             mTeamIPMap.clear();
-        if (mBroadcastAddress == null)
-            mBroadcastAddress = getBroadcastAddress();
-        if (mBroadcastAddress == null)
-            return;
+        keepListeningBroadcast = true;
         keepListening = true;
         mIsListService = true;
+        mScanRunning = false;
+        mGameRunning = false;
         mReadyToScan = 0;
         startListenForUDPBroadcast();
         startListenForUDPGame();
         while(mReadyToScan < 2) {
+            sleep(100);
+        }
+        if (mMyIP == null) {
             try {
-                Thread.sleep(100);
-            } catch (Exception e) {
+                mMyIP = InetAddress.getByName(getIPAddress());
+            } catch (UnknownHostException e) {
                 e.printStackTrace();
             }
         }
-        sendUDPMessage(MESSAGE_PREFIX + UDPMSG_SCAN + UDP_VERSION + mGameMode + mPlayerID, mBroadcastAddress, BROADCAST_LISTEN_PORT);
+        mServerIP = mMyIP;
+        Intent intent = new Intent(UDPMSG_SERVERCREATED);
+        sendBroadcast(intent);
+    }
+
+    public void cancelServer() {
+        if (!mIsListService)
+            return;
+        sendUDPMessageAll(UDPMSG_SERVERCANCEL);
+        keepListeningBroadcast = false;
+        keepListening = false;
+    }
+
+    public void joinServer() {
+        if (mBroadcastAddress == null)
+            mBroadcastAddress = getBroadcastAddress();
+        if (mBroadcastAddress == null) {
+            sendFailedJoin();
+            return;
+        }
+        joinServer(mBroadcastAddress, BROADCAST_LISTEN_PORT);
+    }
+
+    public void joinServer(String serverIP) {
+        if (serverIP.startsWith("/"))
+            serverIP = serverIP.substring(1);
+        final String ip = serverIP;
+        Log.e(TAG, "attempt to join " + ip);
+        Thread joinThread = new Thread(new Runnable() {
+            public void run() {
+                InetAddress ipAddr = null;
+                try {
+                    ipAddr = InetAddress.getByName(ip);
+                } catch (UnknownHostException e) {
+                    Log.e(TAG, "unknown host!");
+                    sendFailedJoin();
+                    return;
+                }
+                if (ipAddr == null) {
+                    Log.e(TAG, "ip is still null!");
+                    sendFailedJoin();
+                    return;
+                }
+                Log.e(TAG, "got here at least");
+                joinServer(ipAddr);
+            }
+        });
+        joinThread.start();
+    }
+
+    public void joinServer(InetAddress serverIP) {
+        joinServer(serverIP, GAME_LISTEN_PORT);
+    }
+
+    public void joinServer(InetAddress serverIP, Integer port) {
+        if (!doneListening) {
+            Log.e(TAG, "Listening is still in progress");
+            sendFailedJoin();
+            return;
+        }
+        if (mIPTeamMap == null)
+            mIPTeamMap = new HashMap<InetAddress, Byte>();
+        else
+            mIPTeamMap.clear();
+        if (mTeamIPMap == null)
+            mTeamIPMap = new HashMap<Byte, InetAddress>();
+        else
+            mTeamIPMap.clear();
+        keepListeningBroadcast = true;
+        keepListening = true;
+        mIsListService = false;
+        mScanRunning = true;
+        mGameRunning = false;
+        mReadyToScan = 0;
+        startListenForUDPGame();
+        startJoinFailTimer();
+        while(mReadyToScan < 1) {
+            sleep(100);
+        }
+        sendUDPMessage(MESSAGE_PREFIX + UDPMSG_JOIN + UDP_VERSION + mPlayerID, serverIP, port);
+    }
+
+    private Timer mJoinFailTimer = null;
+
+    private void startJoinFailTimer() {
+        if (mJoinFailTimer == null)
+            mJoinFailTimer = new Timer();
+        else
+            return;
+        mJoinFailTimer.schedule(new joinFailTimer(), 1500); // Notify GUI of failed join after 1.5 seconds
+    }
+
+    private class joinFailTimer extends TimerTask {
+        public void run() {
+            if (mScanRunning) {
+                Log.d(TAG, "join failed, could not find a server");
+                mScanRunning = false;
+                keepListening = false;
+                sendFailedJoin();
+            }
+            mJoinFailTimer.cancel();
+            mJoinFailTimer.purge();
+            mJoinFailTimer = null;
+        }
+    }
+
+    private void sendFailedJoin() {
+        Intent intent = new Intent(UDPMSG_FAILEDTOJOIN);
+        sendBroadcast(intent);
     }
 
     public void sendUDPBroadcast(String message) {
@@ -496,11 +594,7 @@ public class UDPListenerService extends Service {
         Thread sendThread = new Thread(new Runnable() {
             public void run() {
                 while (mSendingMessage) {
-                    try {
-                        Thread.sleep(10);
-                    } catch (Exception e) {
-                        e.printStackTrace();
-                    }
+                    sleep(10);
                 }
                 mSendingMessage = true;
                 for (InetAddress ip : mIPTeamMap.keySet()) {
@@ -516,6 +610,9 @@ public class UDPListenerService extends Service {
                     } catch (IOException e) {
                         //Log.e(TAG, "IO Error:", e);
                         e.printStackTrace();
+                        Intent intent = new Intent(UDPMSG_ERROR);
+                        intent.putExtra("message", e.getLocalizedMessage());
+                        sendBroadcast(intent);
                     }
                 }
                 mSendingMessage = false;
@@ -530,11 +627,7 @@ public class UDPListenerService extends Service {
             public void run() {
                 try {
                     while (mSendingMessage) {
-                        try {
-                            Thread.sleep(10);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
+                        sleep(10);
                     }
                     mSendingMessage = true;
                     Log.d(TAG, "sending '" + message + "' to " + ip.toString() + ":" + port);
@@ -548,6 +641,9 @@ public class UDPListenerService extends Service {
                 } catch (IOException e) {
                     //Log.e(TAG, "IO Error:", e);
                     e.printStackTrace();
+                    Intent intent = new Intent(UDPMSG_ERROR);
+                    intent.putExtra("message", e.getLocalizedMessage());
+                    sendBroadcast(intent);
                 }
                 mSendingMessage = false;
             }
@@ -556,7 +652,10 @@ public class UDPListenerService extends Service {
     }
 
     void stopListen() {
+        mScanRunning = false;
+        mGameRunning = false;
         keepListening = false;
+        keepListeningBroadcast = false;
     }
 
     @Override
@@ -578,8 +677,8 @@ public class UDPListenerService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         keepListening = true;
-        //startListenForUDPBroadcast();
-        Log.i(TAG, "Service started");
+        keepListeningBroadcast = true;
+        Log.i(TAG, "UDP Service started");
         return START_STICKY;
     }
 
@@ -621,5 +720,24 @@ public class UDPListenerService extends Service {
     }
 
     public String getGameMode() { return mGameMode; }
+
+    public void startGame() {
+        mGameRunning = true;
+        keepListeningBroadcast = false;
+        sendUDPMessageAll(UDPMSG_STARTGAME);
+    }
+
+    public void endGame() {
+        mGameRunning = false;
+        sendUDPMessageAll(UDPMSG_ENDGAME);
+    }
+
+    private void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
 
 }

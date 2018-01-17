@@ -37,16 +37,24 @@
     <string name="error_select_team">Select a team first!</string>
     <string name="error_same_id">Two players are using the same ID!</string>
     <string name="error_udp_version">Network client version mismatch. Please update the app!</string>
+    <string name="error_no_wifi">Wi-Fi must be connected!</string>
+    <string name="error_join">Unable to find server lobby!</string>
+    <string name="error_server_cancel">Server was canceled!</string>
 
     <string name="end_game_dialog_title">End Game?</string>
     <string name="end_game_dialog_message">Are you sure you want to stop playing?</string>
     <string name="yes">Yes</string>
     <string name="no">No</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
 
     <string name="use_network_button">Use Network?</string>
     <string name="no_network_button">No Network!</string>
-    <string name="ready_button">Ready!</string>
-    <string name="not_ready_button">Cancel Ready</string>
+    <string name="ready_button">Join Lobby</string>
+    <string name="not_ready_button">Leave Lobby</string>
+    <string name="create_server_button">Create Lobby</string>
+    <string name="cancel_server_button">Cancel Lobby</string>
+    <string name="join_ip_button">Join IP&#8230;</string>
     <string name="game_mode_label">Game Mode</string>
     <string name="game_mode_ffa">Free For All</string>
     <string name="game_mode_2teams">2 Teams</string>
@@ -58,4 +66,6 @@
     <string name="network_player_count">%1$d Players</string>
     <string name="not_enough_players_toast">Not enough players!</string>
     <string name="network_team">Team %1$d Player %2$d</string>
+    <string name="player_name">Player Name:</string>
+    <string name="server_ip">Server IP:</string>
 </resources>
