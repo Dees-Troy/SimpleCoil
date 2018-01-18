@@ -442,6 +442,15 @@
             android:layout_above="@+id/score_label_tv"
             app:srcCompat="@drawable/ic_add_circle_green_50dp" />
 
+        <Chronometer
+            android:id="@+id/game_timer_chronometer"
+            style="@android:style/TextAppearance.Material.Small.Inverse"
+            android:format="%s"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignTop="@+id/health_label_tv"
+            android:layout_marginStart="15dp"/>
+
     </RelativeLayout>
 
 </FrameLayout>

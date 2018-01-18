@@ -43,6 +43,7 @@ import android.os.Build;
 import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.os.Vibrator;
 import android.support.annotation.NonNull;
 import android.support.v7.app.AlertDialog;
@@ -56,6 +57,7 @@ import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.webkit.WebView;
 import android.widget.Button;
+import android.widget.Chronometer;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
@@ -111,6 +113,7 @@ public class FullscreenActivity extends AppCompatActivity {
     private Button mCreateServerButton = null;
     private TextView mServerIPTV = null;
     private Button mJoinIPButton = null;
+    private Chronometer mGameTimer = null;
 
     private CountDownTimer mSpawnTimer = null;
     private CountDownTimer mReloadTimer = null;
@@ -145,6 +148,7 @@ public class FullscreenActivity extends AppCompatActivity {
     private static boolean mLastWasHit = false; // Used for filtering multiple reports of the same hit
     private static int mEliminationCount = 0;
     private static int mEmptyTriggerCount = 0;
+    private static boolean mStartGameTimer = true;
 
     /* We calculate an average of the last 100 battery reports. Starting out with a single value
        simplifies some of the code that will have to be run every time the tagger sends telemetry
@@ -385,6 +389,7 @@ public class FullscreenActivity extends AppCompatActivity {
         WebView wv = findViewById(R.id.info_wv);
         wv.loadUrl("file:///android_asset/simplecoil.html");
         wv.setVisibility(View.VISIBLE);
+        mGameTimer = findViewById(R.id.game_timer_chronometer);
 
         showConnectLayout();
         initBatteryQueue();
@@ -666,6 +671,8 @@ public class FullscreenActivity extends AppCompatActivity {
             displayAllNetworkingOptions(false);
             mEndGameButton.setVisibility(View.VISIBLE);
         }
+        mStartGameTimer = true;
+        mGameTimer.setBase(SystemClock.elapsedRealtime());
         startSpawn();
     }
 
@@ -727,6 +734,7 @@ public class FullscreenActivity extends AppCompatActivity {
         mHitPlayerIV.setVisibility(View.GONE);
         mShotsFiredIV.setVisibility(View.GONE);
         startReload(RELOADING_STATE_ELIMINATED);
+        mGameTimer.stop();
     }
 
     /* Sending to Command a packet with 10 00 80 00 PLAYER# then 15 more 00's sets the player ID.
@@ -855,6 +863,10 @@ public class FullscreenActivity extends AppCompatActivity {
                 mGameState = GAME_STATE_RUNNING;
                 playSound(R.raw.spawn, getApplicationContext());
                 finishReload();
+                if (mStartGameTimer) {
+                    mStartGameTimer = false;
+                    mGameTimer.start();
+                }
             }
         }.start();
     }
