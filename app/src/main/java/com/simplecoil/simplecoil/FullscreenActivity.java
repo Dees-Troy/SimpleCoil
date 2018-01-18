@@ -131,6 +131,9 @@ public class FullscreenActivity extends AppCompatActivity {
     private boolean mCommunicating = false; // Used to make sure that we start receiving telemetry data after initial connection
     private String mDeviceAddress = ""; // MAC address of the tagger
     private byte mPlayerID = 0;
+    /* Highest player ID allowed in the GUI, absolute max is 0x3F or 63. Player ID 0 can technically
+    be used but would require code changes to the hit detection if you really need 64 players. */
+    private static final byte MAX_PLAYER_ID = (byte) 0x10;
     private static byte mLastTeam = 0;
     private int mHitsTaken = 0; // total hits taken regardless of lives
     private static int mHealth = MAX_HEALTH;
@@ -309,7 +312,7 @@ public class FullscreenActivity extends AppCompatActivity {
                     if (mPlayerID > (byte)1)
                         mPlayerID--;
                     else
-                        mPlayerID = (byte)0x10;
+                        mPlayerID = MAX_PLAYER_ID;
                     setTeam();
                 }
             }));
@@ -321,7 +324,7 @@ public class FullscreenActivity extends AppCompatActivity {
                 public void onClick(View v) {
                     if (mGameState != GAME_STATE_NONE)
                         return;
-                    if (mPlayerID < (byte)0x10)
+                    if (mPlayerID < MAX_PLAYER_ID)
                         mPlayerID++;
                     else
                         mPlayerID = (byte)0x01;
@@ -735,7 +738,7 @@ public class FullscreenActivity extends AppCompatActivity {
         if (mBluetoothLeService == null || !mBluetoothLeService.isWriteAvailable())
             return;
         Log.d(TAG, "setting player ID to " + mPlayerID);
-        if (mPlayerID < 1 || mPlayerID > 16) {
+        if (mPlayerID < 1 || mPlayerID > MAX_PLAYER_ID) {
             Log.e(TAG, "Invalid Team!");
             return;
         }
@@ -758,17 +761,17 @@ public class FullscreenActivity extends AppCompatActivity {
             mTeamTV.setText(R.string.no_team);
         } else if (mUseNetwork && mGameMode != GAME_MODE_FFA) {
             mNetworkTeam = 1;
-            int x = 8;
+            int x = ((MAX_PLAYER_ID + 1) / 2);
             if (mGameMode == GAME_MODE_2TEAMS) {
-                if (mPlayerID > 8)
+                if (mPlayerID > x)
                     mNetworkTeam = 2;
             } else {
-                x = 4;
-                if (mPlayerID > 12)
+                x = ((MAX_PLAYER_ID + 1) / 4);
+                if (mPlayerID > 3 * x)
                     mNetworkTeam = 4;
-                else if (mPlayerID > 8)
+                else if (mPlayerID > 2 * x)
                     mNetworkTeam = 3;
-                else if (mPlayerID > 4)
+                else if (mPlayerID > x)
                     mNetworkTeam = 2;
             }
             int player = (int) (mPlayerID - (byte)(x * (mNetworkTeam - 1)));
@@ -1253,7 +1256,8 @@ public class FullscreenActivity extends AppCompatActivity {
             byte shotsRemaining = data[RECOIL_OFFSET_SHOTS_REMAINING];
             //byte status = data[RECOIL_OFFSET_STATUS];
             //int buttons = data[RECOIL_OFFSET_BUTTONS];
-            int hit_by_player1 = data[RECOIL_OFFSET_HIT_BY1];
+            // bytes are always signed in Java and if you don't do the & 0xFF here, you will get negative numbers in the hit by player field when using player IDs > 32
+            int hit_by_player1 = (data[RECOIL_OFFSET_HIT_BY1] & 0xFF);
             byte trigger_counter = (byte)(data[RECOIL_OFFSET_RELOAD_TRIGGER_COUNTER] & (byte)0x0F);
             byte reload_counter = (byte)(data[RECOIL_OFFSET_RELOAD_TRIGGER_COUNTER] & (byte)0xF0);
             byte thumb_counter = data[RECOIL_OFFSET_THUMB_COUNTER];
@@ -1349,6 +1353,7 @@ public class FullscreenActivity extends AppCompatActivity {
                     mLastWasHit = false;
                     Log.d(TAG, "hit filtered");
                 } else {
+                    Log.d(TAG, "Before bitshift hit by " + hit_by_player1);
                     mLastWasHit = true;
                     mHitsTaken++;
                     String hitsTaken = "" + mHitsTaken;
@@ -1369,7 +1374,8 @@ public class FullscreenActivity extends AppCompatActivity {
                         }
                     }
                     // Often, hit_by_player2 is the same player ID as player1
-                    int hit_by_player2 = data[RECOIL_OFFSET_HIT_BY2];
+                    // bytes are always signed in Java and if you don't do the & 0xFF here, you will get negative numbers in the hit by player field when using player IDs > 32
+                    int hit_by_player2 = (data[RECOIL_OFFSET_HIT_BY2] & 0xFF);
                     if (hit_by_player2 != 0 && hit_by_player2 != hit_by_player1 && mHealth + healthRemoved > 0) {
                         healthRemoved--;
                         if (mUseNetwork) {
@@ -1459,14 +1465,16 @@ public class FullscreenActivity extends AppCompatActivity {
     private int calcNetworkTeam(byte player_id) {
         int team = 1;
         if (mGameMode == GAME_MODE_2TEAMS) {
-            if (player_id > 8)
+            final int x = ((MAX_PLAYER_ID + 1) / 2);
+            if (player_id > x)
                 team = 2;
         } else if (mGameMode == GAME_MODE_4TEAMS){
-            if (player_id > 12)
+            final int x = ((MAX_PLAYER_ID + 1) / 4);
+            if (player_id > 3 * x)
                 team = 4;
-            else if (player_id > 8)
+            else if (player_id > 2 * x)
                 team = 3;
-            else if (player_id > 4)
+            else if (player_id > x)
                 team = 2;
         } else if (mGameMode == GAME_MODE_FFA)
             return player_id;
