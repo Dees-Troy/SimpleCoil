@@ -16,8 +16,10 @@
     <EditText
         android:id="@+id/server_ip_et"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" >
-
+        android:layout_height="wrap_content"
+        android:digits="0123456789."
+        android:maxLength="15"
+        android:inputType="number" >
         <requestFocus />
 
     </EditText>

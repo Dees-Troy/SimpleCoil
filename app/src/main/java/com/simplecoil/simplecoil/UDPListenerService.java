@@ -63,6 +63,10 @@ public class UDPListenerService extends Service {
     public static final String UDPMSG_SAMETEAM = "UDPSAMETEAM";
     public static final String UDPMSG_SERVERCREATED = "UDPSERVERCREATED";
     public static final String UDPMSG_SERVERCANCEL = "UDPSERVERCANCEL";
+    public static final String UDPMSG_LIMITTIME = "UDPLIMITTIME";
+    public static final String UDPMSG_LIMITLIVES = "UDPLIMITLIVES";
+    public static final String UDPMSG_LIMITSCORE = "UDPLIMITSCORE";
+    public static final String UDPMSG_UNLIMITED = "UDPUNLIMITED";
 
     // UDPJOIN is UDPJOIN + playerID, so UDPJOIN2 for playerID 2
     public static final String UDPMSG_JOIN = "UDPJOIN";
@@ -73,9 +77,14 @@ public class UDPListenerService extends Service {
     public static final String UDPMSG_LISTPLAYERS = "UDPLISTPLAYERS";
 
     private static final String MESSAGE_PREFIX = "SimpleCoil:";
-    private static final String UDP_VERSION = "02";
+    private static final String UDP_VERSION = "03";
     // 1 for FFA, 2 for 2 Teams, and 4 for 4 Teams
     private String mGameMode = "2";
+
+    private int mGameLimit = FullscreenActivity.GAME_LIMIT_NONE;
+    private int mTimeLimit = 0;
+    private int mScoreLimit = 0;
+    private int mLivesLimit = 0;
 
     private volatile byte mPlayerID = 0;
 
@@ -304,6 +313,27 @@ public class UDPListenerService extends Service {
             } else if (message.startsWith(UDPMSG_SERVERCANCEL)) {
                 // Server is gone
                 intent = new Intent(UDPMSG_SERVERCANCEL);
+            } else if (message.startsWith(UDPMSG_LIMITTIME)) {
+                // Game limited by time
+                message = message.substring(UDPMSG_LIMITTIME.length());
+                int limit = (int) Integer.parseInt(message);
+                intent = new Intent(UDPMSG_LIMITTIME);
+                intent.putExtra("limit", limit);
+            } else if (message.startsWith(UDPMSG_LIMITLIVES)) {
+                // Game limited by lives
+                message = message.substring(UDPMSG_LIMITLIVES.length());
+                int limit = (int) Integer.parseInt(message);
+                intent = new Intent(UDPMSG_LIMITLIVES);
+                intent.putExtra("limit", limit);
+            } else if (message.startsWith(UDPMSG_LIMITSCORE)) {
+                // Game limited by score
+                message = message.substring(UDPMSG_LIMITSCORE.length());
+                int limit = (int) Integer.parseInt(message);
+                intent = new Intent(UDPMSG_LIMITSCORE);
+                intent.putExtra("limit", limit);
+            } else if (message.startsWith(UDPMSG_UNLIMITED)) {
+                // No game limit
+                intent = new Intent(UDPMSG_UNLIMITED);
             }
         }
         if (intent != null)
@@ -319,11 +349,31 @@ public class UDPListenerService extends Service {
                 e.printStackTrace();
             }
         }
-        String message = mGameMode + mPlayerID + "-" + mMyIP.toString();
-        for (Map.Entry<InetAddress, Byte> entry : mIPTeamMap.entrySet()) {
-            message += "_" + entry.getValue() + "-" + entry.getKey();
-        }
-        sendUDPMessageAll(UDPMSG_LISTPLAYERS + message);
+        Thread sendListThread = new Thread(new Runnable() {
+            public void run() {
+                String message = mGameMode + mPlayerID + "-" + mMyIP.toString();
+                for (Map.Entry<InetAddress, Byte> entry : mIPTeamMap.entrySet()) {
+                    message += "_" + entry.getValue() + "-" + entry.getKey();
+                }
+                sendUDPMessageAll(UDPMSG_LISTPLAYERS + message);
+                sleep(100);
+                if ((mGameLimit & FullscreenActivity.GAME_LIMIT_TIME) != 0) {
+                    message = UDPMSG_LIMITTIME + mTimeLimit;
+                    sendUDPMessageAll(message);
+                    sleep(100);
+                }
+                if ((mGameLimit & FullscreenActivity.GAME_LIMIT_LIVES) != 0) {
+                    message = UDPMSG_LIMITLIVES + mLivesLimit;
+                    sendUDPMessageAll(message);
+                    sleep(100);
+                }
+                if ((mGameLimit & FullscreenActivity.GAME_LIMIT_SCORE) != 0) {
+                    message = UDPMSG_LIMITSCORE + mScoreLimit;
+                    sendUDPMessageAll(message);
+                }
+            }
+        });
+        sendListThread.start();
         Intent intent = new Intent(UDPMSG_LISTPLAYERS);
         sendBroadcast(intent);
     }
@@ -622,6 +672,43 @@ public class UDPListenerService extends Service {
         sendThread.start();
     }
 
+    public void sendUDPMessageAllRepeat(String message, final int repeatCount) {
+        final String prefixedMessage = MESSAGE_PREFIX + message;
+        Thread sendThread = new Thread(new Runnable() {
+            public void run() {
+                while (mSendingMessage) {
+                    sleep(10);
+                }
+                mSendingMessage = true;
+                int repeat = repeatCount;
+                while (repeat-- > 0) {
+                    for (InetAddress ip : mIPTeamMap.keySet()) {
+                        try {
+                            Log.d(TAG, "sending '" + prefixedMessage + "' to " + ip.toString() + ":" + GAME_LISTEN_PORT);
+                            DatagramSocket udpSocket = new DatagramSocket(0); // system will assign any unused port for sending
+                            byte[] buf = prefixedMessage.getBytes();
+                            DatagramPacket packet = new DatagramPacket(buf, buf.length, ip, GAME_LISTEN_PORT);
+                            udpSocket.send(packet);
+                            udpSocket.close();
+                        } catch (SocketException e) {
+                            Log.e(TAG, "Socket Error:", e);
+                        } catch (IOException e) {
+                            //Log.e(TAG, "IO Error:", e);
+                            e.printStackTrace();
+                            Intent intent = new Intent(UDPMSG_ERROR);
+                            intent.putExtra("message", e.getLocalizedMessage());
+                            sendBroadcast(intent);
+                        }
+                    }
+                    sleep(50);
+                }
+                mSendingMessage = false;
+                Log.d(TAG, "send all repeat finished");
+            }
+        });
+        sendThread.start();
+    }
+
     private void sendUDPMessage(final String message, final InetAddress ip, final Integer port) {
         Thread sendThread = new Thread(new Runnable() {
             public void run() {
@@ -719,17 +806,24 @@ public class UDPListenerService extends Service {
             mGameMode = "1";
     }
 
+    public void setGameLimit(int gameLimit, int timeLimit, int livesLimit, int scoreLimit) {
+        mGameLimit = gameLimit;
+        mTimeLimit = timeLimit;
+        mLivesLimit = livesLimit;
+        mScoreLimit = scoreLimit;
+    }
+
     public String getGameMode() { return mGameMode; }
 
     public void startGame() {
         mGameRunning = true;
         keepListeningBroadcast = false;
-        sendUDPMessageAll(UDPMSG_STARTGAME);
+        sendUDPMessageAllRepeat(UDPMSG_STARTGAME, 3);
     }
 
     public void endGame() {
         mGameRunning = false;
-        sendUDPMessageAll(UDPMSG_ENDGAME);
+        sendUDPMessageAllRepeat(UDPMSG_ENDGAME, 3);
     }
 
     private void sleep(long millis) {

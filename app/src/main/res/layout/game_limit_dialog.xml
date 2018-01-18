@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/layout_root"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="10dp" >
+
+    <TextView
+        android:id="@+id/title_tv"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/game_limit_title"
+        android:textAppearance="?android:attr/textAppearanceLarge" />
+
+    <RadioButton
+        android:id="@+id/game_limit_time_radio"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/game_limit_time" />
+
+    <RadioButton
+        android:id="@+id/game_limit_lives_radio"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/game_limit_lives" />
+
+    <RadioButton
+        android:id="@+id/game_limit_score_radio"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/game_limit_score" />
+
+    <EditText
+        android:id="@+id/game_limit_et"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:digits="0123456789"
+        android:maxLength="3"
+        android:inputType="number" >
+        <requestFocus />
+
+    </EditText>
+
+</LinearLayout>

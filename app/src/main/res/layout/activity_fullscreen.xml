@@ -359,6 +359,16 @@
             android:layout_above="@id/game_mode_label_tv"
             android:text="@string/game_mode_toggle_button" />
 
+        <Button
+            android:id="@+id/game_limit_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="0dp"
+            android:layout_marginStart="15dp"
+            android:layout_above="@id/eliminations_count_label_tv"
+            android:text="@string/game_limit_button" />
+
         <TextView
             android:id="@+id/score_label_tv"
             android:layout_width="wrap_content"
@@ -450,6 +460,15 @@
             android:layout_height="wrap_content"
             android:layout_alignTop="@+id/health_label_tv"
             android:layout_marginStart="15dp"/>
+
+        <TextView
+            android:id="@+id/game_countdown_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignTop="@+id/health_label_tv"
+            android:layout_marginStart="15dp"
+            android:text=""
+            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
     </RelativeLayout>
 

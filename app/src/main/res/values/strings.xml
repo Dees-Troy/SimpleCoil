@@ -15,6 +15,7 @@
     <string name="no_team">No Team</string>
 
     <string name="eliminations_count_label">ELIMINATIONS</string>
+    <string name="lives_count_label">LIVES</string>
     <string name="shots_remaining_label">SHOTS</string>
     <string name="shot_mode_label">MODE</string>
     <string name="shot_mode_single">Single</string>
@@ -24,6 +25,7 @@
     <string name="recoil_enabled">Enabled</string>
     <string name="recoil_disabled">Disabled</string>
     <string name="score_label">SCORE</string>
+    <string name="score_limit_label">SCORE (%1$d)</string>
 
     <string name="health_label">HEALTH</string>
 
@@ -40,6 +42,7 @@
     <string name="error_no_wifi">Wi-Fi must be connected!</string>
     <string name="error_join">Unable to find server lobby!</string>
     <string name="error_server_cancel">Server was canceled!</string>
+    <string name="error_limit_too_high">Limit is too high!</string>
 
     <string name="end_game_dialog_title">End Game?</string>
     <string name="end_game_dialog_message">Are you sure you want to stop playing?</string>
@@ -68,4 +71,9 @@
     <string name="network_team">Team %1$d Player %2$d</string>
     <string name="player_name">Player Name:</string>
     <string name="server_ip">Server IP:</string>
+    <string name="game_limit_button">Game Limit</string>
+    <string name="game_limit_title">Set Game Limit (0 for unlimited):</string>
+    <string name="game_limit_time">Time in minutes</string>
+    <string name="game_limit_lives">Lives</string>
+    <string name="game_limit_score">Score</string>
 </resources>

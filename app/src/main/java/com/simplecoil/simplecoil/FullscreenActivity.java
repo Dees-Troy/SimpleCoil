@@ -61,6 +61,7 @@ import android.widget.Chronometer;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.ProgressBar;
+import android.widget.RadioButton;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -70,6 +71,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * An example full-screen activity that shows and hides the system UI (i.e.
@@ -114,9 +116,12 @@ public class FullscreenActivity extends AppCompatActivity {
     private TextView mServerIPTV = null;
     private Button mJoinIPButton = null;
     private Chronometer mGameTimer = null;
+    private Button mGameLimitButton = null;
+    private TextView mGameCountDownTV = null;
 
     private CountDownTimer mSpawnTimer = null;
     private CountDownTimer mReloadTimer = null;
+    private CountDownTimer mGameCountdownTimer = null;
 
     private BluetoothLeScanner mBluetoothLeScanner;
     private BluetoothLeService mBluetoothLeService;
@@ -240,6 +245,15 @@ public class FullscreenActivity extends AppCompatActivity {
     private boolean mRequestedPlayerName = false;
     private String mPlayerName = "Player";
     private SharedPreferences sharedPreferences = null;
+
+    public static final int GAME_LIMIT_NONE = 0;
+    public static final int GAME_LIMIT_TIME = 1;
+    public static final int GAME_LIMIT_LIVES = 2;
+    public static final int GAME_LIMIT_SCORE = 4;
+    private static int mGameLimit = GAME_LIMIT_NONE;
+    private static int mScoreLimit = 0;
+    private static int mTimeLimit = 0;
+    private static int mLivesLimit = 0;
 
     private void setupBLEServiceConnection() {
         mBLEServiceConnection = new ServiceConnection() {
@@ -462,7 +476,6 @@ public class FullscreenActivity extends AppCompatActivity {
                         mGameMode = GAME_MODE_FFA;
                         mGameModeTV.setText(R.string.game_mode_ffa);
                     }
-                    mUDPListenerService.setGameMode(mGameMode);
                     setTeam();
                 }
             }));
@@ -485,6 +498,7 @@ public class FullscreenActivity extends AppCompatActivity {
                     }
                     if (!mIsServer) {
                         mUDPListenerService.setGameMode(mGameMode);
+                        mUDPListenerService.setGameLimit(mGameLimit, mTimeLimit, mLivesLimit, mScoreLimit);
                         mUDPListenerService.createServer();
                         mCreateServerButton.setEnabled(false);
                         mUseNetworkingButton.setVisibility(View.INVISIBLE);
@@ -514,6 +528,15 @@ public class FullscreenActivity extends AppCompatActivity {
                 }
             }));
         }
+        mGameLimitButton = findViewById(R.id.game_limit_button);
+        if (mGameLimitButton != null) {
+            mGameLimitButton.setOnClickListener((new View.OnClickListener() {
+                public void onClick(View v) {
+                    requestGameLimit();
+                }
+            }));
+        }
+        mGameCountDownTV = findViewById(R.id.game_countdown_tv);
         displayAllNetworkingOptions(false);
         mUseNetworkingButton.setVisibility(View.VISIBLE);
     }
@@ -587,6 +610,130 @@ public class FullscreenActivity extends AppCompatActivity {
         alertDialog.show();
     }
 
+    private void requestGameLimit() {
+        LayoutInflater li = LayoutInflater.from(getApplicationContext());
+        View view = li.inflate(R.layout.game_limit_dialog, null);
+
+        AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(this, R.style.Theme_AppCompat_DayNight_Dialog_Alert);
+        alertDialogBuilder.setView(view);
+
+        final EditText gameLimitET = view.findViewById(R.id.game_limit_et);
+        final RadioButton gameLimitTime = view.findViewById(R.id.game_limit_time_radio);
+        gameLimitTime.setChecked(true);
+        final RadioButton gameLimitLives = view.findViewById(R.id.game_limit_lives_radio);
+        gameLimitLives.setChecked(false);
+        final RadioButton gameLimitScore = view.findViewById(R.id.game_limit_score_radio);
+        gameLimitScore.setChecked(false);
+        if (mUseNetwork)
+            gameLimitScore.setVisibility(View.VISIBLE);
+        else
+            gameLimitScore.setVisibility(View.GONE);
+        gameLimitTime.setOnClickListener((new View.OnClickListener() {
+            public void onClick(View v) {
+                gameLimitTime.setChecked(true);
+                gameLimitLives.setChecked(false);
+                gameLimitScore.setChecked(false);
+            }
+        }));
+        gameLimitLives.setOnClickListener((new View.OnClickListener() {
+            public void onClick(View v) {
+                gameLimitTime.setChecked(false);
+                gameLimitLives.setChecked(true);
+                gameLimitScore.setChecked(false);
+            }
+        }));
+        gameLimitScore.setOnClickListener((new View.OnClickListener() {
+            public void onClick(View v) {
+                gameLimitTime.setChecked(false);
+                gameLimitLives.setChecked(false);
+                gameLimitScore.setChecked(true);
+            }
+        }));
+
+        alertDialogBuilder
+                .setCancelable(false)
+                .setPositiveButton(R.string.ok,
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog,int id) {
+                                if (gameLimitET.getText().toString().isEmpty()) {
+                                    dialog.dismiss();
+                                    return;
+                                }
+                                Integer limit = 0;
+                                try {
+                                    limit = Integer.parseInt(gameLimitET.getText().toString());
+                                } catch (Exception ignored) {
+                                    dialog.dismiss();
+                                    return;
+                                }
+                                if (limit > 100) {
+                                    Toast.makeText(getApplicationContext(), getString(R.string.error_limit_too_high), Toast.LENGTH_SHORT).show();
+                                    dialog.dismiss();
+                                    return;
+                                }
+                                if (gameLimitTime.isChecked()) {
+                                    if ((mGameLimit & GAME_LIMIT_TIME) == 0)
+                                        mGameLimit += GAME_LIMIT_TIME;
+                                    else if (limit <= 0)
+                                        mGameLimit -= GAME_LIMIT_TIME;
+                                    mTimeLimit = limit;
+                                } else if (gameLimitLives.isChecked()) {
+                                    if ((mGameLimit & GAME_LIMIT_LIVES) == 0)
+                                        mGameLimit += GAME_LIMIT_LIVES;
+                                    else if (limit <= 0)
+                                        mGameLimit -= GAME_LIMIT_LIVES;
+                                    mLivesLimit = limit;
+                                } else {
+                                    if ((mGameLimit & GAME_LIMIT_SCORE) == 0)
+                                        mGameLimit += GAME_LIMIT_SCORE;
+                                    else if (limit <= 0)
+                                        mGameLimit -= GAME_LIMIT_SCORE;
+                                    mScoreLimit = limit;
+                                }
+                                setGameLimit();
+                                dialog.dismiss();
+                            }
+                        })
+                .setNegativeButton(R.string.cancel,
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog,int id) {
+                                dialog.cancel();
+                            }
+                        });
+        AlertDialog alertDialog = alertDialogBuilder.create();
+        alertDialog.show();
+    }
+
+    private void setGameLimit() {
+        Log.d(TAG, "setGameLimit");
+        if ((mGameLimit & GAME_LIMIT_TIME) != 0) {
+            Log.d(TAG, "time limit set");
+            mGameCountDownTV.setVisibility(View.VISIBLE);
+            String display = String.format("%02d:00", mTimeLimit);
+            mGameCountDownTV.setText(display);
+            mGameTimer.setVisibility(View.GONE);
+        } else {
+            mGameCountDownTV.setVisibility(View.GONE);
+            mGameTimer.setVisibility(View.VISIBLE);
+        }
+        TextView eliminationLabel = findViewById(R.id.eliminations_count_label_tv);
+        if ((mGameLimit & GAME_LIMIT_LIVES) != 0) {
+            Log.d(TAG, "lives limit set");
+            eliminationLabel.setText(R.string.lives_count_label);
+            mEliminationCountTV.setText("" + mLivesLimit);
+        } else {
+            eliminationLabel.setText(R.string.eliminations_count_label);
+            mEliminationCountTV.setText("" + mEliminationCount);
+        }
+        TextView scoreLabel = findViewById(R.id.score_label_tv);
+        if ((mGameLimit & GAME_LIMIT_SCORE) != 0) {
+            Log.d(TAG, "score limit set");
+            scoreLabel.setText(getString(R.string.score_limit_label, mScoreLimit));
+        } else {
+            scoreLabel.setText(R.string.score_label);
+        }
+    }
+
     public String getPlayerName() { return mPlayerName; }
 
     private void setReady() { setReady(true); }
@@ -611,6 +758,7 @@ public class FullscreenActivity extends AppCompatActivity {
             mToggleGameModeButton.setVisibility(View.GONE);
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             mNetworkBar.setVisibility(View.VISIBLE);
+            mGameLimitButton.setVisibility(View.GONE);
         } else {
             if (sendPlayerLeft)
                 mUDPListenerService.sendUDPMessageAll(UDPListenerService.UDPMSG_LEAVE);
@@ -628,6 +776,7 @@ public class FullscreenActivity extends AppCompatActivity {
             mJoinIPButton.setVisibility(View.VISIBLE);
             mServerIPTV.setVisibility(View.GONE);
             mReadyButton.setVisibility(View.VISIBLE);
+            mGameLimitButton.setVisibility(View.VISIBLE);
         }
     }
 
@@ -656,14 +805,18 @@ public class FullscreenActivity extends AppCompatActivity {
                         | View.SYSTEM_UI_FLAG_IMMERSIVE);
         mScore = 0;
         mScoreTV.setText("0");
-        mEliminationCount = 0;
-        mEliminationCountTV.setText("0");
+        if ((mGameLimit & GAME_LIMIT_LIVES) != 0)
+            mEliminationCount = mLivesLimit;
+        else
+            mEliminationCount = 0;
+        mEliminationCountTV.setText("" + mEliminationCount);
         mHealth = MAX_HEALTH;
         mHealthBar.setProgress(mHealth);
         mEliminatedTV.setText(R.string.starting_game_label);
         mStartGameButton.setVisibility(View.GONE);
         mTeamMinusButton.setVisibility(View.INVISIBLE);
         mTeamPlusButton.setVisibility(View.INVISIBLE);
+        mGameLimitButton.setVisibility(View.GONE);
         if (mUseNetwork) {
             displayInGameNetworkingOptions();
             mEndNetworkGameButton.setVisibility(View.VISIBLE);
@@ -672,7 +825,6 @@ public class FullscreenActivity extends AppCompatActivity {
             mEndGameButton.setVisibility(View.VISIBLE);
         }
         mStartGameTimer = true;
-        mGameTimer.setBase(SystemClock.elapsedRealtime());
         startSpawn();
     }
 
@@ -720,6 +872,8 @@ public class FullscreenActivity extends AppCompatActivity {
             mSpawnTimer.cancel();
         if (mReloadTimer != null)
             mReloadTimer.cancel();
+        if (mGameCountdownTimer != null)
+            mGameCountdownTimer.cancel();
         mStartGameButton.setVisibility(View.VISIBLE);
         mTeamMinusButton.setVisibility(View.VISIBLE);
         mTeamPlusButton.setVisibility(View.VISIBLE);
@@ -865,8 +1019,32 @@ public class FullscreenActivity extends AppCompatActivity {
                 finishReload();
                 if (mStartGameTimer) {
                     mStartGameTimer = false;
-                    mGameTimer.start();
+                    if ((mGameLimit & GAME_LIMIT_TIME) != 0) {
+                        startGameCountdown();
+                    } else {
+                        mGameTimer.setBase(SystemClock.elapsedRealtime());
+                        mGameTimer.start();
+                    }
                 }
+            }
+        }.start();
+    }
+
+    private void startGameCountdown() {
+        mGameCountdownTimer = new CountDownTimer(mTimeLimit * 20 * 1000, 1000) {
+
+            public void onTick(long millisUntilFinished) {
+                String display = ""+String.format("%02d:%02d",
+                        TimeUnit.MILLISECONDS.toMinutes(millisUntilFinished),
+                        TimeUnit.MILLISECONDS.toSeconds(millisUntilFinished) - TimeUnit.MINUTES.toSeconds(
+                                TimeUnit.MILLISECONDS.toMinutes(millisUntilFinished)));
+                mGameCountDownTV.setText(display);
+            }
+
+            public void onFinish() {
+                Log.d(TAG, "Game time ended!");
+                playSound(R.raw.eliminated, getApplicationContext());
+                endGame();
             }
         }.start();
     }
@@ -1431,13 +1609,18 @@ public class FullscreenActivity extends AppCompatActivity {
                             } else {
                                 vibrator.vibrate(HIT_VIBRATE_DURATION_MILLISECONDS);
                                 playSound(R.raw.eliminated, getApplicationContext());
-                                mEliminationCount++;
+                                if ((mGameLimit & GAME_LIMIT_LIVES) != 0)
+                                    mEliminationCount--;
+                                else
+                                    mEliminationCount++;
                                 String elimStr = "" + mEliminationCount;
                                 mEliminationCountTV.setText(elimStr);
                                 startSpawn();
                                 if (mUseNetwork) {
                                     mUDPListenerService.sendUDPMessage(UDPListenerService.UDPMSG_ELIMINATED, hit_by_id);
                                 }
+                                if ((mGameLimit & GAME_LIMIT_LIVES) != 0 && mEliminationCount <= 0)
+                                    endGame(); // Sorry, you're out of the game
                             }
                         }
                     }
@@ -1564,6 +1747,11 @@ public class FullscreenActivity extends AppCompatActivity {
                         mScoreIncreaseIV.setVisibility(View.GONE);
                     }
                 }, HIT_ANIMATION_DURATION_MILLISECONDS);
+                if ((mGameLimit & GAME_LIMIT_SCORE) != 0 && mScore >= mScoreLimit) {
+                    endGame();
+                    if (mUseNetwork)
+                        mUDPListenerService.endGame();
+                }
             } else if (UDPListenerService.UDPMSG_JOIN.equals(action) || UDPListenerService.UDPMSG_LEAVE.equals(action)) {
                 mPlayerCount = mUDPListenerService.getPlayerCount();
                 mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, mPlayerCount));
@@ -1583,6 +1771,10 @@ public class FullscreenActivity extends AppCompatActivity {
                     mGameModeTV.setText(R.string.game_mode_ffa);
                 }
                 setTeam();
+                if (!mIsServer) {
+                    mGameLimit = GAME_LIMIT_NONE;
+                    setGameLimit();
+                }
             } else if (UDPListenerService.UDPMSG_STARTGAME.equals(action)) {
                 startGame();
             } else if (UDPListenerService.UDPMSG_ENDGAME.equals(action)) {
@@ -1621,6 +1813,25 @@ public class FullscreenActivity extends AppCompatActivity {
                 mReady = false;
                 setReady(false);
                 Toast.makeText(getApplicationContext(), getString(R.string.error_server_cancel), Toast.LENGTH_SHORT).show();
+            } else if (UDPListenerService.UDPMSG_LIMITTIME.equals(action)) {
+                if ((mGameLimit & GAME_LIMIT_TIME) == 0)
+                    mGameLimit += GAME_LIMIT_TIME;
+                mTimeLimit = intent.getIntExtra("limit", 0);
+                setGameLimit();
+            } else if (UDPListenerService.UDPMSG_LIMITLIVES.equals(action)) {
+                if ((mGameLimit & GAME_LIMIT_LIVES) == 0)
+                    mGameLimit += GAME_LIMIT_LIVES;
+                mLivesLimit = intent.getIntExtra("limit", 0);
+                Log.d(TAG, "received lives limit " + mLivesLimit);
+                setGameLimit();
+            } else if (UDPListenerService.UDPMSG_LIMITSCORE.equals(action)) {
+                if ((mGameLimit & GAME_LIMIT_SCORE) == 0)
+                    mGameLimit += GAME_LIMIT_SCORE;
+                mScoreLimit = intent.getIntExtra("limit", 0);
+                setGameLimit();
+            } else if (UDPListenerService.UDPMSG_UNLIMITED.equals(action)) {
+                mGameLimit = GAME_LIMIT_NONE;
+                setGameLimit();
             }
         }
     };
@@ -1642,6 +1853,10 @@ public class FullscreenActivity extends AppCompatActivity {
         intentFilter.addAction(UDPListenerService.UDPMSG_SAMETEAM);
         intentFilter.addAction(UDPListenerService.UDPMSG_SERVERCREATED);
         intentFilter.addAction(UDPListenerService.UDPMSG_SERVERCANCEL);
+        intentFilter.addAction(UDPListenerService.UDPMSG_LIMITTIME);
+        intentFilter.addAction(UDPListenerService.UDPMSG_LIMITLIVES);
+        intentFilter.addAction(UDPListenerService.UDPMSG_LIMITSCORE);
+        intentFilter.addAction(UDPListenerService.UDPMSG_UNLIMITED);
         return intentFilter;
     }
 
@@ -1659,6 +1874,7 @@ public class FullscreenActivity extends AppCompatActivity {
         mServerIPTV.setVisibility(View.GONE);
         mJoinIPButton.setVisibility(visibility);
         mNetworkBar.setVisibility(View.GONE);
+        //mGameLimitButton.setVisibility(visibility);
     }
 
     private void displayInGameNetworkingOptions() {
@@ -1668,6 +1884,6 @@ public class FullscreenActivity extends AppCompatActivity {
         mGameModeTV.setVisibility(View.VISIBLE);
         mScoreLabelTV.setVisibility(View.VISIBLE);
         mScoreTV.setVisibility(View.VISIBLE);
-        mEndNetworkGameButton.setVisibility(View.VISIBLE);
+        //mEndNetworkGameButton.setVisibility(View.VISIBLE);
     }
 }
