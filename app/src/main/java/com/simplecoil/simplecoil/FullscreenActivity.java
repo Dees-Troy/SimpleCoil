@@ -91,6 +91,8 @@ public class FullscreenActivity extends AppCompatActivity {
     private TextView mNetworkPlayerCountTV = null;
     private TextView mScoreTV = null;
     private TextView mScoreLabelTV = null;
+    private TextView mTeamScoreTV = null;
+    private TextView mTeamScoreLabelTV = null;
     private TextView mGameModeTV = null;
     private TextView mGameModeLabelTV = null;
     private Button mUseNetworkingButton = null;
@@ -102,6 +104,7 @@ public class FullscreenActivity extends AppCompatActivity {
     private TextView mShotModeTV = null;
     private TextView mEliminatedTV = null;
     private TextView mSpawnInTV = null;
+    private TextView mEliminatedByTV = null;
     private ProgressBar mHealthBar = null;
     private ProgressBar mReloadBar = null;
     private ProgressBar mNetworkBar = null;
@@ -110,8 +113,10 @@ public class FullscreenActivity extends AppCompatActivity {
     private AnimationDrawable mHitAnimation = null;
     private ImageView mHitPlayerIV = null;
     private AnimationDrawable mHitPlayerAnimation = null;
+    private TextView mHitPlayerNameTV = null;
     private ImageView mShotsFiredIV = null;
     private ImageView mScoreIncreaseIV = null;
+    private TextView mScoreIncreasePlayerNameTV = null;
     private Button mCreateServerButton = null;
     private TextView mServerIPTV = null;
     private Button mJoinIPButton = null;
@@ -219,6 +224,7 @@ public class FullscreenActivity extends AppCompatActivity {
     public static final int GAME_MODE_4TEAMS = 3;
     private int mGameMode = GAME_MODE_2TEAMS;
     private int mScore = 0;
+    private int mTeamScore = 0;
     private int mPlayerCount = 0;
     private boolean mReady = false;
     private int mNetworkTeam = 0;
@@ -237,7 +243,9 @@ public class FullscreenActivity extends AppCompatActivity {
     private static final int CONNECTION_FAIL_TEST_INTERVAL_MILLISECONDS = 30000;
 
     private static final int HIT_VIBRATE_DURATION_MILLISECONDS = 250;
+    // If you change these durations you will also need to change the duration in the res/anim/fadeout xml files to match
     private static final int HIT_ANIMATION_DURATION_MILLISECONDS = 400;
+    private static final int ELIMINATED_ANIMATION_DURATION_MILLISECONDS = 800;
 
     // Code to manage Service lifecycle.
     private ServiceConnection mBLEServiceConnection = null;
@@ -245,6 +253,8 @@ public class FullscreenActivity extends AppCompatActivity {
     private boolean mRequestedPlayerName = false;
     private String mPlayerName = "Player";
     private SharedPreferences sharedPreferences = null;
+    private static final String PREF_NAME = "SimpleCoil";
+    private static final String PREF_PLAYER_NAME = "PlayerName";
 
     public static final int GAME_LIMIT_NONE = 0;
     public static final int GAME_LIMIT_TIME = 1;
@@ -289,6 +299,10 @@ public class FullscreenActivity extends AppCompatActivity {
             @Override
             public void onServiceConnected(ComponentName componentName, IBinder service) {
                 mUDPListenerService = ((UDPListenerService.LocalBinder) service).getService();
+                mUDPListenerService.setPlayerName(mPlayerName);
+                mUDPListenerService.setPlayerID(mPlayerID);
+                mUDPListenerService.setGameLimit(mGameLimit, mTimeLimit, mLivesLimit, mScoreLimit);
+                mUDPListenerService.setGameMode(mGameMode);
             }
 
             @Override
@@ -397,6 +411,7 @@ public class FullscreenActivity extends AppCompatActivity {
         mHealthBar.setProgress(MAX_HEALTH);
         mReloadBar = findViewById(R.id.reload_pb);
         mEliminatedTV = findViewById(R.id.eliminated_tv);
+        mEliminatedByTV = findViewById(R.id.eliminated_by_tv);
         mSpawnInTV = findViewById(R.id.spawn_countdown_tv);
         mHitIV = findViewById(R.id.hit_animation_iv);
         mBatteryLevelIV = findViewById(R.id.battery_iv);
@@ -408,8 +423,8 @@ public class FullscreenActivity extends AppCompatActivity {
         showConnectLayout();
         initBatteryQueue();
         vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-        sharedPreferences = getSharedPreferences("SimpleCoil", Context.MODE_PRIVATE);
-        mPlayerName = sharedPreferences.getString("PlayerName", "Player");
+        sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        mPlayerName = sharedPreferences.getString(PREF_PLAYER_NAME, "Player");
 
         try {
             // Display app version
@@ -434,9 +449,9 @@ public class FullscreenActivity extends AppCompatActivity {
                             mUseNetwork = false;
                             return;
                         }
+                        mUDPListenerService.setPlayerName(mPlayerName);
                         if (!mRequestedPlayerName) {
-                            //requestPlayerName();
-                            //return;
+                            requestPlayerName();
                         }
                         displayAllNetworkingOptions(true);
                         mUseNetworkingButton.setText(R.string.no_network_button);
@@ -484,9 +499,13 @@ public class FullscreenActivity extends AppCompatActivity {
         mGameModeTV = findViewById(R.id.game_mode_tv);
         mScoreLabelTV = findViewById(R.id.score_label_tv);
         mScoreTV = findViewById(R.id.score_tv);
+        mTeamScoreLabelTV = findViewById(R.id.team_score_label_tv);
+        mTeamScoreTV = findViewById(R.id.team_score_tv);
         mHitPlayerIV = findViewById(R.id.hit_player_iv);
+        mHitPlayerNameTV = findViewById(R.id.hit_player_name_tv);
         mShotsFiredIV = findViewById(R.id.shots_fired_iv);
         mScoreIncreaseIV = findViewById(R.id.score_increase_iv);
+        mScoreIncreasePlayerNameTV = findViewById(R.id.score_increase_player_name_tv);
         mNetworkBar = findViewById(R.id.network_pb);
         mCreateServerButton = findViewById(R.id.create_server_button);
         if (mCreateServerButton != null) {
@@ -559,10 +578,9 @@ public class FullscreenActivity extends AppCompatActivity {
                             public void onClick(DialogInterface dialog,int id) {
                                 mPlayerName = playerNameET.getText().toString();
                                 SharedPreferences.Editor editor = sharedPreferences.edit();
-                                editor.putString("PlayerName", mPlayerName);
+                                editor.putString(PREF_PLAYER_NAME, mPlayerName);
                                 editor.apply();
                                 displayAllNetworkingOptions(true);
-                                mUseNetworkingButton.setText(R.string.no_network_button);
                                 dialog.dismiss();
                             }
                         })
@@ -596,6 +614,11 @@ public class FullscreenActivity extends AppCompatActivity {
                 .setPositiveButton(R.string.ok,
                         new DialogInterface.OnClickListener() {
                             public void onClick(DialogInterface dialog,int id) {
+                                mIsServer = true; // This tricks the setReady function into not searching for a server
+                                mReady = true;
+                                setReady();
+                                mIsServer = false;
+                                mCreateServerButton.setVisibility(View.INVISIBLE);
                                 mUDPListenerService.joinServer(serverIPET.getText().toString());
                                 dialog.dismiss();
                             }
@@ -705,9 +728,7 @@ public class FullscreenActivity extends AppCompatActivity {
     }
 
     private void setGameLimit() {
-        Log.d(TAG, "setGameLimit");
         if ((mGameLimit & GAME_LIMIT_TIME) != 0) {
-            Log.d(TAG, "time limit set");
             mGameCountDownTV.setVisibility(View.VISIBLE);
             String display = String.format("%02d:00", mTimeLimit);
             mGameCountDownTV.setText(display);
@@ -718,37 +739,33 @@ public class FullscreenActivity extends AppCompatActivity {
         }
         TextView eliminationLabel = findViewById(R.id.eliminations_count_label_tv);
         if ((mGameLimit & GAME_LIMIT_LIVES) != 0) {
-            Log.d(TAG, "lives limit set");
             eliminationLabel.setText(R.string.lives_count_label);
             mEliminationCountTV.setText("" + mLivesLimit);
         } else {
             eliminationLabel.setText(R.string.eliminations_count_label);
             mEliminationCountTV.setText("" + mEliminationCount);
         }
-        TextView scoreLabel = findViewById(R.id.score_label_tv);
         if ((mGameLimit & GAME_LIMIT_SCORE) != 0) {
-            Log.d(TAG, "score limit set");
-            scoreLabel.setText(getString(R.string.score_limit_label, mScoreLimit));
+            mScoreLabelTV.setText(getString(R.string.score_limit_label, mScoreLimit));
+            mTeamScoreLabelTV.setText(getString(R.string.team_score_limit_label, mScoreLimit));
         } else {
-            scoreLabel.setText(R.string.score_label);
+            mScoreLabelTV.setText(R.string.score_label);
+            mTeamScoreLabelTV.setText(R.string.team_score_label);
         }
     }
-
-    public String getPlayerName() { return mPlayerName; }
 
     private void setReady() { setReady(true); }
 
     private void setReady(boolean sendPlayerLeft) {
         if (mReady) {
-            // Start listening for broadcasts
             mNetworkPlayerCountTV.setText(R.string.network_player_1count);
             mUDPListenerService.setPlayerID(mPlayerID);
+            mJoinIPButton.setVisibility(View.GONE);
             if (mIsServer) {
                 mReadyButton.setVisibility(View.GONE);
-                mJoinIPButton.setVisibility(View.GONE);
             } else {
+                // Start looking for a lobby
                 mUDPListenerService.joinServer();
-                mJoinIPButton.setVisibility(View.GONE);
                 mCreateServerButton.setVisibility(View.GONE);
             }
             mReadyButton.setText(R.string.not_ready_button);
@@ -805,6 +822,8 @@ public class FullscreenActivity extends AppCompatActivity {
                         | View.SYSTEM_UI_FLAG_IMMERSIVE);
         mScore = 0;
         mScoreTV.setText("0");
+        mTeamScore = 0;
+        mTeamScoreTV.setText("0");
         if ((mGameLimit & GAME_LIMIT_LIVES) != 0)
             mEliminationCount = mLivesLimit;
         else
@@ -825,7 +844,7 @@ public class FullscreenActivity extends AppCompatActivity {
             mEndGameButton.setVisibility(View.VISIBLE);
         }
         mStartGameTimer = true;
-        startSpawn();
+        startSpawn("");
     }
 
     private void confirmEndGame() {
@@ -880,12 +899,14 @@ public class FullscreenActivity extends AppCompatActivity {
         mEndGameButton.setVisibility(View.GONE);
         mEndNetworkGameButton.setVisibility(View.GONE);
         mHitIV.setVisibility(View.GONE);
-        mEliminatedTV.setVisibility(View.GONE);
+        mEliminatedTV.setVisibility(View.INVISIBLE);
+        mEliminatedByTV.setVisibility(View.INVISIBLE);
         mSpawnInTV.setVisibility(View.GONE);
         mGameState = GAME_STATE_NONE;
         displayAllNetworkingOptions(mUseNetwork);
         mUseNetworkingButton.setVisibility(View.VISIBLE);
         mHitPlayerIV.setVisibility(View.GONE);
+        mHitPlayerNameTV.setVisibility(View.GONE);
         mShotsFiredIV.setVisibility(View.GONE);
         startReload(RELOADING_STATE_ELIMINATED);
         mGameTimer.stop();
@@ -901,7 +922,7 @@ public class FullscreenActivity extends AppCompatActivity {
             return;
         Log.d(TAG, "setting player ID to " + mPlayerID);
         if (mPlayerID < 1 || mPlayerID > MAX_PLAYER_ID) {
-            Log.e(TAG, "Invalid Team!");
+            Log.e(TAG, "Invalid player ID!");
             return;
         }
         if (mCommandCharacteristic == null) {
@@ -938,9 +959,13 @@ public class FullscreenActivity extends AppCompatActivity {
             }
             int player = (int) (mPlayerID - (byte)(x * (mNetworkTeam - 1)));
             mTeamTV.setText(getString(R.string.network_team, mNetworkTeam, player));
+            mTeamScoreLabelTV.setVisibility(View.VISIBLE);
+            mTeamScoreTV.setVisibility(View.VISIBLE);
         } else {
             String teamStr = "" + mPlayerID;
             mTeamTV.setText(teamStr);
+            mTeamScoreLabelTV.setVisibility(View.INVISIBLE);
+            mTeamScoreTV.setVisibility(View.INVISIBLE);
         }
         mUDPListenerService.setGameMode(mGameMode);
     }
@@ -991,13 +1016,15 @@ public class FullscreenActivity extends AppCompatActivity {
         mLastShotCount = shotsRemaining;
     }
 
-    private void startSpawn() {
+    private void startSpawn(String eliminatedBy) {
         if (mReloadTimer != null)
             mReloadTimer.cancel();
         mGameState = GAME_STATE_ELIMINATED;
         startReload(RELOADING_STATE_ELIMINATED);
         mHitIV.setVisibility(View.GONE);
         mEliminatedTV.setVisibility(View.VISIBLE);
+        mEliminatedByTV.setText(eliminatedBy);
+        mEliminatedByTV.setVisibility(View.VISIBLE);
         mSpawnInTV.setText(getResources().getString(R.string.spawn_in_label, RESPAWN_TIME_SECONDS));
         mSpawnInTV.setVisibility(View.VISIBLE);
         mSpawnTimer = new CountDownTimer(RESPAWN_TIME_SECONDS * 1000, 999) {
@@ -1009,8 +1036,9 @@ public class FullscreenActivity extends AppCompatActivity {
 
             public void onFinish() {
                 Log.d(TAG, "spawned!");
-                mEliminatedTV.setVisibility(View.GONE);
+                mEliminatedTV.setVisibility(View.INVISIBLE);
                 mEliminatedTV.setText(R.string.eliminated_label);
+                mEliminatedByTV.setVisibility(View.INVISIBLE);
                 mSpawnInTV.setVisibility(View.GONE);
                 mHealth = MAX_HEALTH;
                 mHealthBar.setProgress(mHealth);
@@ -1043,6 +1071,7 @@ public class FullscreenActivity extends AppCompatActivity {
 
             public void onFinish() {
                 Log.d(TAG, "Game time ended!");
+                Toast.makeText(getApplicationContext(), getString(R.string.dialog_game_time_expired), Toast.LENGTH_SHORT).show();
                 playSound(R.raw.eliminated, getApplicationContext());
                 endGame();
             }
@@ -1335,7 +1364,7 @@ public class FullscreenActivity extends AppCompatActivity {
             } else if (BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
                 // Show all the supported services and characteristics on the user interface.
                 //displayGattServices(mBluetoothLeService.getSupportedGattServices());
-                Log.d(TAG, "services discovered!");
+                //Log.d(TAG, "services discovered!");
                 TextView connectStatusTV = findViewById(R.id.connect_status_tv);
                 if (connectStatusTV != null) connectStatusTV.setText(R.string.connect_status_communicating);
                 for (BluetoothGattService gattService : mBluetoothLeService.getSupportedGattServices()) {
@@ -1347,6 +1376,7 @@ public class FullscreenActivity extends AppCompatActivity {
                             mBluetoothLeService.setCharacteristicNotification(mTelemetryCharacteristic, true);
                         } else {
                             Log.e(TAG, "Failed to find Telemetry characteristic");
+                            return;
                         }
                         mCommandCharacteristic = gattService.getCharacteristic(UUID.fromString(GattAttributes.RECOIL_COMMAND_UUID));
                         mConfigCharacteristic = gattService.getCharacteristic(UUID.fromString(GattAttributes.RECOIL_CONFIG_UUID));
@@ -1543,7 +1573,6 @@ public class FullscreenActivity extends AppCompatActivity {
                     mLastWasHit = false;
                     Log.d(TAG, "hit filtered");
                 } else {
-                    Log.d(TAG, "Before bitshift hit by " + hit_by_player1);
                     mLastWasHit = true;
                     mHitsTaken++;
                     String hitsTaken = "" + mHitsTaken;
@@ -1552,9 +1581,9 @@ public class FullscreenActivity extends AppCompatActivity {
                     byte hit_by_id = 0;
                     if (mUseNetwork) {
                         hit_by_id = (byte)(hit_by_player1 >> 2);
-                        Log.d(TAG, "hit by 1 ID is " + hit_by_id);
+                        //Log.d(TAG, "hit by 1 ID is " + hit_by_id);
                         if (mGameMode != GAME_MODE_FFA && calcNetworkTeam(hit_by_id) == mNetworkTeam) {
-                            Log.d(TAG, "friendly fire ignored");
+                            //Log.d(TAG, "friendly fire ignored");
                             healthRemoved++;
                         } else {
                             if (mHealth + healthRemoved > 0)
@@ -1570,9 +1599,9 @@ public class FullscreenActivity extends AppCompatActivity {
                         healthRemoved--;
                         if (mUseNetwork) {
                             hit_by_id = (byte)(hit_by_player1 >> 2);
-                            Log.d(TAG, "hit by 2 ID is " + hit_by_id);
+                            //Log.d(TAG, "hit by 2 ID is " + hit_by_id);
                             if (mGameMode != GAME_MODE_FFA && calcNetworkTeam(hit_by_id) == mNetworkTeam) {
-                                Log.d(TAG, "friendly fire ignored");
+                                //Log.d(TAG, "friendly fire ignored");
                                 healthRemoved++;
                             } else {
                                 if (mHealth + healthRemoved > 0)
@@ -1597,12 +1626,20 @@ public class FullscreenActivity extends AppCompatActivity {
                                     mHitIV.startAnimation(animationFadeOut);
                                     mHitAnimation = (AnimationDrawable) mHitIV.getBackground();
                                     mHitAnimation.start();
+                                    mEliminatedByTV.setVisibility(View.VISIBLE);
+                                    if (hit_by_id == 0) {
+                                        mEliminatedByTV.setText("");
+                                    } else {
+                                        mEliminatedByTV.setText(mUDPListenerService.getPlayerName(hit_by_id));
+                                    }
+                                    mEliminatedByTV.startAnimation(animationFadeOut);
                                     new Handler().postDelayed(new Runnable() {
                                         @Override
                                         public void run() {
                                             mHitIV.setVisibility(View.GONE);
                                             mHitAnimation.stop();
                                             mHitAnimation = null;
+                                            mEliminatedByTV.setVisibility(View.INVISIBLE);
                                         }
                                     }, HIT_ANIMATION_DURATION_MILLISECONDS);
                                 }
@@ -1615,12 +1652,18 @@ public class FullscreenActivity extends AppCompatActivity {
                                     mEliminationCount++;
                                 String elimStr = "" + mEliminationCount;
                                 mEliminationCountTV.setText(elimStr);
-                                startSpawn();
+                                String eliminatedBy = "";
+                                if (mUseNetwork)
+                                    eliminatedBy = mUDPListenerService.getPlayerName(hit_by_id);
+                                startSpawn(eliminatedBy);
                                 if (mUseNetwork) {
                                     mUDPListenerService.sendUDPMessage(UDPListenerService.UDPMSG_ELIMINATED, hit_by_id);
                                 }
-                                if ((mGameLimit & GAME_LIMIT_LIVES) != 0 && mEliminationCount <= 0)
+                                if ((mGameLimit & GAME_LIMIT_LIVES) != 0 && mEliminationCount <= 0) {
+                                    mUDPListenerService.sendUDPMessageAll(UDPListenerService.UDPMSG_LEAVE);
+                                    Toast.makeText(getApplicationContext(), getString(R.string.dialog_out_of_lives), Toast.LENGTH_LONG).show();
                                     endGame(); // Sorry, you're out of the game
+                                }
                             }
                         }
                     }
@@ -1697,7 +1740,6 @@ public class FullscreenActivity extends AppCompatActivity {
             } else if (UDPListenerService.UDPMSG_HIT.equals(action)) {
                 // Play a sound?
                 if (mHitPlayerIV != null && mHitPlayerAnimation == null) {
-                    Log.d(TAG, "UDB Hit message received");
                     // Show the "you hit a player" animation
                     mHitPlayerIV.setVisibility(View.VISIBLE);
                     mHitPlayerIV.setBackgroundResource(R.drawable.hit_other_player_animation);
@@ -1705,12 +1747,21 @@ public class FullscreenActivity extends AppCompatActivity {
                     mHitPlayerIV.startAnimation(animationFadeOut);
                     mHitPlayerAnimation = (AnimationDrawable) mHitPlayerIV.getBackground();
                     mHitPlayerAnimation.start();
+                    mHitPlayerNameTV.setVisibility(View.VISIBLE);
+                    Byte hitPlayerID = intent.getByteExtra(UDPListenerService.INTENT_PLAYERID, (byte)0);
+                    if (hitPlayerID == 0) {
+                        mHitPlayerNameTV.setText("");
+                    } else {
+                        mHitPlayerNameTV.setText(mUDPListenerService.getPlayerName(hitPlayerID));
+                    }
+                    mHitPlayerNameTV.startAnimation(animationFadeOut);
                     new Handler().postDelayed(new Runnable() {
                         @Override
                         public void run() {
                             mHitPlayerIV.setVisibility(View.GONE);
                             mHitPlayerAnimation.stop();
                             mHitPlayerAnimation = null;
+                            mHitPlayerNameTV.setVisibility(View.GONE);
                         }
                     }, HIT_ANIMATION_DURATION_MILLISECONDS);
                 }
@@ -1724,37 +1775,81 @@ public class FullscreenActivity extends AppCompatActivity {
                     mHitPlayerIV.startAnimation(animationFadeOut);
                     mHitPlayerAnimation = (AnimationDrawable) mHitPlayerIV.getBackground();
                     mHitPlayerAnimation.start();
+                    mHitPlayerNameTV.setVisibility(View.VISIBLE);
+                    Byte hitPlayerID = intent.getByteExtra(UDPListenerService.INTENT_PLAYERID, (byte)0);
+                    if (hitPlayerID == 0) {
+                        mHitPlayerNameTV.setText("");
+                    } else {
+                        mHitPlayerNameTV.setText(mUDPListenerService.getPlayerName(hitPlayerID));
+                    }
+                    mHitPlayerNameTV.startAnimation(animationFadeOut);
                     new Handler().postDelayed(new Runnable() {
                         @Override
                         public void run() {
                             mHitPlayerIV.setVisibility(View.GONE);
                             mHitPlayerAnimation.stop();
                             mHitPlayerAnimation = null;
+                            mHitPlayerNameTV.setVisibility(View.GONE);
                         }
                     }, HIT_ANIMATION_DURATION_MILLISECONDS);
                 }
             } else if (UDPListenerService.UDPMSG_ELIMINATED.equals(action)) {
-                // Increase score & play a sound?
+                // Increase score
                 mScore++;
                 String score = "" + mScore;
                 mScoreTV.setText(score);
                 mScoreIncreaseIV.setVisibility(View.VISIBLE);
-                Animation animationFadeOut = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadeout);
+                Animation animationFadeOut = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.eliminatedfadeout);
                 mScoreIncreaseIV.startAnimation(animationFadeOut);
+                mScoreIncreasePlayerNameTV.setVisibility(View.VISIBLE);
+                Byte hitPlayerID = intent.getByteExtra(UDPListenerService.INTENT_PLAYERID, (byte)0);
+                if (hitPlayerID == 0) {
+                    mScoreIncreasePlayerNameTV.setText("");
+                } else {
+                    mScoreIncreasePlayerNameTV.setText(mUDPListenerService.getPlayerName(hitPlayerID));
+                }
+                mScoreIncreasePlayerNameTV.startAnimation(animationFadeOut);
                 new Handler().postDelayed(new Runnable() {
                     @Override
                     public void run() {
                         mScoreIncreaseIV.setVisibility(View.GONE);
+                        mScoreIncreasePlayerNameTV.setVisibility(View.GONE);
                     }
-                }, HIT_ANIMATION_DURATION_MILLISECONDS);
+                }, ELIMINATED_ANIMATION_DURATION_MILLISECONDS);
+                playSound(R.raw.score, getApplicationContext());
                 if ((mGameLimit & GAME_LIMIT_SCORE) != 0 && mScore >= mScoreLimit) {
                     endGame();
                     if (mUseNetwork)
                         mUDPListenerService.endGame();
                 }
+                if (mUseNetwork && mGameMode != GAME_MODE_FFA) {
+                    mTeamScore++;
+                    score = "" + mTeamScore;
+                    mTeamScoreTV.setText(score);
+                    // Send a message to all teammates about the score increase
+                    int teamSize = ((MAX_PLAYER_ID + 1) / 2);
+                    if (mGameMode == GAME_MODE_4TEAMS) {
+                        teamSize = ((MAX_PLAYER_ID + 1) / 4);
+                    }
+                    int startPoint = (teamSize * mNetworkTeam) - teamSize + 1;
+                    for (int x = startPoint; x < startPoint + teamSize; x++) {
+                        if (x != mPlayerID) { // don't send a message to ourselves
+                            mUDPListenerService.sendUDPMessage(UDPListenerService.UDPMSG_TEAMELIMINATED, (byte) x);
+                        }
+                    }
+                    if ((mGameLimit & GAME_LIMIT_SCORE) != 0 && mTeamScore >= mScoreLimit)
+                        endGame();
+                }
+            } else if (UDPListenerService.UDPMSG_TEAMELIMINATED.equals(action)) {
+                // Increase team score in team games
+                mTeamScore++;
+                String score = "" + mTeamScore;
+                mTeamScoreTV.setText(score);
             } else if (UDPListenerService.UDPMSG_JOIN.equals(action) || UDPListenerService.UDPMSG_LEAVE.equals(action)) {
                 mPlayerCount = mUDPListenerService.getPlayerCount();
                 mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, mPlayerCount));
+                if (mGameMode == GAME_MODE_FFA && mGameState != GAME_STATE_NONE && UDPListenerService.UDPMSG_LEAVE.equals(action) && mPlayerCount <= 1)
+                    endGame(); // Everyone else is out so game is over - this only works in FFA because we don't keep track of who and how many people are on each team
             } else if (UDPListenerService.UDPMSG_LISTPLAYERS.equals(action)) {
                 mNetworkBar.setVisibility(View.GONE);
                 mPlayerCount = mUDPListenerService.getPlayerCount();
@@ -1776,11 +1871,13 @@ public class FullscreenActivity extends AppCompatActivity {
                     setGameLimit();
                 }
             } else if (UDPListenerService.UDPMSG_STARTGAME.equals(action)) {
-                startGame();
+                if (mGameState == GAME_STATE_NONE)
+                    startGame();
             } else if (UDPListenerService.UDPMSG_ENDGAME.equals(action)) {
-                endGame();
+                if (mGameState != GAME_STATE_NONE)
+                    endGame();
             } else if (UDPListenerService.UDPMSG_ERROR.equals(action)) {
-                String errorMessage = intent.getStringExtra("message");
+                String errorMessage = intent.getStringExtra(UDPListenerService.INTENT_MESSAGE);
                 if (errorMessage != null && !errorMessage.isEmpty()) {
                     Toast.makeText(getApplicationContext(), errorMessage, Toast.LENGTH_SHORT).show();
                 } else {
@@ -1816,18 +1913,17 @@ public class FullscreenActivity extends AppCompatActivity {
             } else if (UDPListenerService.UDPMSG_LIMITTIME.equals(action)) {
                 if ((mGameLimit & GAME_LIMIT_TIME) == 0)
                     mGameLimit += GAME_LIMIT_TIME;
-                mTimeLimit = intent.getIntExtra("limit", 0);
+                mTimeLimit = intent.getIntExtra(UDPListenerService.INTENT_LIMIT, 0);
                 setGameLimit();
             } else if (UDPListenerService.UDPMSG_LIMITLIVES.equals(action)) {
                 if ((mGameLimit & GAME_LIMIT_LIVES) == 0)
                     mGameLimit += GAME_LIMIT_LIVES;
-                mLivesLimit = intent.getIntExtra("limit", 0);
-                Log.d(TAG, "received lives limit " + mLivesLimit);
+                mLivesLimit = intent.getIntExtra(UDPListenerService.INTENT_LIMIT, 0);
                 setGameLimit();
             } else if (UDPListenerService.UDPMSG_LIMITSCORE.equals(action)) {
                 if ((mGameLimit & GAME_LIMIT_SCORE) == 0)
                     mGameLimit += GAME_LIMIT_SCORE;
-                mScoreLimit = intent.getIntExtra("limit", 0);
+                mScoreLimit = intent.getIntExtra(UDPListenerService.INTENT_LIMIT, 0);
                 setGameLimit();
             } else if (UDPListenerService.UDPMSG_UNLIMITED.equals(action)) {
                 mGameLimit = GAME_LIMIT_NONE;
@@ -1857,11 +1953,12 @@ public class FullscreenActivity extends AppCompatActivity {
         intentFilter.addAction(UDPListenerService.UDPMSG_LIMITLIVES);
         intentFilter.addAction(UDPListenerService.UDPMSG_LIMITSCORE);
         intentFilter.addAction(UDPListenerService.UDPMSG_UNLIMITED);
+        intentFilter.addAction(UDPListenerService.UDPMSG_TEAMELIMINATED);
         return intentFilter;
     }
 
     private void displayAllNetworkingOptions(boolean enabled) {
-        int visibility = enabled ? View.VISIBLE : View.GONE;
+        int visibility = enabled ? View.VISIBLE : View.INVISIBLE;
         mNetworkPlayerCountTV.setVisibility(visibility);
         mUseNetworkingButton.setVisibility(visibility);
         mReadyButton.setVisibility(visibility);
@@ -1875,6 +1972,13 @@ public class FullscreenActivity extends AppCompatActivity {
         mJoinIPButton.setVisibility(visibility);
         mNetworkBar.setVisibility(View.GONE);
         //mGameLimitButton.setVisibility(visibility);
+        if (mGameMode != GAME_MODE_FFA) {
+            mTeamScoreLabelTV.setVisibility(visibility);
+            mTeamScoreTV.setVisibility(visibility);
+        } else {
+            mTeamScoreLabelTV.setVisibility(View.INVISIBLE);
+            mTeamScoreTV.setVisibility(View.INVISIBLE);
+        }
     }
 
     private void displayInGameNetworkingOptions() {
@@ -1884,6 +1988,10 @@ public class FullscreenActivity extends AppCompatActivity {
         mGameModeTV.setVisibility(View.VISIBLE);
         mScoreLabelTV.setVisibility(View.VISIBLE);
         mScoreTV.setVisibility(View.VISIBLE);
-        //mEndNetworkGameButton.setVisibility(View.VISIBLE);
+        mEndNetworkGameButton.setVisibility(View.VISIBLE);
+        if (mGameMode != GAME_MODE_FFA) {
+            mTeamScoreLabelTV.setVisibility(View.VISIBLE);
+            mTeamScoreTV.setVisibility(View.VISIBLE);
+        }
     }
 }

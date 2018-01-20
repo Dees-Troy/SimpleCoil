@@ -67,6 +67,8 @@ public class UDPListenerService extends Service {
     public static final String UDPMSG_LIMITLIVES = "UDPLIMITLIVES";
     public static final String UDPMSG_LIMITSCORE = "UDPLIMITSCORE";
     public static final String UDPMSG_UNLIMITED = "UDPUNLIMITED";
+    public static final String UDPMSG_PLAYERNAME = "UDPPLAYERNAME";
+    public static final String UDPMSG_TEAMELIMINATED = "UDPTEAMELIMINATED";
 
     // UDPJOIN is UDPJOIN + playerID, so UDPJOIN2 for playerID 2
     public static final String UDPMSG_JOIN = "UDPJOIN";
@@ -87,6 +89,7 @@ public class UDPListenerService extends Service {
     private int mLivesLimit = 0;
 
     private volatile byte mPlayerID = 0;
+    private volatile String mPlayerName = "";
 
     DatagramSocket socketBroadcast;
     DatagramSocket socketGame;
@@ -96,6 +99,7 @@ public class UDPListenerService extends Service {
 
     private Map<InetAddress, Byte> mIPTeamMap;
     private Map<Byte, InetAddress> mTeamIPMap;
+    private Map<Byte, String> mTeamPlayerNameMap;
 
     private InetAddress mMyIP = null;
     private InetAddress mBroadcastAddress = null;
@@ -107,10 +111,15 @@ public class UDPListenerService extends Service {
     private static volatile boolean doneListeningBroadcast = true;
     private static volatile boolean doneListening = true;
     private static volatile boolean mIsListService = false;
+    private static volatile boolean mSentPlayerName = false;
     private static volatile int mReadyToScan = 0;
 
     private volatile boolean mScanRunning = false;
     private volatile boolean mGameRunning = false;
+
+    public static final String INTENT_PLAYERID = "playerid";
+    public static final String INTENT_LIMIT = "limit";
+    public static final String INTENT_MESSAGE = "message";
 
     /**
      * Get IP address from first non-localhost interface
@@ -208,7 +217,7 @@ public class UDPListenerService extends Service {
             }
         }
         if (ip.equals(mMyIP)) {
-            Log.d(TAG, "IP matched so ignored");
+            //Log.d(TAG, "IP matched so ignored");
             return;
         }
         if (message.startsWith(MESSAGE_PREFIX)) {
@@ -219,12 +228,15 @@ public class UDPListenerService extends Service {
             } else if (message.startsWith(UDPMSG_HIT)) {
                 // you hit someone!
                 intent = new Intent(UDPMSG_HIT);
+                intent.putExtra(INTENT_PLAYERID, mIPTeamMap.get(ip));
             } else if (message.startsWith(UDPMSG_OUT)) {
                 // hitting a player that's already out
                 intent = new Intent(UDPMSG_OUT);
+                intent.putExtra(INTENT_PLAYERID, mIPTeamMap.get(ip));
             } else if (message.startsWith(UDPMSG_ELIMINATED)) {
                 // you eliminated someone!
                 intent = new Intent(UDPMSG_ELIMINATED);
+                intent.putExtra(INTENT_PLAYERID, mIPTeamMap.get(ip));
             } else if (message.startsWith(UDPMSG_JOIN)) {
                 if (mIPTeamMap == null)
                     mIPTeamMap = new HashMap<InetAddress, Byte>();
@@ -282,11 +294,19 @@ public class UDPListenerService extends Service {
                         Log.e(TAG, "unrecognized IP " + ipStr);
                     }
                 }
-                Log.d(TAG, "Added " + playersAdded + "players");
+                Log.d(TAG, "Added " + playersAdded + " players");
                 mServerIP = ip;
+                if (!mSentPlayerName) {
+                    mSentPlayerName = true;
+                    sendUDPMessage(MESSAGE_PREFIX + UDPMSG_PLAYERNAME + String.format("%02d", mPlayerID) + mPlayerName, mServerIP, GAME_LISTEN_PORT);
+                }
                 intent = new Intent(UDPMSG_LISTPLAYERS);
             } else if (message.startsWith(UDPMSG_LEAVE)) {
                 // This is a player left message
+                if (mIPTeamMap == null)
+                    mIPTeamMap = new HashMap<InetAddress, Byte>();
+                if (mTeamIPMap == null)
+                    mTeamIPMap = new HashMap<Byte, InetAddress>();
                 Byte team = mIPTeamMap.get(ip);
                 mTeamIPMap.remove(team);
                 mIPTeamMap.remove(ip);
@@ -318,22 +338,38 @@ public class UDPListenerService extends Service {
                 message = message.substring(UDPMSG_LIMITTIME.length());
                 int limit = (int) Integer.parseInt(message);
                 intent = new Intent(UDPMSG_LIMITTIME);
-                intent.putExtra("limit", limit);
+                intent.putExtra(INTENT_LIMIT, limit);
             } else if (message.startsWith(UDPMSG_LIMITLIVES)) {
                 // Game limited by lives
                 message = message.substring(UDPMSG_LIMITLIVES.length());
                 int limit = (int) Integer.parseInt(message);
                 intent = new Intent(UDPMSG_LIMITLIVES);
-                intent.putExtra("limit", limit);
+                intent.putExtra(INTENT_LIMIT, limit);
             } else if (message.startsWith(UDPMSG_LIMITSCORE)) {
                 // Game limited by score
                 message = message.substring(UDPMSG_LIMITSCORE.length());
                 int limit = (int) Integer.parseInt(message);
                 intent = new Intent(UDPMSG_LIMITSCORE);
-                intent.putExtra("limit", limit);
+                intent.putExtra(INTENT_LIMIT, limit);
             } else if (message.startsWith(UDPMSG_UNLIMITED)) {
                 // No game limit
                 intent = new Intent(UDPMSG_UNLIMITED);
+            } else if (message.startsWith(UDPMSG_PLAYERNAME)) {
+                // Player name
+                if (mTeamPlayerNameMap == null)
+                    mTeamPlayerNameMap = new HashMap<Byte, String>();
+                message = message.substring(UDPMSG_PLAYERNAME.length());
+                String teamStr = message.substring(0, 2);
+                Byte team = (byte) (int) Integer.parseInt(teamStr);
+                message = message.substring(2);
+                mTeamPlayerNameMap.remove(team);
+                mTeamPlayerNameMap.put(team, message);
+                if (mIsListService) {
+                    sendPlayerNames();
+                }
+            } else if (message.startsWith(UDPMSG_TEAMELIMINATED)) {
+                // Someone else on your team scored a point
+                intent = new Intent(UDPMSG_TEAMELIMINATED);
             }
         }
         if (intent != null)
@@ -376,6 +412,29 @@ public class UDPListenerService extends Service {
         sendListThread.start();
         Intent intent = new Intent(UDPMSG_LISTPLAYERS);
         sendBroadcast(intent);
+    }
+
+    private void sendPlayerNames() {
+        Log.d(TAG, "sending player names");
+        if (mMyIP == null) {
+            try {
+                mMyIP = InetAddress.getByName(getIPAddress());
+            } catch (UnknownHostException e) {
+                e.printStackTrace();
+            }
+        }
+        Thread sendListThread = new Thread(new Runnable() {
+            public void run() {
+                String message = UDPMSG_PLAYERNAME + String.format("%02d", mPlayerID) + mPlayerName;
+                sendUDPMessageAll(message);
+                for (Map.Entry<Byte, String> entry : mTeamPlayerNameMap.entrySet()) {
+                    sleep(100);
+                    message = UDPMSG_PLAYERNAME + String.format("%02d", entry.getKey()) + entry.getValue();
+                    sendUDPMessageAll(message);
+                }
+            }
+        });
+        sendListThread.start();
     }
 
     Thread UDPBroadcastThread;
@@ -459,16 +518,24 @@ public class UDPListenerService extends Service {
     }
 
     public String getIP() {
-        if (mServerIP != null)
-            return mServerIP.toString();
+        String ip = "";
+        if (mServerIP != null) {
+            ip = mServerIP.toString();
+            if (ip.startsWith("/"))
+                ip = ip.substring(1);
+            return ip;
+        }
         if (mMyIP == null) {
             try {
                 mMyIP = InetAddress.getByName(getIPAddress());
             } catch (UnknownHostException e) {
-                return null;
+                return "";
             }
         }
-        return mMyIP.toString();
+        ip = mMyIP.toString();
+        if (ip.startsWith("/"))
+            ip = ip.substring(1);
+        return ip;
     }
 
     public void createServer() {
@@ -553,7 +620,6 @@ public class UDPListenerService extends Service {
                     sendFailedJoin();
                     return;
                 }
-                Log.e(TAG, "got here at least");
                 joinServer(ipAddr);
             }
         });
@@ -584,6 +650,7 @@ public class UDPListenerService extends Service {
         mScanRunning = true;
         mGameRunning = false;
         mReadyToScan = 0;
+        mSentPlayerName = false;
         startListenForUDPGame();
         startJoinFailTimer();
         while(mReadyToScan < 1) {
@@ -630,13 +697,13 @@ public class UDPListenerService extends Service {
         sendUDPMessage(message, mBroadcastAddress, BROADCAST_LISTEN_PORT);
     }
 
-    public void sendUDPMessage(String message, Byte team) {
+    public void sendUDPMessage(String message, Byte playerID) {
         message = MESSAGE_PREFIX + message;
-        if (mTeamIPMap.get(team) == null) {
-            Log.e(TAG, "cannot send message to unknown team " + team);
+        if (mTeamIPMap.get(playerID) == null) {
+            Log.e(TAG, "cannot send message to unknown ID " + playerID);
             return;
         }
-        sendUDPMessage(message, mTeamIPMap.get(team), GAME_LISTEN_PORT);
+        sendUDPMessage(message, mTeamIPMap.get(playerID), GAME_LISTEN_PORT);
     }
 
     public void sendUDPMessageAll(String message) {
@@ -661,7 +728,7 @@ public class UDPListenerService extends Service {
                         //Log.e(TAG, "IO Error:", e);
                         e.printStackTrace();
                         Intent intent = new Intent(UDPMSG_ERROR);
-                        intent.putExtra("message", e.getLocalizedMessage());
+                        intent.putExtra(INTENT_MESSAGE, e.getLocalizedMessage());
                         sendBroadcast(intent);
                     }
                 }
@@ -696,7 +763,7 @@ public class UDPListenerService extends Service {
                             //Log.e(TAG, "IO Error:", e);
                             e.printStackTrace();
                             Intent intent = new Intent(UDPMSG_ERROR);
-                            intent.putExtra("message", e.getLocalizedMessage());
+                            intent.putExtra(INTENT_MESSAGE, e.getLocalizedMessage());
                             sendBroadcast(intent);
                         }
                     }
@@ -729,7 +796,7 @@ public class UDPListenerService extends Service {
                     //Log.e(TAG, "IO Error:", e);
                     e.printStackTrace();
                     Intent intent = new Intent(UDPMSG_ERROR);
-                    intent.putExtra("message", e.getLocalizedMessage());
+                    intent.putExtra(INTENT_MESSAGE, e.getLocalizedMessage());
                     sendBroadcast(intent);
                 }
                 mSendingMessage = false;
@@ -833,5 +900,16 @@ public class UDPListenerService extends Service {
             e.printStackTrace();
         }
     }
+
+    public String getPlayerName(Byte playerID) {
+        if (mTeamPlayerNameMap == null)
+            return "";
+        String ret = mTeamPlayerNameMap.get(playerID);
+        if (ret == null)
+            ret = "";
+        return ret;
+    }
+
+    public void setPlayerName(String name) { mPlayerName = name; }
 
 }

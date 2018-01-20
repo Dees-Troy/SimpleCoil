@@ -16,7 +16,9 @@
     <EditText
         android:id="@+id/player_name_et"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content" >
+        android:layout_height="wrap_content"
+        android:maxLength="20"
+        android:digits="0123456789.!?-_ abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" >
 
         <requestFocus />
 

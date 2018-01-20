@@ -25,7 +25,9 @@
     <string name="recoil_enabled">Enabled</string>
     <string name="recoil_disabled">Disabled</string>
     <string name="score_label">SCORE</string>
+    <string name="team_score_label">TEAM</string>
     <string name="score_limit_label">SCORE (%1$d)</string>
+    <string name="team_score_limit_label">TEAM (%1$d)</string>
 
     <string name="health_label">HEALTH</string>
 
@@ -43,6 +45,8 @@
     <string name="error_join">Unable to find server lobby!</string>
     <string name="error_server_cancel">Server was canceled!</string>
     <string name="error_limit_too_high">Limit is too high!</string>
+    <string name="dialog_game_time_expired">Time limit reached!</string>
+    <string name="dialog_out_of_lives">Out of lives!</string>
 
     <string name="end_game_dialog_title">End Game?</string>
     <string name="end_game_dialog_message">Are you sure you want to stop playing?</string>
