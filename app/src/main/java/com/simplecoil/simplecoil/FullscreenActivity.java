@@ -51,6 +51,8 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.WindowManager;
 import android.view.animation.Animation;
@@ -60,6 +62,7 @@ import android.widget.Button;
 import android.widget.Chronometer;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.PopupMenu;
 import android.widget.ProgressBar;
 import android.widget.RadioButton;
 import android.widget.RelativeLayout;
@@ -77,7 +80,7 @@ import java.util.concurrent.TimeUnit;
  * An example full-screen activity that shows and hides the system UI (i.e.
  * status bar and navigation/system bar) with user interaction.
  */
-public class FullscreenActivity extends AppCompatActivity {
+public class FullscreenActivity extends AppCompatActivity implements PopupMenu.OnMenuItemClickListener {
     private static final String TAG = "scmain";
 
     private Button mConnectButton = null;
@@ -86,8 +89,7 @@ public class FullscreenActivity extends AppCompatActivity {
     private Button mStartGameButton = null;
     private Button mEndGameButton = null;
     private Button mEndNetworkGameButton = null;
-    private Button mToggleGameModeButton = null;
-    private Button mReadyButton = null;
+    private Button mGameModeButton = null;
     private TextView mNetworkPlayerCountTV = null;
     private TextView mScoreTV = null;
     private TextView mScoreLabelTV = null;
@@ -96,6 +98,7 @@ public class FullscreenActivity extends AppCompatActivity {
     private TextView mGameModeTV = null;
     private TextView mGameModeLabelTV = null;
     private Button mUseNetworkingButton = null;
+    private Button mFiringModeButton = null;
     private TextView mEliminationCountTV = null;
     private TextView mShotsRemainingTV = null;
     private TextView mRecoilModeTV = null;
@@ -107,7 +110,6 @@ public class FullscreenActivity extends AppCompatActivity {
     private TextView mEliminatedByTV = null;
     private ProgressBar mHealthBar = null;
     private ProgressBar mReloadBar = null;
-    private ProgressBar mNetworkBar = null;
     private ImageView mHitIV = null;
     private ImageView mBatteryLevelIV = null;
     private AnimationDrawable mHitAnimation = null;
@@ -117,12 +119,11 @@ public class FullscreenActivity extends AppCompatActivity {
     private ImageView mShotsFiredIV = null;
     private ImageView mScoreIncreaseIV = null;
     private TextView mScoreIncreasePlayerNameTV = null;
-    private Button mCreateServerButton = null;
     private TextView mServerIPTV = null;
-    private Button mJoinIPButton = null;
     private Chronometer mGameTimer = null;
     private Button mGameLimitButton = null;
     private TextView mGameCountDownTV = null;
+    private PopupMenu mNetworkPopup = null;
 
     private CountDownTimer mSpawnTimer = null;
     private CountDownTimer mReloadTimer = null;
@@ -167,9 +168,16 @@ public class FullscreenActivity extends AppCompatActivity {
     private Queue<Byte> mBatteryQueue;
     private long mBatteryTotal = 16;
     // Brand new alkalines report 16, recently charged rechargables report 13ish
-    private static final long BATTERY_LEVEL_GREEN = 14;
-    private static final long BATTERY_LEVEL_BLUE = 12;
-    private static final long BATTERY_LEVEL_YELLOW = 10;
+    private static final long BATTERY_LEVEL_PISTOL_GREEN = 14;
+    private static final long BATTERY_LEVEL_PISTOL_BLUE = 12;
+    private static final long BATTERY_LEVEL_PISTOL_YELLOW = 10;
+    private static final long BATTERY_LEVEL_RIFLE_GREEN = 14;
+    private static final long BATTERY_LEVEL_RIFLE_BLUE = 12;
+    private static final long BATTERY_LEVEL_RIFLE_YELLOW = 10;
+
+    private static final byte BLASTER_TYPE_PISTOL = (byte)2;
+    private static final byte BLASTER_TYPE_RIFLE = (byte)1;
+    private static byte mBlasterType = BLASTER_TYPE_PISTOL;
 
     final private int REQUEST_CODE_LOCATION_PERMISSIONS = 1022;
 
@@ -189,7 +197,11 @@ public class FullscreenActivity extends AppCompatActivity {
     private static final int SHOT_MODE_FULL_AUTO = 0;
     private static final int SHOT_MODE_SINGLE = 1;
     private static final int SHOT_MODE_BURST = 2;
-    private int mCurrentMode = SHOT_MODE_SINGLE;
+    private int mCurrentShotMode = SHOT_MODE_SINGLE;
+    private static final int FIRING_MODE_OUTDOOR_NO_CONE = 0;
+    private static final int FIRING_MODE_OUTDOOR_WITH_CONE = 1;
+    private static final int FIRING_MODE_INDOOR_NO_CONE = 2;
+    private int mCurrentFiringMode = FIRING_MODE_OUTDOOR_NO_CONE;
 
     private boolean mRecoilEnabled = true;
 
@@ -255,6 +267,7 @@ public class FullscreenActivity extends AppCompatActivity {
     private SharedPreferences sharedPreferences = null;
     private static final String PREF_NAME = "SimpleCoil";
     private static final String PREF_PLAYER_NAME = "PlayerName";
+    private static final String PREF_FIRING_MODE = "FiringMode";
 
     public static final int GAME_LIMIT_NONE = 0;
     public static final int GAME_LIMIT_TIME = 1;
@@ -419,12 +432,26 @@ public class FullscreenActivity extends AppCompatActivity {
         wv.loadUrl("file:///android_asset/simplecoil.html");
         wv.setVisibility(View.VISIBLE);
         mGameTimer = findViewById(R.id.game_timer_chronometer);
+        mFiringModeButton = findViewById(R.id.firing_mode_button);
+        if (mFiringModeButton != null) {
+            mFiringModeButton.setOnClickListener((new View.OnClickListener() {
+                public void onClick(View v) {
+                    PopupMenu popup = new PopupMenu(FullscreenActivity.this, v);
+                    MenuInflater inflater = popup.getMenuInflater();
+                    inflater.inflate(R.menu.firing_mode_menu, popup.getMenu());
+                    popup.setOnMenuItemClickListener(FullscreenActivity.this);
+                    popup.show();
+                }
+            }));
+        }
 
         showConnectLayout();
         initBatteryQueue();
         vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
         sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
         mPlayerName = sharedPreferences.getString(PREF_PLAYER_NAME, "Player");
+        mCurrentFiringMode = sharedPreferences.getInt(PREF_FIRING_MODE, FIRING_MODE_OUTDOOR_NO_CONE);
+        getFiringMode();
 
         try {
             // Display app version
@@ -440,58 +467,42 @@ public class FullscreenActivity extends AppCompatActivity {
         if (mUseNetworkingButton != null) {
             mUseNetworkingButton.setOnClickListener((new View.OnClickListener() {
                 public void onClick(View v) {
-                    mUseNetwork = !mUseNetwork;
-                    if (mUseNetwork) {
-                        ConnectivityManager connManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-                        NetworkInfo mWifi = connManager.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
-                        if (mWifi == null || !mWifi.isConnected()) {
-                            Toast.makeText(getApplicationContext(), getString(R.string.error_no_wifi), Toast.LENGTH_SHORT).show();
-                            mUseNetwork = false;
-                            return;
-                        }
-                        mUDPListenerService.setPlayerName(mPlayerName);
-                        if (!mRequestedPlayerName) {
-                            requestPlayerName();
-                        }
-                        displayAllNetworkingOptions(true);
-                        mUseNetworkingButton.setText(R.string.no_network_button);
-                    } else {
-                        displayAllNetworkingOptions(false);
-                        mUseNetworkingButton.setVisibility(View.VISIBLE);
-                        mUseNetworkingButton.setText(R.string.use_network_button);
-                    }
-                    setTeam();
-                }
-            }));
-        }
-        mReadyButton = findViewById(R.id.ready_button);
-        if (mReadyButton != null) {
-            mReadyButton.setOnClickListener((new View.OnClickListener() {
-                public void onClick(View v) {
-                    if (mPlayerID == 0) {
-                        Toast.makeText(getApplicationContext(), getString(R.string.error_select_team), Toast.LENGTH_SHORT).show();
+                    ConnectivityManager connManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+                    NetworkInfo mWifi = connManager.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+                    if (mWifi == null || !mWifi.isConnected()) {
+                        Toast.makeText(getApplicationContext(), getString(R.string.error_no_wifi), Toast.LENGTH_SHORT).show();
+                        mUseNetwork = false;
                         return;
                     }
-                    mReady = !mReady;
-                    setReady();
+                    /*mUDPListenerService.setPlayerName(mPlayerName);
+                    if (!mRequestedPlayerName) {
+                        requestPlayerName();
+                    }*/
+                    if (mNetworkPopup == null) {
+                        mNetworkPopup = new PopupMenu(FullscreenActivity.this, v);
+                        mNetworkPopup.setOnMenuItemClickListener(FullscreenActivity.this);
+                        setNetworkMenu(NETWORK_TYPE_ENABLED);
+                    }
+                    if (!mUseNetwork) {
+                        mUseNetwork = true;
+                        mUseNetworkingButton.setText(R.string.network_menu_button);
+                        displayAllNetworkingOptions(true);
+                        setNetworkMenu(NETWORK_TYPE_ENABLED);
+                    }
+                    mNetworkPopup.show();
+                    setTeam();
                 }
             }));
         }
-        mToggleGameModeButton = findViewById(R.id.game_mode_toggle_button);
-        if (mToggleGameModeButton != null) {
-            mToggleGameModeButton.setOnClickListener((new View.OnClickListener() {
+        mGameModeButton = findViewById(R.id.game_mode_toggle_button);
+        if (mGameModeButton != null) {
+            mGameModeButton.setOnClickListener((new View.OnClickListener() {
                 public void onClick(View v) {
-                    if (mGameMode == GAME_MODE_FFA) {
-                        mGameMode = GAME_MODE_2TEAMS;
-                        mGameModeTV.setText(R.string.game_mode_2teams);
-                    } else if (mGameMode == GAME_MODE_2TEAMS) {
-                        mGameMode = GAME_MODE_4TEAMS;
-                        mGameModeTV.setText(R.string.game_mode_4teams);
-                    } else {
-                        mGameMode = GAME_MODE_FFA;
-                        mGameModeTV.setText(R.string.game_mode_ffa);
-                    }
-                    setTeam();
+                    PopupMenu popup = new PopupMenu(FullscreenActivity.this, v);
+                    MenuInflater inflater = popup.getMenuInflater();
+                    inflater.inflate(R.menu.game_mode_menu, popup.getMenu());
+                    popup.setOnMenuItemClickListener(FullscreenActivity.this);
+                    popup.show();
                 }
             }));
         }
@@ -506,47 +517,7 @@ public class FullscreenActivity extends AppCompatActivity {
         mShotsFiredIV = findViewById(R.id.shots_fired_iv);
         mScoreIncreaseIV = findViewById(R.id.score_increase_iv);
         mScoreIncreasePlayerNameTV = findViewById(R.id.score_increase_player_name_tv);
-        mNetworkBar = findViewById(R.id.network_pb);
-        mCreateServerButton = findViewById(R.id.create_server_button);
-        if (mCreateServerButton != null) {
-            mCreateServerButton.setOnClickListener((new View.OnClickListener() {
-                public void onClick(View v) {
-                    if (mPlayerID == 0) {
-                        Toast.makeText(getApplicationContext(), getString(R.string.error_select_team), Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    if (!mIsServer) {
-                        mUDPListenerService.setGameMode(mGameMode);
-                        mUDPListenerService.setGameLimit(mGameLimit, mTimeLimit, mLivesLimit, mScoreLimit);
-                        mUDPListenerService.createServer();
-                        mCreateServerButton.setEnabled(false);
-                        mUseNetworkingButton.setVisibility(View.INVISIBLE);
-                    } else {
-                        mReady = false;
-                        setReady();
-                        mIsServer = false;
-                        mUDPListenerService.cancelServer();
-                        mCreateServerButton.setText(R.string.create_server_button);
-                        mServerIPTV.setVisibility(View.GONE);
-                        mUseNetworkingButton.setVisibility(View.VISIBLE);
-                    }
-                }
-            }));
-        }
         mServerIPTV = findViewById(R.id.server_ip_tv);
-        mJoinIPButton = findViewById(R.id.join_ip_button);
-        if (mJoinIPButton != null) {
-            mJoinIPButton.setOnClickListener((new View.OnClickListener() {
-                public void onClick(View v) {
-                    if (mPlayerID == 0) {
-                        Toast.makeText(getApplicationContext(), getString(R.string.error_select_team), Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    mUDPListenerService.setPlayerID(mPlayerID);
-                    requestServerIP();
-                }
-            }));
-        }
         mGameLimitButton = findViewById(R.id.game_limit_button);
         if (mGameLimitButton != null) {
             mGameLimitButton.setOnClickListener((new View.OnClickListener() {
@@ -558,6 +529,152 @@ public class FullscreenActivity extends AppCompatActivity {
         mGameCountDownTV = findViewById(R.id.game_countdown_tv);
         displayAllNetworkingOptions(false);
         mUseNetworkingButton.setVisibility(View.VISIBLE);
+    }
+
+    private static final int NETWORK_TYPE_ENABLED = 1;
+    private static final int NETWORK_TYPE_JOINING = 2;
+    private static final int NETWORK_TYPE_JOINED = 3;
+    private static final int NETWORK_TYPE_SERVING = 4;
+
+    private void setNetworkMenu(int networkMenuType) {
+        if (mNetworkPopup == null)
+            return;
+        mNetworkPopup.getMenu().close();
+        mNetworkPopup.getMenu().clear();
+        switch (networkMenuType) {
+            case NETWORK_TYPE_ENABLED:
+                mNetworkPopup.getMenu().add(0, R.id.join_item, 20, R.string.join_button);
+                mNetworkPopup.getMenu().add(0, R.id.join_ip_item, 30, R.string.join_ip_button);
+                mNetworkPopup.getMenu().add(0, R.id.create_server_item, 40, R.string.create_server_button);
+                mNetworkPopup.getMenu().add(0, R.id.player_name_item, 50, getString(R.string.player_name_button, mPlayerName));
+                mNetworkPopup.getMenu().add(0, R.id.disable_network_item, 60, R.string.no_network_button);
+                return;
+            case NETWORK_TYPE_JOINING:
+                mNetworkPopup.getMenu().add(0, R.id.please_wait_item, 1, R.string.please_wait);
+                return;
+            case NETWORK_TYPE_JOINED:
+                mNetworkPopup.getMenu().add(0, R.id.leave_item, 1, R.string.not_ready_button);
+                return;
+            case NETWORK_TYPE_SERVING:
+                mNetworkPopup.getMenu().add(0, R.id.cancel_server_item, 1, R.string.cancel_server_button);
+                return;
+        }
+    }
+
+    @Override
+    public boolean onMenuItemClick(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.disable_network_item:
+                displayAllNetworkingOptions(false);
+                mUseNetwork = false;
+                mUseNetworkingButton.setText(R.string.use_network_button);
+                return true;
+            case R.id.join_item:
+                if (mPlayerID == 0) {
+                    Toast.makeText(getApplicationContext(), getString(R.string.error_select_team), Toast.LENGTH_SHORT).show();
+                    return true;
+                }
+                mReady = true;
+                setReady();
+                mUDPListenerService.joinServer();
+                setNetworkMenu(NETWORK_TYPE_JOINING);
+                return true;
+            case R.id.join_ip_item:
+                if (mPlayerID == 0) {
+                    Toast.makeText(getApplicationContext(), getString(R.string.error_select_team), Toast.LENGTH_SHORT).show();
+                    return true;
+                }
+                mUDPListenerService.setPlayerID(mPlayerID);
+                requestServerIP();
+                return true;
+            case R.id.create_server_item:
+                if (mPlayerID == 0) {
+                    Toast.makeText(getApplicationContext(), getString(R.string.error_select_team), Toast.LENGTH_SHORT).show();
+                    return true;
+                }
+                mUDPListenerService.setGameMode(mGameMode);
+                mUDPListenerService.setGameLimit(mGameLimit, mTimeLimit, mLivesLimit, mScoreLimit);
+                mUDPListenerService.createServer();
+                setNetworkMenu(NETWORK_TYPE_JOINING);
+                return true;
+            case R.id.player_name_item:
+                requestPlayerName();
+                return true;
+            case R.id.please_wait_item:
+                return true;
+            case R.id.cancel_server_item:
+                mReady = false;
+                setReady();
+                mIsServer = false;
+                mUDPListenerService.cancelServer();
+                setNetworkMenu(NETWORK_TYPE_ENABLED);
+                return true;
+            case R.id.leave_item:
+                mReady = false;
+                setReady();
+                setNetworkMenu(NETWORK_TYPE_ENABLED);
+                return true;
+            case R.id.firing_mode_outdoor_no_cone_item:
+                mCurrentFiringMode = FIRING_MODE_OUTDOOR_NO_CONE;
+                mFiringModeButton.setText(R.string.firing_mode_outdoor_no_cone);
+                setShotMode(mCurrentShotMode);
+                {
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putInt(PREF_FIRING_MODE, mCurrentFiringMode);
+                    editor.apply();
+                }
+                return true;
+            case R.id.firing_mode_outdoor_with_cone_item:
+                mCurrentFiringMode = FIRING_MODE_OUTDOOR_WITH_CONE;
+                mFiringModeButton.setText(R.string.firing_mode_outdoor_with_cone);
+                setShotMode(mCurrentShotMode);
+                {
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putInt(PREF_FIRING_MODE, mCurrentFiringMode);
+                    editor.apply();
+                }
+                return true;
+            case R.id.firing_mode_indoor_no_cone_item:
+                mCurrentFiringMode = FIRING_MODE_INDOOR_NO_CONE;
+                mFiringModeButton.setText(R.string.firing_mode_indoor_no_cone);
+                setShotMode(mCurrentShotMode);
+                {
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putInt(PREF_FIRING_MODE, mCurrentFiringMode);
+                    editor.apply();
+                }
+                return true;
+            case R.id.game_mode_2teams_item:
+                mGameMode = GAME_MODE_2TEAMS;
+                mGameModeTV.setText(R.string.game_mode_2teams);
+                setTeam();
+                return true;
+            case R.id.game_mode_4teams_item:
+                mGameMode = GAME_MODE_4TEAMS;
+                mGameModeTV.setText(R.string.game_mode_4teams);
+                setTeam();
+                return true;
+            case R.id.game_mode_ffa_item:
+                mGameMode = GAME_MODE_FFA;
+                mGameModeTV.setText(R.string.game_mode_ffa);
+                setTeam();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private void getFiringMode() {
+        switch (mCurrentFiringMode) {
+            case FIRING_MODE_OUTDOOR_NO_CONE:
+                mFiringModeButton.setText(R.string.firing_mode_outdoor_no_cone);
+                return;
+            case FIRING_MODE_OUTDOOR_WITH_CONE:
+                mFiringModeButton.setText(R.string.firing_mode_outdoor_with_cone);
+                return;
+            case FIRING_MODE_INDOOR_NO_CONE:
+                mFiringModeButton.setText(R.string.firing_mode_indoor_no_cone);
+        }
     }
 
     private void requestPlayerName() {
@@ -581,6 +698,7 @@ public class FullscreenActivity extends AppCompatActivity {
                                 editor.putString(PREF_PLAYER_NAME, mPlayerName);
                                 editor.apply();
                                 displayAllNetworkingOptions(true);
+                                setNetworkMenu(NETWORK_TYPE_ENABLED);
                                 dialog.dismiss();
                             }
                         })
@@ -618,8 +736,8 @@ public class FullscreenActivity extends AppCompatActivity {
                                 mReady = true;
                                 setReady();
                                 mIsServer = false;
-                                mCreateServerButton.setVisibility(View.INVISIBLE);
                                 mUDPListenerService.joinServer(serverIPET.getText().toString());
+                                setNetworkMenu(NETWORK_TYPE_JOINING);
                                 dialog.dismiss();
                             }
                         })
@@ -760,40 +878,26 @@ public class FullscreenActivity extends AppCompatActivity {
         if (mReady) {
             mNetworkPlayerCountTV.setText(R.string.network_player_1count);
             mUDPListenerService.setPlayerID(mPlayerID);
-            mJoinIPButton.setVisibility(View.GONE);
-            if (mIsServer) {
-                mReadyButton.setVisibility(View.GONE);
-            } else {
-                // Start looking for a lobby
-                mUDPListenerService.joinServer();
-                mCreateServerButton.setVisibility(View.GONE);
-            }
-            mReadyButton.setText(R.string.not_ready_button);
             mNetworkPlayerCountTV.setVisibility(View.VISIBLE);
             mTeamMinusButton.setVisibility(View.INVISIBLE);
             mTeamPlusButton.setVisibility(View.INVISIBLE);
-            mToggleGameModeButton.setVisibility(View.GONE);
+            mGameModeButton.setVisibility(View.GONE);
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-            mNetworkBar.setVisibility(View.VISIBLE);
             mGameLimitButton.setVisibility(View.GONE);
         } else {
             if (sendPlayerLeft)
                 mUDPListenerService.sendUDPMessageAll(UDPListenerService.UDPMSG_LEAVE);
             if (!mIsServer)
                 mUDPListenerService.stopListen();
-            mReadyButton.setText(R.string.ready_button);
             mNetworkPlayerCountTV.setVisibility(View.GONE);
             mTeamMinusButton.setVisibility(View.VISIBLE);
             mTeamPlusButton.setVisibility(View.VISIBLE);
             getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             mNetworkPlayerCountTV.setVisibility(View.GONE);
-            mToggleGameModeButton.setVisibility(View.VISIBLE);
-            mNetworkBar.setVisibility(View.GONE);
-            mCreateServerButton.setVisibility(View.VISIBLE);
-            mJoinIPButton.setVisibility(View.VISIBLE);
+            mGameModeButton.setVisibility(View.VISIBLE);
             mServerIPTV.setVisibility(View.GONE);
-            mReadyButton.setVisibility(View.VISIBLE);
             mGameLimitButton.setVisibility(View.VISIBLE);
+            setNetworkMenu(NETWORK_TYPE_ENABLED);
         }
     }
 
@@ -843,6 +947,8 @@ public class FullscreenActivity extends AppCompatActivity {
             displayAllNetworkingOptions(false);
             mEndGameButton.setVisibility(View.VISIBLE);
         }
+        mUseNetworkingButton.setVisibility(View.INVISIBLE);
+        mFiringModeButton.setVisibility(View.INVISIBLE);
         mStartGameTimer = true;
         startSpawn("");
     }
@@ -883,7 +989,6 @@ public class FullscreenActivity extends AppCompatActivity {
             mPlayerCount = 0;
             mNetworkPlayerCountTV.setText(R.string.network_player_1count);
             mIsServer = false;
-            mCreateServerButton.setText(R.string.create_server_button);
         }
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
@@ -910,6 +1015,9 @@ public class FullscreenActivity extends AppCompatActivity {
         mShotsFiredIV.setVisibility(View.GONE);
         startReload(RELOADING_STATE_ELIMINATED);
         mGameTimer.stop();
+        mUseNetworkingButton.setVisibility(View.VISIBLE);
+        mFiringModeButton.setVisibility(View.VISIBLE);
+        setNetworkMenu(NETWORK_TYPE_ENABLED);
     }
 
     /* Sending to Command a packet with 10 00 80 00 PLAYER# then 15 more 00's sets the player ID.
@@ -918,7 +1026,7 @@ public class FullscreenActivity extends AppCompatActivity {
        having previously set a team does not seem to work. We do a reload cycle before starting the
        game each time to ensure that the player starts on the right team and with full ammo. */
     private void setTeam() {
-        if (mBluetoothLeService == null || !mBluetoothLeService.isWriteAvailable())
+        if (mBluetoothLeService == null)
             return;
         Log.d(TAG, "setting player ID to " + mPlayerID);
         if (mPlayerID < 1 || mPlayerID > MAX_PLAYER_ID) {
@@ -976,7 +1084,7 @@ public class FullscreenActivity extends AppCompatActivity {
        remaining shot counter to 0). It also sets the tagger in what I guess is status 0x03 instead
        of the usual 0x02. The command format is F0 00 02 00 PLAYER_ID and then 0 filled to the end. */
     private void startReload(int reloadStatus) {
-        if (mReloading != RELOADING_STATE_NONE || mCommandCharacteristic == null || mBluetoothLeService == null || !mBluetoothLeService.isWriteAvailable())
+        if (mReloading != RELOADING_STATE_NONE || mCommandCharacteristic == null || mBluetoothLeService == null)
             return;
         mReloading = reloadStatus;
         mShotsRemainingTV.setVisibility(View.INVISIBLE);
@@ -993,7 +1101,7 @@ public class FullscreenActivity extends AppCompatActivity {
     /* Second stage of the reload commands which tells the tagger how many shots to load and allows
        it to shoot again. Command format is 00 00 04 00 PLAYER_ID 00 SHOT_COUNT and then 0 filled. */
     private void finishReload() {
-        if ((mReloading != RELOADING_STATE_STARTED && mReloading != RELOADING_STATE_ELIMINATED) || mCommandCharacteristic == null || mBluetoothLeService == null || !mBluetoothLeService.isWriteAvailable() || mGameState != GAME_STATE_RUNNING)
+        if ((mReloading != RELOADING_STATE_STARTED && mReloading != RELOADING_STATE_ELIMINATED) || mCommandCharacteristic == null || mBluetoothLeService == null || mGameState != GAME_STATE_RUNNING)
             return;
         mReloading = RELOADING_STATE_FINISHING;
         mEmptyTriggerCount = 0;
@@ -1080,33 +1188,44 @@ public class FullscreenActivity extends AppCompatActivity {
 
     // Config 00 00 09 xx yy ff c8 ff ff 80 01 43 - xx is the number of shots and if you set yy to 01 for full auto for xx shots or 00 for single shot mode, increasing yy decreases RoF
     // setting 03 03 for shots and RoF gives a good 3 shot burst, 03 01 is so fast that you feel 1 recoil for 3 shots
-    private void setShotMode(int mode) {
-        if (mConfigCharacteristic == null || mBluetoothLeService == null || !mBluetoothLeService.isWriteAvailable())
+    private void setShotMode(int shotMode) {
+        if (mConfigCharacteristic == null || mBluetoothLeService == null)
             return;
         byte[] config = new byte[20];
         config[2]  = (byte)0x09;
-        config[5]  = (byte)0xFF;
-        config[6]  = (byte)0xC8;
         config[7]  = (byte)0xFF;
         config[8]  = (byte)0xFF;
         config[9]  = (byte)0x80;
         config[10] = (byte)0x01;
         config[11] = (byte)0x43;
-        if (mode == SHOT_MODE_SINGLE) {
+        if (shotMode == SHOT_MODE_SINGLE) {
             config[3] = (byte)0xFE;
             config[4] = (byte)0x00;
-            mCurrentMode = SHOT_MODE_SINGLE;
+            mCurrentShotMode = SHOT_MODE_SINGLE;
             mShotModeTV.setText(R.string.shot_mode_single);
-        } else if (mode == SHOT_MODE_BURST) {
+        } else if (shotMode == SHOT_MODE_BURST) {
             config[3] = (byte)0x03;
             config[4] = (byte)0x03;
-            mCurrentMode = SHOT_MODE_BURST;
+            mCurrentShotMode = SHOT_MODE_BURST;
             mShotModeTV.setText(R.string.shot_mode_burst3);
-        } else if (mode == SHOT_MODE_FULL_AUTO) {
+        } else if (shotMode == SHOT_MODE_FULL_AUTO) {
             config[3] = (byte)0xFE;
             config[4] = (byte)0x01;
-            mCurrentMode = SHOT_MODE_FULL_AUTO;
+            mCurrentShotMode = SHOT_MODE_FULL_AUTO;
             mShotModeTV.setText(R.string.shot_mode_auto);
+        }
+        switch (mCurrentFiringMode) {
+            case FIRING_MODE_OUTDOOR_NO_CONE:
+                config[5]  = (byte)0xFF;
+                config[6]  = (byte)0x00;
+                break;
+            case FIRING_MODE_OUTDOOR_WITH_CONE:
+                config[5]  = (byte)0xFF;
+                config[6]  = (byte)0xC8;
+                break;
+            case FIRING_MODE_INDOOR_NO_CONE:
+                config[5]  = (byte)0x19;
+                config[6]  = (byte)0x00;
         }
         mConfigCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
         mConfigCharacteristic.setValue(config);
@@ -1116,7 +1235,7 @@ public class FullscreenActivity extends AppCompatActivity {
     // Config 10 00 02 02 ff and 15 sets of 00 disables recoil
     // Config 10 00 02 03 ff and 15 sets of 00 enables recoil
     private void setRecoil(boolean enabled) {
-        if (mConfigCharacteristic == null || mBluetoothLeService == null || !mBluetoothLeService.isWriteAvailable())
+        if (mConfigCharacteristic == null || mBluetoothLeService == null)
             return;
         byte[] config = new byte[20];
         config[0]  = (byte)0x10;
@@ -1333,7 +1452,7 @@ public class FullscreenActivity extends AppCompatActivity {
         mConnectButton.setEnabled(true);
         TextView connectStatusTV = findViewById(R.id.connect_status_tv);
         if (connectStatusTV != null) connectStatusTV.setText(R.string.connect_status_not_connected);
-        mCurrentMode = SHOT_MODE_SINGLE;
+        mCurrentShotMode = SHOT_MODE_SINGLE;
         mShotModeTV.setText(R.string.shot_mode_single);
         mRecoilEnabled = true;
         mRecoilModeTV.setText(R.string.recoil_enabled);
@@ -1345,12 +1464,7 @@ public class FullscreenActivity extends AppCompatActivity {
         playSound(R.raw.eliminated, getApplicationContext());
     }
 
-    // Handles various events fired by the Service.
-    // ACTION_GATT_CONNECTED: connected to a GATT server.
-    // ACTION_GATT_DISCONNECTED: disconnected from a GATT server.
-    // ACTION_GATT_SERVICES_DISCOVERED: discovered GATT services.
-    // ACTION_DATA_AVAILABLE: received data from the device.  This can be a result of read
-    //                        or notification operations.
+    // Handles various events fired by the BLE Service.
     private final BroadcastReceiver mGattUpdateReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -1380,11 +1494,25 @@ public class FullscreenActivity extends AppCompatActivity {
                         }
                         mCommandCharacteristic = gattService.getCharacteristic(UUID.fromString(GattAttributes.RECOIL_COMMAND_UUID));
                         mConfigCharacteristic = gattService.getCharacteristic(UUID.fromString(GattAttributes.RECOIL_CONFIG_UUID));
+                        BluetoothGattCharacteristic idCharacteristic = gattService.getCharacteristic(UUID.fromString(GattAttributes.RECOIL_ID_UUID));
+                        if (idCharacteristic != null) {
+                            mBluetoothLeService.readCharacteristic(idCharacteristic); // to get the blaster type, rifle or pistol
+                        } else {
+                            Log.d(TAG, "failed to find ID characteristic");
+                        }
                         playSound(R.raw.spawn, getApplicationContext());
                     }
                 }
-            } else if (BluetoothLeService.ACTION_DATA_AVAILABLE.equals(action)) {
+            } else if (BluetoothLeService.TELEMETRY_DATA_AVAILABLE.equals(action)) {
                 processTelemetryData();
+            } else if (BluetoothLeService.ID_DATA_AVAILABLE.equals(action)) {
+                mBlasterType = intent.getByteExtra(BluetoothLeService.EXTRA_DATA, BLASTER_TYPE_PISTOL);
+                if (mBlasterType == BLASTER_TYPE_RIFLE) {
+                    Toast.makeText(getApplicationContext(), getString(R.string.rifle_detected_toast), Toast.LENGTH_SHORT).show();
+                } else {
+                    // We'll automatically assume that this is a pistol
+                    Toast.makeText(getApplicationContext(), getString(R.string.pistol_detected_toast), Toast.LENGTH_SHORT).show();
+                }
             } else if (BluetoothLeService.CHARACTERISTIC_WRITE_FINISHED.equals(action)) {
                 if (mReloading == RELOADING_STATE_STARTED) {
                     // Using a timer here so we can cancel it if the player is eliminated while waiting to reload
@@ -1410,7 +1538,8 @@ public class FullscreenActivity extends AppCompatActivity {
         intentFilter.addAction(BluetoothLeService.ACTION_GATT_CONNECTED);
         intentFilter.addAction(BluetoothLeService.ACTION_GATT_DISCONNECTED);
         intentFilter.addAction(BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED);
-        intentFilter.addAction(BluetoothLeService.ACTION_DATA_AVAILABLE);
+        intentFilter.addAction(BluetoothLeService.TELEMETRY_DATA_AVAILABLE);
+        intentFilter.addAction(BluetoothLeService.ID_DATA_AVAILABLE);
         intentFilter.addAction(BluetoothLeService.CHARACTERISTIC_WRITE_FINISHED);
         return intentFilter;
     }
@@ -1494,6 +1623,7 @@ public class FullscreenActivity extends AppCompatActivity {
                 mLastReloadButtonCount = reload_counter;
                 mLastThumbButtonCount = thumb_counter;
                 mLastPowerButtonCount = power_counter;
+                setShotMode(mCurrentShotMode);
             }
             if (trigger_counter != mLastTriggerCount) {
                 mLastTriggerCount = trigger_counter;
@@ -1516,11 +1646,11 @@ public class FullscreenActivity extends AppCompatActivity {
             }
             if (thumb_counter != mLastThumbButtonCount) {
                 mLastThumbButtonCount = thumb_counter;
-                if (mCurrentMode == SHOT_MODE_SINGLE) {
+                if (mCurrentShotMode == SHOT_MODE_SINGLE) {
                     setShotMode(SHOT_MODE_BURST);
-                } else if (mCurrentMode == SHOT_MODE_BURST) {
+                } else if (mCurrentShotMode == SHOT_MODE_BURST) {
                     setShotMode(SHOT_MODE_FULL_AUTO);
-                } else if (mCurrentMode == SHOT_MODE_FULL_AUTO) {
+                } else if (mCurrentShotMode == SHOT_MODE_FULL_AUTO) {
                     setShotMode(SHOT_MODE_SINGLE);
                 }
             }
@@ -1540,14 +1670,25 @@ public class FullscreenActivity extends AppCompatActivity {
             }
             long averageBattery = mBatteryTotal / mBatteryCount;
             if (mBatteryLevelIV != null) {
-                if (averageBattery >= BATTERY_LEVEL_GREEN)
-                    mBatteryLevelIV.setImageResource(R.drawable.ic_battery_full_green_24dp);
-                else if (averageBattery >= BATTERY_LEVEL_BLUE)
-                    mBatteryLevelIV.setImageResource(R.drawable.ic_battery_80_blue_24dp);
-                else if (averageBattery >= BATTERY_LEVEL_YELLOW)
-                    mBatteryLevelIV.setImageResource(R.drawable.ic_battery_50_yellow_24dp);
-                else
-                    mBatteryLevelIV.setImageResource(R.drawable.ic_battery_alert_red_24dp);
+                if (mBlasterType == BLASTER_TYPE_RIFLE) {
+                    if (averageBattery >= BATTERY_LEVEL_RIFLE_GREEN)
+                        mBatteryLevelIV.setImageResource(R.drawable.ic_battery_full_green_24dp);
+                    else if (averageBattery >= BATTERY_LEVEL_RIFLE_BLUE)
+                        mBatteryLevelIV.setImageResource(R.drawable.ic_battery_80_blue_24dp);
+                    else if (averageBattery >= BATTERY_LEVEL_RIFLE_YELLOW)
+                        mBatteryLevelIV.setImageResource(R.drawable.ic_battery_50_yellow_24dp);
+                    else
+                        mBatteryLevelIV.setImageResource(R.drawable.ic_battery_alert_red_24dp);
+                } else {
+                    if (averageBattery >= BATTERY_LEVEL_PISTOL_GREEN)
+                        mBatteryLevelIV.setImageResource(R.drawable.ic_battery_full_green_24dp);
+                    else if (averageBattery >= BATTERY_LEVEL_PISTOL_BLUE)
+                        mBatteryLevelIV.setImageResource(R.drawable.ic_battery_80_blue_24dp);
+                    else if (averageBattery >= BATTERY_LEVEL_PISTOL_YELLOW)
+                        mBatteryLevelIV.setImageResource(R.drawable.ic_battery_50_yellow_24dp);
+                    else
+                        mBatteryLevelIV.setImageResource(R.drawable.ic_battery_alert_red_24dp);
+                }
             }
             /*if (buttons != 0) {
                 boolean trigger = false;
@@ -1851,7 +1992,6 @@ public class FullscreenActivity extends AppCompatActivity {
                 if (mGameMode == GAME_MODE_FFA && mGameState != GAME_STATE_NONE && UDPListenerService.UDPMSG_LEAVE.equals(action) && mPlayerCount <= 1)
                     endGame(); // Everyone else is out so game is over - this only works in FFA because we don't keep track of who and how many people are on each team
             } else if (UDPListenerService.UDPMSG_LISTPLAYERS.equals(action)) {
-                mNetworkBar.setVisibility(View.GONE);
                 mPlayerCount = mUDPListenerService.getPlayerCount();
                 mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, mPlayerCount));
                 String netGameMode = mUDPListenerService.getGameMode();
@@ -1869,6 +2009,9 @@ public class FullscreenActivity extends AppCompatActivity {
                 if (!mIsServer) {
                     mGameLimit = GAME_LIMIT_NONE;
                     setGameLimit();
+                    setNetworkMenu(NETWORK_TYPE_JOINED);
+                    mServerIPTV.setText(getString(R.string.server_status_connected_to, mUDPListenerService.getIP()));
+                    mServerIPTV.setVisibility(View.VISIBLE);
                 }
             } else if (UDPListenerService.UDPMSG_STARTGAME.equals(action)) {
                 if (mGameState == GAME_STATE_NONE)
@@ -1896,16 +2039,13 @@ public class FullscreenActivity extends AppCompatActivity {
                 mReady = false;
                 setReady();
                 mUseNetworkingButton.setVisibility(View.VISIBLE);
-                mCreateServerButton.setEnabled(true);
             } else if (UDPListenerService.UDPMSG_SERVERCREATED.equals(action)) {
                 mReady = true;
                 mIsServer = true;
                 setReady();
-                mCreateServerButton.setEnabled(true);
-                mCreateServerButton.setText(R.string.cancel_server_button);
-                mServerIPTV.setText(mUDPListenerService.getIP());
+                mServerIPTV.setText(getString(R.string.server_status_serving_on, mUDPListenerService.getIP()));
                 mServerIPTV.setVisibility(View.VISIBLE);
-                mReadyButton.setVisibility(View.GONE);
+                setNetworkMenu(NETWORK_TYPE_SERVING);
             } else if (UDPListenerService.UDPMSG_SERVERCANCEL.equals(action)) {
                 mReady = false;
                 setReady(false);
@@ -1960,18 +2100,12 @@ public class FullscreenActivity extends AppCompatActivity {
     private void displayAllNetworkingOptions(boolean enabled) {
         int visibility = enabled ? View.VISIBLE : View.INVISIBLE;
         mNetworkPlayerCountTV.setVisibility(visibility);
-        mUseNetworkingButton.setVisibility(visibility);
-        mReadyButton.setVisibility(visibility);
-        mToggleGameModeButton.setVisibility(visibility);
+        mGameModeButton.setVisibility(visibility);
         mGameModeLabelTV.setVisibility(visibility);
         mGameModeTV.setVisibility(visibility);
         mScoreLabelTV.setVisibility(visibility);
         mScoreTV.setVisibility(visibility);
-        mCreateServerButton.setVisibility(visibility);
         mServerIPTV.setVisibility(View.GONE);
-        mJoinIPButton.setVisibility(visibility);
-        mNetworkBar.setVisibility(View.GONE);
-        //mGameLimitButton.setVisibility(visibility);
         if (mGameMode != GAME_MODE_FFA) {
             mTeamScoreLabelTV.setVisibility(visibility);
             mTeamScoreTV.setVisibility(visibility);

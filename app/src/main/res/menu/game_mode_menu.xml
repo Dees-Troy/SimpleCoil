@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android" >
+    <item android:id="@+id/game_mode_2teams_item"
+        android:title="@string/game_mode_2teams" />
+    <item android:id="@+id/game_mode_4teams_item"
+        android:title="@string/game_mode_4teams" />
+    <item android:id="@+id/game_mode_ffa_item"
+        android:title="@string/game_mode_ffa" />
+</menu>

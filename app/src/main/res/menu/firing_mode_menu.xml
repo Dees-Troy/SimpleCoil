@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android" >
+    <item android:id="@+id/firing_mode_outdoor_no_cone_item"
+        android:title="@string/firing_mode_outdoor_no_cone" />
+    <item android:id="@+id/firing_mode_outdoor_with_cone_item"
+        android:title="@string/firing_mode_outdoor_with_cone" />
+    <item android:id="@+id/firing_mode_indoor_no_cone_item"
+        android:title="@string/firing_mode_indoor_no_cone" />
+</menu>

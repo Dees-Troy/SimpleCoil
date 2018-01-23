@@ -29,6 +29,10 @@
     <string name="score_limit_label">SCORE (%1$d)</string>
     <string name="team_score_limit_label">TEAM (%1$d)</string>
 
+    <string name="firing_mode_outdoor_no_cone">Outdoor No Cone</string>
+    <string name="firing_mode_outdoor_with_cone">Outdoor With Cone</string>
+    <string name="firing_mode_indoor_no_cone">Indoor No Cone</string>
+
     <string name="health_label">HEALTH</string>
 
     <string name="starting_game_label">STARTING!</string>
@@ -55,18 +59,25 @@
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
 
-    <string name="use_network_button">Use Network?</string>
-    <string name="no_network_button">No Network!</string>
+    <string name="server_status_serving_on">Serving on %1$s</string>
+    <string name="server_status_connected_to">Connected to %1$s</string>
+
+    <string name="use_network_button">Enable Networking</string>
+    <string name="network_menu_button">Network Options</string>
+    <string name="no_network_button">Disable Network</string>
     <string name="ready_button">Join Lobby</string>
+    <string name="join_button">Join Lobby</string>
     <string name="not_ready_button">Leave Lobby</string>
+    <string name="leave_button">Leave Lobby</string>
     <string name="create_server_button">Create Lobby</string>
     <string name="cancel_server_button">Cancel Lobby</string>
     <string name="join_ip_button">Join IP&#8230;</string>
+    <string name="player_name_button">Player Name: %1$s</string>
     <string name="game_mode_label">Game Mode</string>
     <string name="game_mode_ffa">Free For All</string>
     <string name="game_mode_2teams">2 Teams</string>
     <string name="game_mode_4teams">4 Teams</string>
-    <string name="game_mode_toggle_button">Toggle Mode</string>
+    <string name="game_mode_toggle_button">Set Game Mode</string>
     <string name="scan_players_button">Search For Players</string>
     <string name="scan_started_toast">Player scan started!</string>
     <string name="network_player_1count">1 Player</string>
@@ -80,4 +91,9 @@
     <string name="game_limit_time">Time in minutes</string>
     <string name="game_limit_lives">Lives</string>
     <string name="game_limit_score">Score</string>
+
+    <string name="please_wait">Please Wait</string>
+
+    <string name="pistol_detected_toast">Pistol Detected!</string>
+    <string name="rifle_detected_toast">Rifle Detected!</string>
 </resources>
