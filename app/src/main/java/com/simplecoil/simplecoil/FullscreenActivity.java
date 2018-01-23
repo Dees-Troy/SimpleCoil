@@ -171,9 +171,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private static final long BATTERY_LEVEL_PISTOL_GREEN = 14;
     private static final long BATTERY_LEVEL_PISTOL_BLUE = 12;
     private static final long BATTERY_LEVEL_PISTOL_YELLOW = 10;
-    private static final long BATTERY_LEVEL_RIFLE_GREEN = 14;
-    private static final long BATTERY_LEVEL_RIFLE_BLUE = 12;
-    private static final long BATTERY_LEVEL_RIFLE_YELLOW = 10;
+    private static final long BATTERY_LEVEL_RIFLE_GREEN = 21;
+    private static final long BATTERY_LEVEL_RIFLE_BLUE = 18;
+    private static final long BATTERY_LEVEL_RIFLE_YELLOW = 15;
 
     private static final byte BLASTER_TYPE_PISTOL = (byte)2;
     private static final byte BLASTER_TYPE_RIFLE = (byte)1;
