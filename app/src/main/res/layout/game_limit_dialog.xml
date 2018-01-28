@@ -37,6 +37,8 @@
         android:layout_height="wrap_content"
         android:digits="0123456789"
         android:maxLength="3"
+        android:background="#FFFFFF"
+        android:textColor="#000000"
         android:inputType="number" >
         <requestFocus />
 

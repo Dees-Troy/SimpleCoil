@@ -41,6 +41,8 @@
         </activity>
         <service android:name="com.simplecoil.simplecoil.BluetoothLeService" android:enabled="true"/>
         <service android:name="com.simplecoil.simplecoil.UDPListenerService" android:enabled="true"/>
+        <service android:name=".TcpClient" android:enabled="true"/>
+        <service android:name=".TcpServer" android:enabled="true"/>
     </application>
 
 </manifest>
