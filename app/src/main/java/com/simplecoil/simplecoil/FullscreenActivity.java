@@ -146,6 +146,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private CountDownTimer mSpawnTimer = null;
     private CountDownTimer mReloadTimer = null;
     private CountDownTimer mGameCountdownTimer = null;
+    private CountDownTimer mConnectFailTimer = null;
 
     private BluetoothLeScanner mBluetoothLeScanner;
     private BluetoothLeService mBluetoothLeService;
@@ -1282,7 +1283,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         }.start();
     }
 
-    // Config 00 00 09 xx yy ff c8 ff ff 80 01 43 - xx is the number of shots and if you set yy to 01 for full auto for xx shots or 00 for single shot mode, increasing yy decreases RoF
+    // Config 00 00 09 xx yy ff c8 ff ff 80 01 34 - xx is the number of shots and if you set yy to 01 for full auto for xx shots or 00 for single shot mode, increasing yy decreases RoF
     // setting 03 03 for shots and RoF gives a good 3 shot burst, 03 01 is so fast that you feel 1 recoil for 3 shots
     private void setShotMode(int shotMode) {
         if (mConfigCharacteristic == null || mBluetoothLeService == null)
@@ -1292,8 +1293,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         config[7]  = (byte)0xFF;
         config[8]  = (byte)0xFF;
         config[9]  = (byte)0x80;
-        config[10] = (byte)0x01;
-        config[11] = (byte)0x43;
+        config[10] = (byte)0x02;
+        config[11] = (byte)0x34;
         if (shotMode == SHOT_MODE_SINGLE) {
             config[3] = (byte)0xFE;
             config[4] = (byte)0x00;
@@ -1528,11 +1529,17 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void startConnectFailTest() {
-        // Handler to see if we failed to find a weapon
+        // Auto disconnect and quit searching if we fail to find a blaster
         mConnected = false;
-        Handler connectionFailTestHandler = new Handler();
-        connectionFailTestHandler.postDelayed(new Runnable(){
-            public void run(){
+        if (mConnectFailTimer != null)
+            mConnectFailTimer.cancel();
+        mConnectFailTimer = new CountDownTimer(CONNECTION_FAIL_TEST_INTERVAL_MILLISECONDS, CONNECTION_FAIL_TEST_INTERVAL_MILLISECONDS) {
+
+            public void onTick(long millisUntilFinished) {
+                // Do nothing
+            }
+
+            public void onFinish() {
                 if (!mConnected) {
                     Log.d(TAG, "Failed to find a weapon before timeout");
                     mScanning = false;
@@ -1541,7 +1548,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     handleDisconnect();
                 }
             }
-        }, CONNECTION_FAIL_TEST_INTERVAL_MILLISECONDS);
+        }.start();
     }
 
     private void resetBluetoothServices() {
@@ -1555,6 +1562,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void handleDisconnect() {
+        if (mConnectFailTimer != null)
+            mConnectFailTimer.cancel();
         resetBluetoothServices();
         showConnectLayout();
         mConnectButton.setEnabled(true);

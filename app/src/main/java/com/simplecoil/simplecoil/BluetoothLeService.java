@@ -99,7 +99,7 @@ public class BluetoothLeService extends Service {
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 intentAction = ACTION_GATT_DISCONNECTED;
                 mConnectionState = STATE_DISCONNECTED;
-                Log.i(TAG, "Disconnected from GATT server.");
+                Log.i(TAG, "Disconnected from GATT server: " + status);
                 broadcastUpdate(intentAction);
             }
         }
