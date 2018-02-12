@@ -17,7 +17,10 @@
 package com.simplecoil.simplecoil;
 
 import android.app.Service;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
@@ -37,6 +40,9 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.Queue;
 
 public class TcpClient extends Service {
     private static final String TAG = "TCPClient";
@@ -47,8 +53,10 @@ public class TcpClient extends Service {
 
     private static volatile boolean keepListening = false;
     private static volatile boolean isListening = false;
+    private static boolean mIsDedicatedServer = false;
 
     private DataOutputStream out = null;
+    private Queue<String> messageQueue;
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -68,9 +76,29 @@ public class TcpClient extends Service {
 
     private final IBinder mBinder = new LocalBinder();
 
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        registerReceiver(mGPSUpdateReceiver, new IntentFilter(NetMsg.NETMSG_GPSLOCUPDATE));
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        unregisterReceiver(mGPSUpdateReceiver);
+    }
+
     public void sendTCPMessage(final String message) {
+        sendTCPMessage(message, false);
+    }
+
+    public void sendTCPMessage(final String message, final boolean queueMessage) {
         if (out == null) {
             Log.d(TAG, "Writer is null");
+            if (queueMessage) {
+                Log.e(TAG, "queuing: " + message);
+                messageQueue.add(message);
+            }
             return;
         }
         Thread sendThread = new Thread(new Runnable() {
@@ -83,6 +111,10 @@ public class TcpClient extends Service {
                 } catch (IOException e) {
                     //Log.e(TAG, "IO Error:", e);
                     e.printStackTrace();
+                    if (queueMessage) {
+                        Log.e(TAG, "queuing: " + message);
+                        messageQueue.add(message);
+                    }
                 }
             }
         });
@@ -106,6 +138,15 @@ public class TcpClient extends Service {
     }
 
     private void runTcpClient() {
+        if (Globals.getInstance().mGPSData == null)
+            Globals.getInstance().mGPSData = new HashMap<>();
+        else
+            Globals.getInstance().mGPSData.clear();
+        if (messageQueue == null) {
+            messageQueue = new LinkedList<>();
+        } else {
+            messageQueue.clear();
+        }
         keepListening = true;
         isListening = true;
         Log.d(TAG, "Starting client...");
@@ -115,9 +156,15 @@ public class TcpClient extends Service {
         OutputStream os = null;
         int retryCount = MAX_REJOIN_TRIES;
         boolean rejoin = false;
+        boolean wasConnected = false;
         while (retryCount > 0 && keepListening) {
             try {
-                retryCount--;
+                if (wasConnected) {
+                    wasConnected = false;
+                    sendBroadcast(new Intent(NetMsg.NETMSG_NETWORKDISCONNECTED));
+                }
+                if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE)
+                    retryCount--;
                 s = new Socket();
                 s.connect(new InetSocketAddress(Globals.getInstance().mServerIP, TcpServer.TCP_SERVER_PORT), CONNECTION_TIMEOUT_MS);
                 is = s.getInputStream();
@@ -125,6 +172,9 @@ public class TcpClient extends Service {
                 os = s.getOutputStream();
                 out = new DataOutputStream(new BufferedOutputStream(os));
                 sendPlayerInfo(rejoin);
+                wasConnected = true;
+                if (rejoin)
+                    sendBroadcast(new Intent(NetMsg.NETMSG_NETWORKCONNECTED));
                 rejoin = true;
                 int noReadCount = 0;
                 retryCount = MAX_REJOIN_TRIES;
@@ -141,25 +191,34 @@ public class TcpClient extends Service {
                                 parseGameInfo(message);
                             } else if (message.substring(TcpServer.TCPMESSAGE_PREFIX.length(), TcpServer.TCPMESSAGE_PREFIX.length() + TcpServer.TCPPREFIX_MESG.length()).equals(TcpServer.TCPPREFIX_MESG)) {
                                 message = message.substring(TcpServer.TCPMESSAGE_PREFIX.length() + TcpServer.TCPPREFIX_MESG.length());
-                                if (message.equals(NetMsg.NETMSG_STARTGAME)) {
-                                    Intent intent = new Intent(NetMsg.NETMSG_STARTGAME);
+                                if (message.startsWith(NetMsg.NETMSG_ELIMINATED)) {
+                                    message = message.substring(NetMsg.NETMSG_ELIMINATED.length());
+                                    Byte id = (byte) (int) Integer.parseInt(message);
+                                    Intent intent = new Intent(NetMsg.NETMSG_ELIMINATED);
+                                    intent.putExtra(UDPListenerService.INTENT_PLAYERID, id);
                                     sendBroadcast(intent);
-                                    break;
+                                } else if (message.equals(NetMsg.NETMSG_TEAMELIMINATED)) {
+                                    sendBroadcast(new Intent(NetMsg.NETMSG_TEAMELIMINATED));
+                                } else if (message.equals(NetMsg.NETMSG_ENDGAME)) {
+                                    sendBroadcast(new Intent(NetMsg.NETMSG_ENDGAME));
+                                } else if (message.equals(NetMsg.NETMSG_STARTGAME)) {
+                                    sendBroadcast(new Intent(NetMsg.NETMSG_STARTGAME));
                                 } else if (message.equals(NetMsg.NETMSG_SERVERCANCEL)) {
-                                    Intent intent = new Intent(NetMsg.NETMSG_SERVERCANCEL);
-                                    sendBroadcast(intent);
+                                    sendBroadcast(new Intent(NetMsg.NETMSG_SERVERCANCEL));
                                     break;
                                 }
                             } else if (message.startsWith(NetMsg.NETMSG_VERSIONERROR)) {
-                                Intent intent = new Intent(NetMsg.NETMSG_VERSIONERROR);
-                                sendBroadcast(intent);
+                                sendBroadcast(new Intent(NetMsg.NETMSG_VERSIONERROR));
                                 break;
                             } else {
                                 Log.d(TAG, "unknown tcp message received");
                             }
                         }
                     } else {
-                        sleep(TcpServer.TCP_READ_WAIT_MS);
+                        if (mIsDedicatedServer)
+                            sleep(TcpServer.TCP_DEDICATED_READ_WAIT_MS);
+                        else
+                            sleep(TcpServer.TCP_READ_WAIT_MS);
                         noReadCount++;
                         if (noReadCount >= 35) {
                             Log.d(TAG, "no ping from server, disconnecting");
@@ -187,8 +246,7 @@ public class TcpClient extends Service {
             }
         }
         if (retryCount == 0 && keepListening) {
-            Intent intent = new Intent(NetMsg.NETMSG_SERVERCANCEL);
-            sendBroadcast(intent);
+            sendBroadcast(new Intent(NetMsg.NETMSG_SERVERCANCEL));
         }
         Log.d(TAG, "Client stopping");
         keepListening = false;
@@ -206,12 +264,40 @@ public class TcpClient extends Service {
             }
             String message = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + playerInfo.toString();
             sendTCPMessage(message);
+            while (messageQueue.size() > 0) {
+                Log.e(TAG, "sending queued: " + messageQueue.peek());
+                sendTCPMessage(messageQueue.peek());
+                messageQueue.remove();
+            }
         } catch (JSONException e) {
             e.printStackTrace();
         }
     }
 
-    public void stopTcpClient() { keepListening = false; }
+    public void sendPlayerSettings() {
+        try {
+            JSONObject playerSettings = new JSONObject();
+            playerSettings.put(TcpServer.JSON_PLAYERSETTINGS, true);
+            playerSettings.put(TcpServer.JSON_PLAYERID, (int) Globals.getInstance().mPlayerID);
+            playerSettings.put(TcpServer.JSON_HEALTH, Globals.getInstance().mFullHealth);
+            playerSettings.put(TcpServer.JSON_RELOAD_SHOTS, Globals.getInstance().mFullReload);
+            playerSettings.put(TcpServer.JSON_RELOAD_TIME, Globals.getInstance().mReloadTime);
+            playerSettings.put(TcpServer.JSON_SPAWN_TIME, Globals.getInstance().mRespawnTime);
+            playerSettings.put(TcpServer.JSON_DAMAGE, Globals.getInstance().mDamage);
+            if (Globals.getInstance().mOverrideLives)
+                playerSettings.put(TcpServer.JSON_LIVESLIMIT, Globals.getInstance().mOverrideLivesVal);
+            String message = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + playerSettings.toString();
+            sendTCPMessage(message);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void stopTcpClient() {
+        if (mIsDedicatedServer)
+            sleep(75); // Make sure that the end game message gets sent before we close down the socket
+        keepListening = false;
+    }
 
     public void leaveServer() {
         if (keepListening) {
@@ -230,12 +316,101 @@ public class TcpClient extends Service {
     }
 
     private void parseGameInfo(String message) {
-        Globals.getInstance().mTeamIPMap.clear();
-        Globals.getInstance().mIPTeamMap.clear();
-        Globals.getInstance().mTeamPlayerNameMap.clear();
-        Globals.getInstance().mGameLimit = FullscreenActivity.GAME_LIMIT_NONE;
+        boolean gotGPSSemaphore = false;
+        boolean gotPlayerSemaphores = false;
+        boolean gotPlayerSettingsSemaphore = false;
         try {
             JSONObject game = new JSONObject(message);
+            if (game.has(TcpServer.JSON_GPSUPDATE)) {
+                JSONArray updates = game.getJSONArray(TcpServer.JSON_GPSUPDATE);
+                Globals.getmGPSDataSemaphore();
+                gotGPSSemaphore = true;
+                boolean fullUpdate = false;
+                if (game.has(TcpServer.JSON_GPSFULLUPDATE)) {
+                    Globals.getInstance().mGPSData.clear();
+                    fullUpdate = true;
+                }
+                for (int x = 0; x < updates.length(); x++) {
+                    JSONObject update = updates.getJSONObject(x);
+                    Byte playerID = (byte) update.getInt(TcpServer.JSON_PLAYERID);
+                    if (playerID != Globals.getInstance().mPlayerID) {
+                        double longitude = update.getDouble(TcpServer.JSON_GPSLONGITUDE);
+                        double latitude = update.getDouble(TcpServer.JSON_GPSLATITUDE);
+                        Globals.GPSData gps = Globals.getInstance().mGPSData.get(playerID);
+                        if (gps == null) {
+                            gps = new Globals.GPSData();
+                            gps.longitude = longitude;
+                            gps.latitude = latitude;
+                            gps.team = update.getInt(TcpServer.JSON_TEAM);
+                            Globals.getInstance().mGPSData.put(playerID, gps);
+                        } else {
+                            gps.longitude = longitude;
+                            gps.latitude = latitude;
+                        }
+                        gps.hasUpdate = true; // Anything that the server sends us is considered an update
+                    }
+                }
+                gotGPSSemaphore = false;
+                Globals.getInstance().mGPSDataSemaphore.release();
+                Intent intent = new Intent(NetMsg.NETMSG_GPSDATAUPDATE);
+                intent.putExtra(NetMsg.INTENT_FULLUPDATE, fullUpdate);
+                sendBroadcast(intent);
+                return;
+            }
+            if (game.has(TcpServer.JSON_PLAYERDATA)) {
+                Intent intent = new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE);
+                intent.putExtra(NetMsg.INTENT_PLAYERDATA, message);
+                sendBroadcast(intent);
+                return;
+            }
+            if (game.has(TcpServer.JSON_PLAYERSETTINGS)) {
+                JSONArray settings = game.getJSONArray(TcpServer.JSON_PLAYERSETTINGS);
+                Globals.getmPlayerSettingsSemaphore();
+                gotPlayerSettingsSemaphore = true;
+                for (byte x = 0; x < settings.length(); x++) {
+                    JSONObject setting = settings.getJSONObject(x);
+                    Byte playerID = (byte) setting.getInt(TcpServer.JSON_PLAYERID);
+                    Globals.PlayerSettings playerSettings = Globals.getInstance().mPlayerSettings.get(playerID);
+                    if (playerSettings == null) {
+                        playerSettings = new Globals.PlayerSettings();
+                        Globals.getInstance().mPlayerSettings.put(playerID, playerSettings);
+                    }
+                    playerSettings.health = setting.getInt(TcpServer.JSON_HEALTH);
+                    playerSettings.shots = (byte)setting.getInt(TcpServer.JSON_RELOAD_SHOTS);
+                    playerSettings.reloadTime = setting.getLong(TcpServer.JSON_RELOAD_TIME);
+                    playerSettings.spawnTime = setting.getLong(TcpServer.JSON_SPAWN_TIME);
+                    playerSettings.damage = setting.getInt(TcpServer.JSON_DAMAGE);
+                    if (setting.has(TcpServer.JSON_LIVESLIMIT)) {
+                        playerSettings.overrideLives = true;
+                        playerSettings.lives = setting.getInt(TcpServer.JSON_LIVESLIMIT);
+                    } else {
+                        playerSettings.overrideLives = false;
+                        playerSettings.lives = 0;
+                    }
+                    if (playerID == Globals.getInstance().mPlayerID) {
+                        Globals.getInstance().mFullHealth = playerSettings.health;
+                        Globals.getInstance().mFullReload = playerSettings.shots;
+                        Globals.getInstance().mReloadTime = playerSettings.reloadTime;
+                        Globals.getInstance().mRespawnTime = playerSettings.spawnTime;
+                        Globals.getInstance().mDamage = playerSettings.damage;
+                        Globals.getInstance().mOverrideLives = playerSettings.overrideLives;
+                        Globals.getInstance().mOverrideLivesVal = playerSettings.lives;
+                    }
+                }
+                Globals.getInstance().mPlayerSettingsSemaphore.release();
+                Globals.getInstance().mAllowPlayerSettings = game.getBoolean(TcpServer.JSON_ALLOWPLAYERSETTINGS);
+                gotPlayerSettingsSemaphore = false;
+                sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERSETTINGSUPDATE));
+                return;
+            }
+            Globals.getmTeamPlayerNameSemaphore();
+            Globals.getmTeamIPMapSemaphore();
+            Globals.getmIPTeamMapSemaphore();
+            gotPlayerSemaphores = true;
+            Globals.getInstance().mTeamIPMap.clear();
+            Globals.getInstance().mIPTeamMap.clear();
+            Globals.getInstance().mTeamPlayerNameMap.clear();
+            Globals.getInstance().mGameLimit = Globals.GAME_LIMIT_NONE;
             JSONArray players = game.getJSONArray(TcpServer.JSON_PLAYERS);
             for (int x = 0; x < players.length(); x++) {
                 JSONObject player = players.getJSONObject(x);
@@ -258,25 +433,68 @@ public class TcpClient extends Service {
                     }
                 }
             }
+            Globals.getInstance().mTeamIPMapSemaphore.release();
+            Globals.getInstance().mIPTeamMapSemaphore.release();
+            Globals.getInstance().mTeamPlayerNameSemaphore.release();
             Log.d(TAG, "Found " + players.length() + " players");
             JSONObject limits = game.getJSONObject(TcpServer.JSON_LIMITS);
             if (limits.has(TcpServer.JSON_TIMELIMIT)) {
-                Globals.getInstance().mGameLimit += FullscreenActivity.GAME_LIMIT_TIME;
+                Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_TIME;
                 Globals.getInstance().mTimeLimit = limits.getInt(TcpServer.JSON_TIMELIMIT);
             }
             if (limits.has(TcpServer.JSON_LIVESLIMIT)) {
-                Globals.getInstance().mGameLimit += FullscreenActivity.GAME_LIMIT_LIVES;
+                Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_LIVES;
                 Globals.getInstance().mLivesLimit = limits.getInt(TcpServer.JSON_LIVESLIMIT);
             }
             if (limits.has(TcpServer.JSON_SCORELIMIT)) {
-                Globals.getInstance().mGameLimit += FullscreenActivity.GAME_LIMIT_SCORE;
+                Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_SCORE;
                 Globals.getInstance().mScoreLimit = limits.getInt(TcpServer.JSON_SCORELIMIT);
             }
-            Globals.getInstance().mGameMode = game.getString(TcpServer.JSON_GAMEMODE);
-            Intent intent = new Intent(NetMsg.NETMSG_LISTPLAYERS);
-            sendBroadcast(intent);
+            Globals.getInstance().mGameMode = game.getInt(TcpServer.JSON_GAMEMODE);
+            mIsDedicatedServer = game.has(TcpServer.JSON_DEDICATED);
+            if (mIsDedicatedServer) {
+                int gameState = game.getInt(TcpServer.JSON_GAMESTATE);
+                if (gameState == Globals.GAME_STATE_NONE && Globals.getInstance().mGameState != gameState) {
+                    sendBroadcast(new Intent(NetMsg.NETMSG_ENDGAME));
+                    return;
+                } else if (gameState == Globals.GAME_STATE_RUNNING && Globals.getInstance().mGameState == Globals.GAME_STATE_NONE) {
+                    sendBroadcast(new Intent(NetMsg.NETMSG_STARTGAME));
+                }
+            }
+            Globals.getInstance().mUseGPS = game.has(TcpServer.JSON_USEGPS);
+            if (Globals.getInstance().mUseGPS) {
+                Globals.getInstance().mGPSMode = game.getInt(TcpServer.JSON_USEGPS);
+            }
+            sendBroadcast(new Intent(NetMsg.NETMSG_LISTPLAYERS));
         } catch (JSONException e) {
             e.printStackTrace();
+            if (gotPlayerSemaphores) {
+                Globals.getInstance().mTeamIPMapSemaphore.release();
+                Globals.getInstance().mIPTeamMapSemaphore.release();
+                Globals.getInstance().mTeamPlayerNameSemaphore.release();
+            }
+            if (gotGPSSemaphore) Globals.getInstance().mGPSDataSemaphore.release();
+            if (gotPlayerSettingsSemaphore) Globals.getInstance().mPlayerSettingsSemaphore.release();
         }
     }
+
+    public boolean isDedicatedServer() { return mIsDedicatedServer; }
+
+    private final BroadcastReceiver mGPSUpdateReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            final String action = intent.getAction();
+            Log.e(TAG, action);
+            if (NetMsg.NETMSG_GPSLOCUPDATE.equals(action)) {
+                JSONObject gpsUpdate = new JSONObject();
+                try {
+                    gpsUpdate.put(TcpServer.JSON_GPSLONGITUDE, intent.getDoubleExtra(NetMsg.INTENT_LONGITUDE, 0));
+                    gpsUpdate.put(TcpServer.JSON_GPSLATITUDE, intent.getDoubleExtra(NetMsg.INTENT_LATITUDE, 0));
+                    sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + gpsUpdate.toString());
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    };
 }

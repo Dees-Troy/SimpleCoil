@@ -45,13 +45,23 @@
             android:text="@string/connect_status_not_connected"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
 
+        <Button
+            android:id="@+id/dedicated_server_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:layout_centerHorizontal="true"
+            android:layout_below="@+id/connect_status_tv"
+            android:text="@string/dedicated_server_button" />
+
         <WebView
             android:id="@+id/info_wv"
             android:visibility="gone"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:layout_alignParentStart="true"
-            android:layout_below="@+id/connect_status_tv"
+            android:layout_below="@+id/dedicated_server_button"
             android:layout_marginTop="16dp" />
     </RelativeLayout>
 
@@ -62,6 +72,15 @@
         android:visibility="visible"
         android:fitsSystemWindows="true">
 
+        <fragment
+            android:layout_width="fill_parent"
+            android:layout_height="400dp"
+            android:name="com.simplecoil.simplecoil.MapFragment"
+            android:id="@+id/map_fragment"
+            android:visibility="visible"
+            android:layout_below="@id/health_pb"
+            android:layout_centerHorizontal="true" />
+
         <ImageView
             android:id="@+id/battery_iv"
             android:layout_width="wrap_content"
@@ -69,6 +88,16 @@
             android:layout_marginTop="5dp"
             android:layout_marginStart="10dp"
             app:srcCompat="@drawable/ic_battery_full_green_24dp" />
+
+        <ImageView
+            android:id="@+id/network_status_iv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:layout_marginEnd="5dp"
+            android:layout_toStartOf="@id/player_count_tv"
+            android:visibility="gone"
+            app:srcCompat="@drawable/ic_network_connected_24dp" />
 
         <TextView
             android:id="@+id/player_count_tv"
@@ -128,6 +157,16 @@
             android:layout_alignParentEnd="true"
             android:visibility="invisible"
             android:text="+" />
+
+        <Button
+            android:id="@+id/player_data_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="40dp"
+            android:layout_marginStart="15dp"
+            android:visibility="gone"
+            android:text="@string/scoreboard_button" />
 
         <TextView
             android:id="@+id/team_tv"
@@ -287,10 +326,21 @@
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:layout_centerHorizontal="true"
+            android:layout_marginTop="10dp"
+            android:layout_marginStart="15dp"
             android:layout_below="@id/health_pb"
             android:text="@string/start_game_button" />
+
+        <Button
+            android:id="@+id/player_settings_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:layout_marginEnd="15dp"
+            android:layout_alignParentEnd="true"
+            android:layout_below="@id/health_pb"
+            android:text="@string/player_settings_button" />
 
         <Button
             android:id="@+id/end_game_button"

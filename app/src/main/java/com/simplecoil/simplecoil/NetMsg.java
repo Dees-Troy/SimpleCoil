@@ -20,7 +20,7 @@ package com.simplecoil.simplecoil;
 
 public class NetMsg {
     public static final String MESSAGE_PREFIX = "SimpleCoil:";
-    public static final String NETWORK_VERSION = "04";
+    public static final String NETWORK_VERSION = "05";
 
     // All of these messages are straightforward and contain no extra data
     public static final String NETMSG_SHOTFIRED = "SHOTFIRED";
@@ -38,6 +38,19 @@ public class NetMsg {
     public static final String NETMSG_SERVERCANCEL = "SERVERCANCEL";
     public static final String NETMSG_TEAMELIMINATED = "TEAMELIMINATED";
     public static final String NETMSG_SERVERREPLY = "SERVERREPLY";
+    public static final String NETMSG_GPSLOCUPDATE = "GPSLOCUPDATE";
+    public static final String NETMSG_GPSDATAUPDATE = "GPSDATAUPDATE";
+    public static final String NETMSG_GPSSETTING = "GPSSETTING";
+    public static final String NETMSG_PLAYERDATAUPDATE = "PLAYERDATAUPDATE";
+    public static final String NETMSG_PLAYERDATAREQUEST = "PLAYERDATAREQUEST";
+    public static final String NETMSG_NETWORKCONNECTED = "NETWORKCONNECTED";
+    public static final String NETMSG_NETWORKDISCONNECTED = "NETWORKDISCONNECTED";
+    public static final String NETMSG_PLAYERSETTINGSUPDATE = "PLAYERSETTINGSUPDATE";
+
+    public static final String INTENT_LONGITUDE = "longitude";
+    public static final String INTENT_LATITUDE = "latitude";
+    public static final String INTENT_FULLUPDATE = "fullupdate";
+    public static final String INTENT_PLAYERDATA = "playerdata";
 
     // UDPJOIN is UDPJOIN + playerID, so UDPJOIN2 for playerID 2
     public static final String NETMSG_JOIN = "JOIN";

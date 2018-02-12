@@ -38,8 +38,11 @@ import android.content.Intent;
 import android.net.DhcpInfo;
 import android.net.wifi.WifiManager;
 import android.os.Binder;
+import android.os.CountDownTimer;
 import android.os.IBinder;
 import android.util.Log;
+
+import javax.microedition.khronos.opengles.GL;
 
 public class UDPListenerService extends Service {
     private static final String TAG = "UDPSvc";
@@ -63,7 +66,6 @@ public class UDPListenerService extends Service {
     private static volatile int mReadyToScan = 0;
 
     private volatile boolean mScanRunning = false;
-    private volatile boolean mGameRunning = false;
 
     public static final String INTENT_PLAYERID = "playerid";
     public static final String INTENT_MESSAGE = "message";
@@ -113,15 +115,36 @@ public class UDPListenerService extends Service {
             } else if (message.startsWith(NetMsg.NETMSG_HIT)) {
                 // you hit someone!
                 intent = new Intent(NetMsg.NETMSG_HIT);
-                intent.putExtra(INTENT_PLAYERID, Globals.getInstance().mIPTeamMap.get(ip));
+                Globals.getmIPTeamMapSemaphore();
+                Byte id = Globals.getInstance().mIPTeamMap.get(ip);
+                Globals.getInstance().mIPTeamMapSemaphore.release();
+                if (id == null) {
+                    Log.e(TAG, "Unknown IP " + ip.toString());
+                    return;
+                }
+                intent.putExtra(INTENT_PLAYERID, id);
             } else if (message.startsWith(NetMsg.NETMSG_OUT)) {
                 // hitting a player that's already out
                 intent = new Intent(NetMsg.NETMSG_OUT);
-                intent.putExtra(INTENT_PLAYERID, Globals.getInstance().mIPTeamMap.get(ip));
+                Globals.getmIPTeamMapSemaphore();
+                Byte id = Globals.getInstance().mIPTeamMap.get(ip);
+                Globals.getInstance().mIPTeamMapSemaphore.release();
+                if (id == null) {
+                    Log.e(TAG, "Unknown IP " + ip.toString());
+                    return;
+                }
+                intent.putExtra(INTENT_PLAYERID, id);
             } else if (message.startsWith(NetMsg.NETMSG_ELIMINATED)) {
                 // you eliminated someone!
                 intent = new Intent(NetMsg.NETMSG_ELIMINATED);
-                intent.putExtra(INTENT_PLAYERID, Globals.getInstance().mIPTeamMap.get(ip));
+                Globals.getmIPTeamMapSemaphore();
+                Byte id = Globals.getInstance().mIPTeamMap.get(ip);
+                Globals.getInstance().mIPTeamMapSemaphore.release();
+                if (id == null) {
+                    Log.e(TAG, "Unknown IP " + ip.toString());
+                    return;
+                }
+                intent.putExtra(INTENT_PLAYERID, id);
             } else if (message.startsWith(NetMsg.NETMSG_JOIN)) {
                 if (!mIsListService) return;
                 // This is a player join message
@@ -133,12 +156,17 @@ public class UDPListenerService extends Service {
                 }
                 message = message.substring(2);
                 Byte team = (byte) (int) Integer.parseInt(message);
+                Globals.getmTeamIPMapSemaphore();
                 if (team == Globals.getInstance().mPlayerID || (Globals.getInstance().mTeamIPMap.get(team) != null && !Globals.getInstance().mTeamIPMap.get(team).equals(ip))) {
+                    Globals.getInstance().mTeamIPMapSemaphore.release();
                     Log.e(TAG, "2 Players using same ID!");
                     sendUDPMessage(NetMsg.MESSAGE_PREFIX + NetMsg.NETMSG_SAMETEAM, ip, LISTEN_PORT);
                 } else {
-                    Globals.getInstance().mIPTeamMap.put(ip, team);
                     Globals.getInstance().mTeamIPMap.put(team, ip);
+                    Globals.getInstance().mTeamIPMapSemaphore.release();
+                    Globals.getmIPTeamMapSemaphore();
+                    Globals.getInstance().mIPTeamMap.put(ip, team);
+                    Globals.getInstance().mIPTeamMapSemaphore.release();
                     Log.d(TAG, "player " + team + " found at " + ip.toString());
                     sendUDPMessage(NetMsg.MESSAGE_PREFIX + NetMsg.NETMSG_SERVERREPLY, ip, LISTEN_PORT);
                 }
@@ -147,15 +175,18 @@ public class UDPListenerService extends Service {
                 intent = new Intent(NetMsg.NETMSG_SERVERREPLY);
             } else if (message.startsWith(NetMsg.NETMSG_LEAVE)) {
                 // This is a player left message
+                Globals.getmIPTeamMapSemaphore();
                 Byte team = Globals.getInstance().mIPTeamMap.get(ip);
-                Globals.getInstance().mTeamIPMap.remove(team);
                 Globals.getInstance().mIPTeamMap.remove(ip);
+                Globals.getInstance().mIPTeamMapSemaphore.release();
+                Globals.getmTeamIPMapSemaphore();
+                Globals.getInstance().mTeamIPMap.remove(team);
+                Globals.getInstance().mTeamIPMapSemaphore.release();
                 Log.d(TAG, "player " + team + " left at " + ip.toString());
                 intent = new Intent(NetMsg.NETMSG_LEAVE);
             } else if (message.startsWith(NetMsg.NETMSG_ENDGAME)) {
-                if (!mGameRunning)
+                if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE)
                     return;
-                mGameRunning = false;
                 // game ends!
                 intent = new Intent(NetMsg.NETMSG_ENDGAME);
             } else if (message.startsWith(NetMsg.NETMSG_ERROR)) {
@@ -250,12 +281,15 @@ public class UDPListenerService extends Service {
             sendFailedJoin();
             return;
         }
+        Globals.getmIPTeamMapSemaphore();
         Globals.getInstance().mIPTeamMap.clear();
+        Globals.getInstance().mIPTeamMapSemaphore.release();
+        Globals.getmTeamIPMapSemaphore();
         Globals.getInstance().mTeamIPMap.clear();
+        Globals.getInstance().mTeamIPMapSemaphore.release();
         keepListening = true;
         mIsListService = true;
         mScanRunning = false;
-        mGameRunning = false;
         mReadyToScan = 0;
         startListenForUDPMessage();
         while (mReadyToScan == 0) {
@@ -321,43 +355,41 @@ public class UDPListenerService extends Service {
             sendFailedJoin();
             return;
         }
+        Globals.getmIPTeamMapSemaphore();
         Globals.getInstance().mIPTeamMap.clear();
+        Globals.getInstance().mIPTeamMapSemaphore.release();
+        Globals.getmTeamIPMapSemaphore();
         Globals.getInstance().mTeamIPMap.clear();
+        Globals.getInstance().mTeamIPMapSemaphore.release();
         keepListening = true;
         mIsListService = false;
         mScanRunning = true;
-        mGameRunning = false;
         mReadyToScan = 0;
         startListenForUDPMessage();
-        startJoinFailTimer();
-        while(mReadyToScan < 1) {
-            sleep(100);
-        }
-        sendUDPMessage(NetMsg.MESSAGE_PREFIX + NetMsg.NETMSG_JOIN + NetMsg.NETWORK_VERSION + Globals.getInstance().mPlayerID, serverIP, port);
+        joinFailCheck(serverIP, port);
     }
 
-    private Timer mJoinFailTimer = null;
+    private void joinFailCheck(final InetAddress serverIP, final Integer port) {
+        new CountDownTimer(2000, 500) {
 
-    private void startJoinFailTimer() {
-        if (mJoinFailTimer == null)
-            mJoinFailTimer = new Timer();
-        else
-            return;
-        mJoinFailTimer.schedule(new joinFailTimer(), 2000); // Notify GUI of failed join after 2 seconds
-    }
-
-    private class joinFailTimer extends TimerTask {
-        public void run() {
-            if (mScanRunning) {
-                Log.d(TAG, "join failed, could not find a server");
-                mScanRunning = false;
-                keepListening = false;
-                sendFailedJoin();
+            public void onTick(long millisUntilFinished) {
+                if (mScanRunning) {
+                    Log.d(TAG, "Sending join request");
+                    sendUDPMessage(NetMsg.MESSAGE_PREFIX + NetMsg.NETMSG_JOIN + NetMsg.NETWORK_VERSION + Globals.getInstance().mPlayerID, serverIP, port);
+                } else {
+                    this.cancel();
+                }
             }
-            mJoinFailTimer.cancel();
-            mJoinFailTimer.purge();
-            mJoinFailTimer = null;
-        }
+
+            public void onFinish() {
+                if (mScanRunning) {
+                    Log.d(TAG, "join failed, could not find a server");
+                    mScanRunning = false;
+                    keepListening = false;
+                    sendFailedJoin();
+                }
+            }
+        }.start();
     }
 
     private void sendFailedJoin() {
@@ -367,11 +399,14 @@ public class UDPListenerService extends Service {
 
     public void sendUDPMessage(String message, Byte playerID) {
         message = NetMsg.MESSAGE_PREFIX + message;
-        if (Globals.getInstance().mTeamIPMap.get(playerID) == null) {
+        Globals.getmTeamIPMapSemaphore();
+        InetAddress ip = Globals.getInstance().mTeamIPMap.get(playerID);
+        Globals.getInstance().mTeamIPMapSemaphore.release();
+        if (ip == null) {
             Log.e(TAG, "cannot send message to unknown ID " + playerID);
             return;
         }
-        sendUDPMessage(message, Globals.getInstance().mTeamIPMap.get(playerID), LISTEN_PORT);
+        sendUDPMessage(message, ip, LISTEN_PORT);
     }
 
     public void sendUDPMessageAll(String message) {
@@ -382,6 +417,7 @@ public class UDPListenerService extends Service {
                     sleep(10);
                 }
                 mSendingMessage = true;
+                Globals.getmIPTeamMapSemaphore();
                 for (InetAddress ip : Globals.getInstance().mIPTeamMap.keySet()) {
                     try {
                         Log.d(TAG, "sending '" + prefixedMessage + "' to " + ip.toString() + ":" + LISTEN_PORT);
@@ -400,6 +436,7 @@ public class UDPListenerService extends Service {
                         sendBroadcast(intent);
                     }
                 }
+                Globals.getInstance().mIPTeamMapSemaphore.release();
                 mSendingMessage = false;
                 Log.d(TAG, "send all finished");
             }
@@ -417,6 +454,7 @@ public class UDPListenerService extends Service {
                 mSendingMessage = true;
                 int repeat = repeatCount;
                 while (repeat-- > 0) {
+                    Globals.getmIPTeamMapSemaphore();
                     for (InetAddress ip : Globals.getInstance().mIPTeamMap.keySet()) {
                         try {
                             Log.d(TAG, "sending '" + prefixedMessage + "' to " + ip.toString() + ":" + LISTEN_PORT);
@@ -435,6 +473,7 @@ public class UDPListenerService extends Service {
                             sendBroadcast(intent);
                         }
                     }
+                    Globals.getInstance().mIPTeamMapSemaphore.release();
                     sleep(50);
                 }
                 mSendingMessage = false;
@@ -475,7 +514,6 @@ public class UDPListenerService extends Service {
 
     void stopListen() {
         mScanRunning = false;
-        mGameRunning = false;
         keepListening = false;
     }
 
@@ -518,14 +556,14 @@ public class UDPListenerService extends Service {
     private final IBinder mBinder = new LocalBinder();
 
     public void startGame() {
-        mGameRunning = true;
         mIsListService = false; // There is no list service while the game is running
     }
 
     public void endGame() {
-        mGameRunning = false;
         sendUDPMessageAllRepeat(NetMsg.NETMSG_ENDGAME, 3);
     }
+
+    public void allowJoin(boolean allowed) { mIsListService = allowed;}
 
     private void sleep(long millis) {
         try {

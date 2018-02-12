@@ -22,23 +22,68 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Semaphore;
 
 public class Globals {
     private static Globals mInstance= null;
 
-    // 1 for FFA, 2 for 2 Teams, and 4 for 4 Teams
-    public volatile String mGameMode = "2";
+    /* Highest player ID allowed in the GUI, absolute max is 0x3F or 63. Player ID 0 can technically
+    be used but would require code changes to the hit detection if you really need 64 players. */
+    public static final byte MAX_PLAYER_ID = (byte) 0x10;
 
-    public volatile int mGameLimit = FullscreenActivity.GAME_LIMIT_NONE;
+    public static final byte RELOAD_COUNT = (byte) 30; // Number of shots you get after a reload, max 255
+    public volatile byte mFullReload = RELOAD_COUNT;
+    public static final long RESPAWN_TIME_SECONDS = 10; // Time to wait for respawn after elimination and to start the game
+    public volatile long mRespawnTime = RESPAWN_TIME_SECONDS;
+    public static final long RELOAD_TIME_MILLISECONDS = 1500; // Reload downtime in ms. 1.5 seconds
+    public volatile long mReloadTime = RELOAD_TIME_MILLISECONDS;
+    public static final int MAX_HEALTH = 20; // Number of hits you can take before you are eliminated
+    public volatile int mFullHealth = MAX_HEALTH;
+    public static final int DAMAGE_PER_HIT = -1;
+    public volatile int mDamage = DAMAGE_PER_HIT;
+    public volatile boolean mOverrideLives = false;
+    public volatile int mOverrideLivesVal = 0;
+    public volatile boolean mAllowPlayerSettings = true;
+
+    // 1 for FFA, 2 for 2 Teams, and 4 for 4 Teams
+    public static final int GAME_MODE_FFA = 1;
+    public static final int GAME_MODE_2TEAMS = 2;
+    public static final int GAME_MODE_4TEAMS = 4;
+    public volatile int mGameMode = GAME_MODE_2TEAMS;
+
+    public static final int GAME_LIMIT_NONE = 0;
+    public static final int GAME_LIMIT_TIME = 1;
+    public static final int GAME_LIMIT_LIVES = 2;
+    public static final int GAME_LIMIT_SCORE = 4;
+    public volatile int mGameLimit = GAME_LIMIT_NONE;
     public volatile int mTimeLimit = 0;
     public volatile int mScoreLimit = 0;
     public volatile int mLivesLimit = 0;
+
+    public static final int GPS_DISABLED = 0;
+    public static final int GPS_TEAMMATE = 1;
+    public static final int GPS_ALL = 2;
+    public volatile int mGPSMode = GPS_ALL;
+
+    public static final int GAME_STATE_NONE = 0; // Game not started
+    public static final int GAME_STATE_RUNNING = 1; // Game running and player is in the game
+    public static final int GAME_STATE_ELIMINATED = 2; // Game running but player is out right now
+    public volatile int mGameState = GAME_STATE_NONE;
 
     public volatile byte mPlayerID = 0;
     public volatile String mPlayerName = "";
     public volatile Map<InetAddress, Byte> mIPTeamMap;
     public volatile Map<Byte, InetAddress> mTeamIPMap;
     public volatile Map<Byte, String> mTeamPlayerNameMap;
+    public volatile Map<Byte, GPSData> mGPSData;
+    public volatile Map<Byte, PlayerSettings> mPlayerSettings;
+
+    public Semaphore mIPTeamMapSemaphore;
+    public Semaphore mTeamIPMapSemaphore;
+    public Semaphore mTeamPlayerNameSemaphore;
+    public Semaphore mGPSDataSemaphore;
+    public Semaphore mPlayerSettingsSemaphore;
+    public volatile boolean mUseGPS = false;
 
     public volatile InetAddress mServerIP = null;
 
@@ -50,21 +95,40 @@ public class Globals {
             mInstance.mIPTeamMap = new HashMap<InetAddress, Byte>();
             mInstance.mTeamIPMap = new HashMap<Byte, InetAddress>();
             mInstance.mTeamPlayerNameMap = new HashMap<Byte, String>();
+            mInstance.mPlayerSettings = new HashMap<Byte, PlayerSettings>();
+
+            mInstance.mIPTeamMapSemaphore = new Semaphore(1);
+            mInstance.mTeamIPMapSemaphore = new Semaphore(1);
+            mInstance.mTeamPlayerNameSemaphore = new Semaphore(1);
+            mInstance.mGPSDataSemaphore = new Semaphore(1);
+            mInstance.mPlayerSettingsSemaphore = new Semaphore(1);
         }
         return mInstance;
     }
 
-    public void setGameMode(int gameMode) {
-        if (gameMode == FullscreenActivity.GAME_MODE_2TEAMS)
-            getInstance().mGameMode = "2";
-        else if (gameMode == FullscreenActivity.GAME_MODE_4TEAMS)
-            getInstance().mGameMode = "4";
-        else
-            getInstance().mGameMode = "1";
+    public int calcNetworkTeam(byte player_id) {
+        int team = 1;
+        if (mGameMode == GAME_MODE_2TEAMS) {
+            final int x = ((MAX_PLAYER_ID + 1) / 2);
+            if (player_id > x)
+                team = 2;
+        } else if (mGameMode == GAME_MODE_4TEAMS){
+            final int x = ((MAX_PLAYER_ID + 1) / 4);
+            if (player_id > 3 * x)
+                team = 4;
+            else if (player_id > 2 * x)
+                team = 3;
+            else if (player_id > x)
+                team = 2;
+        } else if (mGameMode == GAME_MODE_FFA)
+            return player_id;
+        return team;
     }
 
     public String getPlayerName(Byte playerID) {
+        getmTeamPlayerNameSemaphore();
         String ret = getInstance().mTeamPlayerNameMap.get(playerID);
+        getInstance().mTeamPlayerNameSemaphore.release();
         if (ret == null)
             ret = "";
         return ret;
@@ -126,8 +190,68 @@ public class Globals {
     }
 
     public static int getPlayerCount() {
-        if (getInstance().mTeamIPMap == null)
-            return 1; // Guess it's just you
-        return getInstance().mTeamIPMap.size() + 1; // All other players plus ourself
+        int ret = 1;
+        getmTeamIPMapSemaphore();
+        if (getInstance().mTeamIPMap != null)
+            ret = getInstance().mTeamIPMap.size();
+        getInstance().mTeamIPMapSemaphore.release();
+        return ret + 1; // All other players plus ourself
+    }
+
+    public static class GPSData {
+        double latitude = 0;
+        double longitude = 0;
+        int team = 0;
+        boolean hasUpdate = false;
+    }
+
+    public static void getmIPTeamMapSemaphore() {
+        try {
+            getInstance().mIPTeamMapSemaphore.acquire();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void getmTeamIPMapSemaphore() {
+        try {
+            getInstance().mTeamIPMapSemaphore.acquire();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void getmTeamPlayerNameSemaphore() {
+        try {
+            getInstance().mTeamPlayerNameSemaphore.acquire();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void getmGPSDataSemaphore() {
+        try {
+            getInstance().mGPSDataSemaphore.acquire();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void getmPlayerSettingsSemaphore() {
+        try {
+            getInstance().mPlayerSettingsSemaphore.acquire();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static class PlayerSettings {
+        int health = Globals.MAX_HEALTH;
+        byte shots = Globals.RELOAD_COUNT;
+        long reloadTime = Globals.RELOAD_TIME_MILLISECONDS;
+        long spawnTime = Globals.RESPAWN_TIME_SECONDS;
+        int damage = Globals.DAMAGE_PER_HIT;
+        boolean overrideLives = false;
+        int lives = 0;
     }
 }

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android" >
+    <item android:id="@+id/gps_mode_disabled"
+        android:title="@string/gps_mode_disabled" />
+    <item android:id="@+id/gps_mode_teammate"
+        android:title="@string/gps_mode_teammate" />
+    <item android:id="@+id/gps_mode_all"
+        android:title="@string/gps_mode_all" />
+</menu>

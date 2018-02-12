@@ -61,6 +61,9 @@ import android.os.IBinder;
 import android.os.SystemClock;
 import android.os.Vibrator;
 import android.support.annotation.NonNull;
+import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
+import android.support.v4.app.FragmentTransaction;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -69,6 +72,7 @@ import android.view.LayoutInflater;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
@@ -77,6 +81,7 @@ import android.widget.Button;
 import android.widget.Chronometer;
 import android.widget.EditText;
 import android.widget.ImageView;
+import android.widget.ListView;
 import android.widget.PopupMenu;
 import android.widget.ProgressBar;
 import android.widget.RadioButton;
@@ -84,12 +89,17 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.io.IOException;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+
+import javax.microedition.khronos.opengles.GL;
 
 /**
  * An example full-screen activity that shows and hides the system UI (i.e.
@@ -102,12 +112,16 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private static final boolean TEST_NETWORK = false;
 
     private Button mConnectButton = null;
+    private Button mDedicatedServerButton = null;
     private Button mTeamMinusButton = null;
     private Button mTeamPlusButton = null;
     private Button mStartGameButton = null;
+    private Button mPlayerSettingsButton = null;
     private Button mEndGameButton = null;
     private Button mEndNetworkGameButton = null;
+    private Button mPlayerDataButton = null;
     private Button mGameModeButton = null;
+    private ImageView mNetworkStatusIV = null;
     private TextView mNetworkPlayerCountTV = null;
     private TextView mScoreTV = null;
     private TextView mScoreLabelTV = null;
@@ -118,6 +132,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private Button mUseNetworkingButton = null;
     private Button mFiringModeButton = null;
     private TextView mEliminationCountTV = null;
+    private TextView mShotsRemainingLabelTV = null;
     private TextView mShotsRemainingTV = null;
     private TextView mRecoilModeTV = null;
     private TextView mHitsTakenTV = null;
@@ -126,6 +141,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private TextView mEliminatedTV = null;
     private TextView mSpawnInTV = null;
     private TextView mEliminatedByTV = null;
+    private TextView mHealthLabelTV = null;
     private ProgressBar mHealthBar = null;
     private ProgressBar mReloadBar = null;
     private ImageView mHitIV = null;
@@ -143,6 +159,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private TextView mGameCountDownTV = null;
     private PopupMenu mNetworkPopup = null;
 
+    private FragmentManager mFragmentMgr = null;
+    private FragmentTransaction mFragmentTransc = null;
+    private Fragment mMapFragment = null;
+
     private CountDownTimer mSpawnTimer = null;
     private CountDownTimer mReloadTimer = null;
     private CountDownTimer mGameCountdownTimer = null;
@@ -153,22 +173,15 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
     private Vibrator vibrator = null;
 
-    private static final byte RELOAD_COUNT = (byte) 30; // Number of shots you get after a reload, max 255
-    private static final long RESPAWN_TIME_SECONDS = 10; // Time to wait for respawn after elimination and to start the game
-    private static final long RELOAD_TIME_MILLISECONDS = 1500; // Reload downtime in ms. 1.5 seconds
-    private static final int MAX_HEALTH = 20; // Number of hits you can take before you are eliminated
     private static final int MAX_EMPTY_TRIGGER_PULLS = 3; // automatically reloads if the trigger is pulled this many times while empty (for young players)
 
     private boolean mScanning = false;
     private volatile boolean mConnected = false;
     private boolean mCommunicating = false; // Used to make sure that we start receiving telemetry data after initial connection
     private String mDeviceAddress = ""; // MAC address of the tagger
-    /* Highest player ID allowed in the GUI, absolute max is 0x3F or 63. Player ID 0 can technically
-    be used but would require code changes to the hit detection if you really need 64 players. */
-    private static final byte MAX_PLAYER_ID = (byte) 0x10;
     private static byte mLastTeam = 0;
     private int mHitsTaken = 0; // total hits taken regardless of lives
-    private static int mHealth = MAX_HEALTH;
+    private static int mHealth = Globals.MAX_HEALTH;
     private byte mLastShotCount = 0;
     private byte mLastTriggerCount = 0;
     private byte mLastReloadButtonCount = 0;
@@ -178,6 +191,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private static int mEliminationCount = 0;
     private static int mEmptyTriggerCount = 0;
     private static boolean mStartGameTimer = true;
+    private static boolean mHasLivesLimit = false;
+    private static int mLives = 0;
 
     /* We calculate an average of the last 100 battery reports. Starting out with a single value
        simplifies some of the code that will have to be run every time the tagger sends telemetry
@@ -223,11 +238,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
     private boolean mRecoilEnabled = true;
 
-    private static final int GAME_STATE_NONE = 0; // Game not started
-    private static final int GAME_STATE_RUNNING = 1; // Game running and player is in the game
-    private static final int GAME_STATE_ELIMINATED = 2; // Game running but player is out right now
-    private static int mGameState = GAME_STATE_NONE;
-
     private BluetoothGattCharacteristic mTelemetryCharacteristic = null;
     private BluetoothGattCharacteristic mCommandCharacteristic = null;
     private BluetoothGattCharacteristic mConfigCharacteristic = null;
@@ -249,13 +259,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     public final static int RECOIL_POWER_BIT = 0x10;
 
     private boolean mUseNetwork = false;
-    public static final int GAME_MODE_FFA = 1;
-    public static final int GAME_MODE_2TEAMS = 2;
-    public static final int GAME_MODE_4TEAMS = 3;
-    private int mGameMode = GAME_MODE_2TEAMS;
     private int mScore = 0;
     private int mTeamScore = 0;
-    private int mPlayerCount = 0;
     private volatile boolean mReady = false;
     private int mNetworkTeam = 0;
     private boolean mIsServer = false;
@@ -283,21 +288,16 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private ServiceConnection mBLEServiceConnection = null;
 
     private SharedPreferences sharedPreferences = null;
-    private static final String PREF_NAME = "SimpleCoil";
+    public static final String PREF_NAME = "SimpleCoil";
     private static final String PREF_PLAYER_NAME = "PlayerName";
     private static final String PREF_PLAYER_ID = "PlayerID";
     private static final String PREF_FIRING_MODE = "FiringMode";
     private static final String PREF_SHOT_MODE = "ShotMode";
     private static final String PREF_RECOIL_ENABLED = "RecoilEnabled";
-    private static final String PREF_GAME_MODE = "GameMode";
-    private static final String PREF_LIMIT_TIME = "TimeLimit";
-    private static final String PREF_LIMIT_LIVES = "LivesLimit";
-    private static final String PREF_LIMIT_SCORE = "ScoreLimit";
-
-    public static final int GAME_LIMIT_NONE = 0;
-    public static final int GAME_LIMIT_TIME = 1;
-    public static final int GAME_LIMIT_LIVES = 2;
-    public static final int GAME_LIMIT_SCORE = 4;
+    public static final String PREF_GAME_MODE = "GameMode";
+    public static final String PREF_LIMIT_TIME = "TimeLimit";
+    public static final String PREF_LIMIT_LIVES = "LivesLimit";
+    public static final String PREF_LIMIT_SCORE = "ScoreLimit";
 
     private void setupBLEServiceConnection() {
         mBLEServiceConnection = new ServiceConnection() {
@@ -340,7 +340,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 mReady = false;
                 setReady(false);
                 mIsServer = false;
-                if (mGameState != GAME_STATE_NONE)
+                if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
                     endGame();
                 mUDPListenerService = null;
             }
@@ -395,8 +395,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         setContentView(R.layout.activity_fullscreen);
+        mFragmentMgr = getSupportFragmentManager();
         mEliminationCountTV = findViewById(R.id.eliminations_count_tv);
         mConnectButton = findViewById(R.id.connect_weapon_button);
         if (mConnectButton != null) {
@@ -406,17 +406,34 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 }
             }));
         }
+        mDedicatedServerButton = findViewById(R.id.dedicated_server_button);
+        if (mDedicatedServerButton != null) {
+            mDedicatedServerButton.setOnClickListener((new View.OnClickListener() {
+                public void onClick(View v) {
+                    if (mUDPServiceConnection != null)
+                        unbindService(mUDPServiceConnection);
+                    if (mTcpClientServiceConnection != null)
+                        unbindService(mTcpClientServiceConnection);
+                    if (mTcpServerServiceConnection != null)
+                        unbindService(mTcpServerServiceConnection);
+                    mUDPListenerService = null;
+                    mTcpClientServiceConnection = null;
+                    mTcpServerServiceConnection = null;
+                    startActivity(new Intent(FullscreenActivity.this, DedicatedServerActivity.class));
+                }
+            }));
+        }
         mTeamMinusButton = findViewById(R.id.team_minus_button);
         if (mTeamMinusButton != null) {
             mTeamMinusButton.setVisibility(View.VISIBLE);
             mTeamMinusButton.setOnClickListener((new View.OnClickListener() {
                 public void onClick(View v) {
-                    if (mGameState != GAME_STATE_NONE)
+                    if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
                         return;
                     if (Globals.getInstance().mPlayerID > (byte)1)
                         Globals.getInstance().mPlayerID--;
                     else
-                        Globals.getInstance().mPlayerID = MAX_PLAYER_ID;
+                        Globals.getInstance().mPlayerID = Globals.MAX_PLAYER_ID;
                     setTeam();
                 }
             }));
@@ -426,9 +443,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mTeamPlusButton.setVisibility(View.VISIBLE);
             mTeamPlusButton.setOnClickListener((new View.OnClickListener() {
                 public void onClick(View v) {
-                    if (mGameState != GAME_STATE_NONE)
+                    if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
                         return;
-                    if (Globals.getInstance().mPlayerID < MAX_PLAYER_ID)
+                    if (Globals.getInstance().mPlayerID < Globals.MAX_PLAYER_ID)
                         Globals.getInstance().mPlayerID++;
                     else
                         Globals.getInstance().mPlayerID = (byte)0x01;
@@ -445,8 +462,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         return;
                     }
                     if (mUseNetwork) {
-                        mPlayerCount = Globals.getPlayerCount();
-                        if (mPlayerCount <= 1) {
+                        if (Globals.getPlayerCount() <= 1) {
                             Toast.makeText(getApplicationContext(), getString(R.string.not_enough_players_toast), Toast.LENGTH_SHORT).show();
                             mNetworkPlayerCountTV.setText(R.string.network_player_1count);
                             return;
@@ -457,6 +473,20 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                             mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_STARTGAME);
                     } else
                         startGame();
+                }
+            }));
+        }
+        mPlayerSettingsButton = findViewById(R.id.player_settings_button);
+        if (mPlayerSettingsButton != null) {
+            mPlayerSettingsButton.setOnClickListener((new View.OnClickListener() {
+                public void onClick(View v) {
+                    if (!Globals.getInstance().mAllowPlayerSettings) {
+                        Toast.makeText(getApplicationContext(), getString(R.string.player_settings_not_allowed_toast), Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    PlayerSettingsAlertDialog dialog = new PlayerSettingsAlertDialog(FullscreenActivity.this);
+                    dialog.setLocal(mTcpClient);
+                    dialog.show();
                 }
             }));
         }
@@ -476,14 +506,17 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 }
             }));
         }
+        mShotsRemainingLabelTV = findViewById(R.id.shots_label_tv);
         mShotsRemainingTV = findViewById(R.id.shots_remaining_tv);
         mHitsTakenTV = findViewById(R.id.hits_taken_tv);
         mTeamTV = findViewById(R.id.team_tv);
         mRecoilModeTV = findViewById(R.id.recoil_tv);
         mShotModeTV = findViewById(R.id.shot_mode_tv);
+        mHealthLabelTV = findViewById(R.id.health_label_tv);
         mHealthBar = findViewById(R.id.health_pb);
-        mHealthBar.setMax(MAX_HEALTH);
-        mHealthBar.setProgress(MAX_HEALTH);
+        mHealth = Globals.getInstance().mFullHealth;
+        mHealthBar.setMax(mHealth);
+        mHealthBar.setProgress(mHealth);
         mReloadBar = findViewById(R.id.reload_pb);
         mEliminatedTV = findViewById(R.id.eliminated_tv);
         mEliminatedByTV = findViewById(R.id.eliminated_by_tv);
@@ -503,6 +536,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     inflater.inflate(R.menu.firing_mode_menu, popup.getMenu());
                     popup.setOnMenuItemClickListener(FullscreenActivity.this);
                     popup.show();
+                    Toast.makeText(getApplicationContext(), getString(R.string.firing_mode_cone_toast), Toast.LENGTH_LONG).show();
                 }
             }));
         }
@@ -517,18 +551,17 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         getFiringMode();
         mRecoilEnabled = sharedPreferences.getBoolean(PREF_RECOIL_ENABLED, true);
         mCurrentShotMode = sharedPreferences.getInt(PREF_SHOT_MODE, SHOT_MODE_SINGLE);
-        mGameMode = sharedPreferences.getInt(PREF_GAME_MODE, GAME_MODE_2TEAMS);
-        Globals.getInstance().setGameMode(mGameMode);
-        Globals.getInstance().mGameLimit = GAME_LIMIT_NONE;
+        Globals.getInstance().mGameMode = sharedPreferences.getInt(PREF_GAME_MODE, Globals.GAME_MODE_2TEAMS);
+        Globals.getInstance().mGameLimit = Globals.GAME_LIMIT_NONE;
         Globals.getInstance().mTimeLimit = sharedPreferences.getInt(PREF_LIMIT_TIME, 0);
         if (Globals.getInstance().mTimeLimit != 0)
-            Globals.getInstance().mGameLimit += GAME_LIMIT_TIME;
+            Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_TIME;
         Globals.getInstance().mLivesLimit = sharedPreferences.getInt(PREF_LIMIT_LIVES, 0);
         if (Globals.getInstance().mLivesLimit != 0)
-            Globals.getInstance().mGameLimit += GAME_LIMIT_LIVES;
+            Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_LIVES;
         Globals.getInstance().mScoreLimit = sharedPreferences.getInt(PREF_LIMIT_SCORE, 0);
         if (Globals.getInstance().mScoreLimit != 0)
-            Globals.getInstance().mGameLimit += GAME_LIMIT_SCORE;
+            Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_SCORE;
 
         try {
             // Display app version
@@ -539,6 +572,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             e.printStackTrace();
         }
 
+        mNetworkStatusIV = findViewById(R.id.network_status_iv);
         mNetworkPlayerCountTV = findViewById(R.id.player_count_tv);
         mUseNetworkingButton = findViewById(R.id.use_network_button);
         if (mUseNetworkingButton != null) {
@@ -603,6 +637,25 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         displayAllNetworkingOptions(false);
         mUseNetworkingButton.setVisibility(View.VISIBLE);
         setGameLimit();
+        mPlayerDataButton = findViewById(R.id.player_data_button);
+        if (mPlayerDataButton != null) {
+            mPlayerDataButton.setOnClickListener((new View.OnClickListener() {
+                public void onClick(View v) {
+                    if (mUseNetwork && mTcpClient != null && mTcpClient.isDedicatedServer()) {
+                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_PLAYERDATAREQUEST);
+                        // Disable the button for 1 second to prevent spamming the server
+                        mPlayerDataButton.setEnabled(false);
+                        new Handler().postDelayed(new Runnable(){
+                            public void run(){
+                                mPlayerDataButton.setEnabled(true);
+                            }
+                        }, 1000);
+                    }
+                }
+            }));
+        }
+        loadFragment();
+        updatePlayerSettings();
     }
 
     private static final int NETWORK_TYPE_ENABLED = 1;
@@ -679,7 +732,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 setReady();
                 mIsServer = false;
                 mUDPListenerService.cancelServer();
-                mTcpServer.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_SERVERCANCEL);
+                mTcpServer.sendTCPMessageAll(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_SERVERCANCEL);
                 mTcpServer.stopTcpServer();
                 setNetworkMenu(NETWORK_TYPE_ENABLED);
                 return true;
@@ -719,17 +772,17 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 }
                 return true;
             case R.id.game_mode_2teams_item:
-                mGameMode = GAME_MODE_2TEAMS;
+                Globals.getInstance().mGameMode = Globals.GAME_MODE_2TEAMS;
                 mGameModeTV.setText(R.string.game_mode_2teams);
                 setTeam();
                 return true;
             case R.id.game_mode_4teams_item:
-                mGameMode = GAME_MODE_4TEAMS;
+                Globals.getInstance().mGameMode = Globals.GAME_MODE_4TEAMS;
                 mGameModeTV.setText(R.string.game_mode_4teams);
                 setTeam();
                 return true;
             case R.id.game_mode_ffa_item:
-                mGameMode = GAME_MODE_FFA;
+                Globals.getInstance().mGameMode = Globals.GAME_MODE_FFA;
                 mGameModeTV.setText(R.string.game_mode_ffa);
                 setTeam();
                 return true;
@@ -890,22 +943,22 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                                     return;
                                 }
                                 if (gameLimitTime.isChecked()) {
-                                    if ((Globals.getInstance().mGameLimit & GAME_LIMIT_TIME) == 0)
-                                        Globals.getInstance().mGameLimit += GAME_LIMIT_TIME;
+                                    if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_TIME) == 0)
+                                        Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_TIME;
                                     else if (limit <= 0)
-                                        Globals.getInstance().mGameLimit -= GAME_LIMIT_TIME;
+                                        Globals.getInstance().mGameLimit -= Globals.GAME_LIMIT_TIME;
                                     Globals.getInstance().mTimeLimit = limit;
                                 } else if (gameLimitLives.isChecked()) {
-                                    if ((Globals.getInstance().mGameLimit & GAME_LIMIT_LIVES) == 0)
-                                        Globals.getInstance().mGameLimit += GAME_LIMIT_LIVES;
+                                    if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_LIVES) == 0)
+                                        Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_LIVES;
                                     else if (limit <= 0)
-                                        Globals.getInstance().mGameLimit -= GAME_LIMIT_LIVES;
+                                        Globals.getInstance().mGameLimit -= Globals.GAME_LIMIT_LIVES;
                                     Globals.getInstance().mLivesLimit = limit;
                                 } else {
-                                    if ((Globals.getInstance().mGameLimit & GAME_LIMIT_SCORE) == 0)
-                                        Globals.getInstance().mGameLimit += GAME_LIMIT_SCORE;
+                                    if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_SCORE) == 0)
+                                        Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_SCORE;
                                     else if (limit <= 0)
-                                        Globals.getInstance().mGameLimit -= GAME_LIMIT_SCORE;
+                                        Globals.getInstance().mGameLimit -= Globals.GAME_LIMIT_SCORE;
                                     Globals.getInstance().mScoreLimit = limit;
                                 }
                                 setGameLimit();
@@ -923,7 +976,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void setGameLimit() {
-        if ((Globals.getInstance().mGameLimit & GAME_LIMIT_TIME) != 0) {
+        if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_TIME) != 0) {
             mGameCountDownTV.setVisibility(View.VISIBLE);
             String display = String.format("%02d:00", Globals.getInstance().mTimeLimit);
             mGameCountDownTV.setText(display);
@@ -933,14 +986,18 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mGameTimer.setVisibility(View.VISIBLE);
         }
         TextView eliminationLabel = findViewById(R.id.eliminations_count_label_tv);
-        if ((Globals.getInstance().mGameLimit & GAME_LIMIT_LIVES) != 0) {
+        if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_LIVES) != 0) {
             eliminationLabel.setText(R.string.lives_count_label);
             mEliminationCountTV.setText("" + Globals.getInstance().mLivesLimit);
+            mHasLivesLimit = true;
+            mLives = Globals.getInstance().mLivesLimit;
         } else {
             eliminationLabel.setText(R.string.eliminations_count_label);
             mEliminationCountTV.setText("" + mEliminationCount);
+            mHasLivesLimit = false;
+            mLives = 0;
         }
-        if ((Globals.getInstance().mGameLimit & GAME_LIMIT_SCORE) != 0) {
+        if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_SCORE) != 0) {
             mScoreLabelTV.setText(getString(R.string.score_limit_label, Globals.getInstance().mScoreLimit));
             mTeamScoreLabelTV.setText(getString(R.string.team_score_limit_label, Globals.getInstance().mScoreLimit));
         } else {
@@ -952,20 +1009,36 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         editor.putInt(PREF_LIMIT_SCORE, Globals.getInstance().mScoreLimit);
         editor.putInt(PREF_LIMIT_LIVES, Globals.getInstance().mLivesLimit);
         editor.apply();
+        if (Globals.getInstance().mOverrideLives) {
+            if (Globals.getInstance().mOverrideLivesVal != 0) {
+                eliminationLabel.setText(R.string.lives_count_label);
+                mEliminationCountTV.setText("" + Globals.getInstance().mOverrideLivesVal);
+                mHasLivesLimit = true;
+                mLives = Globals.getInstance().mOverrideLivesVal;
+            } else {
+                eliminationLabel.setText(R.string.eliminations_count_label);
+                mEliminationCountTV.setText("" + mEliminationCount);
+                mHasLivesLimit = false;
+                mLives = 0;
+            }
+        }
     }
 
     private void setReady() { setReady(true); }
 
     private void setReady(boolean sendPlayerLeft) {
         if (mReady) {
-            mNetworkPlayerCountTV.setText(R.string.network_player_1count);
-            mNetworkPlayerCountTV.setVisibility(View.VISIBLE);
+            if (mUseNetwork) {
+                mServerIPTV.setVisibility(View.VISIBLE);
+                mServerIPTV.setText(R.string.server_status_searching);
+            }
             mTeamMinusButton.setVisibility(View.INVISIBLE);
             mTeamPlusButton.setVisibility(View.INVISIBLE);
             mGameModeButton.setVisibility(View.GONE);
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             mGameLimitButton.setVisibility(View.GONE);
         } else {
+            Globals.getInstance().mUseGPS = false;
             if (sendPlayerLeft) {
                 mTcpClient.leaveServer();
             }
@@ -973,28 +1046,26 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 mUDPListenerService.stopListen();
                 mTcpClient.stopTcpClient();
             }
+            mNetworkStatusIV.setVisibility(View.GONE);
             mNetworkPlayerCountTV.setVisibility(View.GONE);
             mTeamMinusButton.setVisibility(View.VISIBLE);
             mTeamPlusButton.setVisibility(View.VISIBLE);
             getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-            mNetworkPlayerCountTV.setVisibility(View.GONE);
             mGameModeButton.setVisibility(View.VISIBLE);
             mServerIPTV.setVisibility(View.GONE);
             mGameLimitButton.setVisibility(View.VISIBLE);
             setNetworkMenu(NETWORK_TYPE_ENABLED);
+            mPlayerDataButton.setVisibility(View.GONE);
         }
+        Intent intent = new Intent(NetMsg.NETMSG_GPSSETTING);
+        sendBroadcast(intent);
     }
 
     private void showConnectLayout() {
         RelativeLayout playLayout = findViewById(R.id.play_layout);
         RelativeLayout connectLayout = findViewById(R.id.connect_layout);
-        if (TEST_NETWORK) {
-            playLayout.setVisibility(View.VISIBLE);
-            connectLayout.setVisibility(View.GONE);
-        } else {
-            playLayout.setVisibility(View.GONE);
-            connectLayout.setVisibility(View.VISIBLE);
-        }
+        playLayout.setVisibility(View.GONE);
+        connectLayout.setVisibility(View.VISIBLE);
     }
 
     private void initBatteryQueue() {
@@ -1017,23 +1088,26 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mScoreTV.setText("0");
         mTeamScore = 0;
         mTeamScoreTV.setText("0");
-        if ((Globals.getInstance().mGameLimit & GAME_LIMIT_LIVES) != 0)
-            mEliminationCount = Globals.getInstance().mLivesLimit;
+        if (mHasLivesLimit)
+            mEliminationCount = mLives;
         else
             mEliminationCount = 0;
         mEliminationCountTV.setText("" + mEliminationCount);
-        mHealth = MAX_HEALTH;
+        mHealth = Globals.getInstance().mFullHealth;
+        mHealthBar.setMax(mHealth);
         mHealthBar.setProgress(mHealth);
         mEliminatedTV.setText(R.string.starting_game_label);
         mStartGameButton.setVisibility(View.GONE);
         mTeamMinusButton.setVisibility(View.INVISIBLE);
         mTeamPlusButton.setVisibility(View.INVISIBLE);
         mGameLimitButton.setVisibility(View.GONE);
+        mPlayerSettingsButton.setVisibility(View.GONE);
         if (mUseNetwork) {
             displayInGameNetworkingOptions();
             mEndNetworkGameButton.setVisibility(View.VISIBLE);
             mUDPListenerService.startGame();
-            mTcpClient.stopTcpClient();
+            if (!mTcpClient.isDedicatedServer())
+                mTcpClient.stopTcpClient();
         } else {
             displayAllNetworkingOptions(false);
             mEndGameButton.setVisibility(View.VISIBLE);
@@ -1054,7 +1128,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             @Override
             public void onClick(DialogInterface dialog, int which) {
                 if (mUseNetwork) {
-                    mUDPListenerService.endGame();
+                    if (mTcpClient.isDedicatedServer())
+                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ENDGAME);
+                    else
+                        mUDPListenerService.endGame();
                 }
                 endGame();
             }
@@ -1072,13 +1149,13 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void endGame() {
-        mGameState = GAME_STATE_NONE;
+        Globals.getInstance().mGameState = Globals.GAME_STATE_NONE;
         if (mUseNetwork) {
             mUDPListenerService.stopListen();
+            if (mTcpClient.isDedicatedServer())
+                mTcpClient.stopTcpClient();
             mReady = false;
             setReady(false);
-            mPlayerCount = 0;
-            mNetworkPlayerCountTV.setText(R.string.network_player_1count);
             mIsServer = false;
         }
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -1090,6 +1167,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         if (mGameCountdownTimer != null)
             mGameCountdownTimer.cancel();
         mStartGameButton.setVisibility(View.VISIBLE);
+        mPlayerSettingsButton.setVisibility(View.VISIBLE);
         mTeamMinusButton.setVisibility(View.VISIBLE);
         mTeamPlusButton.setVisibility(View.VISIBLE);
         mEndGameButton.setVisibility(View.GONE);
@@ -1098,7 +1176,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mEliminatedTV.setVisibility(View.INVISIBLE);
         mEliminatedByTV.setVisibility(View.INVISIBLE);
         mSpawnInTV.setVisibility(View.GONE);
-        mGameState = GAME_STATE_NONE;
         displayAllNetworkingOptions(mUseNetwork);
         mUseNetworkingButton.setVisibility(View.VISIBLE);
         mHitPlayerIV.setVisibility(View.GONE);
@@ -1121,7 +1198,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             if (mBluetoothLeService == null)
                 return;
             Log.d(TAG, "setting player ID to " + Globals.getInstance().mPlayerID);
-            if (Globals.getInstance().mPlayerID < 1 || Globals.getInstance().mPlayerID > MAX_PLAYER_ID) {
+            if (Globals.getInstance().mPlayerID < 1 || Globals.getInstance().mPlayerID > Globals.MAX_PLAYER_ID) {
                 Log.e(TAG, "Invalid player ID!");
                 return;
             }
@@ -1139,7 +1216,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         }
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putInt(PREF_PLAYER_ID, (int) Globals.getInstance().mPlayerID);
-        editor.putInt(PREF_GAME_MODE, mGameMode);
+        editor.putInt(PREF_GAME_MODE, Globals.getInstance().mGameMode);
         editor.apply();
         displayCurrentTeam();
     }
@@ -1147,14 +1224,14 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private void displayCurrentTeam() {
         if (Globals.getInstance().mPlayerID == 0) {
             mTeamTV.setText(R.string.no_team);
-        } else if (mUseNetwork && mGameMode != GAME_MODE_FFA) {
+        } else if (mUseNetwork && Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
             mNetworkTeam = 1;
-            int x = ((MAX_PLAYER_ID + 1) / 2);
-            if (mGameMode == GAME_MODE_2TEAMS) {
+            int x = ((Globals.MAX_PLAYER_ID + 1) / 2);
+            if (Globals.getInstance().mGameMode == Globals.GAME_MODE_2TEAMS) {
                 if (Globals.getInstance().mPlayerID > x)
                     mNetworkTeam = 2;
             } else {
-                x = ((MAX_PLAYER_ID + 1) / 4);
+                x = ((Globals.MAX_PLAYER_ID + 1) / 4);
                 if (Globals.getInstance().mPlayerID > 3 * x)
                     mNetworkTeam = 4;
                 else if (Globals.getInstance().mPlayerID > 2 * x)
@@ -1172,7 +1249,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mTeamScoreLabelTV.setVisibility(View.INVISIBLE);
             mTeamScoreTV.setVisibility(View.INVISIBLE);
         }
-        Globals.getInstance().setGameMode(mGameMode);
     }
 
     private void startReload() { startReload(RELOADING_STATE_STARTED); }
@@ -1198,7 +1274,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     /* Second stage of the reload commands which tells the tagger how many shots to load and allows
        it to shoot again. Command format is 00 00 04 00 PLAYER_ID 00 SHOT_COUNT and then 0 filled. */
     private void finishReload() {
-        if ((mReloading != RELOADING_STATE_STARTED && mReloading != RELOADING_STATE_ELIMINATED) || mCommandCharacteristic == null || mBluetoothLeService == null || mGameState != GAME_STATE_RUNNING)
+        if ((mReloading != RELOADING_STATE_STARTED && mReloading != RELOADING_STATE_ELIMINATED) || mCommandCharacteristic == null || mBluetoothLeService == null || Globals.getInstance().mGameState != Globals.GAME_STATE_RUNNING)
             return;
         mReloading = RELOADING_STATE_FINISHING;
         mEmptyTriggerCount = 0;
@@ -1206,8 +1282,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         byte[] command = new byte[20];
         command[2] = (byte)0x04;
         command[4] = Globals.getInstance().mPlayerID;
-        command[6] = RELOAD_COUNT;
-        setShotsRemaining(RELOAD_COUNT);
+        command[6] = Globals.getInstance().mFullReload;
+        setShotsRemaining(Globals.getInstance().mFullReload);
         mCommandCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
         mCommandCharacteristic.setValue(command);
         mBluetoothLeService.writeCharacteristic(mCommandCharacteristic);
@@ -1224,15 +1300,15 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private void startSpawn(String eliminatedBy) {
         if (mReloadTimer != null)
             mReloadTimer.cancel();
-        mGameState = GAME_STATE_ELIMINATED;
+        Globals.getInstance().mGameState = Globals.GAME_STATE_ELIMINATED;
         startReload(RELOADING_STATE_ELIMINATED);
         mHitIV.setVisibility(View.GONE);
         mEliminatedTV.setVisibility(View.VISIBLE);
         mEliminatedByTV.setText(eliminatedBy);
         mEliminatedByTV.setVisibility(View.VISIBLE);
-        mSpawnInTV.setText(getResources().getString(R.string.spawn_in_label, RESPAWN_TIME_SECONDS));
+        mSpawnInTV.setText(getResources().getString(R.string.spawn_in_label, Globals.getInstance().mRespawnTime));
         mSpawnInTV.setVisibility(View.VISIBLE);
-        mSpawnTimer = new CountDownTimer(RESPAWN_TIME_SECONDS * 1000, 999) {
+        mSpawnTimer = new CountDownTimer(Globals.getInstance().mRespawnTime * 1000, 999) {
 
             public void onTick(long millisUntilFinished) {
                 mSpawnInTV.setText(getResources().getString(R.string.spawn_in_label, (millisUntilFinished / 1000)));
@@ -1245,14 +1321,14 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 mEliminatedTV.setText(R.string.eliminated_label);
                 mEliminatedByTV.setVisibility(View.INVISIBLE);
                 mSpawnInTV.setVisibility(View.GONE);
-                mHealth = MAX_HEALTH;
+                mHealth = Globals.getInstance().mFullHealth;
                 mHealthBar.setProgress(mHealth);
-                mGameState = GAME_STATE_RUNNING;
+                Globals.getInstance().mGameState = Globals.GAME_STATE_RUNNING;
                 playSound(R.raw.spawn, getApplicationContext());
                 finishReload();
                 if (mStartGameTimer) {
                     mStartGameTimer = false;
-                    if ((Globals.getInstance().mGameLimit & GAME_LIMIT_TIME) != 0) {
+                    if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_TIME) != 0) {
                         startGameCountdown();
                     } else {
                         mGameTimer.setBase(SystemClock.elapsedRealtime());
@@ -1379,19 +1455,46 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         unregisterReceiver(mGattUpdateReceiver);
         unregisterReceiver(mBluetoothReceiver);
         unregisterReceiver(mUDPUpdateReceiver);
-
     }
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
         resetBluetoothServices();
         if (mUDPServiceConnection != null)
-            unbindService(mUDPServiceConnection);
+            try {unbindService(mUDPServiceConnection);} catch (Exception e) {/* nothing */}
         if (mTcpClientServiceConnection != null)
-            unbindService(mTcpClientServiceConnection);
+            try {unbindService(mTcpClientServiceConnection);} catch (Exception e) {/* nothing */}
         if (mTcpServerServiceConnection != null)
-            unbindService(mTcpServerServiceConnection);
+            try {unbindService(mTcpServerServiceConnection);} catch (Exception e) {/* nothing */}
+        super.onDestroy();
+    }
+
+    private void loadFragment() {
+        if (mMapFragment == null) return;
+        mMapFragment = getSupportFragmentManager().findFragmentById(R.id.map_fragment);
+        if (mMapFragment != null)
+            return;
+        mFragmentTransc = mFragmentMgr.beginTransaction();
+        RelativeLayout parentLayout = findViewById(R.id.play_layout);
+        mFragmentTransc.add(parentLayout.getId(), mMapFragment);
+        //mFragmentTransc.addToBackStack(null);
+        mFragmentTransc.commit();
+    }
+
+    @Override
+    public void onBackPressed()
+    {
+        Fragment f = getSupportFragmentManager().findFragmentById(R.id.map_fragment);
+        if (f != null) {
+            mFragmentMgr.popBackStack();
+        }
+        moveTaskToBack(true);
+    }
+
+    private void removeFragment() {
+        FragmentTransaction fragmentTransaction = mFragmentMgr.beginTransaction();
+        fragmentTransaction.remove(getSupportFragmentManager().findFragmentById(R.id.map_fragment));
+        fragmentTransaction.commit();
     }
 
     private ScanCallback mLeScanCallback = new ScanCallback() {
@@ -1469,6 +1572,14 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     };
 
     private void connectWeapon() {
+        if (TEST_NETWORK) {
+            RelativeLayout connectLayout = findViewById(R.id.connect_layout);
+            if (connectLayout != null) connectLayout.setVisibility(View.GONE);
+            RelativeLayout playLayout = findViewById(R.id.play_layout);
+            if (playLayout != null) playLayout.setVisibility(View.VISIBLE);
+            return;
+        }
+
         if (mScanning)
             return;
 
@@ -1480,10 +1591,11 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         }
 
         // Coarse location permissions are required to use Bluetooth on 6.0+ devices
+        // We go ahead and ask for fine permission in case we do a GPS enabled network game
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            int hasLocationPermission = checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION);
+            int hasLocationPermission = checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION);
             if (hasLocationPermission != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION},
+                requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
                         REQUEST_CODE_LOCATION_PERMISSIONS);
                 return;
             }
@@ -1627,7 +1739,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             } else if (BluetoothLeService.CHARACTERISTIC_WRITE_FINISHED.equals(action)) {
                 if (mReloading == RELOADING_STATE_STARTED) {
                     // Using a timer here so we can cancel it if the player is eliminated while waiting to reload
-                    mReloadTimer = new CountDownTimer(RELOAD_TIME_MILLISECONDS, RELOAD_TIME_MILLISECONDS) {
+                    mReloadTimer = new CountDownTimer(Globals.getInstance().mReloadTime, Globals.getInstance().mReloadTime) {
                         public void onTick(long millisUntilFinished) { /* do nothing */ }
                         public void onFinish() {
                             finishReload();
@@ -1742,10 +1854,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             }
             if (trigger_counter != mLastTriggerCount) {
                 mLastTriggerCount = trigger_counter;
-                if (shotsRemaining == 0 || mGameState != GAME_STATE_RUNNING) {
+                if (shotsRemaining == 0 || Globals.getInstance().mGameState != Globals.GAME_STATE_RUNNING) {
                     playSound(R.raw.empty, getApplicationContext());
                     mEmptyTriggerCount++;
-                    if (mEmptyTriggerCount >= MAX_EMPTY_TRIGGER_PULLS && mGameState == GAME_STATE_RUNNING)
+                    if (mEmptyTriggerCount >= MAX_EMPTY_TRIGGER_PULLS && Globals.getInstance().mGameState == Globals.GAME_STATE_RUNNING)
                         startReload(); // Auto reload after this many empty trigger pulls (for young players)
                 }
             }
@@ -1756,7 +1868,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                once each time that button is pressed. */
             if (reload_counter != mLastReloadButtonCount) {
                 mLastReloadButtonCount = reload_counter;
-                if (shotsRemaining != RELOAD_COUNT)
+                if (shotsRemaining != Globals.getInstance().mFullReload)
                     startReload();
             }
             if (thumb_counter != mLastThumbButtonCount) {
@@ -1820,7 +1932,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     mHitsTakenTV.setText("0");
                 }
             }*/
-            if (hit_by_player1 != 0 && mGameState != GAME_STATE_NONE) {
+            if (hit_by_player1 != 0 && Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
                 /* The tagger usually reports 2 hits per actual shot based on single shot mode
                    although there are a few times where it reports 3 hits per shot. This is
                    an attempt to filter out double reports without excluding multiple hits in
@@ -1833,34 +1945,18 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     mHitsTaken++;
                     String hitsTaken = "" + mHitsTaken;
                     mHitsTakenTV.setText(hitsTaken);
-                    int healthRemoved = -1;
+                    int healthRemoved = Globals.DAMAGE_PER_HIT;
                     byte hit_by_id = 0;
                     if (mUseNetwork) {
                         hit_by_id = (byte)(hit_by_player1 >> 2);
                         //Log.d(TAG, "hit by 1 ID is " + hit_by_id);
-                        if (mGameMode != GAME_MODE_FFA && calcNetworkTeam(hit_by_id) == mNetworkTeam) {
+                        if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA && Globals.getInstance().calcNetworkTeam(hit_by_id) == mNetworkTeam) {
                             //Log.d(TAG, "friendly fire ignored");
-                            healthRemoved++;
-                        } else if (mLastHitMessage < System.currentTimeMillis()) {
-                            mLastHitMessage = System.currentTimeMillis() + HIT_ANIMATION_DURATION_MILLISECONDS;
-                            if (mHealth + healthRemoved > 0)
-                                mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_HIT, hit_by_id);
-                            else
-                                mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_OUT, hit_by_id);
-                        }
-                    }
-                    // Often, hit_by_player2 is the same player ID as player1
-                    // bytes are always signed in Java and if you don't do the & 0xFF here, you will get negative numbers in the hit by player field when using player IDs > 32
-                    int hit_by_player2 = (data[RECOIL_OFFSET_HIT_BY2] & 0xFF);
-                    if (hit_by_player2 != 0 && hit_by_player2 != hit_by_player1 && mHealth + healthRemoved > 0) {
-                        healthRemoved--;
-                        if (mUseNetwork) {
-                            hit_by_id = (byte)(hit_by_player1 >> 2);
-                            //Log.d(TAG, "hit by 2 ID is " + hit_by_id);
-                            if (mGameMode != GAME_MODE_FFA && calcNetworkTeam(hit_by_id) == mNetworkTeam) {
-                                //Log.d(TAG, "friendly fire ignored");
-                                healthRemoved++;
-                            } else if (mLastHitMessage < System.currentTimeMillis()) {
+                            healthRemoved = 0;
+                        } else {
+                            if (Globals.getInstance().mPlayerSettings.get(hit_by_id) != null)
+                                healthRemoved = Globals.getInstance().mPlayerSettings.get(hit_by_id).damage;
+                            if (mLastHitMessage < System.currentTimeMillis()) {
                                 mLastHitMessage = System.currentTimeMillis() + HIT_ANIMATION_DURATION_MILLISECONDS;
                                 if (mHealth + healthRemoved > 0)
                                     mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_HIT, hit_by_id);
@@ -1869,8 +1965,32 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                             }
                         }
                     }
+                    // Often, hit_by_player2 is the same player ID as player1
+                    // bytes are always signed in Java and if you don't do the & 0xFF here, you will get negative numbers in the hit by player field when using player IDs > 32
+                    int hit_by_player2 = (data[RECOIL_OFFSET_HIT_BY2] & 0xFF);
+                    if (hit_by_player2 != 0 && hit_by_player2 != hit_by_player1 && mHealth + healthRemoved > 0) {
+                        healthRemoved += Globals.DAMAGE_PER_HIT;
+                        if (mUseNetwork) {
+                            hit_by_id = (byte)(hit_by_player1 >> 2);
+                            //Log.d(TAG, "hit by 2 ID is " + hit_by_id);
+                            if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA && Globals.getInstance().calcNetworkTeam(hit_by_id) == mNetworkTeam) {
+                                //Log.d(TAG, "friendly fire ignored");
+                                healthRemoved -= Globals.DAMAGE_PER_HIT;
+                            } else {
+                                if (Globals.getInstance().mPlayerSettings.get(hit_by_id) != null)
+                                    healthRemoved += Globals.getInstance().mPlayerSettings.get(hit_by_id).damage;
+                                if (mLastHitMessage < System.currentTimeMillis()) {
+                                    mLastHitMessage = System.currentTimeMillis() + HIT_ANIMATION_DURATION_MILLISECONDS;
+                                    if (mHealth + healthRemoved > 0)
+                                        mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_HIT, hit_by_id);
+                                    else
+                                        mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_OUT, hit_by_id);
+                                }
+                            }
+                        }
+                    }
                     if (healthRemoved != 0) {
-                        if (mGameState == GAME_STATE_RUNNING) {
+                        if (Globals.getInstance().mGameState == Globals.GAME_STATE_RUNNING) {
                             mHealth += healthRemoved;
                             mHealthBar.setProgress(mHealth);
                             if (mHealth > 0) {
@@ -1904,7 +2024,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                             } else {
                                 vibrator.vibrate(HIT_VIBRATE_DURATION_MILLISECONDS);
                                 playSound(R.raw.eliminated, getApplicationContext());
-                                if ((Globals.getInstance().mGameLimit & GAME_LIMIT_LIVES) != 0)
+                                if (mHasLivesLimit)
                                     mEliminationCount--;
                                 else
                                     mEliminationCount++;
@@ -1915,12 +2035,18 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                                     eliminatedBy = Globals.getInstance().getPlayerName(hit_by_id);
                                 startSpawn(eliminatedBy);
                                 if (mUseNetwork) {
-                                    mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_ELIMINATED, hit_by_id);
-                                }
-                                if ((Globals.getInstance().mGameLimit & GAME_LIMIT_LIVES) != 0 && mEliminationCount <= 0) {
-                                    mUDPListenerService.sendUDPMessageAll(NetMsg.NETMSG_LEAVE);
-                                    Toast.makeText(getApplicationContext(), getString(R.string.dialog_out_of_lives), Toast.LENGTH_LONG).show();
-                                    endGame(); // Sorry, you're out of the game
+                                    if (mTcpClient.isDedicatedServer())
+                                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ELIMINATED + hit_by_id, true);
+                                    else
+                                        mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_ELIMINATED, hit_by_id);
+                                    if (mHasLivesLimit && mEliminationCount <= 0) {
+                                        if (mTcpClient.isDedicatedServer())
+                                            mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_LEAVE);
+                                        else
+                                            mUDPListenerService.sendUDPMessageAll(NetMsg.NETMSG_LEAVE);
+                                        Toast.makeText(getApplicationContext(), getString(R.string.dialog_out_of_lives), Toast.LENGTH_LONG).show();
+                                        endGame(); // Sorry, you're out of the game
+                                    }
                                 }
                             }
                         }
@@ -1941,7 +2067,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                update the displayed shots remaining and play shooting sounds. pew! pew! */
             if (mLastShotCount != shotsRemaining) {
                 setShotsRemaining(shotsRemaining);
-                if (shotsRemaining != RELOAD_COUNT && mReloading == RELOADING_STATE_NONE) {
+                if (shotsRemaining != Globals.getInstance().mFullReload && mReloading == RELOADING_STATE_NONE) {
                     playSound(R.raw.shootingshort, getApplicationContext());
                     if (mUseNetwork && mLastShotFired < System.currentTimeMillis()) {
                         mLastShotFired = System.currentTimeMillis() + HIT_ANIMATION_DURATION_MILLISECONDS;
@@ -1957,25 +2083,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 Log.d(TAG, stringBuilder.toString());
             }*/
         }
-    }
-
-    private int calcNetworkTeam(byte player_id) {
-        int team = 1;
-        if (mGameMode == GAME_MODE_2TEAMS) {
-            final int x = ((MAX_PLAYER_ID + 1) / 2);
-            if (player_id > x)
-                team = 2;
-        } else if (mGameMode == GAME_MODE_4TEAMS){
-            final int x = ((MAX_PLAYER_ID + 1) / 4);
-            if (player_id > 3 * x)
-                team = 4;
-            else if (player_id > 2 * x)
-                team = 3;
-            else if (player_id > x)
-                team = 2;
-        } else if (mGameMode == GAME_MODE_FFA)
-            return player_id;
-        return team;
     }
 
     private final BroadcastReceiver mUDPUpdateReceiver = new BroadcastReceiver() {
@@ -2077,28 +2184,31 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     }
                 }, ELIMINATED_ANIMATION_DURATION_MILLISECONDS);
                 playSound(R.raw.score, getApplicationContext());
-                if ((Globals.getInstance().mGameLimit & GAME_LIMIT_SCORE) != 0 && mScore >= Globals.getInstance().mScoreLimit) {
-                    endGame();
-                    if (mUseNetwork)
-                        mUDPListenerService.endGame();
-                }
-                if (mUseNetwork && mGameMode != GAME_MODE_FFA) {
+                if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
                     mTeamScore++;
                     score = "" + mTeamScore;
                     mTeamScoreTV.setText(score);
-                    // Send a message to all teammates about the score increase
-                    int teamSize = ((MAX_PLAYER_ID + 1) / 2);
-                    if (mGameMode == GAME_MODE_4TEAMS) {
-                        teamSize = ((MAX_PLAYER_ID + 1) / 4);
-                    }
-                    int startPoint = (teamSize * mNetworkTeam) - teamSize + 1;
-                    for (int x = startPoint; x < startPoint + teamSize; x++) {
-                        if (x != Globals.getInstance().mPlayerID) { // don't send a message to ourselves
-                            mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_TEAMELIMINATED, (byte) x);
+                    if (!mTcpClient.isDedicatedServer()) {
+                        // Send a message to all teammates about the score increase
+                        int teamSize = ((Globals.MAX_PLAYER_ID + 1) / 2);
+                        if (Globals.getInstance().mGameMode == Globals.GAME_MODE_4TEAMS) {
+                            teamSize = ((Globals.MAX_PLAYER_ID + 1) / 4);
+                        }
+                        int startPoint = (teamSize * mNetworkTeam) - teamSize + 1;
+                        for (int x = startPoint; x < startPoint + teamSize; x++) {
+                            if (x != Globals.getInstance().mPlayerID) { // don't send a message to ourselves
+                                mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_TEAMELIMINATED, (byte) x);
+                            }
                         }
                     }
-                    if ((Globals.getInstance().mGameLimit & GAME_LIMIT_SCORE) != 0 && mTeamScore >= Globals.getInstance().mScoreLimit)
+                }
+                if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_SCORE) != 0 && mScore >= Globals.getInstance().mScoreLimit) {
+                    if (mTcpClient.isDedicatedServer())
+                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ENDGAME);
+                    else {
+                        mUDPListenerService.endGame();
                         endGame();
+                    }
                 }
             } else if (NetMsg.NETMSG_TEAMELIMINATED.equals(action)) {
                 // Increase team score in team games
@@ -2106,24 +2216,20 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 String score = "" + mTeamScore;
                 mTeamScoreTV.setText(score);
             } else if (NetMsg.NETMSG_JOIN.equals(action) || NetMsg.NETMSG_LEAVE.equals(action)) {
-                mPlayerCount = Globals.getPlayerCount();
-                mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, mPlayerCount));
-                if (mGameMode == GAME_MODE_FFA && mGameState != GAME_STATE_NONE && NetMsg.NETMSG_LEAVE.equals(action) && mPlayerCount <= 1)
+                mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, Globals.getPlayerCount()));
+                mNetworkPlayerCountTV.setVisibility(View.VISIBLE);
+                if (Globals.getInstance().mGameMode == Globals.GAME_MODE_FFA && Globals.getInstance().mGameState != Globals.GAME_STATE_NONE && NetMsg.NETMSG_LEAVE.equals(action) && Globals.getPlayerCount() <= 1)
                     endGame(); // Everyone else is out so game is over - this only works in FFA because we don't keep track of who and how many people are on each team
             } else if (NetMsg.NETMSG_LISTPLAYERS.equals(action)) {
                 if (mReady) {
                     mUDPListenerService.endScanning();
-                    mPlayerCount = Globals.getPlayerCount();
-                    mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, mPlayerCount));
-                    String netGameMode = Globals.getInstance().mGameMode;
-                    if (netGameMode.equals("2")) {
-                        mGameMode = GAME_MODE_2TEAMS;
+                    mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, Globals.getPlayerCount()));
+                    mNetworkPlayerCountTV.setVisibility(View.VISIBLE);
+                    if (Globals.getInstance().mGameMode == Globals.GAME_MODE_2TEAMS) {
                         mGameModeTV.setText(R.string.game_mode_2teams);
-                    } else if (netGameMode.equals("4")) {
-                        mGameMode = GAME_MODE_4TEAMS;
+                    } else if (Globals.getInstance().mGameMode == Globals.GAME_MODE_4TEAMS) {
                         mGameModeTV.setText(R.string.game_mode_4teams);
                     } else {
-                        mGameMode = GAME_MODE_FFA;
                         mGameModeTV.setText(R.string.game_mode_ffa);
                     }
                     setTeam();
@@ -2134,13 +2240,20 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         if (ip.startsWith("/")) ip = ip.substring(1);
                         mServerIPTV.setText(getString(R.string.server_status_connected_to, ip));
                         mServerIPTV.setVisibility(View.VISIBLE);
+                        if (mTcpClient.isDedicatedServer()) {
+                            mPlayerDataButton.setVisibility(View.VISIBLE);
+                            mNetworkStatusIV.setVisibility(View.VISIBLE);
+                            mNetworkStatusIV.setImageResource(R.drawable.ic_network_connected_24dp);
+                        }
                     }
                 }
+            } else if (NetMsg.NETMSG_PLAYERDATAUPDATE.equals(action)) {
+                displayPlayerData(intent.getStringExtra(NetMsg.INTENT_PLAYERDATA));
             } else if (NetMsg.NETMSG_STARTGAME.equals(action)) {
-                if (mGameState == GAME_STATE_NONE)
+                if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE)
                     startGame();
             } else if (NetMsg.NETMSG_ENDGAME.equals(action)) {
-                if (mGameState != GAME_STATE_NONE)
+                if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
                     endGame();
             } else if (NetMsg.NETMSG_ERROR.equals(action)) {
                 String errorMessage = intent.getStringExtra(UDPListenerService.INTENT_MESSAGE);
@@ -2165,15 +2278,28 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 mReady = true;
                 mIsServer = true;
                 setReady();
-                mServerIPTV.setText(getString(R.string.server_status_serving_on, Globals.getInstance().mServerIP));
+                String ip = Globals.getInstance().mServerIP.toString();
+                if (ip.startsWith("/"))
+                    ip = ip.substring(1);
+                mServerIPTV.setText(getString(R.string.server_status_serving_on, ip));
                 mServerIPTV.setVisibility(View.VISIBLE);
                 setNetworkMenu(NETWORK_TYPE_SERVING);
             } else if (NetMsg.NETMSG_SERVERCANCEL.equals(action)) {
-                mReady = false;
-                setReady(false);
+                if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
+                    endGame();
+                } else {
+                    mReady = false;
+                    setReady(false);
+                }
                 Toast.makeText(getApplicationContext(), getString(R.string.error_server_cancel), Toast.LENGTH_SHORT).show();
             } else if (NetMsg.NETMSG_SERVERREPLY.equals(action)) {
                 mTcpClient.startTcpClient();
+            } else if (NetMsg.NETMSG_NETWORKCONNECTED.equals(action)) {
+                mNetworkStatusIV.setImageResource(R.drawable.ic_network_connected_24dp);
+            } else if (NetMsg.NETMSG_NETWORKDISCONNECTED.equals(action)) {
+                mNetworkStatusIV.setImageResource(R.drawable.ic_network_disconnected_24dp);
+            } else if (NetMsg.NETMSG_PLAYERSETTINGSUPDATE.equals(action)) {
+                updatePlayerSettings();
             }
         }
     };
@@ -2188,6 +2314,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         intentFilter.addAction(NetMsg.NETMSG_FAILEDTOJOIN);
         intentFilter.addAction(NetMsg.NETMSG_LEAVE);
         intentFilter.addAction(NetMsg.NETMSG_LISTPLAYERS);
+        intentFilter.addAction(NetMsg.NETMSG_PLAYERDATAUPDATE);
         intentFilter.addAction(NetMsg.NETMSG_STARTGAME);
         intentFilter.addAction(NetMsg.NETMSG_ENDGAME);
         intentFilter.addAction(NetMsg.NETMSG_ERROR);
@@ -2197,19 +2324,21 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         intentFilter.addAction(NetMsg.NETMSG_SERVERCANCEL);
         intentFilter.addAction(NetMsg.NETMSG_SERVERREPLY);
         intentFilter.addAction(NetMsg.NETMSG_TEAMELIMINATED);
+        intentFilter.addAction(NetMsg.NETMSG_NETWORKCONNECTED);
+        intentFilter.addAction(NetMsg.NETMSG_NETWORKDISCONNECTED);
+        intentFilter.addAction(NetMsg.NETMSG_PLAYERSETTINGSUPDATE);
         return intentFilter;
     }
 
     private void displayAllNetworkingOptions(boolean enabled) {
         int visibility = enabled ? View.VISIBLE : View.INVISIBLE;
-        mNetworkPlayerCountTV.setVisibility(visibility);
         mGameModeButton.setVisibility(visibility);
         mGameModeLabelTV.setVisibility(visibility);
         mGameModeTV.setVisibility(visibility);
         mScoreLabelTV.setVisibility(visibility);
         mScoreTV.setVisibility(visibility);
         mServerIPTV.setVisibility(View.GONE);
-        if (mGameMode != GAME_MODE_FFA) {
+        if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
             mTeamScoreLabelTV.setVisibility(visibility);
             mTeamScoreTV.setVisibility(visibility);
         } else {
@@ -2226,9 +2355,77 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mScoreLabelTV.setVisibility(View.VISIBLE);
         mScoreTV.setVisibility(View.VISIBLE);
         mEndNetworkGameButton.setVisibility(View.VISIBLE);
-        if (mGameMode != GAME_MODE_FFA) {
+        if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
             mTeamScoreLabelTV.setVisibility(View.VISIBLE);
             mTeamScoreTV.setVisibility(View.VISIBLE);
         }
+    }
+
+    private void displayPlayerData(final String message) {
+        new Thread(new Runnable() {
+            public void run() {
+                PlayerDisplayData[] playerDisplayData = new PlayerDisplayData[Globals.MAX_PLAYER_ID + 1];
+                for (int x = 1; x <= Globals.MAX_PLAYER_ID; x++)
+                    playerDisplayData[x] = null;
+
+                boolean hasSemaphore = false;
+                try {
+                    JSONObject json = new JSONObject(message);
+                    JSONArray players = json.getJSONArray(TcpServer.JSON_PLAYERDATA);
+                    Globals.getInstance().getmPlayerSettingsSemaphore();
+                    hasSemaphore = true;
+                    for (int x = 0; x < players.length(); x++) {
+                        JSONObject player = players.getJSONObject(x);
+                        PlayerDisplayData playerData = new PlayerDisplayData();
+                        playerData.playerID = (byte) player.getInt(TcpServer.JSON_PLAYERID);
+                        playerData.playerName = player.getString(TcpServer.JSON_PLAYERNAME);
+                        playerData.points = player.getInt(TcpServer.JSON_PLAYERPOINTS);
+                        playerData.eliminated = player.getInt(TcpServer.JSON_PLAYERELIMINATED);
+                        if (Globals.getInstance().mPlayerSettings.get(playerData.playerID) == null) {
+                            playerData.overrideLives = false;
+                            playerData.lives = 0;
+                        } else {
+                            playerData.overrideLives = Globals.getInstance().mPlayerSettings.get(playerData.playerID).overrideLives;
+                            playerData.lives = Globals.getInstance().mPlayerSettings.get(playerData.playerID).lives;
+                        }
+                        playerDisplayData[playerData.playerID] = playerData;
+                    }
+                    Globals.getInstance().mPlayerSettingsSemaphore.release();
+                    hasSemaphore = false;
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                    if (hasSemaphore)
+                        Globals.getInstance().mPlayerSettingsSemaphore.release();
+                    return;
+                }
+                final PlayerDisplayDataListAdapter playerDisplayListAdapter = new PlayerDisplayDataListAdapter(FullscreenActivity.this, playerDisplayData, true);
+
+                runOnUiThread(new Runnable() {
+
+                    @Override
+                    public void run() {
+                        AlertDialog.Builder alertDialog = new AlertDialog.Builder(FullscreenActivity.this);
+                        alertDialog.setNegativeButton(R.string.ok,
+                                new DialogInterface.OnClickListener() {
+                                    public void onClick(DialogInterface dialog,int id) {
+                                        dialog.cancel();
+                                    }
+                                });
+                        LayoutInflater inflater = getLayoutInflater();
+                        View view = inflater.inflate(R.layout.player_data_dialog, null);
+                        alertDialog.setView(view);
+                        ListView listView = view.findViewById(R.id.player_list);
+                        listView.setAdapter(playerDisplayListAdapter);
+                        alertDialog.show();
+                    }
+                });
+            }
+        }).start();
+    }
+
+    private void updatePlayerSettings() {
+        mHealthLabelTV.setText(getString(R.string.health_label, Globals.getInstance().mFullHealth));
+        mShotsRemainingLabelTV.setText(getString(R.string.shots_remaining_label, Globals.getInstance().mFullReload, (Globals.getInstance().mDamage * -1)));
+        setGameLimit();
     }
 }

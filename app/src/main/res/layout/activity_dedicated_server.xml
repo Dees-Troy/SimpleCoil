@@ -1,0 +1,111 @@
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#080808"
+    android:id="@+id/main_view"
+    tools:context="com.simplecoil.simplecoil.FullscreenActivity">
+
+    <!-- This FrameLayout insets its children based on system windows using
+         android:fitsSystemWindows. -->
+    <RelativeLayout
+        android:id="@+id/connect_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="visible"
+        android:fitsSystemWindows="true">
+
+        <TextView
+            android:id="@+id/version_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:layout_marginEnd="5dp"
+            android:layout_alignParentEnd="true"
+            android:text=""
+            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+        <TextView
+            android:id="@+id/server_ip_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_toEndOf="@id/use_network_button"
+            android:layout_marginTop="10dp"
+            android:layout_marginStart="5dp"
+            android:text=""
+            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+        <TextView
+            android:id="@+id/player_count_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:layout_marginStart="10dp"
+            android:layout_below="@+id/server_ip_tv"
+            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+        <Button
+            android:id="@+id/game_mode_toggle_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_below="@id/player_count_tv"
+            android:text="@string/game_mode_toggle_button" />
+
+        <TextView
+            android:id="@+id/game_limit_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="5dp"
+            android:layout_alignParentEnd="true"
+            android:layout_below="@id/server_ip_tv"
+            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+        <Button
+            android:id="@+id/game_limit_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:layout_alignParentEnd="true"
+            android:layout_below="@id/player_count_tv"
+            android:text="@string/game_limit_button" />
+
+        <TextView
+            android:id="@+id/game_status_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignBaseline="@id/game_mode_toggle_button"
+            android:layout_centerHorizontal="true"
+            android:text="@string/dedicated_game_waiting"
+            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+        <Button
+            android:id="@+id/gps_mode_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_below="@id/game_mode_toggle_button"
+            android:text="@string/gps_mode_disabled" />
+
+        <Button
+            android:id="@+id/end_game_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:layout_alignParentEnd="true"
+            android:layout_below="@id/game_limit_button"
+            android:enabled="false"
+            android:text="@string/end_game_button" />
+
+        <ListView
+            android:id="@+id/player_list"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/end_game_button" />
+    </RelativeLayout>
+</FrameLayout>

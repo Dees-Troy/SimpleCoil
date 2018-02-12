@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#080808"
+    android:id="@+id/main_view"
+    tools:context="com.simplecoil.simplecoil.FullscreenActivity">
+
+<RelativeLayout
+    android:id="@+id/connect_layout"
+    android:layout_width="match_parent"
+    android:layout_height="30dp"
+    android:visibility="visible"
+    android:fitsSystemWindows="true">
+
+    <TextView
+        android:id="@+id/player_id_tv"
+        android:layout_width="wrap_content"
+        android:layout_height="30dp"
+        android:layout_marginStart="5dp"
+        android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+    <TextView
+        android:id="@+id/player_name_tv"
+        android:layout_width="wrap_content"
+        android:layout_height="30dp"
+        android:layout_marginStart="30dp"
+        android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+    <TextView
+        android:id="@+id/player_points_tv"
+        android:layout_width="wrap_content"
+        android:layout_height="30dp"
+        android:layout_marginStart="200dp"
+        android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+    <TextView
+        android:id="@+id/player_eliminated_tv"
+        android:layout_width="wrap_content"
+        android:layout_height="30dp"
+        android:layout_marginStart="275dp"
+        android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+    <ImageView
+        android:id="@+id/network_status_iv"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="310dp"
+        android:visibility="gone"
+        app:srcCompat="@drawable/ic_network_connected_24dp" />
+</RelativeLayout>
+</FrameLayout>
