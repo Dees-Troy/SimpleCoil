@@ -74,6 +74,13 @@
         android:inputType="number" >
     </EditText>
 
+    <Switch
+        android:id="@+id/reload_on_empty_switch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        android:text="@string/player_settings_reload_on_empty" />
+
     <TextView
         android:id="@+id/spawn_time_title"
         android:layout_width="wrap_content"

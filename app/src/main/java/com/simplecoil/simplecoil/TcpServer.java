@@ -88,6 +88,7 @@ public class TcpServer extends Service {
     public static final String JSON_HEALTH = "health";
     public static final String JSON_RELOAD_SHOTS = "reloadshots";
     public static final String JSON_RELOAD_TIME = "reloadtime";
+    public static final String JSON_RELOAD_ON_EMPTY = "reloadonempty";
     public static final String JSON_SPAWN_TIME = "spawntime";
     public static final String JSON_DAMAGE = "damage";
     public static final String JSON_ALLOWPLAYERSETTINGS = "allowplayersettings";
@@ -439,6 +440,7 @@ public class TcpServer extends Service {
                 player.put(JSON_HEALTH, entry.getValue().health);
                 player.put(JSON_RELOAD_SHOTS, entry.getValue().shots);
                 player.put(JSON_RELOAD_TIME, entry.getValue().reloadTime);
+                player.put(JSON_RELOAD_ON_EMPTY, entry.getValue().reloadOnEmpty);
                 player.put(JSON_SPAWN_TIME, entry.getValue().spawnTime);
                 player.put(JSON_DAMAGE, entry.getValue().damage);
                 if (entry.getValue().overrideLives)
@@ -793,6 +795,7 @@ public class TcpServer extends Service {
                     settings.health = player.getInt(JSON_HEALTH);
                     settings.shots = (byte)player.getInt(JSON_RELOAD_SHOTS);
                     settings.reloadTime = player.getLong(JSON_RELOAD_TIME);
+                    settings.reloadOnEmpty = player.getBoolean(JSON_RELOAD_ON_EMPTY);
                     settings.spawnTime = player.getLong(JSON_SPAWN_TIME);
                     settings.damage = player.getInt(JSON_DAMAGE);
                     if (player.has(JSON_LIVESLIMIT)) {

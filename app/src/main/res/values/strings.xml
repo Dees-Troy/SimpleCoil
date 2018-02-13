@@ -126,6 +126,7 @@
     <string name="player_settings_spawn_time">Respawn Time (Seconds)</string>
     <string name="player_settings_reload_time">Reload Time (Milliseconds)</string>
     <string name="player_settings_reload_shots">Shots Per Reload</string>
+    <string name="player_settings_reload_on_empty">Reload on empty?</string>
     <string name="player_settings_damage">Damage Per Hit To Others (Network Game Only)</string>
     <string name="player_settings_override_lives">Override lives limit?</string>
     <string name="player_settings_lives">Lives</string>

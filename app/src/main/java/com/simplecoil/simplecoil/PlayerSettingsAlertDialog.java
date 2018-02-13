@@ -34,6 +34,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
     private EditText mHealthET = null;
     private EditText mReloadShotsET = null;
     private EditText mReloadTimeET = null;
+    private Switch mReloadOnEmptySwitch = null;
     private EditText mSpawnTimeET = null;
     private EditText mDamageET = null;
     private Switch mOverrideLivesSwitch = null;
@@ -70,6 +71,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
         mHealthET.setText("" + playerSettings.health);
         mReloadShotsET.setText("" + playerSettings.shots);
         mReloadTimeET.setText("" + playerSettings.reloadTime);
+        mReloadOnEmptySwitch.setChecked(playerSettings.reloadOnEmpty);
         mSpawnTimeET.setText("" + playerSettings.spawnTime);
         mDamageET.setText("" + (playerSettings.damage * -1));
         mOverrideLivesSwitch.setChecked(playerSettings.overrideLives);
@@ -88,6 +90,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
         mHealthET.setText("" + Globals.getInstance().mFullHealth);
         mReloadShotsET.setText("" + Globals.getInstance().mFullReload);
         mReloadTimeET.setText("" + Globals.getInstance().mReloadTime);
+        mReloadOnEmptySwitch.setChecked(Globals.getInstance().mReloadOnEmpty);
         mSpawnTimeET.setText("" + Globals.getInstance().mRespawnTime);
         mDamageET.setText("" + (Globals.getInstance().mDamage * -1));
         mOverrideLivesSwitch.setChecked(Globals.getInstance().mOverrideLives);
@@ -106,6 +109,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
         mHealthET = view.findViewById(R.id.health_et);
         mReloadShotsET = view.findViewById(R.id.reload_shots_et);
         mReloadTimeET = view.findViewById(R.id.reload_time_et);
+        mReloadOnEmptySwitch = view.findViewById(R.id.reload_on_empty_switch);
         mSpawnTimeET = view.findViewById(R.id.spawn_time_et);
         mDamageET = view.findViewById(R.id.damage_et);
         mOverrideLivesSwitch = view.findViewById(R.id.override_lives_limit_switch);
@@ -117,6 +121,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
                 mHealthET.setText("" + Globals.MAX_HEALTH);
                 mReloadShotsET.setText("" + Globals.RELOAD_COUNT);
                 mReloadTimeET.setText("" + Globals.RELOAD_TIME_MILLISECONDS);
+                mReloadOnEmptySwitch.setChecked(false);
                 mSpawnTimeET.setText("" + Globals.RESPAWN_TIME_SECONDS);
                 mDamageET.setText("" + (Globals.DAMAGE_PER_HIT * -1));
                 mOverrideLivesSwitch.setChecked(false);
@@ -140,6 +145,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
                             if (value > 10000 || value < 0)
                                 value = (int) Globals.RELOAD_TIME_MILLISECONDS;
                             Globals.getInstance().mReloadTime = value;
+                            Globals.getInstance().mReloadOnEmpty = mReloadOnEmptySwitch.isChecked();
                             value = Integer.parseInt(mSpawnTimeET.getText().toString());
                             if (value > 1000 || value <= 0)
                                 value = (int) Globals.RESPAWN_TIME_SECONDS;
@@ -174,6 +180,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
                             if (value > 10000 || value < 0)
                                 value = (int) Globals.RELOAD_TIME_MILLISECONDS;
                             playerSettings.reloadTime = value;
+                            playerSettings.reloadOnEmpty = mReloadOnEmptySwitch.isChecked();
                             value = Integer.parseInt(mSpawnTimeET.getText().toString());
                             if (value > 1000 || value <= 0)
                                 value = (int) Globals.RESPAWN_TIME_SECONDS;
