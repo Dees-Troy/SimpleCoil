@@ -1185,6 +1185,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mGameTimer.stop();
         mUseNetworkingButton.setVisibility(View.VISIBLE);
         mFiringModeButton.setVisibility(View.VISIBLE);
+        mGameLimitButton.setVisibility(View.VISIBLE);
         setNetworkMenu(NETWORK_TYPE_ENABLED);
     }
 
@@ -1749,7 +1750,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     mReloading = RELOADING_STATE_NONE;
                     mReloadBar.setVisibility(View.INVISIBLE);
                     mShotsRemainingTV.setVisibility(View.VISIBLE);
-                    playSound(R.raw.reload, getApplicationContext());
+                    if (!Globals.getInstance().mReloadOnEmpty)
+                        playSound(R.raw.reload, getApplicationContext());
                     Log.d(TAG, "Reload finished");
                 }
             }
@@ -2044,6 +2046,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                                             mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_LEAVE);
                                         else
                                             mUDPListenerService.sendUDPMessageAll(NetMsg.NETMSG_LEAVE);
+                                    }
+                                } else {
+                                    if (mHasLivesLimit && mEliminationCount <= 0) {
                                         Toast.makeText(getApplicationContext(), getString(R.string.dialog_out_of_lives), Toast.LENGTH_LONG).show();
                                         endGame(); // Sorry, you're out of the game
                                     }
@@ -2073,6 +2078,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         mLastShotFired = System.currentTimeMillis() + HIT_ANIMATION_DURATION_MILLISECONDS;
                         mUDPListenerService.sendUDPMessageAll(NetMsg.NETMSG_SHOTFIRED);
                     }
+                    if (Globals.getInstance().mReloadOnEmpty && shotsRemaining == 0 && Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
+                        startReload();
                 }
             }
             // Handy utility code if you want to see the raw data

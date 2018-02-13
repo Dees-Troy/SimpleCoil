@@ -282,6 +282,7 @@ public class TcpClient extends Service {
             playerSettings.put(TcpServer.JSON_HEALTH, Globals.getInstance().mFullHealth);
             playerSettings.put(TcpServer.JSON_RELOAD_SHOTS, Globals.getInstance().mFullReload);
             playerSettings.put(TcpServer.JSON_RELOAD_TIME, Globals.getInstance().mReloadTime);
+            playerSettings.put(TcpServer.JSON_RELOAD_ON_EMPTY, Globals.getInstance().mReloadOnEmpty);
             playerSettings.put(TcpServer.JSON_SPAWN_TIME, Globals.getInstance().mRespawnTime);
             playerSettings.put(TcpServer.JSON_DAMAGE, Globals.getInstance().mDamage);
             if (Globals.getInstance().mOverrideLives)
@@ -378,6 +379,7 @@ public class TcpClient extends Service {
                     playerSettings.health = setting.getInt(TcpServer.JSON_HEALTH);
                     playerSettings.shots = (byte)setting.getInt(TcpServer.JSON_RELOAD_SHOTS);
                     playerSettings.reloadTime = setting.getLong(TcpServer.JSON_RELOAD_TIME);
+                    playerSettings.reloadOnEmpty = setting.getBoolean(TcpServer.JSON_RELOAD_ON_EMPTY);
                     playerSettings.spawnTime = setting.getLong(TcpServer.JSON_SPAWN_TIME);
                     playerSettings.damage = setting.getInt(TcpServer.JSON_DAMAGE);
                     if (setting.has(TcpServer.JSON_LIVESLIMIT)) {
@@ -391,6 +393,7 @@ public class TcpClient extends Service {
                         Globals.getInstance().mFullHealth = playerSettings.health;
                         Globals.getInstance().mFullReload = playerSettings.shots;
                         Globals.getInstance().mReloadTime = playerSettings.reloadTime;
+                        Globals.getInstance().mReloadOnEmpty = playerSettings.reloadOnEmpty;
                         Globals.getInstance().mRespawnTime = playerSettings.spawnTime;
                         Globals.getInstance().mDamage = playerSettings.damage;
                         Globals.getInstance().mOverrideLives = playerSettings.overrideLives;

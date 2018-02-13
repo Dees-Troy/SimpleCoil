@@ -44,6 +44,7 @@ public class Globals {
     public volatile boolean mOverrideLives = false;
     public volatile int mOverrideLivesVal = 0;
     public volatile boolean mAllowPlayerSettings = true;
+    public volatile boolean mReloadOnEmpty = false; // Primarily intended for instagib
 
     // 1 for FFA, 2 for 2 Teams, and 4 for 4 Teams
     public static final int GAME_MODE_FFA = 1;
@@ -249,6 +250,7 @@ public class Globals {
         int health = Globals.MAX_HEALTH;
         byte shots = Globals.RELOAD_COUNT;
         long reloadTime = Globals.RELOAD_TIME_MILLISECONDS;
+        boolean reloadOnEmpty = false;
         long spawnTime = Globals.RESPAWN_TIME_SECONDS;
         int damage = Globals.DAMAGE_PER_HIT;
         boolean overrideLives = false;
