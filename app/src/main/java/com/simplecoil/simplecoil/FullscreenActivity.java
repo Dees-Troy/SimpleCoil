@@ -72,7 +72,6 @@ import android.view.LayoutInflater;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
@@ -99,8 +98,6 @@ import java.util.Queue;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import javax.microedition.khronos.opengles.GL;
-
 /**
  * An example full-screen activity that shows and hides the system UI (i.e.
  * status bar and navigation/system bar) with user interaction.
@@ -120,7 +117,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private Button mEndGameButton = null;
     private Button mEndNetworkGameButton = null;
     private Button mPlayerDataButton = null;
-    private Button mGameModeButton = null;
     private ImageView mNetworkStatusIV = null;
     private TextView mNetworkPlayerCountTV = null;
     private TextView mScoreTV = null;
@@ -136,6 +132,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private TextView mShotsRemainingTV = null;
     private TextView mRecoilModeTV = null;
     private TextView mHitsTakenTV = null;
+    private TextView mTeamLabelTV = null;
     private TextView mTeamTV = null;
     private TextView mShotModeTV = null;
     private TextView mEliminatedTV = null;
@@ -509,6 +506,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mShotsRemainingLabelTV = findViewById(R.id.shots_label_tv);
         mShotsRemainingTV = findViewById(R.id.shots_remaining_tv);
         mHitsTakenTV = findViewById(R.id.hits_taken_tv);
+        mTeamLabelTV = findViewById(R.id.team_label_tv);
         mTeamTV = findViewById(R.id.team_tv);
         mRecoilModeTV = findViewById(R.id.recoil_tv);
         mShotModeTV = findViewById(R.id.shot_mode_tv);
@@ -601,18 +599,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 }
             }));
         }
-        mGameModeButton = findViewById(R.id.game_mode_toggle_button);
-        if (mGameModeButton != null) {
-            mGameModeButton.setOnClickListener((new View.OnClickListener() {
-                public void onClick(View v) {
-                    PopupMenu popup = new PopupMenu(FullscreenActivity.this, v);
-                    MenuInflater inflater = popup.getMenuInflater();
-                    inflater.inflate(R.menu.game_mode_menu, popup.getMenu());
-                    popup.setOnMenuItemClickListener(FullscreenActivity.this);
-                    popup.show();
-                }
-            }));
-        }
         mGameModeLabelTV = findViewById(R.id.game_mode_label_tv);
         mGameModeTV = findViewById(R.id.game_mode_tv);
         mScoreLabelTV = findViewById(R.id.score_label_tv);
@@ -674,7 +660,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 mNetworkPopup.getMenu().add(0, R.id.join_ip_item, 30, R.string.join_ip_button);
                 mNetworkPopup.getMenu().add(0, R.id.create_server_item, 40, R.string.create_server_button);
                 mNetworkPopup.getMenu().add(0, R.id.player_name_item, 50, getString(R.string.player_name_button, Globals.getInstance().mPlayerName));
-                mNetworkPopup.getMenu().add(0, R.id.disable_network_item, 60, R.string.no_network_button);
+                mNetworkPopup.getMenu().add(0, R.id.game_mode_item, 60, R.string.game_mode_toggle_button);
+                mNetworkPopup.getMenu().add(0, R.id.disable_network_item, 70, R.string.no_network_button);
                 return;
             case NETWORK_TYPE_JOINING:
                 mNetworkPopup.getMenu().add(0, R.id.please_wait_item, 1, R.string.please_wait);
@@ -695,6 +682,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 displayAllNetworkingOptions(false);
                 mUseNetwork = false;
                 mUseNetworkingButton.setText(R.string.use_network_button);
+                setTeam();
                 return true;
             case R.id.join_item:
                 if (Globals.getInstance().mPlayerID == 0) {
@@ -724,6 +712,13 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 return true;
             case R.id.player_name_item:
                 requestPlayerName();
+                return true;
+            case R.id.game_mode_item:
+                PopupMenu popup = new PopupMenu(FullscreenActivity.this, mUseNetworkingButton);
+                MenuInflater inflater = popup.getMenuInflater();
+                inflater.inflate(R.menu.game_mode_menu, popup.getMenu());
+                popup.setOnMenuItemClickListener(FullscreenActivity.this);
+                popup.show();
                 return true;
             case R.id.please_wait_item:
                 return true;
@@ -1034,7 +1029,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             }
             mTeamMinusButton.setVisibility(View.INVISIBLE);
             mTeamPlusButton.setVisibility(View.INVISIBLE);
-            mGameModeButton.setVisibility(View.GONE);
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             mGameLimitButton.setVisibility(View.GONE);
         } else {
@@ -1051,7 +1045,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mTeamMinusButton.setVisibility(View.VISIBLE);
             mTeamPlusButton.setVisibility(View.VISIBLE);
             getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-            mGameModeButton.setVisibility(View.VISIBLE);
             mServerIPTV.setVisibility(View.GONE);
             mGameLimitButton.setVisibility(View.VISIBLE);
             setNetworkMenu(NETWORK_TYPE_ENABLED);
@@ -1241,10 +1234,12 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     mNetworkTeam = 2;
             }
             int player = (Globals.getInstance().mPlayerID - (byte)(x * (mNetworkTeam - 1)));
-            mTeamTV.setText(getString(R.string.network_team, mNetworkTeam, player));
+            mTeamLabelTV.setText(getString(R.string.team_number_label, mNetworkTeam));
+            mTeamTV.setText(getString(R.string.network_team, player));
             mTeamScoreLabelTV.setVisibility(View.VISIBLE);
             mTeamScoreTV.setVisibility(View.VISIBLE);
         } else {
+            mTeamLabelTV.setText(R.string.team_label);
             String teamStr = "" + Globals.getInstance().mPlayerID;
             mTeamTV.setText(teamStr);
             mTeamScoreLabelTV.setVisibility(View.INVISIBLE);
@@ -2339,7 +2334,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
     private void displayAllNetworkingOptions(boolean enabled) {
         int visibility = enabled ? View.VISIBLE : View.INVISIBLE;
-        mGameModeButton.setVisibility(visibility);
         mGameModeLabelTV.setVisibility(visibility);
         mGameModeTV.setVisibility(visibility);
         mScoreLabelTV.setVisibility(visibility);

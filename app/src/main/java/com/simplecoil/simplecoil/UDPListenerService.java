@@ -39,7 +39,9 @@ import android.net.DhcpInfo;
 import android.net.wifi.WifiManager;
 import android.os.Binder;
 import android.os.CountDownTimer;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.Log;
 
 import javax.microedition.khronos.opengles.GL;
@@ -370,26 +372,31 @@ public class UDPListenerService extends Service {
     }
 
     private void joinFailCheck(final InetAddress serverIP, final Integer port) {
-        new CountDownTimer(2000, 500) {
+        new Handler(Looper.getMainLooper()).post(new Runnable() {
+            @Override
+            public void run() {
+                new CountDownTimer(2000, 500) { // We send 3 join requests over 2 seconds and quit if we don't get connected
 
-            public void onTick(long millisUntilFinished) {
-                if (mScanRunning) {
-                    Log.d(TAG, "Sending join request");
-                    sendUDPMessage(NetMsg.MESSAGE_PREFIX + NetMsg.NETMSG_JOIN + NetMsg.NETWORK_VERSION + Globals.getInstance().mPlayerID, serverIP, port);
-                } else {
-                    this.cancel();
-                }
-            }
+                    public void onTick(long millisUntilFinished) {
+                        if (mScanRunning) {
+                            Log.d(TAG, "Sending join request");
+                            sendUDPMessage(NetMsg.MESSAGE_PREFIX + NetMsg.NETMSG_JOIN + NetMsg.NETWORK_VERSION + Globals.getInstance().mPlayerID, serverIP, port);
+                        } else {
+                            this.cancel();
+                        }
+                    }
 
-            public void onFinish() {
-                if (mScanRunning) {
-                    Log.d(TAG, "join failed, could not find a server");
-                    mScanRunning = false;
-                    keepListening = false;
-                    sendFailedJoin();
-                }
+                    public void onFinish() {
+                        if (mScanRunning) {
+                            Log.d(TAG, "join failed, could not find a server");
+                            mScanRunning = false;
+                            keepListening = false;
+                            sendFailedJoin();
+                        }
+                    }
+                }.start();
             }
-        }.start();
+        });
     }
 
     private void sendFailedJoin() {

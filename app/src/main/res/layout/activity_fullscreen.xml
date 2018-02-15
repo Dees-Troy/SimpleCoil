@@ -123,7 +123,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentBottom="true"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="10dp"
             android:layout_marginStart="30dp"
             android:text="0"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
@@ -132,7 +132,7 @@
             android:id="@+id/team_label_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
+            android:layout_marginTop="15dp"
             android:layout_centerHorizontal="true"
             android:text="@string/team_label"
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
@@ -142,7 +142,7 @@
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="40dp"
+            android:layout_marginTop="35dp"
             android:layout_marginStart="15dp"
             android:visibility="invisible"
             android:text="-" />
@@ -152,7 +152,7 @@
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="40dp"
+            android:layout_marginTop="35dp"
             android:layout_marginEnd="15dp"
             android:layout_alignParentEnd="true"
             android:visibility="invisible"
@@ -163,7 +163,7 @@
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="40dp"
+            android:layout_marginTop="35dp"
             android:layout_marginStart="15dp"
             android:visibility="gone"
             android:text="@string/scoreboard_button" />
@@ -172,7 +172,7 @@
             android:id="@+id/team_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="45dp"
+            android:layout_marginTop="40dp"
             android:layout_centerHorizontal="true"
             android:text="@string/no_team"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
@@ -182,7 +182,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_below="@+id/team_tv"
-            android:layout_marginTop="15dp"
+            android:layout_marginTop="10dp"
             android:layout_marginStart="15dp"
             android:text="@string/shots_remaining_label"
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
@@ -211,7 +211,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_below="@+id/team_tv"
-            android:layout_marginTop="15dp"
+            android:layout_marginTop="10dp"
             android:layout_centerHorizontal="true"
             android:text="@string/recoil_label"
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
@@ -231,7 +231,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_below="@+id/team_tv"
-            android:layout_marginTop="15dp"
+            android:layout_marginTop="10dp"
             android:layout_marginEnd="15dp"
             android:layout_alignParentEnd="true"
             android:text="@string/shot_mode_label"
@@ -264,7 +264,7 @@
             android:layout_height="wrap_content"
             android:layout_below="@+id/shot_mode_tv"
             android:layout_centerHorizontal="true"
-            android:layout_marginTop="15dp"
+            android:layout_marginTop="5dp"
             android:text="@string/health_label"
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
@@ -275,7 +275,7 @@
             android:layout_marginStart="30dp"
             android:layout_marginEnd="30dp"
             android:layout_below="@+id/health_label_tv"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="5dp"
             android:minHeight="20dip"
             android:maxHeight="20dip"
             style="@android:style/Widget.ProgressBar.Horizontal"
@@ -326,7 +326,7 @@
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="7dp"
             android:layout_marginStart="15dp"
             android:layout_below="@id/health_pb"
             android:text="@string/start_game_button" />
@@ -336,7 +336,7 @@
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="7dp"
             android:layout_marginEnd="15dp"
             android:layout_alignParentEnd="true"
             android:layout_below="@id/health_pb"
@@ -360,7 +360,7 @@
             android:layout_height="wrap_content"
             android:layout_below="@+id/start_game_button"
             android:layout_marginStart="15dp"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="5dp"
             android:text="@string/use_network_button" />
 
         <TextView
@@ -380,7 +380,7 @@
             android:layout_height="wrap_content"
             android:layout_below="@+id/use_network_button"
             android:layout_marginStart="15dp"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="5dp"
             android:text="@string/firing_mode_outdoor_no_cone" />
 
         <TextView
@@ -397,20 +397,10 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentBottom="true"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="10dp"
             android:layout_centerHorizontal="true"
             android:text="@string/game_mode_2teams"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
-
-        <Button
-            android:id="@+id/game_mode_toggle_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="0dp"
-            android:layout_centerHorizontal="true"
-            android:layout_above="@id/game_mode_label_tv"
-            android:text="@string/game_mode_toggle_button" />
 
         <Button
             android:id="@+id/game_limit_button"
@@ -438,7 +428,7 @@
             android:layout_height="wrap_content"
             android:layout_alignParentBottom="true"
             android:layout_marginEnd="15dp"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="10dp"
             android:layout_alignParentEnd="true"
             android:text="0"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
@@ -459,7 +449,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginEnd="15dp"
-            android:layout_marginBottom="20dp"
+            android:layout_marginBottom="10dp"
             android:layout_alignParentEnd="true"
             android:layout_above="@id/score_label_tv"
             android:text="0"

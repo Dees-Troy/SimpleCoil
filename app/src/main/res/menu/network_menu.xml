@@ -8,6 +8,8 @@
         android:title="@string/create_server_button" />
     <item android:id="@+id/player_name_item"
         android:title="@string/player_name_button" />
+    <item android:id="@+id/game_mode_item"
+        android:title="@string/game_mode_toggle_button" />
     <item android:id="@+id/please_wait_item"
         android:title="@string/please_wait" />
     <item android:id="@+id/leave_item"

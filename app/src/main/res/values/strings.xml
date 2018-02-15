@@ -12,6 +12,7 @@
     <string name="connect_status_communicating">Communicating&#8230;</string>
 
     <string name="team_label">TEAM</string>
+    <string name="team_number_label">TEAM %1$d</string>
     <string name="no_team">No Team</string>
 
     <string name="eliminations_count_label">ELIMINATIONS</string>
@@ -75,17 +76,17 @@
     <string name="cancel_server_button">Cancel Lobby</string>
     <string name="join_ip_button">Join IP&#8230;</string>
     <string name="player_name_button">Player Name: %1$s</string>
+    <string name="game_mode_toggle_button">Set Game Mode</string>
     <string name="game_mode_label">Game Mode</string>
     <string name="game_mode_ffa">Free For All</string>
     <string name="game_mode_2teams">2 Teams</string>
     <string name="game_mode_4teams">4 Teams</string>
-    <string name="game_mode_toggle_button">Set Game Mode</string>
     <string name="scan_players_button">Search For Players</string>
     <string name="scan_started_toast">Player scan started!</string>
     <string name="network_player_1count">1 Player</string>
     <string name="network_player_count">%1$d Players</string>
     <string name="not_enough_players_toast">Not enough players!</string>
-    <string name="network_team">Team %1$d Player %2$d</string>
+    <string name="network_team">Player %1$d</string>
     <string name="player_name">Player Name:</string>
     <string name="server_ip">Server IP:</string>
     <string name="game_limit_button">Game Limit</string>
