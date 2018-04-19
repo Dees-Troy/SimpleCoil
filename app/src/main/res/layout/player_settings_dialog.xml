@@ -1,165 +1,171 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/layout_root"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="10dp" >
+<ScrollView
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <TextView
-        android:id="@+id/title_tv"
+    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+        android:id="@+id/layout_root"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/player_settings_title"
-        android:textAppearance="?android:attr/textAppearanceLarge" />
+        android:orientation="vertical"
+        android:padding="10dp" >
 
-    <View
-        android:layout_width="fill_parent"
-        android:layout_height="1dip"
-        android:background="#000000" />
+        <TextView
+            android:id="@+id/title_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/player_settings_title"
+            android:textAppearance="?android:attr/textAppearanceLarge" />
 
-    <TextView
-        android:id="@+id/health_title"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="5dp"
-        android:text="@string/player_settings_health_title"
-        android:textAppearance="?android:attr/textAppearanceMedium" />
+        <View
+            android:layout_width="fill_parent"
+            android:layout_height="1dip"
+            android:background="#000000" />
 
-    <EditText
-        android:id="@+id/health_et"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:digits="0123456789"
-        android:maxLength="3"
-        android:background="#FFFFFF"
-        android:textColor="#000000"
-        android:inputType="number" >
-    <requestFocus />
-    </EditText>
+        <TextView
+            android:id="@+id/health_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:text="@string/player_settings_health_title"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
 
-    <TextView
-        android:id="@+id/shots_title"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/player_settings_reload_shots"
-        android:textAppearance="?android:attr/textAppearanceMedium" />
+        <EditText
+            android:id="@+id/health_et"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:digits="0123456789"
+            android:maxLength="3"
+            android:background="#FFFFFF"
+            android:textColor="#000000"
+            android:inputType="number" >
+        <requestFocus />
+        </EditText>
 
-    <EditText
-        android:id="@+id/reload_shots_et"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:digits="0123456789"
-        android:maxLength="3"
-        android:background="#FFFFFF"
-        android:textColor="#000000"
-        android:inputType="number" >
-    </EditText>
+        <TextView
+            android:id="@+id/shots_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/player_settings_reload_shots"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
 
-    <TextView
-        android:id="@+id/reload_time_title"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/player_settings_reload_time"
-        android:textAppearance="?android:attr/textAppearanceMedium" />
+        <EditText
+            android:id="@+id/reload_shots_et"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:digits="0123456789"
+            android:maxLength="3"
+            android:background="#FFFFFF"
+            android:textColor="#000000"
+            android:inputType="number" >
+        </EditText>
 
-    <EditText
-        android:id="@+id/reload_time_et"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:digits="0123456789"
-        android:maxLength="5"
-        android:background="#FFFFFF"
-        android:textColor="#000000"
-        android:inputType="number" >
-    </EditText>
+        <TextView
+            android:id="@+id/reload_time_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/player_settings_reload_time"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
 
-    <Switch
-        android:id="@+id/reload_on_empty_switch"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="5dp"
-        android:text="@string/player_settings_reload_on_empty" />
+        <EditText
+            android:id="@+id/reload_time_et"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:digits="0123456789"
+            android:maxLength="5"
+            android:background="#FFFFFF"
+            android:textColor="#000000"
+            android:inputType="number" >
+        </EditText>
 
-    <TextView
-        android:id="@+id/spawn_time_title"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/player_settings_spawn_time"
-        android:textAppearance="?android:attr/textAppearanceMedium" />
+        <Switch
+            android:id="@+id/reload_on_empty_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:text="@string/player_settings_reload_on_empty" />
 
-    <EditText
-        android:id="@+id/spawn_time_et"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:digits="0123456789"
-        android:maxLength="3"
-        android:background="#FFFFFF"
-        android:textColor="#000000"
-        android:inputType="number" >
-    </EditText>
+        <TextView
+            android:id="@+id/spawn_time_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/player_settings_spawn_time"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
 
-    <TextView
-        android:id="@+id/damage_title"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/player_settings_damage"
-        android:textAppearance="?android:attr/textAppearanceMedium" />
+        <EditText
+            android:id="@+id/spawn_time_et"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:digits="0123456789"
+            android:maxLength="3"
+            android:background="#FFFFFF"
+            android:textColor="#000000"
+            android:inputType="number" >
+        </EditText>
 
-    <EditText
-        android:id="@+id/damage_et"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:digits="0123456789"
-        android:maxLength="3"
-        android:background="#FFFFFF"
-        android:textColor="#000000"
-        android:inputType="number" >
-    </EditText>
+        <TextView
+            android:id="@+id/damage_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/player_settings_damage"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
 
-    <Switch
-        android:id="@+id/override_lives_limit_switch"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="5dp"
-        android:text="@string/player_settings_override_lives" />
+        <EditText
+            android:id="@+id/damage_et"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:digits="0123456789"
+            android:maxLength="3"
+            android:background="#FFFFFF"
+            android:textColor="#000000"
+            android:inputType="number" >
+        </EditText>
 
-    <TextView
-        android:id="@+id/lives_title"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/player_settings_lives"
-        android:textAppearance="?android:attr/textAppearanceMedium" />
+        <Switch
+            android:id="@+id/override_lives_limit_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:text="@string/player_settings_override_lives" />
 
-    <EditText
-        android:id="@+id/lives_et"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:digits="0123456789"
-        android:maxLength="3"
-        android:background="#FFFFFF"
-        android:textColor="#000000"
-        android:inputType="number" >
-    </EditText>
+        <TextView
+            android:id="@+id/lives_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/player_settings_lives"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
 
-    <Button
-        android:id="@+id/reset_defaults_button"
-        style="@style/Widget.AppCompat.Button.Colored"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/player_settings_reset" />
+        <EditText
+            android:id="@+id/lives_et"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:digits="0123456789"
+            android:maxLength="3"
+            android:background="#FFFFFF"
+            android:textColor="#000000"
+            android:inputType="number" >
+        </EditText>
 
-    <Switch
-        android:id="@+id/apply_to_all_switch"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/player_settings_apply_to_all" />
+        <Button
+            android:id="@+id/reset_defaults_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/player_settings_reset" />
 
-    <Switch
-        android:id="@+id/allow_player_settings_switch"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="5dp"
-        android:text="@string/player_settings_allow_player_settings" />
+        <Switch
+            android:id="@+id/apply_to_all_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/player_settings_apply_to_all" />
 
-</LinearLayout>
+        <Switch
+            android:id="@+id/allow_player_settings_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:text="@string/player_settings_allow_player_settings" />
+
+    </LinearLayout>
+</ScrollView>

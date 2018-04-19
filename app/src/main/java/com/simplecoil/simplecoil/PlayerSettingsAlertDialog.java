@@ -101,7 +101,6 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        Log.e("Dialog", "oncreate");
         LayoutInflater inflater = getLayoutInflater();
         View view = inflater.inflate(R.layout.player_settings_dialog, null);
         setView(view);
