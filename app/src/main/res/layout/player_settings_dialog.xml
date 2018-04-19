@@ -147,6 +147,31 @@
             android:inputType="number" >
         </EditText>
 
+        <TextView
+            android:id="@+id/shot_mode_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/player_settings_lives"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+
+        <Switch
+            android:id="@+id/shot_mode_single"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/shot_mode_single" />
+
+        <Switch
+            android:id="@+id/shot_mode_burst3"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/shot_mode_burst3" />
+
+        <Switch
+            android:id="@+id/shot_mode_auto"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/shot_mode_auto" />
+
         <Button
             android:id="@+id/reset_defaults_button"
             style="@style/Widget.AppCompat.Button.Colored"

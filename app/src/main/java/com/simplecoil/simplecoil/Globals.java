@@ -71,6 +71,13 @@ public class Globals {
     public static final int GAME_STATE_ELIMINATED = 2; // Game running but player is out right now
     public volatile int mGameState = GAME_STATE_NONE;
 
+    public static final int SHOT_MODE_FULL_AUTO = 1;
+    public static final int SHOT_MODE_SINGLE = 2;
+    public static final int SHOT_MODE_BURST = 4;
+    public volatile boolean mAllowSingleShotMode = true;
+    public volatile boolean mAllowBurst3ShotMode = true;
+    public volatile boolean mAllowAutoShotMode = true;
+
     public volatile byte mPlayerID = 0;
     public volatile String mPlayerName = "";
     public volatile Map<InetAddress, Byte> mIPTeamMap;
@@ -255,5 +262,8 @@ public class Globals {
         int damage = Globals.DAMAGE_PER_HIT;
         boolean overrideLives = false;
         int lives = 0;
+        boolean allowShotModeSingle = true;
+        boolean allowShotModeBurst3 = true;
+        boolean allowShotModeAuto = true;
     }
 }

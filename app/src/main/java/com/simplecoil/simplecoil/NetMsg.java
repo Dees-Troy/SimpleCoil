@@ -20,7 +20,7 @@ package com.simplecoil.simplecoil;
 
 public class NetMsg {
     public static final String MESSAGE_PREFIX = "SimpleCoil:";
-    public static final String NETWORK_VERSION = "05";
+    public static final String NETWORK_VERSION = "06";
 
     // All of these messages are straightforward and contain no extra data
     public static final String NETMSG_SHOTFIRED = "SHOTFIRED";

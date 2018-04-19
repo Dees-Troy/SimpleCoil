@@ -224,10 +224,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private static final int RELOADING_STATE_ELIMINATED = 3;
     private int mReloading = RELOADING_STATE_ELIMINATED;
 
-    private static final int SHOT_MODE_FULL_AUTO = 0;
-    private static final int SHOT_MODE_SINGLE = 1;
-    private static final int SHOT_MODE_BURST = 2;
-    private int mCurrentShotMode = SHOT_MODE_SINGLE;
+    private int mCurrentShotMode = Globals.SHOT_MODE_SINGLE;
     private static final int FIRING_MODE_OUTDOOR_NO_CONE = 0;
     private static final int FIRING_MODE_OUTDOOR_WITH_CONE = 1;
     private static final int FIRING_MODE_INDOOR_NO_CONE = 2;
@@ -548,7 +545,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         Globals.getInstance().mPlayerID = (byte) sharedPreferences.getInt(PREF_PLAYER_ID, 0);
         getFiringMode();
         mRecoilEnabled = sharedPreferences.getBoolean(PREF_RECOIL_ENABLED, true);
-        mCurrentShotMode = sharedPreferences.getInt(PREF_SHOT_MODE, SHOT_MODE_SINGLE);
+        mCurrentShotMode = sharedPreferences.getInt(PREF_SHOT_MODE, Globals.SHOT_MODE_SINGLE);
         Globals.getInstance().mGameMode = sharedPreferences.getInt(PREF_GAME_MODE, Globals.GAME_MODE_2TEAMS);
         Globals.getInstance().mGameLimit = Globals.GAME_LIMIT_NONE;
         Globals.getInstance().mTimeLimit = sharedPreferences.getInt(PREF_LIMIT_TIME, 0);
@@ -1367,20 +1364,20 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         config[9]  = (byte)0x80;
         config[10] = (byte)0x02;
         config[11] = (byte)0x34;
-        if (shotMode == SHOT_MODE_SINGLE) {
+        if (shotMode == Globals.SHOT_MODE_SINGLE) {
             config[3] = (byte)0xFE;
             config[4] = (byte)0x00;
-            mCurrentShotMode = SHOT_MODE_SINGLE;
+            mCurrentShotMode = Globals.SHOT_MODE_SINGLE;
             mShotModeTV.setText(R.string.shot_mode_single);
-        } else if (shotMode == SHOT_MODE_BURST) {
+        } else if (shotMode == Globals.SHOT_MODE_BURST) {
             config[3] = (byte)0x03;
             config[4] = (byte)0x03;
-            mCurrentShotMode = SHOT_MODE_BURST;
+            mCurrentShotMode = Globals.SHOT_MODE_BURST;
             mShotModeTV.setText(R.string.shot_mode_burst3);
-        } else if (shotMode == SHOT_MODE_FULL_AUTO) {
+        } else if (shotMode == Globals.SHOT_MODE_FULL_AUTO) {
             config[3] = (byte)0xFE;
             config[4] = (byte)0x01;
-            mCurrentShotMode = SHOT_MODE_FULL_AUTO;
+            mCurrentShotMode = Globals.SHOT_MODE_FULL_AUTO;
             mShotModeTV.setText(R.string.shot_mode_auto);
         }
         SharedPreferences.Editor editor = sharedPreferences.edit();
@@ -1870,12 +1867,21 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             }
             if (thumb_counter != mLastThumbButtonCount) {
                 mLastThumbButtonCount = thumb_counter;
-                if (mCurrentShotMode == SHOT_MODE_SINGLE) {
-                    setShotMode(SHOT_MODE_BURST);
-                } else if (mCurrentShotMode == SHOT_MODE_BURST) {
-                    setShotMode(SHOT_MODE_FULL_AUTO);
-                } else if (mCurrentShotMode == SHOT_MODE_FULL_AUTO) {
-                    setShotMode(SHOT_MODE_SINGLE);
+                if (mCurrentShotMode == Globals.SHOT_MODE_SINGLE) {
+                    if (Globals.getInstance().mAllowBurst3ShotMode)
+                        setShotMode(Globals.SHOT_MODE_BURST);
+                    else if (Globals.getInstance().mAllowAutoShotMode)
+                        setShotMode(Globals.SHOT_MODE_FULL_AUTO);
+                } else if (mCurrentShotMode == Globals.SHOT_MODE_BURST) {
+                    if (Globals.getInstance().mAllowAutoShotMode)
+                        setShotMode(Globals.SHOT_MODE_FULL_AUTO);
+                    else if (Globals.getInstance().mAllowSingleShotMode)
+                        setShotMode(Globals.SHOT_MODE_SINGLE);
+                } else if (mCurrentShotMode == Globals.SHOT_MODE_FULL_AUTO) {
+                    if (Globals.getInstance().mAllowSingleShotMode)
+                        setShotMode(Globals.SHOT_MODE_SINGLE);
+                    else if (Globals.getInstance().mAllowBurst3ShotMode)
+                        setShotMode(Globals.SHOT_MODE_BURST);
                 }
             }
             if (power_counter != mLastPowerButtonCount) {
@@ -2428,5 +2434,38 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mHealthLabelTV.setText(getString(R.string.health_label, Globals.getInstance().mFullHealth));
         mShotsRemainingLabelTV.setText(getString(R.string.shots_remaining_label, Globals.getInstance().mFullReload, (Globals.getInstance().mDamage * -1)));
         setGameLimit();
+        switch (mCurrentShotMode) {
+            case Globals.SHOT_MODE_SINGLE:
+                if (!Globals.getInstance().mAllowSingleShotMode) {
+                    if (Globals.getInstance().mAllowBurst3ShotMode)
+                        setShotMode(Globals.SHOT_MODE_BURST);
+                    else
+                        setShotMode(Globals.SHOT_MODE_FULL_AUTO);
+                }
+                break;
+            case Globals.SHOT_MODE_BURST:
+                if (!Globals.getInstance().mAllowBurst3ShotMode) {
+                    if (Globals.getInstance().mAllowAutoShotMode)
+                        setShotMode(Globals.SHOT_MODE_FULL_AUTO);
+                    else
+                        setShotMode(Globals.SHOT_MODE_SINGLE);
+                }
+                break;
+            case Globals.SHOT_MODE_FULL_AUTO:
+                if (!Globals.getInstance().mAllowAutoShotMode) {
+                    if (Globals.getInstance().mAllowSingleShotMode)
+                        setShotMode(Globals.SHOT_MODE_SINGLE);
+                    else
+                        setShotMode(Globals.SHOT_MODE_BURST);
+                }
+                break;
+            default:
+                if (Globals.getInstance().mAllowSingleShotMode)
+                    setShotMode(Globals.SHOT_MODE_SINGLE);
+                else if (Globals.getInstance().mAllowBurst3ShotMode)
+                    setShotMode(Globals.SHOT_MODE_BURST);
+                else
+                    setShotMode(Globals.SHOT_MODE_FULL_AUTO);
+        }
     }
 }

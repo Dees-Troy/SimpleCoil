@@ -135,4 +135,6 @@
     <string name="player_settings_apply_to_all">Apply to all players?</string>
     <string name="player_settings_allow_player_settings">Allow players to set their own settings?</string>
     <string name="player_settings_not_allowed_toast">Players are not allowed to change player settings on this server.</string>
+    <string name="player_settings_shot_modes_allowed">Shot Modes Allowed</string>
+    <string name="player_settings_shot_mode_error">Must allow at least one shot mode!</string>
 </resources>

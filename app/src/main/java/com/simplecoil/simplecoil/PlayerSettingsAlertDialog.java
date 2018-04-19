@@ -28,6 +28,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
 
 public class PlayerSettingsAlertDialog extends AlertDialog {
     private TextView mTitleTV = null;
@@ -39,6 +40,9 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
     private EditText mDamageET = null;
     private Switch mOverrideLivesSwitch = null;
     private EditText mLivesET = null;
+    private Switch mShotModeSingle = null;
+    private Switch mShotModeBurst3 = null;
+    private Switch mShotModeAuto = null;
     private Button mResetButton = null;
     private Switch mApplyAllSwitch = null;
     private Switch mAllowPlayerSettingsSwitch = null;
@@ -76,6 +80,9 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
         mDamageET.setText("" + (playerSettings.damage * -1));
         mOverrideLivesSwitch.setChecked(playerSettings.overrideLives);
         mLivesET.setText("" + playerSettings.lives);
+        mShotModeSingle.setChecked(playerSettings.allowShotModeSingle);
+        mShotModeBurst3.setChecked(playerSettings.allowShotModeBurst3);
+        mShotModeAuto.setChecked(playerSettings.allowShotModeAuto);
         Globals.getInstance().mPlayerSettingsSemaphore.release();
         mApplyAllSwitch.setChecked(false);
         mAllowPlayerSettingsSwitch.setChecked(Globals.getInstance().mAllowPlayerSettings);
@@ -95,6 +102,9 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
         mDamageET.setText("" + (Globals.getInstance().mDamage * -1));
         mOverrideLivesSwitch.setChecked(Globals.getInstance().mOverrideLives);
         mLivesET.setText("" + Globals.getInstance().mOverrideLivesVal);
+        mShotModeSingle.setChecked(Globals.getInstance().mAllowSingleShotMode);
+        mShotModeBurst3.setChecked(Globals.getInstance().mAllowBurst3ShotMode);
+        mShotModeAuto.setChecked(Globals.getInstance().mAllowAutoShotMode);
         mAllowPlayerSettingsSwitch.setVisibility(View.GONE);
         mApplyAllSwitch.setVisibility(View.GONE);
     }
@@ -113,6 +123,9 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
         mDamageET = view.findViewById(R.id.damage_et);
         mOverrideLivesSwitch = view.findViewById(R.id.override_lives_limit_switch);
         mLivesET = view.findViewById(R.id.lives_et);
+        mShotModeSingle = view.findViewById(R.id.shot_mode_single);
+        mShotModeBurst3 = view.findViewById(R.id.shot_mode_burst3);
+        mShotModeAuto = view.findViewById(R.id.shot_mode_auto);
         mResetButton = view.findViewById(R.id.reset_defaults_button);
         mResetButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -133,6 +146,10 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
                 new OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
+                        if (!mShotModeSingle.isChecked() && !mShotModeBurst3.isChecked() && !mShotModeAuto.isChecked()) {
+                            Toast.makeText(getContext(), getContext().getString(R.string.player_settings_shot_mode_error), Toast.LENGTH_SHORT).show();
+                            return;
+                        }
                         if (!isServer) {
                             Integer value = Integer.parseInt(mHealthET.getText().toString());
                             if (value > 1000 || value <= 0) value = Globals.MAX_HEALTH;
@@ -158,6 +175,9 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
                             if (value > 1000 || value <= 0)
                                 value = 0;
                             Globals.getInstance().mOverrideLivesVal = value;
+                            Globals.getInstance().mAllowSingleShotMode = mShotModeSingle.isChecked();
+                            Globals.getInstance().mAllowBurst3ShotMode = mShotModeBurst3.isChecked();
+                            Globals.getInstance().mAllowAutoShotMode = mShotModeAuto.isChecked();
                             if (mTcpClient != null) {
                                 mTcpClient.sendPlayerSettings();
                             }
@@ -193,6 +213,9 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
                             if (value > 1000 || value <= 0)
                                 value = 0;
                             playerSettings.lives = value;
+                            playerSettings.allowShotModeSingle = mShotModeSingle.isChecked();
+                            playerSettings.allowShotModeBurst3 = mShotModeBurst3.isChecked();
+                            playerSettings.allowShotModeAuto = mShotModeAuto.isChecked();
                             Globals.getInstance().mPlayerSettingsSemaphore.release();
                             if (mTcpServer != null) {
                                 mTcpServer.sendPlayerSettings(mPlayerID, mApplyAllSwitch.isChecked(), mAllowPlayerSettingsSwitch.isChecked());

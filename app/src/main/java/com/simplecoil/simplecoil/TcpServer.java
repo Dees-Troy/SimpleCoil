@@ -91,6 +91,9 @@ public class TcpServer extends Service {
     public static final String JSON_RELOAD_ON_EMPTY = "reloadonempty";
     public static final String JSON_SPAWN_TIME = "spawntime";
     public static final String JSON_DAMAGE = "damage";
+    public static final String JSON_SHOT_MODE_SINGLE = "shotmodesingle";
+    public static final String JSON_SHOT_MODE_BURST3 = "shotmodeburst3";
+    public static final String JSON_SHOT_MODE_AUTO = "shotmodeauto";
     public static final String JSON_ALLOWPLAYERSETTINGS = "allowplayersettings";
 
     private static volatile boolean keepListening = false;
@@ -431,6 +434,9 @@ public class TcpServer extends Service {
                         playerSettings.damage = Globals.getInstance().mPlayerSettings.get(playerID).damage;
                         playerSettings.overrideLives = Globals.getInstance().mPlayerSettings.get(playerID).overrideLives;
                         playerSettings.lives = Globals.getInstance().mPlayerSettings.get(playerID).lives;
+                        playerSettings.allowShotModeSingle = Globals.getInstance().mPlayerSettings.get(playerID).allowShotModeSingle;
+                        playerSettings.allowShotModeBurst3 = Globals.getInstance().mPlayerSettings.get(playerID).allowShotModeBurst3;
+                        playerSettings.allowShotModeAuto = Globals.getInstance().mPlayerSettings.get(playerID).allowShotModeAuto;
                     }
                 }
             }
@@ -445,6 +451,9 @@ public class TcpServer extends Service {
                 player.put(JSON_DAMAGE, entry.getValue().damage);
                 if (entry.getValue().overrideLives)
                     player.put(JSON_LIVESLIMIT, entry.getValue().lives);
+                player.put(JSON_SHOT_MODE_SINGLE, entry.getValue().allowShotModeSingle);
+                player.put(JSON_SHOT_MODE_BURST3, entry.getValue().allowShotModeBurst3);
+                player.put(JSON_SHOT_MODE_AUTO, entry.getValue().allowShotModeAuto);
                 players.put(player);
             }
             Globals.getInstance().mPlayerSettingsSemaphore.release();
