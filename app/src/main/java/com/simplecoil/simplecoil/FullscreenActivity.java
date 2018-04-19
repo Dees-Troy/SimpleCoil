@@ -184,12 +184,21 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private byte mLastReloadButtonCount = 0;
     private byte mLastPowerButtonCount = 0;
     private byte mLastThumbButtonCount = 0;
-    private static boolean mLastWasHit = false; // Used for filtering multiple reports of the same hit
     private static int mEliminationCount = 0;
     private static int mEmptyTriggerCount = 0;
     private static boolean mStartGameTimer = true;
     private static boolean mHasLivesLimit = false;
     private static int mLives = 0;
+
+    private class LastHitData {
+        int playerID;
+        byte shotID;
+    }
+
+    private LastHitData mLastHitData1 = new LastHitData();
+    private LastHitData mLastHitData2 = new LastHitData();
+    private static final int INVALID_PLAYER_ID = -100;
+    private static final int GRENADE_PLAYER_ID = 167;
 
     /* We calculate an average of the last 100 battery reports. Starting out with a single value
        simplifies some of the code that will have to be run every time the tagger sends telemetry
@@ -241,7 +250,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     public final static int RECOIL_OFFSET_THUMB_COUNTER = 4;
     public final static int RECOIL_OFFSET_POWER_COUNTER = 5;
     public final static int RECOIL_OFFSET_BATTERY_LEVEL = 7;
+    public final static int RECOIL_OFFSET_HIT_BY1_SHOTID = 8;
     public final static int RECOIL_OFFSET_HIT_BY1 = 9;
+    public final static int RECOIL_OFFSET_HIT_BY2_SHOTID = 11;
     public final static int RECOIL_OFFSET_HIT_BY2 = 12;
     public final static int RECOIL_OFFSET_TEAM = 1;
     public final static int RECOIL_OFFSET_SHOTS_REMAINING = 14;
@@ -1824,6 +1835,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             //int buttons = data[RECOIL_OFFSET_BUTTONS];
             // bytes are always signed in Java and if you don't do the & 0xFF here, you will get negative numbers in the hit by player field when using player IDs > 32
             int hit_by_player1 = (data[RECOIL_OFFSET_HIT_BY1] & 0xFF);
+            // Often, hit_by_player2 is the same player ID as player1
+            // bytes are always signed in Java and if you don't do the & 0xFF here, you will get negative numbers in the hit by player field when using player IDs > 32
+            int hit_by_player2 = (data[RECOIL_OFFSET_HIT_BY2] & 0xFF);
             byte trigger_counter = (byte)(data[RECOIL_OFFSET_RELOAD_TRIGGER_COUNTER] & (byte)0x0F);
             byte reload_counter = (byte)(data[RECOIL_OFFSET_RELOAD_TRIGGER_COUNTER] & (byte)0xF0);
             byte thumb_counter = data[RECOIL_OFFSET_THUMB_COUNTER];
@@ -1935,43 +1949,40 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     mHitsTakenTV.setText("0");
                 }
             }*/
-            if (hit_by_player1 != 0 && Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
-                /* The tagger usually reports 2 hits per actual shot based on single shot mode
-                   although there are a few times where it reports 3 hits per shot. This is
-                   an attempt to filter out double reports without excluding multiple hits in
-                   a row from full auto. */
-                if (mLastWasHit) {
-                    mLastWasHit = false;
-                    Log.d(TAG, "hit filtered");
-                } else {
-                    mLastWasHit = true;
-                    mHitsTaken++;
-                    String hitsTaken = "" + mHitsTaken;
-                    mHitsTakenTV.setText(hitsTaken);
-                    int healthRemoved = Globals.DAMAGE_PER_HIT;
-                    byte hit_by_id = 0;
-                    if (mUseNetwork) {
-                        hit_by_id = (byte)(hit_by_player1 >> 2);
-                        //Log.d(TAG, "hit by 1 ID is " + hit_by_id);
-                        if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA && Globals.getInstance().calcNetworkTeam(hit_by_id) == mNetworkTeam) {
-                            //Log.d(TAG, "friendly fire ignored");
-                            healthRemoved = 0;
-                        } else {
-                            if (Globals.getInstance().mPlayerSettings.get(hit_by_id) != null)
-                                healthRemoved = Globals.getInstance().mPlayerSettings.get(hit_by_id).damage;
-                            if (mLastHitMessage < System.currentTimeMillis()) {
-                                mLastHitMessage = System.currentTimeMillis() + HIT_ANIMATION_DURATION_MILLISECONDS;
-                                if (mHealth + healthRemoved > 0)
-                                    mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_HIT, hit_by_id);
-                                else
-                                    mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_OUT, hit_by_id);
+            if (hit_by_player1 != 0) {
+                int healthRemoved = 0;
+                byte hit_by_id = 0;
+                Log.e(TAG, "Hit by " + hit_by_player1);
+                if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
+                    if ((mLastHitData1.playerID == hit_by_player1 && mLastHitData1.shotID == data[RECOIL_OFFSET_HIT_BY1_SHOTID]) || (mLastHitData2.playerID == hit_by_player1 && mLastHitData2.shotID == data[RECOIL_OFFSET_HIT_BY1_SHOTID])) {
+                        //Log.e(TAG, "Hit by 1 is using same shot ID from a previous hit, filter!" + hit_by_player1 + " " + data[RECOIL_OFFSET_HIT_BY1_SHOTID]);
+                    } else {
+                        mHitsTaken++;
+                        String hitsTaken = "" + mHitsTaken;
+                        mHitsTakenTV.setText(hitsTaken);
+                        healthRemoved = Globals.DAMAGE_PER_HIT;
+                        if (mUseNetwork) {
+                            hit_by_id = (byte) (hit_by_player1 >> 2);
+                            //Log.d(TAG, "hit by 1 ID is " + hit_by_id);
+                            if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA && Globals.getInstance().calcNetworkTeam(hit_by_id) == mNetworkTeam) {
+                                //Log.d(TAG, "friendly fire ignored");
+                                healthRemoved = 0;
+                            } else {
+                                if (Globals.getInstance().mPlayerSettings.get(hit_by_id) != null)
+                                    healthRemoved = Globals.getInstance().mPlayerSettings.get(hit_by_id).damage;
+                                if (mLastHitMessage < System.currentTimeMillis()) {
+                                    mLastHitMessage = System.currentTimeMillis() + HIT_ANIMATION_DURATION_MILLISECONDS;
+                                    if (mHealth + healthRemoved > 0)
+                                        mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_HIT, hit_by_id);
+                                    else
+                                        mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_OUT, hit_by_id);
+                                }
                             }
                         }
                     }
-                    // Often, hit_by_player2 is the same player ID as player1
-                    // bytes are always signed in Java and if you don't do the & 0xFF here, you will get negative numbers in the hit by player field when using player IDs > 32
-                    int hit_by_player2 = (data[RECOIL_OFFSET_HIT_BY2] & 0xFF);
-                    if (hit_by_player2 != 0 && hit_by_player2 != hit_by_player1 && mHealth + healthRemoved > 0) {
+                    if ((mLastHitData1.playerID == hit_by_player2 && mLastHitData1.shotID == data[RECOIL_OFFSET_HIT_BY2_SHOTID]) || (mLastHitData2.playerID == hit_by_player2 && mLastHitData2.shotID == data[RECOIL_OFFSET_HIT_BY2_SHOTID])) {
+                        //Log.e(TAG, "Hit by 2 is using same shot ID from a previous hit, filter!");
+                    } else if (hit_by_player2 != 0 && mHealth + healthRemoved > 0) {
                         healthRemoved += Globals.DAMAGE_PER_HIT;
                         if (mUseNetwork) {
                             hit_by_id = (byte)(hit_by_player1 >> 2);
@@ -1991,6 +2002,18 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                                 }
                             }
                         }
+                    }
+                    if (hit_by_player1 != GRENADE_PLAYER_ID) {
+                        mLastHitData1.playerID = hit_by_player1;
+                        mLastHitData1.shotID = data[RECOIL_OFFSET_HIT_BY1_SHOTID];
+                    } else {
+                        mLastHitData1.playerID = INVALID_PLAYER_ID;
+                    }
+                    if (hit_by_player2 > 0 && hit_by_player2 != GRENADE_PLAYER_ID) {
+                        mLastHitData2.playerID = hit_by_player2;
+                        mLastHitData2.shotID = data[RECOIL_OFFSET_HIT_BY2_SHOTID];
+                    } else {
+                        mLastHitData2.playerID = INVALID_PLAYER_ID;
                     }
                     if (healthRemoved != 0) {
                         if (Globals.getInstance().mGameState == Globals.GAME_STATE_RUNNING) {
@@ -2059,7 +2082,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     }
                 }
             } else {
-                mLastWasHit = false;
+                mLastHitData1.playerID = INVALID_PLAYER_ID;
+                mLastHitData2.playerID = INVALID_PLAYER_ID;
             }
             /* Since setting player ID is somewhat unreliable, we use this to make sure that we are
                displaying the actual ID that the tagger is currently using. */
