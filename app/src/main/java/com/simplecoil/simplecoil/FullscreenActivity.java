@@ -2399,11 +2399,14 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private void displayPlayerData(final String message) {
         new Thread(new Runnable() {
             public void run() {
-                PlayerDisplayData[] playerDisplayData = new PlayerDisplayData[Globals.MAX_PLAYER_ID + 1];
+                PlayerDisplayData[] playerDisplayData = new PlayerDisplayData[Globals.MAX_PLAYER_ID + 2];
                 for (int x = 1; x <= Globals.MAX_PLAYER_ID; x++)
                     playerDisplayData[x] = null;
 
                 boolean hasSemaphore = false;
+                int[] teamPoints = new int[4];
+                for (int i = 0; i < 4; i++)
+                    teamPoints[i] = 0;
                 try {
                     JSONObject json = new JSONObject(message);
                     JSONArray players = json.getJSONArray(TcpServer.JSON_PLAYERDATA);
@@ -2415,6 +2418,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         playerData.playerID = (byte) player.getInt(TcpServer.JSON_PLAYERID);
                         playerData.playerName = player.getString(TcpServer.JSON_PLAYERNAME);
                         playerData.points = player.getInt(TcpServer.JSON_PLAYERPOINTS);
+                        teamPoints[Globals.getInstance().calcNetworkTeam(playerData.playerID) - 1] += playerData.points;
                         playerData.eliminated = player.getInt(TcpServer.JSON_PLAYERELIMINATED);
                         if (Globals.getInstance().mPlayerSettings.get(playerData.playerID) == null) {
                             playerData.overrideLives = false;
@@ -2432,6 +2436,16 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     if (hasSemaphore)
                         Globals.getInstance().mPlayerSettingsSemaphore.release();
                     return;
+                }
+                if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
+                    String total;
+                    if (Globals.getInstance().mGameMode == Globals.GAME_MODE_2TEAMS) {
+                        total = getString(R.string.player_list_team2_total, teamPoints[0], teamPoints[1]);
+                    } else {
+                        total = getString(R.string.player_list_team4_total, teamPoints[0], teamPoints[1], teamPoints[2], teamPoints[3]);
+                    }
+                    playerDisplayData[Globals.MAX_PLAYER_ID + 1] = new PlayerDisplayData();
+                    playerDisplayData[Globals.MAX_PLAYER_ID + 1].playerName = total;
                 }
                 final PlayerDisplayDataListAdapter playerDisplayListAdapter = new PlayerDisplayDataListAdapter(FullscreenActivity.this, playerDisplayData, true);
 

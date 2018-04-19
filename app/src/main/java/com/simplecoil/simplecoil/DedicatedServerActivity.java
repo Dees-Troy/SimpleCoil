@@ -72,7 +72,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
 
     private SharedPreferences sharedPreferences = null;
 
-    private PlayerDisplayData[] mPlayerDisplayData = new PlayerDisplayData[Globals.MAX_PLAYER_ID + 1];
+    private PlayerDisplayData[] mPlayerDisplayData = new PlayerDisplayData[Globals.MAX_PLAYER_ID + 2];
     PlayerDisplayDataListAdapter mPlayerDisplayListAdapter = null;
 
     // Code to manage Service lifecycle.
@@ -210,6 +210,8 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         mPlayerDisplayList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
 
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                if (position == 0 || position > Globals.MAX_PLAYER_ID)
+                    return;
                 PlayerSettingsAlertDialog dialog = new PlayerSettingsAlertDialog(DedicatedServerActivity.this);
                 dialog.setServer((byte)position, mTcpServer);
                 dialog.show();
@@ -258,18 +260,21 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 mGameModeButton.setText(R.string.game_mode_2teams);
                 savePreference(FullscreenActivity.PREF_GAME_MODE, Globals.getInstance().mGameMode);
                 setGPSMode(Globals.getInstance().mGPSMode);
+                getPlayerDisplayData();
                 return true;
             case R.id.game_mode_4teams_item:
                 Globals.getInstance().mGameMode = Globals.GAME_MODE_4TEAMS;
                 mGameModeButton.setText(R.string.game_mode_4teams);
                 savePreference(FullscreenActivity.PREF_GAME_MODE, Globals.getInstance().mGameMode);
                 setGPSMode(Globals.getInstance().mGPSMode);
+                getPlayerDisplayData();
                 return true;
             case R.id.game_mode_ffa_item:
                 Globals.getInstance().mGameMode = Globals.GAME_MODE_FFA;
                 mGameModeButton.setText(R.string.game_mode_ffa);
                 savePreference(FullscreenActivity.PREF_GAME_MODE, Globals.getInstance().mGameMode);
                 setGPSMode(Globals.getInstance().mGPSMode);
+                getPlayerDisplayData();
                 return true;
             case R.id.gps_mode_disabled:
                 setGPSMode(Globals.GPS_DISABLED);
@@ -496,7 +501,29 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         Globals.getmTeamPlayerNameSemaphore();
         Globals.getmPlayerSettingsSemaphore();
         mTcpServer.lockAccess();
-        for (byte x = 0; x <= Globals.MAX_PLAYER_ID; x++) {
+        int[] teamPoints = new int[4];
+        for (int i = 0; i < 4; i++)
+            teamPoints[i] = 0;
+        for (byte x = 0; x <= Globals.MAX_PLAYER_ID + 1; x++) {
+            if (x == Globals.MAX_PLAYER_ID + 1) {
+                // Team totals
+                if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
+                    String total;
+                    if (Globals.getInstance().mGameMode == Globals.GAME_MODE_2TEAMS) {
+                        total = getString(R.string.player_list_team2_total, teamPoints[0], teamPoints[1]);
+                    } else {
+                        total = getString(R.string.player_list_team4_total, teamPoints[0], teamPoints[1], teamPoints[2], teamPoints[3]);
+                    }
+                    if (mPlayerDisplayData[x] == null)
+                        mPlayerDisplayData[x] = new PlayerDisplayData();
+                    mPlayerDisplayData[x].playerName = total;
+                } else {
+                    if (mPlayerDisplayData[x] == null)
+                        mPlayerDisplayData[x] = new PlayerDisplayData();
+                    mPlayerDisplayData[x].playerName = "";
+                }
+                break;
+            }
             TcpServer.ScoreData scoreData = mTcpServer.getScore(x);
             if (scoreData == null) {
                 mPlayerDisplayData[x] = null;
@@ -505,6 +532,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 mPlayerDisplayData[x].playerID = x;
                 mPlayerDisplayData[x].playerName = Globals.getInstance().mTeamPlayerNameMap.get(x);
                 mPlayerDisplayData[x].points = scoreData.points;
+                teamPoints[Globals.getInstance().calcNetworkTeam(x) - 1] += scoreData.points;
                 mPlayerDisplayData[x].eliminated = scoreData.eliminated;
                 mPlayerDisplayData[x].isConnected = scoreData.isConnected;
                 if (Globals.getInstance().mPlayerSettings.get(x) == null) {

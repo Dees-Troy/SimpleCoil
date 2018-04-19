@@ -62,6 +62,10 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
             else
                 playerEliminatedTV.setText(R.string.player_list_eliminated_label);
             return rowView;
+        } else if (position > Globals.MAX_PLAYER_ID) {
+            if (data[position] != null && data[position].playerName != null)
+                playerIDTV.setText(data[position].playerName);
+            return rowView;
         }
         playerIDTV.setText("" + position);
         if (data[position] == null) {

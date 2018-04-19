@@ -119,6 +119,8 @@
     <string name="player_list_name_label">Name</string>
     <string name="player_list_points_label">Score</string>
     <string name="player_list_eliminated_label">Eliminated</string>
+    <string name="player_list_team2_total">Team Totals &#8212; One:%1$d  Two:%2$d</string>
+    <string name="player_list_team4_total">Team Totals &#8212; One:%1$d  Two:%2$d  Three:%3$d  Four:%4$d</string>
 
     <string name="player_settings_title">Player Settings</string>
     <string name="player_settings_id_title">Player Settings (%1$d)</string>
