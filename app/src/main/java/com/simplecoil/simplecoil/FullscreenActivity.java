@@ -1358,7 +1358,11 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 Log.d(TAG, "Game time ended!");
                 Toast.makeText(getApplicationContext(), getString(R.string.dialog_game_time_expired), Toast.LENGTH_SHORT).show();
                 playSound(R.raw.eliminated, getApplicationContext());
-                endGame();
+                if (mTcpClient.isDedicatedServer()) {
+                    mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ENDGAME);
+                } else {
+                    endGame();
+                }
             }
         }.start();
     }
