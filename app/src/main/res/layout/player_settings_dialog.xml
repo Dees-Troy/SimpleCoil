@@ -16,6 +16,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/player_settings_title"
+            android:background="#FFFFFF"
+            android:textColor="#000000"
             android:textAppearance="?android:attr/textAppearanceLarge" />
 
         <View
@@ -29,6 +31,8 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
             android:text="@string/player_settings_health_title"
+            android:background="#FFFFFF"
+            android:textColor="#000000"
             android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <EditText
@@ -48,6 +52,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/player_settings_reload_shots"
+            android:background="#FFFFFF"
+            android:textColor="#000000"
             android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <EditText
@@ -66,6 +72,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/player_settings_reload_time"
+            android:background="#FFFFFF"
+            android:textColor="#000000"
             android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <EditText
@@ -84,13 +92,17 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
-            android:text="@string/player_settings_reload_on_empty" />
+            android:text="@string/player_settings_reload_on_empty"
+            android:background="#FFFFFF"
+            android:textColor="#000000" />
 
         <TextView
             android:id="@+id/spawn_time_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/player_settings_spawn_time"
+            android:background="#FFFFFF"
+            android:textColor="#000000"
             android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <EditText
@@ -109,6 +121,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/player_settings_damage"
+            android:background="#FFFFFF"
+            android:textColor="#000000"
             android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <EditText
@@ -127,13 +141,17 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
-            android:text="@string/player_settings_override_lives" />
+            android:text="@string/player_settings_override_lives"
+            android:background="#FFFFFF"
+            android:textColor="#000000" />
 
         <TextView
             android:id="@+id/lives_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/player_settings_lives"
+            android:background="#FFFFFF"
+            android:textColor="#000000"
             android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <EditText
@@ -152,25 +170,33 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/player_settings_lives"
+            android:background="#FFFFFF"
+            android:textColor="#000000"
             android:textAppearance="?android:attr/textAppearanceMedium" />
 
         <Switch
             android:id="@+id/shot_mode_single"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/shot_mode_single" />
+            android:text="@string/shot_mode_single"
+            android:background="#FFFFFF"
+            android:textColor="#000000" />
 
         <Switch
             android:id="@+id/shot_mode_burst3"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/shot_mode_burst3" />
+            android:text="@string/shot_mode_burst3"
+            android:background="#FFFFFF"
+            android:textColor="#000000" />
 
         <Switch
             android:id="@+id/shot_mode_auto"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/shot_mode_auto" />
+            android:text="@string/shot_mode_auto"
+            android:background="#FFFFFF"
+            android:textColor="#000000" />
 
         <Button
             android:id="@+id/reset_defaults_button"
@@ -183,14 +209,18 @@
             android:id="@+id/apply_to_all_switch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/player_settings_apply_to_all" />
+            android:text="@string/player_settings_apply_to_all"
+            android:background="#FFFFFF"
+            android:textColor="#000000" />
 
         <Switch
             android:id="@+id/allow_player_settings_switch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
-            android:text="@string/player_settings_allow_player_settings" />
+            android:text="@string/player_settings_allow_player_settings"
+            android:background="#FFFFFF"
+            android:textColor="#000000" />
 
     </LinearLayout>
 </ScrollView>

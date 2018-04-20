@@ -407,6 +407,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         if (mConnectButton != null) {
             mConnectButton.setOnClickListener((new View.OnClickListener() {
                 public void onClick(View v) {
+                    mDeviceAddress = "";
                     connectWeapon();
                 }
             }));
@@ -1159,6 +1160,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             setReady(false);
             mIsServer = false;
         }
+        hideWeaponDisconnect();
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
         if (mSpawnTimer != null)
@@ -1528,7 +1530,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
         private boolean checkDeviceName(BluetoothDevice device) {
             if (device.getName() != null && !device.getName().isEmpty()) {
-                if (device.getName().startsWith("SRG1")) {
+                if ((mDeviceAddress.isEmpty() && device.getName().startsWith("SRG1")) || mDeviceAddress.equals(device.getAddress())) {
                     Log.d(TAG, "Connecting to " + device.getName() + " '" + device.getAddress() + "'");
                     TextView connectStatusTV = findViewById(R.id.connect_status_tv);
                     if (connectStatusTV != null) {
@@ -1684,6 +1686,13 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private void handleDisconnect() {
         if (mConnectFailTimer != null)
             mConnectFailTimer.cancel();
+        mScanning = false;
+        if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
+            Log.e(TAG, "blaster disconnected mid-game, attempt to reconnect");
+            connectWeapon();
+            showWeaponDisconnect();
+            return;
+        }
         resetBluetoothServices();
         showConnectLayout();
         mConnectButton.setEnabled(true);
@@ -1693,6 +1702,40 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         endGame();
         initBatteryQueue();
         playSound(R.raw.eliminated, getApplicationContext());
+    }
+
+    private AlertDialog mBlasterDisconnectDialog = null;
+
+    private void showWeaponDisconnect() {
+        if (mBlasterDisconnectDialog != null)
+            return;
+        LayoutInflater li = LayoutInflater.from(getApplicationContext());
+        View view = li.inflate(R.layout.blaster_disconnected_dialog, null);
+
+        AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(this, R.style.Theme_AppCompat_DayNight_Dialog_Alert);
+        alertDialogBuilder.setView(view);
+
+        alertDialogBuilder
+                .setCancelable(false)
+                .setNegativeButton(R.string.blaster_disconnected_cancel_quit,
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog,int id) {
+                                mDeviceAddress = "";
+                                Globals.getInstance().mGameState = Globals.GAME_STATE_NONE;
+                                handleDisconnect();
+                                dialog.cancel();
+                                mBlasterDisconnectDialog = null;
+                            }
+                        });
+        mBlasterDisconnectDialog = alertDialogBuilder.create();
+        mBlasterDisconnectDialog.show();
+    }
+
+    private void hideWeaponDisconnect() {
+        if (mBlasterDisconnectDialog != null) {
+            mBlasterDisconnectDialog.dismiss();
+            mBlasterDisconnectDialog = null;
+        }
     }
 
     // Handles various events fired by the BLE Service.
@@ -1731,7 +1774,13 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         } else {
                             Log.d(TAG, "failed to find ID characteristic");
                         }
-                        playSound(R.raw.spawn, getApplicationContext());
+                        if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE)
+                            playSound(R.raw.spawn, getApplicationContext());
+                        else {
+                            if (Globals.getInstance().mGameState == Globals.GAME_STATE_RUNNING)
+                                startReload();
+                            hideWeaponDisconnect();
+                        }
                     }
                 }
             } else if (BluetoothLeService.TELEMETRY_DATA_AVAILABLE.equals(action)) {

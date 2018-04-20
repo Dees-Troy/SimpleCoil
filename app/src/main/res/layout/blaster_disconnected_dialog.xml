@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/layout_root"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
@@ -10,22 +11,9 @@
         android:id="@+id/title_tv"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="@string/server_ip"
+        android:text="@string/blaster_disconnected_dialog"
         android:background="#FFFFFF"
         android:textColor="#000000"
         android:textAppearance="?android:attr/textAppearanceLarge" />
 
-    <EditText
-        android:id="@+id/server_ip_et"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:digits="0123456789."
-        android:maxLength="15"
-        android:background="#FFFFFF"
-        android:textColor="#000000"
-        android:inputType="number" >
-        <requestFocus />
-
-    </EditText>
-
-</LinearLayout>
+</RelativeLayout>

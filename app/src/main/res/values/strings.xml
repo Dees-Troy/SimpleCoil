@@ -139,4 +139,7 @@
     <string name="player_settings_not_allowed_toast">Players are not allowed to change player settings on this server.</string>
     <string name="player_settings_shot_modes_allowed">Shot Modes Allowed</string>
     <string name="player_settings_shot_mode_error">Must allow at least one shot mode!</string>
+
+    <string name="blaster_disconnected_dialog">Blaster Disconnected! Trying to reconnect&#8230;</string>
+    <string name="blaster_disconnected_cancel_quit">Cancel &amp; Quit</string>
 </resources>

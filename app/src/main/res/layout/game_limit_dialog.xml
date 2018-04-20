@@ -11,24 +11,32 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/game_limit_title"
+        android:background="#FFFFFF"
+        android:textColor="#000000"
         android:textAppearance="?android:attr/textAppearanceLarge" />
 
     <RadioButton
         android:id="@+id/game_limit_time_radio"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="#FFFFFF"
+        android:textColor="#000000"
         android:text="@string/game_limit_time" />
 
     <RadioButton
         android:id="@+id/game_limit_lives_radio"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="#FFFFFF"
+        android:textColor="#000000"
         android:text="@string/game_limit_lives" />
 
     <RadioButton
         android:id="@+id/game_limit_score_radio"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="#FFFFFF"
+        android:textColor="#000000"
         android:text="@string/game_limit_score" />
 
     <EditText
