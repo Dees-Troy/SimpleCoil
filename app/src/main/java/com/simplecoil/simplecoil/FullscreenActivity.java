@@ -1117,6 +1117,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mUseNetworkingButton.setVisibility(View.INVISIBLE);
         mFiringModeButton.setVisibility(View.INVISIBLE);
         mStartGameTimer = true;
+        setShotMode(mCurrentShotMode); // make sure that the shot mode is correctly set at the start of each game
         startSpawn("");
     }
 
@@ -1939,16 +1940,22 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         setShotMode(Globals.SHOT_MODE_BURST);
                     else if (Globals.getInstance().mAllowAutoShotMode)
                         setShotMode(Globals.SHOT_MODE_FULL_AUTO);
+                    else
+                        setShotMode(Globals.SHOT_MODE_SINGLE);
                 } else if (mCurrentShotMode == Globals.SHOT_MODE_BURST) {
                     if (Globals.getInstance().mAllowAutoShotMode)
                         setShotMode(Globals.SHOT_MODE_FULL_AUTO);
                     else if (Globals.getInstance().mAllowSingleShotMode)
                         setShotMode(Globals.SHOT_MODE_SINGLE);
+                    else
+                        setShotMode(Globals.SHOT_MODE_BURST);
                 } else if (mCurrentShotMode == Globals.SHOT_MODE_FULL_AUTO) {
                     if (Globals.getInstance().mAllowSingleShotMode)
                         setShotMode(Globals.SHOT_MODE_SINGLE);
                     else if (Globals.getInstance().mAllowBurst3ShotMode)
                         setShotMode(Globals.SHOT_MODE_BURST);
+                    else
+                        setShotMode(Globals.SHOT_MODE_FULL_AUTO);
                 }
             }
             if (power_counter != mLastPowerButtonCount) {
