@@ -412,8 +412,6 @@ public class TcpServer extends Service {
     }
 
     public void sendPlayerSettings(byte playerID, boolean applyAll, boolean allowPlayerSettings) {
-        if (mClientData == null || mClientData.size() == 0 || Globals.getInstance().mTeamIPMap == null || Globals.getInstance().mTeamIPMap.size() == 0)
-            return;
         boolean hasSemaphore = false;
         try {
             JSONArray players = new JSONArray();
@@ -439,6 +437,11 @@ public class TcpServer extends Service {
                         playerSettings.allowShotModeAuto = Globals.getInstance().mPlayerSettings.get(playerID).allowShotModeAuto;
                     }
                 }
+            }
+            if (mClientData == null || mClientData.size() == 0 || Globals.getInstance().mTeamIPMap == null || Globals.getInstance().mTeamIPMap.size() == 0) {
+                Globals.getInstance().mPlayerSettingsSemaphore.release();
+                hasSemaphore = false;
+                return;
             }
             for (Map.Entry<Byte, Globals.PlayerSettings> entry : Globals.getInstance().mPlayerSettings.entrySet()) {
                 JSONObject player = new JSONObject();

@@ -139,6 +139,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private TextView mSpawnInTV = null;
     private TextView mEliminatedByTV = null;
     private TextView mHealthLabelTV = null;
+    private TextView mPlayerNameTV = null;
     private ProgressBar mHealthBar = null;
     private ProgressBar mReloadBar = null;
     private ImageView mHitIV = null;
@@ -629,6 +630,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             }));
         }
         mGameCountDownTV = findViewById(R.id.game_countdown_tv);
+        mPlayerNameTV = findViewById(R.id.player_name_label_tv);
+        if (mPlayerNameTV != null)
+            mPlayerNameTV.setText(Globals.getInstance().mPlayerName);
         displayAllNetworkingOptions(false);
         mUseNetworkingButton.setVisibility(View.VISIBLE);
         setGameLimit();
@@ -829,6 +833,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                                 editor.apply();
                                 displayAllNetworkingOptions(true);
                                 setNetworkMenu(NETWORK_TYPE_ENABLED);
+                                mPlayerNameTV.setText(Globals.getInstance().mPlayerName);
                                 dialog.dismiss();
                             }
                         })
@@ -2428,6 +2433,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mGameModeTV.setVisibility(visibility);
         mScoreLabelTV.setVisibility(visibility);
         mScoreTV.setVisibility(visibility);
+        mPlayerNameTV.setVisibility(visibility);
         mServerIPTV.setVisibility(View.GONE);
         if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
             mTeamScoreLabelTV.setVisibility(visibility);
