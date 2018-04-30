@@ -93,6 +93,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     // For testing and debugging network only -- dumps you straight to the play game layout and allows you to switch teams without connecting a blaster
     private static final boolean TEST_NETWORK = false;
 
+    private Button mReconnectButton = null;
     private Button mConnectButton = null;
     private Button mDedicatedServerButton = null;
     private Button mTeamMinusButton = null;
@@ -290,6 +291,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     public static final String PREF_LIMIT_TIME = "TimeLimit";
     public static final String PREF_LIMIT_LIVES = "LivesLimit";
     public static final String PREF_LIMIT_SCORE = "ScoreLimit";
+    public static final String PREF_DEVICE_ADDRESS = "DeviceAddress";
 
     private void setupBLEServiceConnection() {
         mBLEServiceConnection = new ServiceConnection() {
@@ -303,6 +305,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 }
                 // Automatically connects to the device upon successful start-up initialization.
                 mBluetoothLeService.connect(mDeviceAddress);
+                SharedPreferences.Editor editor = sharedPreferences.edit();
+                editor.putString(PREF_DEVICE_ADDRESS, mDeviceAddress);
+                editor.apply();
                 mConnected = true;
             }
 
@@ -390,6 +395,19 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         setContentView(R.layout.activity_fullscreen);
         mFragmentMgr = getSupportFragmentManager();
         mEliminationCountTV = findViewById(R.id.eliminations_count_tv);
+        mReconnectButton = findViewById(R.id.reconnect_weapon_button);
+        mReconnectButton.setOnClickListener((new View.OnClickListener() {
+            public void onClick(View v) {
+                if (sharedPreferences == null)
+                    sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+                mDeviceAddress = sharedPreferences.getString(PREF_DEVICE_ADDRESS, "");
+                if (!mDeviceAddress.isEmpty())
+                    connectWeapon();
+                else {
+                    mReconnectButton.setVisibility(View.GONE);
+                }
+            }
+        }));
         mConnectButton = findViewById(R.id.connect_weapon_button);
         if (mConnectButton != null) {
             mConnectButton.setOnClickListener((new View.OnClickListener() {
@@ -556,6 +574,12 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         Globals.getInstance().mScoreLimit = sharedPreferences.getInt(PREF_LIMIT_SCORE, 0);
         if (Globals.getInstance().mScoreLimit != 0)
             Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_SCORE;
+        mDeviceAddress = sharedPreferences.getString(PREF_DEVICE_ADDRESS, "");
+        if (!mDeviceAddress.isEmpty()) {
+            mReconnectButton.setVisibility(View.VISIBLE);
+        } else {
+            mReconnectButton.setVisibility(View.GONE);
+        }
 
         try {
             // Display app version
@@ -1059,6 +1083,11 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         RelativeLayout connectLayout = findViewById(R.id.connect_layout);
         playLayout.setVisibility(View.GONE);
         connectLayout.setVisibility(View.VISIBLE);
+        if (mDeviceAddress != null && !mDeviceAddress.isEmpty()) {
+            mReconnectButton.setVisibility(View.VISIBLE);
+        } else {
+            mReconnectButton.setVisibility(View.GONE);
+        }
     }
 
     private void initBatteryQueue() {
@@ -1640,6 +1669,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         Log.d(TAG, "starting to scan");
         mBluetoothLeScanner.startScan(mLeScanCallback);
         mConnectButton.setEnabled(false);
+        mReconnectButton.setEnabled(false);
+        mDedicatedServerButton.setEnabled(false);
         mScanning = true;
         TextView connectStatusTV = findViewById(R.id.connect_status_tv);
         if (connectStatusTV != null) {
@@ -1694,6 +1725,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         resetBluetoothServices();
         showConnectLayout();
         mConnectButton.setEnabled(true);
+        mReconnectButton.setEnabled(true);
+        mDedicatedServerButton.setEnabled(true);
         TextView connectStatusTV = findViewById(R.id.connect_status_tv);
         if (connectStatusTV != null) connectStatusTV.setText(R.string.connect_status_not_connected);
         mLastShotCount = 0;
