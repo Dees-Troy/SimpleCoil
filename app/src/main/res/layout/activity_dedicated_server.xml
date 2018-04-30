@@ -36,6 +36,26 @@
             android:text=""
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
+        <Chronometer
+            android:id="@+id/game_timer_chronometer"
+            style="@android:style/TextAppearance.Material.Small.Inverse"
+            android:format="%s"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignTop="@+id/server_ip_tv"
+            android:layout_centerHorizontal="true"
+            android:layout_marginStart="15dp"/>
+
+        <TextView
+            android:id="@+id/game_countdown_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignTop="@+id/server_ip_tv"
+            android:layout_centerHorizontal="true"
+            android:layout_marginStart="15dp"
+            android:text=""
+            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
         <TextView
             android:id="@+id/player_count_tv"
             android:layout_width="wrap_content"
@@ -102,10 +122,20 @@
             android:enabled="false"
             android:text="@string/end_game_button" />
 
+        <Switch
+            android:id="@+id/allow_join_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/gps_mode_button"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp"
+            android:text="@string/dedicated_allow_join"
+            android:textColor="#FFFFFF"/>
+
         <ListView
             android:id="@+id/player_list"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@id/end_game_button" />
+            android:layout_below="@id/allow_join_switch" />
     </RelativeLayout>
 </FrameLayout>

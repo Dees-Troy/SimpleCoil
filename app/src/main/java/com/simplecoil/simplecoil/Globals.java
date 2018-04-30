@@ -93,6 +93,8 @@ public class Globals {
     public Semaphore mPlayerSettingsSemaphore;
     public volatile boolean mUseGPS = false;
 
+    public volatile long mServerGameTimeRemaining = 0; // in seconds
+
     public volatile InetAddress mServerIP = null;
 
     protected Globals(){}

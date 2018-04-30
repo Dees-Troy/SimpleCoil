@@ -47,6 +47,15 @@ public class NetMsg {
     public static final String NETMSG_NETWORKDISCONNECTED = "NETWORKDISCONNECTED";
     public static final String NETMSG_PLAYERSETTINGSUPDATE = "PLAYERSETTINGSUPDATE";
 
+    // When players join a game in progress, the server can send the player updates on appropriate values.
+    // These items are intent extras.
+    public static final String INTENT_HASGAMEUPDATE = "HASGAMEUPDATE";
+    public static final String INTENT_SCORE = "SCORE";
+    public static final String INTENT_TEAMSCORE = "TEAMSCORE";
+    public static final String INTENT_ELIMINATIONS = "ELIMINATIONS";
+    public static final String INTENT_TIMEREMAINING = "TIMEREMAINING";
+    public static final String INTENT_GAMESTATE = "GAMESTATE";
+
     public static final String INTENT_LONGITUDE = "longitude";
     public static final String INTENT_LATITUDE = "latitude";
     public static final String INTENT_FULLUPDATE = "fullupdate";

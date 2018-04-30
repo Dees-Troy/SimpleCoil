@@ -29,8 +29,10 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.AnimationDrawable;
 import android.os.Bundle;
+import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AlertDialog;
@@ -46,12 +48,16 @@ import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.widget.AdapterView;
 import android.widget.Button;
+import android.widget.Chronometer;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.PopupMenu;
 import android.widget.RadioButton;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import java.util.concurrent.TimeUnit;
 
 import javax.microedition.khronos.opengles.GL;
 
@@ -61,6 +67,8 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     private static final String PREF_GPS_MODE = "GPSMode";
 
     private TextView mServerIPTV = null;
+    private Chronometer mGameTimer = null;
+    private TextView mGameCountDownTV = null;
     private TextView mNetworkPlayerCountTV = null;
     private Button mGameModeButton = null;
     private Button mGameLimitButton = null;
@@ -68,7 +76,11 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     private Button mEndGameButton = null;
     private TextView mGameLimitTV = null;
     private TextView mGameStatusTV = null;
+    private Switch mAllowJoinSwitch = null;
     private ListView mPlayerDisplayList = null;
+
+    private CountDownTimer mGameCountdownTimer = null;
+    private CountDownTimer mSpawnTimer = null;
 
     private SharedPreferences sharedPreferences = null;
 
@@ -128,6 +140,8 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         Globals.getInstance().mPlayerID = 0;
         mServerIPTV = findViewById(R.id.server_ip_tv);
+        mGameTimer = findViewById(R.id.game_timer_chronometer);
+        mGameCountDownTV = findViewById(R.id.game_countdown_tv);
         mNetworkPlayerCountTV = findViewById(R.id.player_count_tv);
         mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, 0));
         mGameModeButton = findViewById(R.id.game_mode_toggle_button);
@@ -193,6 +207,13 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         setGameLimit();
         Globals.getInstance().mGPSMode = sharedPreferences.getInt(PREF_GPS_MODE, Globals.GPS_ALL);
         setGPSMode(Globals.getInstance().mGPSMode);
+        mAllowJoinSwitch = findViewById(R.id.allow_join_switch);
+        mAllowJoinSwitch.setOnClickListener((new View.OnClickListener() {
+            public void onClick(View v) {
+                if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
+                    mUDPListenerService.allowJoin(mAllowJoinSwitch.isChecked());
+            }
+        }));
         try {
             // Display app version
             PackageInfo pInfo = this.getPackageManager().getPackageInfo(getPackageName(), 0);
@@ -306,7 +327,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         }
         savePreference(PREF_GPS_MODE, mode);
         if (mTcpServer != null)
-            mTcpServer.sendAllGameInfo();
+            mTcpServer.sendAllGameInfo(TcpServer.SEND_ALL);
     }
 
     private void requestGameLimit() {
@@ -404,6 +425,13 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         String gameLimits = "";
         if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_TIME) != 0) {
             gameLimits += getString(R.string.dedicated_time_limit, Globals.getInstance().mTimeLimit);
+            mGameCountDownTV.setVisibility(View.VISIBLE);
+            String display = String.format("%02d:00", Globals.getInstance().mTimeLimit);
+            mGameCountDownTV.setText(display);
+            mGameTimer.setVisibility(View.GONE);
+        } else {
+            mGameCountDownTV.setVisibility(View.GONE);
+            mGameTimer.setVisibility(View.VISIBLE);
         }
         if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_LIVES) != 0) {
             if (!gameLimits.isEmpty())
@@ -424,7 +452,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         editor.putInt(FullscreenActivity.PREF_LIMIT_LIVES, Globals.getInstance().mLivesLimit);
         editor.apply();
         if (mTcpServer != null)
-            mTcpServer.sendAllGameInfo();
+            mTcpServer.sendAllGameInfo(TcpServer.SEND_ALL);
     }
 
     private void endGame() {
@@ -437,6 +465,11 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         mUDPListenerService.allowJoin(true);
         mEndGameButton.setEnabled(false);
         Globals.getInstance().mGameState = Globals.GAME_STATE_NONE;
+        mGameTimer.stop();
+        if (mSpawnTimer != null)
+            mSpawnTimer.cancel();
+        if (mGameCountdownTimer != null)
+            mGameCountdownTimer.cancel();
     }
 
     private final BroadcastReceiver mServerUpdateReceiver = new BroadcastReceiver() {
@@ -456,8 +489,23 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 mGameLimitButton.setEnabled(false);
                 mGPSModeButton.setEnabled(false);
                 mGameStatusTV.setText(R.string.dedicated_game_running);
-                mUDPListenerService.allowJoin(false);
+                mUDPListenerService.allowJoin(mAllowJoinSwitch.isChecked());
                 mEndGameButton.setEnabled(true);
+                if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_TIME) != 0) {
+                    startGameCountdown();
+                } else {
+                    mSpawnTimer = new CountDownTimer(Globals.getInstance().mRespawnTime * 1000, 999) {
+
+                        public void onTick(long millisUntilFinished) {
+                            // Do nothing
+                        }
+
+                        public void onFinish() {
+                            mGameTimer.setBase(SystemClock.elapsedRealtime());
+                            mGameTimer.start();
+                        }
+                    }.start();
+                }
             } else if (NetMsg.NETMSG_ENDGAME.equals(action)) {
                 if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
                     endGame();
@@ -553,6 +601,27 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             if (mPlayerDisplayList != null)
                 mPlayerDisplayList.setAdapter(mPlayerDisplayListAdapter);
         }
+    }
+
+    private void startGameCountdown() {
+        mGameCountdownTimer = new CountDownTimer((Globals.getInstance().mTimeLimit * 60 * 1000) + (Globals.getInstance().mRespawnTime * 1000), 1000) {
+
+            public void onTick(long millisUntilFinished) {
+                String display = ""+String.format("%02d:%02d",
+                        TimeUnit.MILLISECONDS.toMinutes(millisUntilFinished),
+                        TimeUnit.MILLISECONDS.toSeconds(millisUntilFinished) - TimeUnit.MINUTES.toSeconds(
+                                TimeUnit.MILLISECONDS.toMinutes(millisUntilFinished)));
+                mGameCountDownTV.setText(display);
+                Globals.getInstance().mServerGameTimeRemaining = millisUntilFinished / 1000;
+            }
+
+            public void onFinish() {
+                Log.d(TAG, "Game time ended!");
+                Toast.makeText(getApplicationContext(), getString(R.string.dialog_game_time_expired), Toast.LENGTH_SHORT).show();
+                mTcpServer.endGame();
+                Globals.getInstance().mServerGameTimeRemaining = 0;
+            }
+        }.start();
     }
 
 }

@@ -13,21 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/*
- * Copyright (C) 2018
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 
 package com.simplecoil.simplecoil;
 
@@ -165,6 +150,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private CountDownTimer mReloadTimer = null;
     private CountDownTimer mGameCountdownTimer = null;
     private CountDownTimer mConnectFailTimer = null;
+    private boolean mGameTimerRunning = false;
 
     private BluetoothLeScanner mBluetoothLeScanner;
     private BluetoothLeService mBluetoothLeService;
@@ -1173,6 +1159,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mSpawnTimer.cancel();
         if (mReloadTimer != null)
             mReloadTimer.cancel();
+        mGameTimerRunning = false;
         if (mGameCountdownTimer != null)
             mGameCountdownTimer.cancel();
         mStartGameButton.setVisibility(View.VISIBLE);
@@ -1341,7 +1328,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 if (mStartGameTimer) {
                     mStartGameTimer = false;
                     if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_TIME) != 0) {
-                        startGameCountdown();
+                        if (!mGameTimerRunning)
+                            startGameCountdown();
                     } else {
                         mGameTimer.setBase(SystemClock.elapsedRealtime());
                         mGameTimer.start();
@@ -1352,7 +1340,11 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void startGameCountdown() {
-        mGameCountdownTimer = new CountDownTimer(Globals.getInstance().mTimeLimit * 60 * 1000, 1000) {
+        startGameCountdown(Globals.getInstance().mTimeLimit * 60);
+    }
+
+    private void startGameCountdown(long timeInSeconds) {
+        mGameCountdownTimer = new CountDownTimer(timeInSeconds * 1000, 1000) {
 
             public void onTick(long millisUntilFinished) {
                 String display = ""+String.format("%02d:%02d",
@@ -2330,7 +2322,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         mGameModeTV.setText(R.string.game_mode_ffa);
                     }
                     setTeam();
-                    if (!mIsServer) {
+                    if (!mIsServer && Globals.getInstance().mGameState == Globals.GAME_STATE_NONE) {
                         setGameLimit();
                         setNetworkMenu(NETWORK_TYPE_JOINED);
                         String ip = Globals.getInstance().mServerIP.toString();
@@ -2341,6 +2333,39 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                             mPlayerDataButton.setVisibility(View.VISIBLE);
                             mNetworkStatusIV.setVisibility(View.VISIBLE);
                             mNetworkStatusIV.setImageResource(R.drawable.ic_network_connected_24dp);
+                        }
+                    }
+                    if (intent.getBooleanExtra(NetMsg.INTENT_HASGAMEUPDATE, false)) {
+                        mScore = intent.getIntExtra(NetMsg.INTENT_SCORE, 0);
+                        String score = "" + mScore;
+                        mScoreTV.setText(score);
+                        mEliminationCount = intent.getIntExtra(NetMsg.INTENT_ELIMINATIONS, 0);
+                        mEliminationCountTV.setText(String.valueOf(mEliminationCount));
+                        if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
+                            mTeamScore = intent.getIntExtra(NetMsg.INTENT_TEAMSCORE, 0);
+                            score = "" + mTeamScore;
+                            mTeamScoreTV.setText(score);
+                        }
+                        /*if (mHasLivesLimit && mEliminationCount <= 0) {
+                            Toast.makeText(getApplicationContext(), getString(R.string.dialog_out_of_lives), Toast.LENGTH_LONG).show();
+                            endGame(); // Sorry, you're out of the game
+                        }*/
+                        long timeRemaining = intent.getLongExtra(NetMsg.INTENT_TIMEREMAINING, -1);
+                        if (timeRemaining != -1) {
+                            if (mGameCountdownTimer != null)
+                                mGameCountdownTimer.cancel();
+                            startGameCountdown(timeRemaining);
+                            mGameTimerRunning = true;
+                        }
+                    }
+                    if (mTcpClient.isDedicatedServer()) {
+                        int serverGameState = intent.getIntExtra(NetMsg.INTENT_GAMESTATE, Globals.GAME_STATE_ELIMINATED);
+                        if (serverGameState != Globals.GAME_STATE_ELIMINATED) {
+                            if (serverGameState == Globals.GAME_STATE_NONE && Globals.getInstance().mGameState != serverGameState) {
+                                endGame();
+                            } else if (serverGameState == Globals.GAME_STATE_RUNNING && Globals.getInstance().mGameState == Globals.GAME_STATE_NONE) {
+                                startGame();
+                            }
                         }
                     }
                 }
@@ -2480,7 +2505,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         playerData.playerID = (byte) player.getInt(TcpServer.JSON_PLAYERID);
                         playerData.playerName = player.getString(TcpServer.JSON_PLAYERNAME);
                         playerData.points = player.getInt(TcpServer.JSON_PLAYERPOINTS);
-                        teamPoints[Globals.getInstance().calcNetworkTeam(playerData.playerID) - 1] += playerData.points;
+                        if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA)
+                            teamPoints[Globals.getInstance().calcNetworkTeam(playerData.playerID) - 1] += playerData.points;
                         playerData.eliminated = player.getInt(TcpServer.JSON_PLAYERELIMINATED);
                         if (Globals.getInstance().mPlayerSettings.get(playerData.playerID) == null) {
                             playerData.overrideLives = false;
