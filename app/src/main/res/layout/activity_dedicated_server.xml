@@ -122,6 +122,17 @@
             android:enabled="false"
             android:text="@string/end_game_button" />
 
+        <Button
+            android:id="@+id/start_game_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:layout_toStartOf="@id/end_game_button"
+            android:layout_below="@id/game_limit_button"
+            android:enabled="true"
+            android:text="@string/start_game_button" />
+
         <Switch
             android:id="@+id/allow_join_switch"
             android:layout_width="match_parent"
