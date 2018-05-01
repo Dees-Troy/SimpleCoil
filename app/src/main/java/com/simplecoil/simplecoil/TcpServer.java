@@ -97,6 +97,7 @@ public class TcpServer extends Service {
     public static final String JSON_SHOT_MODE_SINGLE = "shotmodesingle";
     public static final String JSON_SHOT_MODE_BURST3 = "shotmodeburst3";
     public static final String JSON_SHOT_MODE_AUTO = "shotmodeauto";
+    public static final String JSON_FIRING_MODE = "firingmode";
     public static final String JSON_ALLOWPLAYERSETTINGS = "allowplayersettings";
 
     private static volatile boolean keepListening = false;
@@ -508,6 +509,7 @@ public class TcpServer extends Service {
                 player.put(JSON_SHOT_MODE_SINGLE, entry.getValue().allowShotModeSingle);
                 player.put(JSON_SHOT_MODE_BURST3, entry.getValue().allowShotModeBurst3);
                 player.put(JSON_SHOT_MODE_AUTO, entry.getValue().allowShotModeAuto);
+                player.put(JSON_FIRING_MODE, entry.getValue().firingMode);
                 players.put(player);
             }
             Globals.getInstance().mPlayerSettingsSemaphore.release();
@@ -880,6 +882,10 @@ public class TcpServer extends Service {
                         settings.overrideLives = false;
                         settings.lives = 0;
                     }
+                    settings.allowShotModeAuto = player.getBoolean(JSON_SHOT_MODE_AUTO);
+                    settings.allowShotModeBurst3 = player.getBoolean(JSON_SHOT_MODE_BURST3);
+                    settings.allowShotModeSingle = player.getBoolean(JSON_SHOT_MODE_SINGLE);
+                    settings.firingMode = player.getInt(JSON_FIRING_MODE);
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }

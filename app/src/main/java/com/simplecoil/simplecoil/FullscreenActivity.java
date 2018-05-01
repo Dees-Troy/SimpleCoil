@@ -222,10 +222,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private int mReloading = RELOADING_STATE_ELIMINATED;
 
     private int mCurrentShotMode = Globals.SHOT_MODE_SINGLE;
-    private static final int FIRING_MODE_OUTDOOR_NO_CONE = 0;
-    private static final int FIRING_MODE_OUTDOOR_WITH_CONE = 1;
-    private static final int FIRING_MODE_INDOOR_NO_CONE = 2;
-    private int mCurrentFiringMode = FIRING_MODE_OUTDOOR_NO_CONE;
 
     private boolean mRecoilEnabled = true;
 
@@ -558,7 +554,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
         sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
         Globals.getInstance().mPlayerName = sharedPreferences.getString(PREF_PLAYER_NAME, "Player");
-        mCurrentFiringMode = sharedPreferences.getInt(PREF_FIRING_MODE, FIRING_MODE_OUTDOOR_NO_CONE);
+        Globals.getInstance().mCurrentFiringMode = sharedPreferences.getInt(PREF_FIRING_MODE, Globals.FIRING_MODE_OUTDOOR_NO_CONE);
         Globals.getInstance().mPlayerID = (byte) sharedPreferences.getInt(PREF_PLAYER_ID, 0);
         getFiringMode();
         mRecoilEnabled = sharedPreferences.getBoolean(PREF_RECOIL_ENABLED, true);
@@ -760,32 +756,32 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 setNetworkMenu(NETWORK_TYPE_ENABLED);
                 return true;
             case R.id.firing_mode_outdoor_no_cone_item:
-                mCurrentFiringMode = FIRING_MODE_OUTDOOR_NO_CONE;
+                Globals.getInstance().mCurrentFiringMode = Globals.FIRING_MODE_OUTDOOR_NO_CONE;
                 mFiringModeButton.setText(R.string.firing_mode_outdoor_no_cone);
                 setShotMode(mCurrentShotMode);
                 {
                     SharedPreferences.Editor editor = sharedPreferences.edit();
-                    editor.putInt(PREF_FIRING_MODE, mCurrentFiringMode);
+                    editor.putInt(PREF_FIRING_MODE, Globals.getInstance().mCurrentFiringMode);
                     editor.apply();
                 }
                 return true;
             case R.id.firing_mode_outdoor_with_cone_item:
-                mCurrentFiringMode = FIRING_MODE_OUTDOOR_WITH_CONE;
+                Globals.getInstance().mCurrentFiringMode = Globals.FIRING_MODE_OUTDOOR_WITH_CONE;
                 mFiringModeButton.setText(R.string.firing_mode_outdoor_with_cone);
                 setShotMode(mCurrentShotMode);
                 {
                     SharedPreferences.Editor editor = sharedPreferences.edit();
-                    editor.putInt(PREF_FIRING_MODE, mCurrentFiringMode);
+                    editor.putInt(PREF_FIRING_MODE, Globals.getInstance().mCurrentFiringMode);
                     editor.apply();
                 }
                 return true;
             case R.id.firing_mode_indoor_no_cone_item:
-                mCurrentFiringMode = FIRING_MODE_INDOOR_NO_CONE;
+                Globals.getInstance().mCurrentFiringMode = Globals.FIRING_MODE_INDOOR_NO_CONE;
                 mFiringModeButton.setText(R.string.firing_mode_indoor_no_cone);
                 setShotMode(mCurrentShotMode);
                 {
                     SharedPreferences.Editor editor = sharedPreferences.edit();
-                    editor.putInt(PREF_FIRING_MODE, mCurrentFiringMode);
+                    editor.putInt(PREF_FIRING_MODE, Globals.getInstance().mCurrentFiringMode);
                     editor.apply();
                 }
                 return true;
@@ -810,14 +806,14 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void getFiringMode() {
-        switch (mCurrentFiringMode) {
-            case FIRING_MODE_OUTDOOR_NO_CONE:
+        switch (Globals.getInstance().mCurrentFiringMode) {
+            case Globals.FIRING_MODE_OUTDOOR_NO_CONE:
                 mFiringModeButton.setText(R.string.firing_mode_outdoor_no_cone);
                 return;
-            case FIRING_MODE_OUTDOOR_WITH_CONE:
+            case Globals.FIRING_MODE_OUTDOOR_WITH_CONE:
                 mFiringModeButton.setText(R.string.firing_mode_outdoor_with_cone);
                 return;
-            case FIRING_MODE_INDOOR_NO_CONE:
+            case Globals.FIRING_MODE_INDOOR_NO_CONE:
                 mFiringModeButton.setText(R.string.firing_mode_indoor_no_cone);
         }
     }
@@ -1427,16 +1423,16 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putInt(PREF_SHOT_MODE, mCurrentShotMode);
         editor.apply();
-        switch (mCurrentFiringMode) {
-            case FIRING_MODE_OUTDOOR_NO_CONE:
+        switch (Globals.getInstance().mCurrentFiringMode) {
+            case Globals.FIRING_MODE_OUTDOOR_NO_CONE:
                 config[5]  = (byte)0xFF;
                 config[6]  = (byte)0x00;
                 break;
-            case FIRING_MODE_OUTDOOR_WITH_CONE:
+            case Globals.FIRING_MODE_OUTDOOR_WITH_CONE:
                 config[5]  = (byte)0xFF;
                 config[6]  = (byte)0xC8;
                 break;
-            case FIRING_MODE_INDOOR_NO_CONE:
+            case Globals.FIRING_MODE_INDOOR_NO_CONE:
                 config[5]  = (byte)0x19;
                 config[6]  = (byte)0x00;
         }
@@ -2630,5 +2626,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 else
                     setShotMode(Globals.SHOT_MODE_FULL_AUTO);
         }
+        getFiringMode();
     }
 }

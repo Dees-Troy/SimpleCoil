@@ -78,6 +78,11 @@ public class Globals {
     public volatile boolean mAllowBurst3ShotMode = true;
     public volatile boolean mAllowAutoShotMode = true;
 
+    public static final int FIRING_MODE_OUTDOOR_NO_CONE = 0;
+    public static final int FIRING_MODE_OUTDOOR_WITH_CONE = 1;
+    public static final int FIRING_MODE_INDOOR_NO_CONE = 2;
+    public volatile int mCurrentFiringMode = FIRING_MODE_OUTDOOR_NO_CONE;
+
     public volatile byte mPlayerID = 0;
     public volatile String mPlayerName = "";
     public volatile Map<InetAddress, Byte> mIPTeamMap;
@@ -267,5 +272,6 @@ public class Globals {
         boolean allowShotModeSingle = true;
         boolean allowShotModeBurst3 = true;
         boolean allowShotModeAuto = true;
+        int firingMode = FIRING_MODE_OUTDOOR_NO_CONE;
     }
 }

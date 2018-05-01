@@ -23,14 +23,17 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.PopupMenu;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-public class PlayerSettingsAlertDialog extends AlertDialog {
+public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.OnMenuItemClickListener {
     private TextView mTitleTV = null;
     private EditText mHealthET = null;
     private EditText mReloadShotsET = null;
@@ -43,6 +46,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
     private Switch mShotModeSingle = null;
     private Switch mShotModeBurst3 = null;
     private Switch mShotModeAuto = null;
+    private Button mFiringModeButton = null;
     private Button mResetButton = null;
     private Switch mApplyAllSwitch = null;
     private Switch mAllowPlayerSettingsSwitch = null;
@@ -83,6 +87,18 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
         mShotModeSingle.setChecked(playerSettings.allowShotModeSingle);
         mShotModeBurst3.setChecked(playerSettings.allowShotModeBurst3);
         mShotModeAuto.setChecked(playerSettings.allowShotModeAuto);
+        mFiringModeButton.setVisibility(View.VISIBLE);
+        switch (playerSettings.firingMode) {
+            case Globals.FIRING_MODE_OUTDOOR_NO_CONE:
+                mFiringModeButton.setText(R.string.firing_mode_outdoor_no_cone);
+                break;
+            case Globals.FIRING_MODE_OUTDOOR_WITH_CONE:
+                mFiringModeButton.setText(R.string.firing_mode_outdoor_with_cone);
+                break;
+            case Globals.FIRING_MODE_INDOOR_NO_CONE:
+                mFiringModeButton.setText(R.string.firing_mode_indoor_no_cone);
+                break;
+        }
         Globals.getInstance().mPlayerSettingsSemaphore.release();
         mApplyAllSwitch.setChecked(false);
         mAllowPlayerSettingsSwitch.setChecked(Globals.getInstance().mAllowPlayerSettings);
@@ -106,6 +122,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
         mShotModeBurst3.setChecked(Globals.getInstance().mAllowBurst3ShotMode);
         mShotModeAuto.setChecked(Globals.getInstance().mAllowAutoShotMode);
         mAllowPlayerSettingsSwitch.setVisibility(View.GONE);
+        mFiringModeButton.setVisibility(View.GONE);
         mApplyAllSwitch.setVisibility(View.GONE);
     }
 
@@ -126,6 +143,18 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
         mShotModeSingle = view.findViewById(R.id.shot_mode_single);
         mShotModeBurst3 = view.findViewById(R.id.shot_mode_burst3);
         mShotModeAuto = view.findViewById(R.id.shot_mode_auto);
+        mFiringModeButton = view.findViewById(R.id.firing_mode_button);
+        mFiringModeButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                PopupMenu popup = new PopupMenu(getContext(), view);
+                MenuInflater inflater = popup.getMenuInflater();
+                inflater.inflate(R.menu.firing_mode_menu, popup.getMenu());
+                popup.setOnMenuItemClickListener(PlayerSettingsAlertDialog.this);
+                popup.show();
+                Toast.makeText(getContext(), getContext().getString(R.string.firing_mode_cone_toast), Toast.LENGTH_LONG).show();
+            }
+        });
         mResetButton = view.findViewById(R.id.reset_defaults_button);
         mResetButton.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -137,6 +166,10 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
                 mSpawnTimeET.setText("" + Globals.RESPAWN_TIME_SECONDS);
                 mDamageET.setText("" + (Globals.DAMAGE_PER_HIT * -1));
                 mOverrideLivesSwitch.setChecked(false);
+                mShotModeAuto.setChecked(true);
+                mShotModeBurst3.setChecked(true);
+                mShotModeSingle.setChecked(true);
+                mFiringModeButton.setText(R.string.firing_mode_outdoor_no_cone);
                 mLivesET.setText("" + 0);
             }
         });
@@ -216,6 +249,12 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
                             playerSettings.allowShotModeSingle = mShotModeSingle.isChecked();
                             playerSettings.allowShotModeBurst3 = mShotModeBurst3.isChecked();
                             playerSettings.allowShotModeAuto = mShotModeAuto.isChecked();
+                            if (mFiringModeButton.getText().equals(getContext().getString(R.string.firing_mode_outdoor_no_cone)))
+                                playerSettings.firingMode = Globals.FIRING_MODE_OUTDOOR_NO_CONE;
+                            else if (mFiringModeButton.getText().equals(getContext().getString(R.string.firing_mode_outdoor_with_cone)))
+                                playerSettings.firingMode = Globals.FIRING_MODE_OUTDOOR_WITH_CONE;
+                            else
+                                playerSettings.firingMode = Globals.FIRING_MODE_INDOOR_NO_CONE;
                             Globals.getInstance().mPlayerSettingsSemaphore.release();
                             if (mTcpServer != null) {
                                 mTcpServer.sendPlayerSettings(mPlayerID, mApplyAllSwitch.isChecked(), mAllowPlayerSettingsSwitch.isChecked());
@@ -238,5 +277,28 @@ public class PlayerSettingsAlertDialog extends AlertDialog {
         else
             getLocalSettings();
         super.onCreate(savedInstanceState);
+    }
+
+    @Override
+    public boolean onMenuItemClick(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.firing_mode_outdoor_no_cone_item:
+                if (!isServer)
+                    Globals.getInstance().mCurrentFiringMode = Globals.FIRING_MODE_OUTDOOR_NO_CONE;
+                mFiringModeButton.setText(R.string.firing_mode_outdoor_no_cone);
+                return true;
+            case R.id.firing_mode_outdoor_with_cone_item:
+                if (!isServer)
+                    Globals.getInstance().mCurrentFiringMode = Globals.FIRING_MODE_OUTDOOR_WITH_CONE;
+                mFiringModeButton.setText(R.string.firing_mode_outdoor_with_cone);
+                return true;
+            case R.id.firing_mode_indoor_no_cone_item:
+                if (!isServer)
+                    Globals.getInstance().mCurrentFiringMode = Globals.FIRING_MODE_INDOOR_NO_CONE;
+                mFiringModeButton.setText(R.string.firing_mode_indoor_no_cone);
+                return true;
+            default:
+                return false;
+        }
     }
 }

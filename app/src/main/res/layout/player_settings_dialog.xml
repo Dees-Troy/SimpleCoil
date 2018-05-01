@@ -199,6 +199,14 @@
             android:textColor="#000000" />
 
         <Button
+            android:id="@+id/firing_mode_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:text="@string/firing_mode_outdoor_no_cone" />
+
+        <Button
             android:id="@+id/reset_defaults_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"

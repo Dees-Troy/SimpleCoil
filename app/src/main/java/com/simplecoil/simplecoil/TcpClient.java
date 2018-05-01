@@ -290,6 +290,7 @@ public class TcpClient extends Service {
             playerSettings.put(TcpServer.JSON_SHOT_MODE_SINGLE, Globals.getInstance().mAllowSingleShotMode);
             playerSettings.put(TcpServer.JSON_SHOT_MODE_BURST3, Globals.getInstance().mAllowBurst3ShotMode);
             playerSettings.put(TcpServer.JSON_SHOT_MODE_AUTO, Globals.getInstance().mAllowAutoShotMode);
+            playerSettings.put(TcpServer.JSON_FIRING_MODE, Globals.getInstance().mCurrentFiringMode);
             String message = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + playerSettings.toString();
             sendTCPMessage(message);
         } catch (JSONException e) {
@@ -395,6 +396,7 @@ public class TcpClient extends Service {
                     playerSettings.allowShotModeSingle = setting.getBoolean(TcpServer.JSON_SHOT_MODE_SINGLE);
                     playerSettings.allowShotModeBurst3 = setting.getBoolean(TcpServer.JSON_SHOT_MODE_BURST3);
                     playerSettings.allowShotModeAuto = setting.getBoolean(TcpServer.JSON_SHOT_MODE_AUTO);
+                    playerSettings.firingMode = setting.getInt(TcpServer.JSON_FIRING_MODE);
                     if (playerID == Globals.getInstance().mPlayerID) {
                         Globals.getInstance().mFullHealth = playerSettings.health;
                         Globals.getInstance().mFullReload = playerSettings.shots;
@@ -407,6 +409,7 @@ public class TcpClient extends Service {
                         Globals.getInstance().mAllowSingleShotMode = playerSettings.allowShotModeSingle;
                         Globals.getInstance().mAllowBurst3ShotMode = playerSettings.allowShotModeBurst3;
                         Globals.getInstance().mAllowAutoShotMode = playerSettings.allowShotModeAuto;
+                        Globals.getInstance().mCurrentFiringMode = playerSettings.firingMode;
                     }
                 }
                 Globals.getInstance().mPlayerSettingsSemaphore.release();
