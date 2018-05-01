@@ -471,6 +471,7 @@ public class TcpClient extends Service {
                 if (Globals.getInstance().mUseGPS) {
                     Globals.getInstance().mGPSMode = game.getInt(TcpServer.JSON_USEGPS);
                 }
+                Globals.getInstance().mOnlyServerSettings = game.getBoolean(TcpServer.JSON_ONLY_SERVER_SETTINGS);
                 Intent intent = new Intent(NetMsg.NETMSG_LISTPLAYERS);
                 if (game.has(TcpServer.JSON_PLAYERGAMEUPDATE)) {
                     intent.putExtra(NetMsg.INTENT_HASGAMEUPDATE, true);

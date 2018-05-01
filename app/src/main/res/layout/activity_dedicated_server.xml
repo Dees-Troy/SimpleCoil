@@ -143,10 +143,20 @@
             android:text="@string/dedicated_allow_join"
             android:textColor="#FFFFFF"/>
 
+        <Switch
+            android:id="@+id/only_server_settings_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/allow_join_switch"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp"
+            android:text="@string/dedicated_server_settings_only"
+            android:textColor="#FFFFFF"/>
+
         <ListView
             android:id="@+id/player_list"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@id/allow_join_switch" />
+            android:layout_below="@id/only_server_settings_switch" />
     </RelativeLayout>
 </FrameLayout>

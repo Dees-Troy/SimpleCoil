@@ -97,6 +97,7 @@ public class Globals {
     public Semaphore mGPSDataSemaphore;
     public Semaphore mPlayerSettingsSemaphore;
     public volatile boolean mUseGPS = false;
+    public volatile boolean mOnlyServerSettings = false;
 
     public volatile long mServerGameTimeRemaining = 0; // in seconds
 

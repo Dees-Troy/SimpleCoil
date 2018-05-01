@@ -1052,6 +1052,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
             mGameLimitButton.setVisibility(View.GONE);
         } else {
+            Globals.getInstance().mOnlyServerSettings = false;
+            mFiringModeButton.setVisibility(View.VISIBLE);
+            mStartGameButton.setVisibility(View.VISIBLE);
+            mPlayerSettingsButton.setVisibility(View.VISIBLE);
             Globals.getInstance().mUseGPS = false;
             if (sendPlayerLeft) {
                 mTcpClient.leaveServer();
@@ -1169,6 +1173,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
     private void endGame() {
         Globals.getInstance().mGameState = Globals.GAME_STATE_NONE;
+        Globals.getInstance().mOnlyServerSettings = false;
+        mFiringModeButton.setVisibility(View.VISIBLE);
+        mStartGameButton.setVisibility(View.VISIBLE);
+        mPlayerSettingsButton.setVisibility(View.VISIBLE);
         if (mUseNetwork) {
             mUDPListenerService.stopListen();
             if (mTcpClient.isDedicatedServer())
@@ -2395,6 +2403,15 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                             } else if (serverGameState == Globals.GAME_STATE_RUNNING && Globals.getInstance().mGameState == Globals.GAME_STATE_NONE) {
                                 startGame();
                             }
+                        }
+                        if (Globals.getInstance().mOnlyServerSettings) {
+                            mFiringModeButton.setVisibility(View.GONE);
+                            mStartGameButton.setVisibility(View.GONE);
+                            mPlayerSettingsButton.setVisibility(View.GONE);
+                        } else {
+                            mFiringModeButton.setVisibility(View.VISIBLE);
+                            mStartGameButton.setVisibility(View.VISIBLE);
+                            mPlayerSettingsButton.setVisibility(View.VISIBLE);
                         }
                     }
                 }

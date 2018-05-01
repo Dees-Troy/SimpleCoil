@@ -78,6 +78,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     private TextView mGameLimitTV = null;
     private TextView mGameStatusTV = null;
     private Switch mAllowJoinSwitch = null;
+    private Switch mOnlyServerSettingsSwitch = null;
     private ListView mPlayerDisplayList = null;
 
     private CountDownTimer mGameCountdownTimer = null;
@@ -226,6 +227,13 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             public void onClick(View v) {
                 if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
                     mUDPListenerService.allowJoin(mAllowJoinSwitch.isChecked());
+            }
+        }));
+        mOnlyServerSettingsSwitch = findViewById(R.id.only_server_settings_switch);
+        mOnlyServerSettingsSwitch.setOnClickListener((new View.OnClickListener() {
+            public void onClick(View v) {
+                Globals.getInstance().mOnlyServerSettings = mOnlyServerSettingsSwitch.isChecked();
+                mTcpServer.sendAllGameInfo(TcpServer.SEND_ALL);
             }
         }));
         try {

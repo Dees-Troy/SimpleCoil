@@ -74,6 +74,7 @@ public class TcpServer extends Service {
     public static final String JSON_USEGPS = "usegps";
     public static final String JSON_TEAM = "team";
     public static final String JSON_GAMESTATE = "gamestate";
+    public static final String JSON_ONLY_SERVER_SETTINGS = "onlyserversettings";
 
     public static final String JSON_GPSLONGITUDE = "gpslongitude";
     public static final String JSON_GPSLATITUDE = "gpslatitude";
@@ -323,6 +324,7 @@ public class TcpServer extends Service {
                 game.put(JSON_USEGPS, Globals.getInstance().mGPSMode);
             game.put(JSON_ALLOWPLAYERSETTINGS, Globals.getInstance().mAllowPlayerSettings);
             game.put(JSON_PLAYERSETTINGS, getPlayerSettings(id, false));
+            game.put(JSON_ONLY_SERVER_SETTINGS, Globals.getInstance().mOnlyServerSettings);
             final String allMessage = TCPMESSAGE_PREFIX + TCPPREFIX_JSON + game.toString();
             if (id == SEND_ALL)
                 sendTCPMessageAll(allMessage);
@@ -781,6 +783,13 @@ public class TcpServer extends Service {
                                         } else if (message.equals(NetMsg.NETMSG_STARTGAME)) {
                                             startGame();
                                         } else if (message.equals(NetMsg.NETMSG_ENDGAME)) {
+                                            if (Globals.getInstance().mOnlyServerSettings) {
+                                                // If server settings only is enabled, then we treat this as if the client is leaving rather than ending the game
+                                                removeClient(entry.getValue(), entry.getKey(), true);
+                                                if (mClientData.size() <= 1 && Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
+                                                    endGame();
+                                                break;
+                                            }
                                             endGame();
                                         }
                                     } else {
