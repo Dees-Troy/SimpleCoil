@@ -62,6 +62,7 @@ public class TcpServer extends Service {
 
     public static final String JSON_PLAYERS = "players";
     public static final String JSON_PLAYERNAME = "playername";
+    public static final String JSON_PLAYERNAMECHANGE = "playernamechange";
     public static final String JSON_PLAYERID = "playerID";
     public static final String JSON_PLAYERIP = "playerIP";
     public static final String JSON_LIMITS = "limits";
@@ -900,6 +901,24 @@ public class TcpServer extends Service {
                 }
                 Globals.getInstance().mPlayerSettingsSemaphore.release();
                 sendPlayerSettings((byte)SEND_ALL, false, true);
+                sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+                return;
+            }
+            if (player.has(JSON_PLAYERNAMECHANGE)) {
+                byte id;
+                String playerName;
+                try {
+                    id = (byte) player.getInt(JSON_PLAYERID);
+                    playerName = player.getString(JSON_PLAYERNAMECHANGE);
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                    return;
+                }
+                Globals.getmTeamPlayerNameSemaphore();
+                Globals.getInstance().mTeamPlayerNameMap.put(client.mPlayerID, playerName);
+                Globals.getInstance().mTeamPlayerNameSemaphore.release();
+
+                sendAllGameInfo(SEND_ALL);
                 sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
                 return;
             }

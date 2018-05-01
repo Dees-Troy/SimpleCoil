@@ -687,6 +687,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 return;
             case NETWORK_TYPE_JOINED:
                 mNetworkPopup.getMenu().add(0, R.id.leave_item, 1, R.string.not_ready_button);
+                mNetworkPopup.getMenu().add(0, R.id.player_name_item, 50, getString(R.string.player_name_button, Globals.getInstance().mPlayerName));
                 return;
             case NETWORK_TYPE_SERVING:
                 mNetworkPopup.getMenu().add(0, R.id.cancel_server_item, 1, R.string.cancel_server_button);
@@ -837,9 +838,13 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                                 SharedPreferences.Editor editor = sharedPreferences.edit();
                                 editor.putString(PREF_PLAYER_NAME, Globals.getInstance().mPlayerName);
                                 editor.apply();
-                                displayAllNetworkingOptions(true);
-                                setNetworkMenu(NETWORK_TYPE_ENABLED);
                                 mPlayerNameTV.setText(Globals.getInstance().mPlayerName);
+                                if (mReady) {
+                                    mTcpClient.sendPlayerNameChange();
+                                } else {
+                                    displayAllNetworkingOptions(true);
+                                    setNetworkMenu(NETWORK_TYPE_ENABLED);
+                                }
                                 dialog.dismiss();
                             }
                         })

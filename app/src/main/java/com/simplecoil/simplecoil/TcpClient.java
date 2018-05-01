@@ -253,6 +253,23 @@ public class TcpClient extends Service {
         isListening = false;
     }
 
+    public void sendPlayerNameChange() {
+        try {
+            JSONObject playerInfo = new JSONObject();
+            playerInfo.put(TcpServer.JSON_PLAYERID, (int) Globals.getInstance().mPlayerID);
+            playerInfo.put(TcpServer.JSON_PLAYERNAMECHANGE, Globals.getInstance().mPlayerName);
+            String message = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + playerInfo.toString();
+            sendTCPMessage(message);
+            while (messageQueue.size() > 0) {
+                Log.e(TAG, "sending queued: " + messageQueue.peek());
+                sendTCPMessage(messageQueue.peek());
+                messageQueue.remove();
+            }
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
     private void sendPlayerInfo(boolean rejoin) {
         try {
             JSONObject playerInfo = new JSONObject();
