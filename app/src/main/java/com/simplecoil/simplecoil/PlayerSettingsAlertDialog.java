@@ -75,7 +75,28 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
         Globals.PlayerSettings playerSettings = Globals.getInstance().mPlayerSettings.get(mPlayerID);
         if (playerSettings == null)
             playerSettings = new Globals.PlayerSettings();
-        mTitleTV.setText(mContext.getString(R.string.player_settings_id_title, mPlayerID));
+        switch (Globals.getInstance().mGameMode) {
+            case Globals.GAME_MODE_FFA:
+                mTitleTV.setText(mContext.getString(R.string.player_settings_id_title, mPlayerID));
+                break;
+            case Globals.GAME_MODE_2TEAMS:
+                if (mPlayerID > Globals.MAX_PLAYER_ID / 2)
+                    mTitleTV.setText(mContext.getString(R.string.player_settings_team_title, 2, (mPlayerID - (Globals.MAX_PLAYER_ID / 2))));
+                else
+                    mTitleTV.setText(mContext.getString(R.string.player_settings_team_title, 1, mPlayerID));
+                break;
+            case Globals.GAME_MODE_4TEAMS:
+                int playersPerTeam = Globals.MAX_PLAYER_ID / 4;
+                if (mPlayerID > playersPerTeam * 3)
+                    mTitleTV.setText(mContext.getString(R.string.player_settings_team_title, 4, (mPlayerID - (playersPerTeam * 3))));
+                else if (mPlayerID > playersPerTeam * 2)
+                    mTitleTV.setText(mContext.getString(R.string.player_settings_team_title, 3, (mPlayerID - (playersPerTeam * 2))));
+                else if (mPlayerID > playersPerTeam)
+                    mTitleTV.setText(mContext.getString(R.string.player_settings_team_title, 2, (mPlayerID - playersPerTeam)));
+                else
+                    mTitleTV.setText(mContext.getString(R.string.player_settings_team_title, 1, mPlayerID));
+                break;
+        }
         mHealthET.setText("" + playerSettings.health);
         mReloadShotsET.setText("" + playerSettings.shots);
         mReloadTimeET.setText("" + playerSettings.reloadTime);

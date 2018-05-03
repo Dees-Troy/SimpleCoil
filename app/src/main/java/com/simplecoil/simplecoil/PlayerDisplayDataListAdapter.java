@@ -67,7 +67,28 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
                 playerIDTV.setText(data[position].playerName);
             return rowView;
         }
-        playerIDTV.setText("" + position);
+        switch (Globals.getInstance().mGameMode) {
+            case Globals.GAME_MODE_FFA:
+                playerIDTV.setText("" + position);
+                break;
+            case Globals.GAME_MODE_2TEAMS:
+                if (position > Globals.MAX_PLAYER_ID / 2)
+                    playerIDTV.setText("2-" + (position - (Globals.MAX_PLAYER_ID / 2)));
+                else
+                    playerIDTV.setText("1-" + position);
+                break;
+            case Globals.GAME_MODE_4TEAMS:
+                int playersPerTeam = Globals.MAX_PLAYER_ID / 4;
+                if (position > playersPerTeam * 3)
+                    playerIDTV.setText("4-" + (position - (playersPerTeam * 3)));
+                else if (position > playersPerTeam * 2)
+                    playerIDTV.setText("3-" + (position - (playersPerTeam * 2)));
+                else if (position > playersPerTeam)
+                    playerIDTV.setText("2-" + (position - playersPerTeam));
+                else
+                    playerIDTV.setText("1-" + position);
+                break;
+        }
         if (data[position] == null) {
             playerNameTV.setText(R.string.player_name_not_connected);
             playerPointsTV.setText("");

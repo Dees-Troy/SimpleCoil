@@ -127,6 +127,7 @@
 
     <string name="player_settings_title">Player Settings</string>
     <string name="player_settings_id_title">Player Settings (%1$d)</string>
+    <string name="player_settings_team_title">Player Settings (%1$d-%2$d)</string>
     <string name="player_settings_button">Player Settings</string>
     <string name="player_settings_health_title">Health</string>
     <string name="player_settings_spawn_time">Respawn Time (Seconds)</string>
