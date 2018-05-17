@@ -1414,7 +1414,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         config[2]  = (byte)0x09;
         config[7]  = (byte)0xFF;
         config[8]  = (byte)0xFF;
-        config[9]  = (byte)0x80;
+        config[9]  = (byte)0x80; // Recoil strength
         config[10] = (byte)0x02;
         config[11] = (byte)0x34;
         if (shotMode == Globals.SHOT_MODE_SINGLE) {
@@ -1425,6 +1425,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         } else if (shotMode == Globals.SHOT_MODE_BURST) {
             config[3] = (byte)0x03;
             config[4] = (byte)0x03;
+            if (mBlasterType == BLASTER_TYPE_RIFLE)
+                config[9] = (byte)0x78; // Reduce recoil strength on the rifle to make 3 shot mode recoil the correct number of times
             mCurrentShotMode = Globals.SHOT_MODE_BURST;
             mShotModeTV.setText(R.string.shot_mode_burst3);
         } else if (shotMode == Globals.SHOT_MODE_FULL_AUTO) {
