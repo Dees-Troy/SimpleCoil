@@ -185,8 +185,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
     private LastHitData mLastHitData1 = new LastHitData();
     private LastHitData mLastHitData2 = new LastHitData();
-    private static final int INVALID_PLAYER_ID = -100;
-    private static final int GRENADE_PLAYER_ID = 167;
 
     /* We calculate an average of the last 100 battery reports. Starting out with a single value
        simplifies some of the code that will have to be run every time the tagger sends telemetry
@@ -2065,7 +2063,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         if (mUseNetwork) {
                             hit_by_id = (byte) (hit_by_player1 >> 2);
                             //Log.d(TAG, "hit by 1 ID is " + hit_by_id);
-                            if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA && Globals.getInstance().calcNetworkTeam(hit_by_id) == mNetworkTeam) {
+                            if ((hit_by_player1 != Globals.GRENADE_PLAYER_ID) && Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA && Globals.getInstance().calcNetworkTeam(hit_by_id) == mNetworkTeam) {
                                 //Log.d(TAG, "friendly fire ignored");
                                 healthRemoved = 0;
                             } else {
@@ -2088,7 +2086,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         if (mUseNetwork) {
                             hit_by_id = (byte)(hit_by_player1 >> 2);
                             //Log.d(TAG, "hit by 2 ID is " + hit_by_id);
-                            if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA && Globals.getInstance().calcNetworkTeam(hit_by_id) == mNetworkTeam) {
+                            if ((hit_by_player2 != Globals.GRENADE_PLAYER_ID) && Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA && Globals.getInstance().calcNetworkTeam(hit_by_id) == mNetworkTeam) {
                                 //Log.d(TAG, "friendly fire ignored");
                                 healthRemoved -= Globals.DAMAGE_PER_HIT;
                             } else {
@@ -2104,17 +2102,17 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                             }
                         }
                     }
-                    if (hit_by_player1 != GRENADE_PLAYER_ID) {
+                    if (hit_by_player1 != Globals.GRENADE_PLAYER_ID) {
                         mLastHitData1.playerID = hit_by_player1;
                         mLastHitData1.shotID = data[RECOIL_OFFSET_HIT_BY1_SHOTID];
                     } else {
-                        mLastHitData1.playerID = INVALID_PLAYER_ID;
+                        mLastHitData1.playerID = Globals.INVALID_PLAYER_ID;
                     }
-                    if (hit_by_player2 > 0 && hit_by_player2 != GRENADE_PLAYER_ID) {
+                    if (hit_by_player2 > 0 && hit_by_player2 != Globals.GRENADE_PLAYER_ID) {
                         mLastHitData2.playerID = hit_by_player2;
                         mLastHitData2.shotID = data[RECOIL_OFFSET_HIT_BY2_SHOTID];
                     } else {
-                        mLastHitData2.playerID = INVALID_PLAYER_ID;
+                        mLastHitData2.playerID = Globals.INVALID_PLAYER_ID;
                     }
                     if (healthRemoved != 0) {
                         if (Globals.getInstance().mGameState == Globals.GAME_STATE_RUNNING) {
@@ -2183,8 +2181,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     }
                 }
             } else {
-                mLastHitData1.playerID = INVALID_PLAYER_ID;
-                mLastHitData2.playerID = INVALID_PLAYER_ID;
+                mLastHitData1.playerID = Globals.INVALID_PLAYER_ID;
+                mLastHitData2.playerID = Globals.INVALID_PLAYER_ID;
             }
             /* Since setting player ID is somewhat unreliable, we use this to make sure that we are
                displaying the actual ID that the tagger is currently using. */

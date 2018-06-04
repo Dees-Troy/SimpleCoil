@@ -46,6 +46,9 @@ public class Globals {
     public volatile boolean mAllowPlayerSettings = true;
     public volatile boolean mReloadOnEmpty = false; // Primarily intended for instagib
 
+    public static final int INVALID_PLAYER_ID = -100;
+    public static final int GRENADE_PLAYER_ID = 167;
+
     // 1 for FFA, 2 for 2 Teams, and 4 for 4 Teams
     public static final int GAME_MODE_FFA = 1;
     public static final int GAME_MODE_2TEAMS = 2;
@@ -124,6 +127,8 @@ public class Globals {
 
     public int calcNetworkTeam(byte player_id) {
         int team = 1;
+        if (player_id > MAX_PLAYER_ID)
+            return INVALID_PLAYER_ID;
         if (mGameMode == GAME_MODE_2TEAMS) {
             final int x = ((MAX_PLAYER_ID + 1) / 2);
             if (player_id > x)
