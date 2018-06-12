@@ -137,6 +137,14 @@
         </EditText>
 
         <Switch
+            android:id="@+id/apply_to_all_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="#FFFFFF"
+            android:text="@string/player_settings_apply_to_all"
+            android:textColor="#000000" />
+
+        <Switch
             android:id="@+id/override_lives_limit_switch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -212,14 +220,6 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/player_settings_reset" />
-
-        <Switch
-            android:id="@+id/apply_to_all_switch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/player_settings_apply_to_all"
-            android:background="#FFFFFF"
-            android:textColor="#000000" />
 
         <Switch
             android:id="@+id/allow_player_settings_switch"

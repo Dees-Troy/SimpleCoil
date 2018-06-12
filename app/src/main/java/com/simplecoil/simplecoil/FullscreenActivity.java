@@ -127,6 +127,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private TextView mHealthLabelTV = null;
     private TextView mPlayerNameTV = null;
     private ProgressBar mHealthBar = null;
+    private ProgressBar mShieldBar = null;
     private ProgressBar mReloadBar = null;
     private ImageView mHitIV = null;
     private ImageView mBatteryLevelIV = null;
@@ -149,6 +150,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
     private CountDownTimer mSpawnTimer = null;
     private CountDownTimer mReloadTimer = null;
+    private CountDownTimer mShieldTimer = null;
     private CountDownTimer mGameCountdownTimer = null;
     private CountDownTimer mConnectFailTimer = null;
     private boolean mGameTimerRunning = false;
@@ -160,6 +162,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
     private static final int MAX_EMPTY_TRIGGER_PULLS = 3; // automatically reloads if the trigger is pulled this many times while empty (for young players)
 
+    private float mShieldTickTime = 1.0f;
+    private int mShieldTickAmount = 1;
+
     private boolean mScanning = false;
     private volatile boolean mConnected = false;
     private boolean mCommunicating = false; // Used to make sure that we start receiving telemetry data after initial connection
@@ -167,6 +172,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private static byte mLastTeam = 0;
     private int mHitsTaken = 0; // total hits taken regardless of lives
     private static int mHealth = Globals.MAX_HEALTH;
+    private static int mShield = Globals.MAX_SHIELDS;
     private byte mLastShotCount = 0;
     private byte mLastTriggerCount = 0;
     private byte mLastReloadButtonCount = 0;
@@ -520,9 +526,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mShotModeTV = findViewById(R.id.shot_mode_tv);
         mHealthLabelTV = findViewById(R.id.health_label_tv);
         mHealthBar = findViewById(R.id.health_pb);
-        mHealth = Globals.getInstance().mFullHealth;
-        mHealthBar.setMax(mHealth);
-        mHealthBar.setProgress(mHealth);
+        mShieldBar = findViewById(R.id.shield_pb);
+        resetVitalStatBars();
         mReloadBar = findViewById(R.id.reload_pb);
         mEliminatedTV = findViewById(R.id.eliminated_tv);
         mEliminatedByTV = findViewById(R.id.eliminated_by_tv);
@@ -1103,6 +1108,16 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mBatteryTotal = 16;
     }
 
+    private void resetVitalStatBars() {
+        mHealth = Globals.getInstance().mFullHealth;
+        mHealthBar.setMax(mHealth);
+        mHealthBar.setProgress(mHealth);
+
+        mShield = Globals.getInstance().mFullShields;
+        mShieldBar.setMax(mShield);
+        mShieldBar.setProgress(mShield);
+    }
+
     private void startGame() {
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         getWindow().getDecorView().setSystemUiVisibility(
@@ -1118,9 +1133,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         else
             mEliminationCount = 0;
         mEliminationCountTV.setText("" + mEliminationCount);
-        mHealth = Globals.getInstance().mFullHealth;
-        mHealthBar.setMax(mHealth);
-        mHealthBar.setProgress(mHealth);
+        resetVitalStatBars();
         mEliminatedTV.setText(R.string.starting_game_label);
         mStartGameButton.setVisibility(View.GONE);
         mTeamMinusButton.setVisibility(View.INVISIBLE);
@@ -1198,6 +1211,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mGameTimerRunning = false;
         if (mGameCountdownTimer != null)
             mGameCountdownTimer.cancel();
+        if (mShieldTimer != null)
+            mShieldTimer.cancel();
         mStartGameButton.setVisibility(View.VISIBLE);
         mPlayerSettingsButton.setVisibility(View.VISIBLE);
         mTeamMinusButton.setVisibility(View.VISIBLE);
@@ -1335,6 +1350,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private void startSpawn(String eliminatedBy) {
         if (mReloadTimer != null)
             mReloadTimer.cancel();
+        if (mShieldTimer != null)
+            mShieldTimer.cancel();
         Globals.getInstance().mGameState = Globals.GAME_STATE_ELIMINATED;
         startReload(RELOADING_STATE_ELIMINATED);
         mHitIV.setVisibility(View.GONE);
@@ -1356,8 +1373,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 mEliminatedTV.setText(R.string.eliminated_label);
                 mEliminatedByTV.setVisibility(View.INVISIBLE);
                 mSpawnInTV.setVisibility(View.GONE);
-                mHealth = Globals.getInstance().mFullHealth;
-                mHealthBar.setProgress(mHealth);
+                resetVitalStatBars();
                 Globals.getInstance().mGameState = Globals.GAME_STATE_RUNNING;
                 playSound(R.raw.spawn, getApplicationContext());
                 finishReload();
@@ -1370,6 +1386,27 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         mGameTimer.setBase(SystemClock.elapsedRealtime());
                         mGameTimer.start();
                     }
+                }
+            }
+        }.start();
+    }
+
+    private void startShieldCountdown(float tickTime) {
+        if (mShieldTimer != null)
+            mShieldTimer.cancel();
+
+        mShieldTimer = new CountDownTimer((long)(tickTime * 1000), (long)(tickTime * 1000)) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                // Nothing
+            }
+
+            @Override
+            public void onFinish() {
+                mShield += mShieldTickAmount;
+                mShieldBar.setProgress(mShield);
+                if (mShield < Globals.getInstance().mFullShields) {
+                    startShieldCountdown(mShieldTickTime);
                 }
             }
         }.start();
@@ -1897,6 +1934,22 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mp.setLooping(false);
     }
 
+    private boolean wouldDie(int damage) {
+        return (mShield + mHealth + damage) > 0;
+    }
+
+    private boolean takeDamage(int damage) {
+        if (mShield + damage < 0) {
+            damage += mShield;
+            mHealth += damage;
+            return true;
+        }
+        mShield += damage;
+
+        startShieldCountdown((long)(mShieldTickTime * 4));
+        return false;
+    }
+
     /* Telemetry data is 20 bytes of raw data in the following format:
        00 seems to be part of a continuous counter, first byte always 0 and second byte counts 0 to F, increments with each packet sent
        01 player ID, 01, 02, 03, etc. 00 when not set
@@ -2116,8 +2169,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     }
                     if (healthRemoved != 0) {
                         if (Globals.getInstance().mGameState == Globals.GAME_STATE_RUNNING) {
-                            mHealth += healthRemoved;
+                            takeDamage(healthRemoved);
                             mHealthBar.setProgress(mHealth);
+                            mShieldBar.setProgress(mShield);
                             if (mHealth > 0) {
                                 if (mHitIV != null && mHitAnimation == null) {
                                     // Show the "you're being hit" animation
@@ -2207,12 +2261,12 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 }
             }
             // Handy utility code if you want to see the raw data
-            /*if (data != null && data.length > 0) {
+            if (data != null && data.length > 0) {
                 final StringBuilder stringBuilder = new StringBuilder(data.length);
                 for(byte byteChar : data)
                     stringBuilder.append(String.format("%02X ", byteChar));
                 Log.d(TAG, stringBuilder.toString());
-            }*/
+            }
         }
     }
 

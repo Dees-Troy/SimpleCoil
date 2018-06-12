@@ -4,6 +4,8 @@
 /.idea/workspace.xml
 /.idea/vcs.xml
 /.idea/libraries
+/.idea/caches/
+/.idea/codeStyles/
 .DS_Store
 /build
 /captures
