@@ -245,6 +245,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     public final static int RECOIL_THUMB_BIT = 0x04;
     public final static int RECOIL_POWER_BIT = 0x10;
 
+    private static final byte WEAPON_PROFILE = (byte)0x00;
+
     private boolean mUseNetwork = false;
     private int mScore = 0;
     private int mTeamScore = 0;
@@ -1301,6 +1303,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         command[0] = (byte)0xF0;
         command[2] = (byte)0x02;
         command[4] = Globals.getInstance().mPlayerID;
+        //command[5] = WEAPON_PROFILE; // changing profiles during the first stage of reload doesn't really do anything since the blaster can't shoot in this state anyway
         mCommandCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
         mCommandCharacteristic.setValue(command);
         mBluetoothLeService.writeCharacteristic(mCommandCharacteristic);
@@ -1317,6 +1320,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         byte[] command = new byte[20];
         command[2] = (byte)0x04;
         command[4] = Globals.getInstance().mPlayerID;
+        command[5] = WEAPON_PROFILE;
         command[6] = Globals.getInstance().mFullReload;
         setShotsRemaining(Globals.getInstance().mFullReload);
         mCommandCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
@@ -1409,6 +1413,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         if (mConfigCharacteristic == null || mBluetoothLeService == null)
             return;
         byte[] config = new byte[20];
+        config[0]  = WEAPON_PROFILE;
         config[2]  = (byte)0x09;
         config[7]  = (byte)0xFF;
         config[8]  = (byte)0xFF;
@@ -2051,9 +2056,17 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             if (hit_by_player1 != 0) {
                 int healthRemoved = 0;
                 byte hit_by_id = 0;
-                Log.e(TAG, "Hit by " + hit_by_player1);
+                // Only the right-most 3 bits make up the shot ID
+                byte shot_id1 = (byte)(data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0x07);
+                byte shot_id2 = (byte)(data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0x07);
+                /*Log.e(TAG, "Hit by " + hit_by_player1);
+                if (hit_by_player2 != 0) {
+                    Log.e(TAG, "hitdata: " + hit_by_player1 + " " + Integer.toHexString(data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0xFF) + " " + hit_by_player2 + " " + Integer.toHexString(data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0xFF));
+                } else {
+                    Log.e(TAG, "hitdata: " + hit_by_player1 + " " + Integer.toHexString(data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0xFF));
+                }*/
                 if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
-                    if ((mLastHitData1.playerID == hit_by_player1 && mLastHitData1.shotID == data[RECOIL_OFFSET_HIT_BY1_SHOTID]) || (mLastHitData2.playerID == hit_by_player1 && mLastHitData2.shotID == data[RECOIL_OFFSET_HIT_BY1_SHOTID])) {
+                    if ((mLastHitData1.playerID == hit_by_player1 && mLastHitData1.shotID == shot_id1) || (mLastHitData2.playerID == hit_by_player1 && mLastHitData2.shotID == shot_id1)) {
                         //Log.e(TAG, "Hit by 1 is using same shot ID from a previous hit, filter!" + hit_by_player1 + " " + data[RECOIL_OFFSET_HIT_BY1_SHOTID]);
                     } else {
                         mHitsTaken++;
@@ -2079,7 +2092,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                             }
                         }
                     }
-                    if ((mLastHitData1.playerID == hit_by_player2 && mLastHitData1.shotID == data[RECOIL_OFFSET_HIT_BY2_SHOTID]) || (mLastHitData2.playerID == hit_by_player2 && mLastHitData2.shotID == data[RECOIL_OFFSET_HIT_BY2_SHOTID])) {
+                    if ((mLastHitData1.playerID == hit_by_player2 && mLastHitData1.shotID == shot_id2) || (mLastHitData2.playerID == hit_by_player2 && mLastHitData2.shotID == shot_id2)) {
                         //Log.e(TAG, "Hit by 2 is using same shot ID from a previous hit, filter!");
                     } else if (hit_by_player2 != 0 && mHealth + healthRemoved > 0) {
                         healthRemoved += Globals.DAMAGE_PER_HIT;
@@ -2104,13 +2117,13 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     }
                     if (hit_by_player1 != Globals.GRENADE_PLAYER_ID) {
                         mLastHitData1.playerID = hit_by_player1;
-                        mLastHitData1.shotID = data[RECOIL_OFFSET_HIT_BY1_SHOTID];
+                        mLastHitData1.shotID = shot_id1;
                     } else {
                         mLastHitData1.playerID = Globals.INVALID_PLAYER_ID;
                     }
                     if (hit_by_player2 > 0 && hit_by_player2 != Globals.GRENADE_PLAYER_ID) {
                         mLastHitData2.playerID = hit_by_player2;
-                        mLastHitData2.shotID = data[RECOIL_OFFSET_HIT_BY2_SHOTID];
+                        mLastHitData2.shotID = shot_id2;
                     } else {
                         mLastHitData2.playerID = Globals.INVALID_PLAYER_ID;
                     }
