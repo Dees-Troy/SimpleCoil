@@ -206,6 +206,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
     final private int REQUEST_CODE_LOCATION_PERMISSIONS = 1022;
 
+    private static final byte COMMAND_ID_INCREMENT = (byte) 0x10;
+    private static byte mCommandID = (byte) 0x00;
+
     /* Reloading is done in 2 stages. The first stage effectively tells the tagger that it can't
        shoot anymore. We also use this state when the player is eliminated so they can't shoot while
        out of the game. At the second stage, we tell the tagger how many shots it now has. With a
@@ -1242,7 +1245,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 return;
             }
             byte[] command = new byte[20];
-            command[0] = (byte) 0x10;
+            command[0] = mCommandID;
+            mCommandID += COMMAND_ID_INCREMENT;
             command[2] = (byte) 0x80;
             command[4] = Globals.getInstance().mPlayerID;
             mCommandCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
@@ -1300,7 +1304,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mShotsRemainingTV.setVisibility(View.INVISIBLE);
         mReloadBar.setVisibility(View.VISIBLE);
         byte[] command = new byte[20];
-        command[0] = (byte)0xF0;
+        command[0] = mCommandID;
+        mCommandID += COMMAND_ID_INCREMENT;
         command[2] = (byte)0x02;
         command[4] = Globals.getInstance().mPlayerID;
         //command[5] = WEAPON_PROFILE; // changing profiles during the first stage of reload doesn't really do anything since the blaster can't shoot in this state anyway
@@ -1318,6 +1323,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mEmptyTriggerCount = 0;
         Log.d(TAG, "Finishing reload");
         byte[] command = new byte[20];
+        command[0] = mCommandID;
+        mCommandID += COMMAND_ID_INCREMENT;
         command[2] = (byte)0x04;
         command[4] = Globals.getInstance().mPlayerID;
         command[5] = WEAPON_PROFILE;
