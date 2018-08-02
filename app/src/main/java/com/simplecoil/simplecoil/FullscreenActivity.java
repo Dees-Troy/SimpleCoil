@@ -259,6 +259,12 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private long mLastShotFired = 0; // to reduce shots fired message spam
     private long mLastHitMessage = 0; // to reduce hit/out message spam
 
+    // Grenade stuff
+    private static final byte GRENADE_DAMAGE = (byte) 0x01;
+    private static final byte GRENADE_NEW_PAIR = (byte) 0x0E;
+    private static final byte GRENADE_PAIR_ID = (byte) 0x0F;
+    private static final byte GRENADE_DISARM = (byte) 0x0D;
+
     /* We run a continuous handler in the background while the tagger is connected to monitor the
        connection status. Simply put, we set connectionTestHandler to false every time the handler
        runs. Every time we receive telemetry data, we set connectionTestHandler back to true. When
@@ -2066,35 +2072,74 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 // Only the right-most 3 bits make up the shot ID
                 byte shot_id1 = (byte)(data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0x07);
                 byte shot_id2 = (byte)(data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0x07);
-                /*Log.e(TAG, "Hit by " + hit_by_player1);
-                if (hit_by_player2 != 0) {
-                    Log.e(TAG, "hitdata: " + hit_by_player1 + " " + Integer.toHexString(data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0xFF) + " " + hit_by_player2 + " " + Integer.toHexString(data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0xFF));
+                //Log.e(TAG, "Hit by " + hit_by_player1);
+                /*if (hit_by_player2 != 0) {
+                    Log.e(TAG, "hitdata: " + Integer.toHexString(hit_by_player1) + " " + Integer.toHexString(data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0xFF) + " " + Integer.toHexString(hit_by_player2) + " " + Integer.toHexString(data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0xFF));
                 } else {
-                    Log.e(TAG, "hitdata: " + hit_by_player1 + " " + Integer.toHexString(data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0xFF));
+                    Log.e(TAG, "hitdata: " + Integer.toHexString(hit_by_player1) + " " + Integer.toHexString(data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0xFF));
                 }*/
+                if (hit_by_player1 == Globals.GRENADE_PLAYER_ID && (data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0x0F) != GRENADE_DAMAGE) {
+                    if ((data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0x0F) == GRENADE_PAIR_ID) {
+                        // This is a grenade trying to pair
+                        if (Globals.getInstance().mPairedGrenadeID == 0) {
+                            Globals.getInstance().mPairedGrenadeID = (byte)((data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0xF0) >> 4);
+                            if (mUseNetwork && mTcpClient.isDedicatedServer())
+                                mTcpClient.sendPlayerGrenade();
+                            Toast.makeText(getApplicationContext(), getString(R.string.grenade_paired_toast), Toast.LENGTH_SHORT).show();
+                        }
+                    } else if ((data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0x0F) == GRENADE_NEW_PAIR || (data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0x0F) == GRENADE_DISARM) {
+                        Globals.getInstance().mPairedGrenadeID = 0;
+                    }
+                }
+                if (hit_by_player2 == Globals.GRENADE_PLAYER_ID && (data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0x0F) != GRENADE_DAMAGE) {
+                    if ((data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0x0F) == GRENADE_PAIR_ID) {
+                        // This is a grenade trying to pair
+                        if (Globals.getInstance().mPairedGrenadeID == 0) {
+                            Globals.getInstance().mPairedGrenadeID = (byte)((data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0xF0) >> 4);
+                            if (mUseNetwork && mTcpClient.isDedicatedServer())
+                                mTcpClient.sendPlayerGrenade();
+                            Toast.makeText(getApplicationContext(), getString(R.string.grenade_paired_toast), Toast.LENGTH_SHORT).show();
+                        }
+                    } else if ((data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0x0F) == GRENADE_NEW_PAIR || (data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0x0F) == GRENADE_DISARM) {
+                        Globals.getInstance().mPairedGrenadeID = 0;
+                    }
+                }
                 if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
                     if ((mLastHitData1.playerID == hit_by_player1 && mLastHitData1.shotID == shot_id1) || (mLastHitData2.playerID == hit_by_player1 && mLastHitData2.shotID == shot_id1)) {
                         //Log.e(TAG, "Hit by 1 is using same shot ID from a previous hit, filter!" + hit_by_player1 + " " + data[RECOIL_OFFSET_HIT_BY1_SHOTID]);
                     } else {
-                        mHitsTaken++;
-                        String hitsTaken = "" + mHitsTaken;
-                        mHitsTakenTV.setText(hitsTaken);
-                        healthRemoved = Globals.DAMAGE_PER_HIT;
-                        if (mUseNetwork) {
-                            hit_by_id = (byte) (hit_by_player1 >> 2);
-                            //Log.d(TAG, "hit by 1 ID is " + hit_by_id);
-                            if ((hit_by_player1 != Globals.GRENADE_PLAYER_ID) && Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA && Globals.getInstance().calcNetworkTeam(hit_by_id) == mNetworkTeam) {
-                                //Log.d(TAG, "friendly fire ignored");
-                                healthRemoved = 0;
-                            } else {
-                                if (Globals.getInstance().mPlayerSettings.get(hit_by_id) != null)
-                                    healthRemoved = Globals.getInstance().mPlayerSettings.get(hit_by_id).damage;
-                                if (mLastHitMessage < System.currentTimeMillis()) {
-                                    mLastHitMessage = System.currentTimeMillis() + HIT_ANIMATION_DURATION_MILLISECONDS;
-                                    if (mHealth + healthRemoved > 0)
-                                        mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_HIT, hit_by_id);
-                                    else
-                                        mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_OUT, hit_by_id);
+                        if (hit_by_player1 == Globals.GRENADE_PLAYER_ID && (data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0x0F) != GRENADE_DAMAGE) {
+                            // Ignore non-damage events from grenades
+                        } else {
+                            mHitsTaken++;
+                            String hitsTaken = "" + mHitsTaken;
+                            mHitsTakenTV.setText(hitsTaken);
+                            healthRemoved = Globals.DAMAGE_PER_HIT;
+                            if (mUseNetwork) {
+                                hit_by_id = (byte) (hit_by_player1 >> 2);
+                                //Log.d(TAG, "hit by 1 ID is " + hit_by_id);
+                                if ((hit_by_player1 != Globals.GRENADE_PLAYER_ID) && Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA && Globals.getInstance().calcNetworkTeam(hit_by_id) == mNetworkTeam) {
+                                    //Log.d(TAG, "friendly fire ignored");
+                                    healthRemoved = 0;
+                                } else {
+                                    if (hit_by_player1 == Globals.GRENADE_PLAYER_ID) {
+                                        int grenadeID = (data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0xF0) >> 4;
+                                        if (grenadeID != 0) {
+                                            Globals.getmGrenadePairingsSemaphore();
+                                            if (Globals.getInstance().mGrenadePairings[grenadeID] != Globals.INVALID_PLAYER_ID)
+                                                hit_by_id = (byte)Globals.getInstance().mGrenadePairings[grenadeID];
+                                            Globals.getInstance().mGrenadePairingsSemaphore.release();
+                                        }
+                                    }
+                                    if (Globals.getInstance().mPlayerSettings.get(hit_by_id) != null)
+                                        healthRemoved = Globals.getInstance().mPlayerSettings.get(hit_by_id).damage;
+                                    if (mLastHitMessage < System.currentTimeMillis()) {
+                                        mLastHitMessage = System.currentTimeMillis() + HIT_ANIMATION_DURATION_MILLISECONDS;
+                                        if (mHealth + healthRemoved > 0)
+                                            mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_HIT, hit_by_id);
+                                        else
+                                            mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_OUT, hit_by_id);
+                                    }
                                 }
                             }
                         }
@@ -2102,22 +2147,35 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     if ((mLastHitData1.playerID == hit_by_player2 && mLastHitData1.shotID == shot_id2) || (mLastHitData2.playerID == hit_by_player2 && mLastHitData2.shotID == shot_id2)) {
                         //Log.e(TAG, "Hit by 2 is using same shot ID from a previous hit, filter!");
                     } else if (hit_by_player2 != 0 && mHealth + healthRemoved > 0) {
-                        healthRemoved += Globals.DAMAGE_PER_HIT;
-                        if (mUseNetwork) {
-                            hit_by_id = (byte)(hit_by_player1 >> 2);
-                            //Log.d(TAG, "hit by 2 ID is " + hit_by_id);
-                            if ((hit_by_player2 != Globals.GRENADE_PLAYER_ID) && Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA && Globals.getInstance().calcNetworkTeam(hit_by_id) == mNetworkTeam) {
-                                //Log.d(TAG, "friendly fire ignored");
-                                healthRemoved -= Globals.DAMAGE_PER_HIT;
-                            } else {
-                                if (Globals.getInstance().mPlayerSettings.get(hit_by_id) != null)
-                                    healthRemoved += Globals.getInstance().mPlayerSettings.get(hit_by_id).damage;
-                                if (mLastHitMessage < System.currentTimeMillis()) {
-                                    mLastHitMessage = System.currentTimeMillis() + HIT_ANIMATION_DURATION_MILLISECONDS;
-                                    if (mHealth + healthRemoved > 0)
-                                        mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_HIT, hit_by_id);
-                                    else
-                                        mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_OUT, hit_by_id);
+                        if (hit_by_player2 == Globals.GRENADE_PLAYER_ID && (data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0x0F) != GRENADE_DAMAGE) {
+                            // Ignore non-damage events from grenades
+                        } else {
+                            healthRemoved += Globals.DAMAGE_PER_HIT;
+                            if (mUseNetwork) {
+                                hit_by_id = (byte) (hit_by_player1 >> 2);
+                                //Log.d(TAG, "hit by 2 ID is " + hit_by_id);
+                                if ((hit_by_player2 != Globals.GRENADE_PLAYER_ID) && Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA && Globals.getInstance().calcNetworkTeam(hit_by_id) == mNetworkTeam) {
+                                    //Log.d(TAG, "friendly fire ignored");
+                                    healthRemoved -= Globals.DAMAGE_PER_HIT;
+                                } else {
+                                    if (hit_by_player2 == Globals.GRENADE_PLAYER_ID) {
+                                        int grenadeID = (data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0xF0) >> 4;
+                                        if (grenadeID != 0) {
+                                            Globals.getmGrenadePairingsSemaphore();
+                                            if (Globals.getInstance().mGrenadePairings[grenadeID] != Globals.INVALID_PLAYER_ID)
+                                                hit_by_id = (byte)Globals.getInstance().mGrenadePairings[grenadeID];
+                                            Globals.getInstance().mGrenadePairingsSemaphore.release();
+                                        }
+                                    }
+                                    if (Globals.getInstance().mPlayerSettings.get(hit_by_id) != null)
+                                        healthRemoved += Globals.getInstance().mPlayerSettings.get(hit_by_id).damage;
+                                    if (mLastHitMessage < System.currentTimeMillis()) {
+                                        mLastHitMessage = System.currentTimeMillis() + HIT_ANIMATION_DURATION_MILLISECONDS;
+                                        if (mHealth + healthRemoved > 0)
+                                            mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_HIT, hit_by_id);
+                                        else
+                                            mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_OUT, hit_by_id);
+                                    }
                                 }
                             }
                         }
@@ -2180,10 +2238,12 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                                     eliminatedBy = Globals.getInstance().getPlayerName(hit_by_id);
                                 startSpawn(eliminatedBy);
                                 if (mUseNetwork) {
-                                    if (mTcpClient.isDedicatedServer())
-                                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ELIMINATED + hit_by_id, true);
-                                    else
-                                        mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_ELIMINATED, hit_by_id);
+                                    if (hit_by_id != Globals.getInstance().mPlayerID && Globals.getInstance().calcNetworkTeam(hit_by_id) != Globals.getInstance().calcNetworkTeam(Globals.getInstance().mPlayerID)) {
+                                        if (mTcpClient.isDedicatedServer())
+                                            mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ELIMINATED + hit_by_id, true);
+                                        else
+                                            mUDPListenerService.sendUDPMessage(NetMsg.NETMSG_ELIMINATED, hit_by_id);
+                                    }
                                     if (mHasLivesLimit && mEliminationCount <= 0) {
                                         if (mTcpClient.isDedicatedServer())
                                             mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_LEAVE);

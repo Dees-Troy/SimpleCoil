@@ -94,11 +94,16 @@ public class Globals {
     public volatile Map<Byte, GPSData> mGPSData;
     public volatile Map<Byte, PlayerSettings> mPlayerSettings;
 
+    public static final int MAX_GRENADE_IDS = 16;
+    public volatile byte mPairedGrenadeID = 0;
+    public volatile int[] mGrenadePairings;
+
     public Semaphore mIPTeamMapSemaphore;
     public Semaphore mTeamIPMapSemaphore;
     public Semaphore mTeamPlayerNameSemaphore;
     public Semaphore mGPSDataSemaphore;
     public Semaphore mPlayerSettingsSemaphore;
+    public Semaphore mGrenadePairingsSemaphore;
     public volatile boolean mUseGPS = false;
     public volatile boolean mOnlyServerSettings = false;
 
@@ -121,6 +126,8 @@ public class Globals {
             mInstance.mTeamPlayerNameSemaphore = new Semaphore(1);
             mInstance.mGPSDataSemaphore = new Semaphore(1);
             mInstance.mPlayerSettingsSemaphore = new Semaphore(1);
+            mInstance.mGrenadePairingsSemaphore = new Semaphore(1);
+            mInstance.mGrenadePairings = new int[MAX_GRENADE_IDS];
         }
         return mInstance;
     }
@@ -264,6 +271,24 @@ public class Globals {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+    }
+
+    public static void getmGrenadePairingsSemaphore() {
+        try {
+            getInstance().mGrenadePairingsSemaphore.acquire();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void ClearGrenadePairings(boolean getSemaphore) {
+        if (getSemaphore)
+            getmGrenadePairingsSemaphore();
+        for (int index = 0; index < MAX_GRENADE_IDS; index++) {
+            getInstance().mGrenadePairings[index] = Globals.INVALID_PLAYER_ID;
+        }
+        if (getSemaphore)
+            getInstance().mGrenadePairingsSemaphore.release();
     }
 
     public static class PlayerSettings {
