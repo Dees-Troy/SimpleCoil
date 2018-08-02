@@ -289,6 +289,8 @@ public class TcpClient extends Service {
         } catch (JSONException e) {
             e.printStackTrace();
         }
+        if (Globals.getInstance().mPairedGrenadeID != 0)
+            sendPlayerGrenade();
     }
 
     public void sendPlayerSettings() {
@@ -309,6 +311,18 @@ public class TcpClient extends Service {
             playerSettings.put(TcpServer.JSON_SHOT_MODE_AUTO, Globals.getInstance().mAllowAutoShotMode);
             playerSettings.put(TcpServer.JSON_FIRING_MODE, Globals.getInstance().mCurrentFiringMode);
             String message = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + playerSettings.toString();
+            sendTCPMessage(message);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void sendPlayerGrenade() {
+        try {
+            JSONObject playerGrenade = new JSONObject();
+            playerGrenade.put(TcpServer.JSON_PLAYERID, (int) Globals.getInstance().mPlayerID);
+            playerGrenade.put(TcpServer.JSON_PAIRED_GRENADE_ID, (int) Globals.getInstance().mPairedGrenadeID);
+            String message = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + playerGrenade.toString();
             sendTCPMessage(message);
         } catch (JSONException e) {
             e.printStackTrace();
@@ -341,8 +355,22 @@ public class TcpClient extends Service {
         boolean gotGPSSemaphore = false;
         boolean gotPlayerSemaphores = false;
         boolean gotPlayerSettingsSemaphore = false;
+        boolean gotGrenadePairingsSemaphore = false;
         try {
             JSONObject game = new JSONObject(message);
+            if (game.has(TcpServer.JSON_GRENADE_PAIRINGS)) {
+                Globals.getmGrenadePairingsSemaphore();
+                gotGrenadePairingsSemaphore = true;
+                Globals.ClearGrenadePairings(false);
+                JSONArray grenadePairings = game.getJSONArray(TcpServer.JSON_GRENADE_PAIRINGS);
+                for (int x = 0; x < grenadePairings.length(); x++) {
+                    JSONObject grenadePairing = grenadePairings.getJSONObject(x);
+                    Globals.getInstance().mGrenadePairings[grenadePairing.getInt(TcpServer.JSON_PAIRED_GRENADE_ID)] = grenadePairing.getInt(TcpServer.JSON_PLAYERID);
+                }
+                gotGrenadePairingsSemaphore = false;
+                Globals.getInstance().mGrenadePairingsSemaphore.release();
+                return;
+            }
             if (game.has(TcpServer.JSON_GPSUPDATE)) {
                 JSONArray updates = game.getJSONArray(TcpServer.JSON_GPSUPDATE);
                 Globals.getmGPSDataSemaphore();
@@ -516,6 +544,7 @@ public class TcpClient extends Service {
             }
             if (gotGPSSemaphore) Globals.getInstance().mGPSDataSemaphore.release();
             if (gotPlayerSettingsSemaphore) Globals.getInstance().mPlayerSettingsSemaphore.release();
+            if (gotGrenadePairingsSemaphore) Globals.getInstance().mGrenadePairingsSemaphore.release();
         }
     }
 
