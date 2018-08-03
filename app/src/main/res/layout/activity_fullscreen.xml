@@ -13,16 +13,16 @@
         android:id="@+id/connect_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:visibility="gone"
-        android:fitsSystemWindows="true">
+        android:fitsSystemWindows="true"
+        android:visibility="visible">
 
         <TextView
             android:id="@+id/version_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:layout_marginEnd="5dp"
             android:layout_alignParentEnd="true"
+            android:layout_marginEnd="5dp"
+            android:layout_marginTop="5dp"
             android:text=""
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
@@ -31,19 +31,19 @@
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
             android:layout_centerHorizontal="true"
-            android:visibility="gone"
-            android:text="@string/reconnect_weapon_button" />
+            android:layout_marginTop="20dp"
+            android:text="@string/reconnect_weapon_button"
+            android:visibility="gone" />
 
         <Button
             android:id="@+id/connect_weapon_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:layout_centerHorizontal="true"
             android:layout_below="@id/reconnect_weapon_button"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="20dp"
             android:text="@string/connect_weapon_button" />
 
         <TextView
@@ -51,8 +51,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_below="@+id/connect_weapon_button"
-            android:layout_marginTop="15dp"
             android:layout_centerHorizontal="true"
+            android:layout_marginTop="15dp"
             android:text="@string/connect_status_not_connected"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
 
@@ -61,51 +61,51 @@
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:layout_centerHorizontal="true"
             android:layout_below="@+id/connect_status_tv"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="20dp"
             android:text="@string/dedicated_server_button" />
 
         <WebView
             android:id="@+id/info_wv"
-            android:visibility="gone"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:layout_alignParentStart="true"
             android:layout_below="@+id/dedicated_server_button"
-            android:layout_marginTop="16dp" />
+            android:layout_marginTop="16dp"
+            android:visibility="gone" />
     </RelativeLayout>
 
     <RelativeLayout
         android:id="@+id/play_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:visibility="visible"
-        android:fitsSystemWindows="true">
+        android:fitsSystemWindows="true"
+        android:visibility="gone">
 
         <fragment
+            android:id="@+id/map_fragment"
+            android:name="com.simplecoil.simplecoil.MapFragment"
             android:layout_width="fill_parent"
             android:layout_height="400dp"
-            android:name="com.simplecoil.simplecoil.MapFragment"
-            android:id="@+id/map_fragment"
-            android:visibility="visible"
             android:layout_below="@id/health_pb"
-            android:layout_centerHorizontal="true" />
+            android:layout_centerHorizontal="true"
+            android:visibility="visible" />
 
         <ImageView
             android:id="@+id/battery_iv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
             android:layout_marginStart="10dp"
+            android:layout_marginTop="5dp"
             app:srcCompat="@drawable/ic_battery_full_green_24dp" />
 
         <ImageView
             android:id="@+id/network_status_iv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
             android:layout_marginEnd="5dp"
+            android:layout_marginTop="5dp"
             android:layout_toStartOf="@id/player_count_tv"
             android:visibility="gone"
             app:srcCompat="@drawable/ic_network_connected_24dp" />
@@ -114,18 +114,18 @@
             android:id="@+id/player_count_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:layout_marginEnd="10dp"
             android:layout_alignParentEnd="true"
+            android:layout_marginEnd="10dp"
+            android:layout_marginTop="5dp"
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
         <TextView
             android:id="@+id/eliminations_count_label_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_above="@id/eliminations_count_tv"
             android:layout_marginBottom="0dp"
             android:layout_marginStart="15dp"
-            android:layout_above="@id/eliminations_count_tv"
             android:text="@string/eliminations_count_label"
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
@@ -143,8 +143,8 @@
             android:id="@+id/team_label_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="15dp"
             android:layout_centerHorizontal="true"
+            android:layout_marginTop="15dp"
             android:text="@string/team_label"
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
@@ -153,38 +153,38 @@
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="35dp"
             android:layout_marginStart="15dp"
-            android:visibility="invisible"
-            android:text="-" />
+            android:layout_marginTop="35dp"
+            android:text="-"
+            android:visibility="invisible" />
 
         <Button
             android:id="@+id/team_plus_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="35dp"
-            android:layout_marginEnd="15dp"
             android:layout_alignParentEnd="true"
-            android:visibility="invisible"
-            android:text="+" />
+            android:layout_marginEnd="15dp"
+            android:layout_marginTop="35dp"
+            android:text="+"
+            android:visibility="invisible" />
 
         <Button
             android:id="@+id/player_data_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="35dp"
             android:layout_marginStart="15dp"
-            android:visibility="gone"
-            android:text="@string/scoreboard_button" />
+            android:layout_marginTop="35dp"
+            android:text="@string/scoreboard_button"
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/team_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="40dp"
             android:layout_centerHorizontal="true"
+            android:layout_marginTop="40dp"
             android:text="@string/no_team"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
 
@@ -193,8 +193,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_below="@+id/team_tv"
-            android:layout_marginTop="10dp"
             android:layout_marginStart="15dp"
+            android:layout_marginTop="10dp"
             android:text="@string/shots_remaining_label"
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
@@ -203,27 +203,27 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_below="@+id/shots_label_tv"
-            android:layout_marginTop="0dp"
             android:layout_marginStart="30dp"
+            android:layout_marginTop="0dp"
             android:text="0"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
 
         <ProgressBar
             android:id="@+id/reload_pb"
-            android:visibility="gone"
             android:layout_width="30dp"
             android:layout_height="30dp"
-            android:layout_marginStart="25dp"
             android:layout_below="@+id/shots_label_tv"
-            android:layout_marginTop="0dp"/>
+            android:layout_marginStart="25dp"
+            android:layout_marginTop="0dp"
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/recoil_label_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_below="@+id/team_tv"
-            android:layout_marginTop="10dp"
             android:layout_centerHorizontal="true"
+            android:layout_marginTop="10dp"
             android:text="@string/recoil_label"
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
@@ -231,9 +231,9 @@
             android:id="@+id/recoil_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="0dp"
             android:layout_below="@+id/recoil_label_tv"
             android:layout_centerHorizontal="true"
+            android:layout_marginTop="0dp"
             android:text="@string/recoil_enabled"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
 
@@ -241,10 +241,10 @@
             android:id="@+id/shot_mode_label_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/team_tv"
-            android:layout_marginTop="10dp"
-            android:layout_marginEnd="15dp"
             android:layout_alignParentEnd="true"
+            android:layout_below="@+id/team_tv"
+            android:layout_marginEnd="15dp"
+            android:layout_marginTop="10dp"
             android:text="@string/shot_mode_label"
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
@@ -252,10 +252,10 @@
             android:id="@+id/shot_mode_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
             android:layout_below="@+id/shot_mode_label_tv"
             android:layout_marginEnd="15dp"
             android:layout_marginTop="0dp"
-            android:layout_alignParentEnd="true"
             android:text="@string/shot_mode_single"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
 
@@ -263,11 +263,11 @@
             android:id="@+id/hits_taken_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="30dp"
             android:layout_alignParentEnd="true"
-            android:visibility="gone"
+            android:layout_marginEnd="30dp"
             android:text="0"
-            android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
+            android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse"
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/health_label_tv"
@@ -283,32 +283,46 @@
             android:id="@+id/player_name_label_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/shot_mode_tv"
             android:layout_alignParentEnd="true"
-            android:layout_marginTop="5dp"
+            android:layout_below="@+id/shot_mode_tv"
             android:layout_marginEnd="15dp"
+            android:layout_marginTop="5dp"
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
         <ProgressBar
-            android:id="@+id/health_pb"
+            android:id="@+id/shield_pb"
+            style="@android:style/Widget.ProgressBar.Horizontal"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="30dp"
-            android:layout_marginEnd="30dp"
             android:layout_below="@+id/health_label_tv"
+            android:layout_marginEnd="30dp"
+            android:layout_marginStart="30dp"
             android:layout_marginTop="5dp"
-            android:minHeight="20dip"
             android:maxHeight="20dip"
+            android:minHeight="20dip"
+            android:progress="100"
+            android:progressTint="@android:color/holo_blue_dark" />
+
+        <ProgressBar
+            android:id="@+id/health_pb"
             style="@android:style/Widget.ProgressBar.Horizontal"
-            android:progress="100"/>
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/shield_pb"
+            android:layout_marginEnd="30dp"
+            android:layout_marginStart="30dp"
+            android:layout_marginTop="5dp"
+            android:maxHeight="20dip"
+            android:minHeight="20dip"
+            android:progress="100" />
 
         <ImageView
             android:id="@+id/hit_animation_iv"
-            android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_centerHorizontal="true"
-            android:layout_centerVertical="true"/>
+            android:layout_centerVertical="true"
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/eliminated_tv"
@@ -316,40 +330,40 @@
             android:layout_height="wrap_content"
             android:layout_centerHorizontal="true"
             android:layout_centerVertical="true"
-            android:visibility="invisible"
             android:text="@string/starting_game_label"
-            android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
+            android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse"
+            android:visibility="invisible" />
 
         <TextView
             android:id="@+id/eliminated_by_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_centerHorizontal="true"
             android:layout_below="@+id/eliminated_tv"
+            android:layout_centerHorizontal="true"
             android:layout_marginTop="10dp"
-            android:visibility="invisible"
             android:text=""
-            android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
+            android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse"
+            android:visibility="invisible" />
 
         <TextView
             android:id="@+id/spawn_countdown_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_centerHorizontal="true"
             android:layout_below="@+id/eliminated_by_tv"
+            android:layout_centerHorizontal="true"
             android:layout_marginTop="10dp"
-            android:visibility="gone"
             android:text="@string/spawn_in_label"
-            android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
+            android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse"
+            android:visibility="gone" />
 
         <Button
             android:id="@+id/start_game_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="7dp"
-            android:layout_marginStart="15dp"
             android:layout_below="@id/health_pb"
+            android:layout_marginStart="15dp"
+            android:layout_marginTop="7dp"
             android:text="@string/start_game_button" />
 
         <Button
@@ -357,10 +371,10 @@
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="7dp"
-            android:layout_marginEnd="15dp"
             android:layout_alignParentEnd="true"
             android:layout_below="@id/health_pb"
+            android:layout_marginEnd="15dp"
+            android:layout_marginTop="7dp"
             android:text="@string/player_settings_button" />
 
         <Button
@@ -368,11 +382,11 @@
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_alignParentBottom="true"
             android:layout_centerHorizontal="true"
             android:layout_marginBottom="10dp"
-            android:layout_alignParentBottom="true"
-            android:visibility="gone"
-            android:text="@string/end_game_button" />
+            android:text="@string/end_game_button"
+            android:visibility="gone" />
 
         <Button
             android:id="@+id/use_network_button"
@@ -388,9 +402,9 @@
             android:id="@+id/server_ip_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_toEndOf="@id/use_network_button"
             android:layout_alignBaseline="@+id/use_network_button"
             android:layout_marginStart="5dp"
+            android:layout_toEndOf="@id/use_network_button"
             android:text=""
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
@@ -418,8 +432,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentBottom="true"
-            android:layout_marginBottom="10dp"
             android:layout_centerHorizontal="true"
+            android:layout_marginBottom="10dp"
             android:text="@string/game_mode_2teams"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
 
@@ -428,9 +442,9 @@
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_above="@id/eliminations_count_label_tv"
             android:layout_marginBottom="0dp"
             android:layout_marginStart="15dp"
-            android:layout_above="@id/eliminations_count_label_tv"
             android:text="@string/game_limit_button" />
 
         <TextView
@@ -438,8 +452,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_above="@id/score_tv"
-            android:layout_marginEnd="15dp"
             android:layout_alignParentEnd="true"
+            android:layout_marginEnd="15dp"
             android:text="@string/score_label"
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
@@ -448,9 +462,9 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentBottom="true"
-            android:layout_marginEnd="15dp"
-            android:layout_marginBottom="10dp"
             android:layout_alignParentEnd="true"
+            android:layout_marginBottom="10dp"
+            android:layout_marginEnd="15dp"
             android:text="0"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
 
@@ -459,97 +473,97 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_above="@id/team_score_tv"
-            android:layout_marginEnd="15dp"
             android:layout_alignParentEnd="true"
+            android:layout_marginEnd="15dp"
             android:text="@string/team_score_label"
-            android:visibility="invisible"
-            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse"
+            android:visibility="invisible" />
 
         <TextView
             android:id="@+id/team_score_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="15dp"
-            android:layout_marginBottom="10dp"
-            android:layout_alignParentEnd="true"
             android:layout_above="@id/score_label_tv"
+            android:layout_alignParentEnd="true"
+            android:layout_marginBottom="10dp"
+            android:layout_marginEnd="15dp"
             android:text="0"
-            android:visibility="invisible"
-            android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
+            android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse"
+            android:visibility="invisible" />
 
         <Button
             android:id="@+id/end_network_game_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_above="@id/game_mode_label_tv"
             android:layout_centerHorizontal="true"
             android:layout_marginBottom="10dp"
-            android:layout_above="@id/game_mode_label_tv"
-            android:visibility="gone"
-            android:text="@string/end_game_button" />
+            android:text="@string/end_game_button"
+            android:visibility="gone" />
 
         <ImageView
             android:id="@+id/hit_player_iv"
-            android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_below="@+id/health_pb"
             android:layout_marginStart="10dp"
             android:layout_marginTop="10dp"
-            android:layout_below="@+id/health_pb" />
+            android:visibility="gone" />
 
         <TextView
             android:id="@+id/hit_player_name_tv"
-            android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_below="@+id/hit_player_iv"
             android:layout_marginStart="10dp"
             android:layout_marginTop="5dp"
             android:text=""
-            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse"
+            android:visibility="gone" />
 
         <ImageView
             android:id="@+id/shots_fired_iv"
-            android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="10dp"
             android:layout_alignParentEnd="true"
-            android:layout_marginTop="10dp"
             android:layout_below="@+id/health_pb"
+            android:layout_marginEnd="10dp"
+            android:layout_marginTop="10dp"
+            android:visibility="gone"
             app:srcCompat="@drawable/ic_flare_red_50dp" />
 
         <ImageView
             android:id="@+id/score_increase_iv"
-            android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_toStartOf="@id/team_score_label_tv"
+            android:layout_above="@+id/score_label_tv"
             android:layout_marginEnd="10dp"
             android:layout_marginTop="10dp"
-            android:layout_above="@+id/score_label_tv"
+            android:layout_toStartOf="@id/team_score_label_tv"
+            android:visibility="gone"
             app:srcCompat="@drawable/ic_add_circle_green_50dp" />
 
         <TextView
             android:id="@+id/score_increase_player_name_tv"
-            android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_above="@+id/score_increase_iv"
-            android:layout_toStartOf="@id/team_score_label_tv"
-            android:layout_marginEnd="10dp"
             android:layout_marginBottom="5dp"
+            android:layout_marginEnd="10dp"
+            android:layout_toStartOf="@id/team_score_label_tv"
             android:text=""
-            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse"
+            android:visibility="gone" />
 
         <Chronometer
             android:id="@+id/game_timer_chronometer"
             style="@android:style/TextAppearance.Material.Small.Inverse"
-            android:format="%s"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignTop="@+id/health_label_tv"
-            android:layout_marginStart="15dp"/>
+            android:layout_marginStart="15dp"
+            android:format="%s" />
 
         <TextView
             android:id="@+id/game_countdown_tv"

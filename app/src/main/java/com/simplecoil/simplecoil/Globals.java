@@ -41,6 +41,8 @@ public class Globals {
     public volatile int mFullHealth = MAX_HEALTH;
     public static final int DAMAGE_PER_HIT = -1;
     public volatile int mDamage = DAMAGE_PER_HIT;
+    public static final int MAX_SHIELDS = 5;
+    public volatile int mFullShields = MAX_SHIELDS;
     public volatile boolean mOverrideLives = false;
     public volatile int mOverrideLivesVal = 0;
     public volatile boolean mAllowPlayerSettings = true;
