@@ -220,6 +220,8 @@ public class BluetoothLeService extends Service {
             final Intent intent = new Intent(TELEMETRY_DATA_AVAILABLE);
             sendBroadcast(intent);
         } else if (UUID_RECOIL_ID.equals((characteristic.getUuid()))) {
+            int firmwareVer = (characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0) << 8) + characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 1);
+            Log.d(TAG, "Firmware version: " + firmwareVer);
             // This gets the blaster type, 1 for rifle and 2 for pistol
             final Intent intent = new Intent(ID_DATA_AVAILABLE);
             final byte[] data = characteristic.getValue();
