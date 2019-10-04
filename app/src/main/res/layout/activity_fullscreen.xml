@@ -46,11 +46,21 @@
             android:layout_below="@id/reconnect_weapon_button"
             android:text="@string/connect_weapon_button" />
 
+        <Button
+            android:id="@+id/connect_qr_weapon_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:layout_centerHorizontal="true"
+            android:layout_below="@id/connect_weapon_button"
+            android:text="@string/connect_qr_weapon_button" />
+
         <TextView
             android:id="@+id/connect_status_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/connect_weapon_button"
+            android:layout_below="@+id/connect_qr_weapon_button"
             android:layout_marginTop="15dp"
             android:layout_centerHorizontal="true"
             android:text="@string/connect_status_not_connected"

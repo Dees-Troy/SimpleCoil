@@ -39,6 +39,7 @@ import android.graphics.drawable.AnimationDrawable;
 import android.media.MediaPlayer;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.net.Uri;
 import android.os.Build;
 import android.os.CountDownTimer;
 import android.os.Handler;
@@ -90,11 +91,15 @@ import java.util.concurrent.TimeUnit;
 public class FullscreenActivity extends AppCompatActivity implements PopupMenu.OnMenuItemClickListener {
     private static final String TAG = "scmain";
 
+    private static final int REQUEST_ENABLE_BT = 1;
+    private static final int REQUEST_QR_SCAN = 2;
+
     // For testing and debugging network only -- dumps you straight to the play game layout and allows you to switch teams without connecting a blaster
     private static final boolean TEST_NETWORK = false;
 
     private Button mReconnectButton = null;
     private Button mConnectButton = null;
+    private Button mQRConnectButton = null;
     private Button mDedicatedServerButton = null;
     private Button mTeamMinusButton = null;
     private Button mTeamPlusButton = null;
@@ -419,6 +424,22 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 public void onClick(View v) {
                     mDeviceAddress = "";
                     connectWeapon();
+                }
+            }));
+        }
+        mQRConnectButton = findViewById(R.id.connect_qr_weapon_button);
+        if (mQRConnectButton != null) {
+            mQRConnectButton.setOnClickListener((new View.OnClickListener() {
+                public void onClick(View v) {
+                    try {
+                        Intent intent = new Intent("com.google.zxing.client.android.SCAN");
+                        intent.putExtra("SCAN_MODE", "QR_CODE_MODE"); // "PRODUCT_MODE for bar codes
+                        startActivityForResult(intent, REQUEST_QR_SCAN);
+                    } catch (Exception e) {
+                        Uri marketUri = Uri.parse("market://details?id=com.google.zxing.client.android");
+                        Intent marketIntent = new Intent(Intent.ACTION_VIEW,marketUri);
+                        startActivity(marketIntent);
+                    }
                 }
             }));
         }
@@ -1635,6 +1656,30 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         }
     };
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        Log.e(TAG, "onActivityResult " + requestCode);
+        if (requestCode == REQUEST_QR_SCAN) {
+
+            if (resultCode == RESULT_OK) {
+                mDeviceAddress = data.getStringExtra("SCAN_RESULT");
+                if (mDeviceAddress != null && !mDeviceAddress.isEmpty()) {
+                    Log.e(TAG, "Got QR: " + mDeviceAddress);
+                    connectWeapon();
+                } else {
+                    Log.e(TAG, "Did not get any good QR result");
+                }
+            }
+            if(resultCode == RESULT_CANCELED){
+                //handle cancel
+                Log.e(TAG, "QR cancel");
+            }
+        } else if (requestCode == REQUEST_ENABLE_BT) {
+            connectWeapon();
+        }
+    }
+
     private void connectWeapon() {
         if (TEST_NETWORK) {
             RelativeLayout connectLayout = findViewById(R.id.connect_layout);
@@ -1678,7 +1723,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             Intent intentBtEnabled = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             // The REQUEST_ENABLE_BT constant passed to startActivityForResult() is a locally defined integer (which must be greater than 0), that the system passes back to you in your onActivityResult()
             // implementation as the requestCode parameter.
-            int REQUEST_ENABLE_BT = 1;
             startActivityForResult(intentBtEnabled, REQUEST_ENABLE_BT);
             return;
         }
@@ -1698,6 +1742,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mConnectButton.setEnabled(false);
         mReconnectButton.setEnabled(false);
         mDedicatedServerButton.setEnabled(false);
+        mQRConnectButton.setEnabled(false);
         mScanning = true;
         TextView connectStatusTV = findViewById(R.id.connect_status_tv);
         if (connectStatusTV != null) {
@@ -1754,6 +1799,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mConnectButton.setEnabled(true);
         mReconnectButton.setEnabled(true);
         mDedicatedServerButton.setEnabled(true);
+        mQRConnectButton.setEnabled(true);
         TextView connectStatusTV = findViewById(R.id.connect_status_tv);
         if (connectStatusTV != null) connectStatusTV.setText(R.string.connect_status_not_connected);
         mLastShotCount = 0;
@@ -1846,10 +1892,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             } else if (BluetoothLeService.ID_DATA_AVAILABLE.equals(action)) {
                 mBlasterType = intent.getByteExtra(BluetoothLeService.EXTRA_DATA, BLASTER_TYPE_PISTOL);
                 if (mBlasterType == BLASTER_TYPE_RIFLE) {
-                    Toast.makeText(getApplicationContext(), getString(R.string.rifle_detected_toast), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getApplicationContext(), getString(R.string.rifle_detected_toast, mDeviceAddress), Toast.LENGTH_LONG).show();
                 } else {
                     // We'll automatically assume that this is a pistol
-                    Toast.makeText(getApplicationContext(), getString(R.string.pistol_detected_toast), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getApplicationContext(), getString(R.string.pistol_detected_toast, mDeviceAddress), Toast.LENGTH_LONG).show();
                 }
             } else if (BluetoothLeService.CHARACTERISTIC_WRITE_FINISHED.equals(action)) {
                 if (mReloading == RELOADING_STATE_STARTED) {
