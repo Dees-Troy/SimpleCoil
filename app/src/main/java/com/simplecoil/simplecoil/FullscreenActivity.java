@@ -347,6 +347,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             }
         };
         Intent gattServiceIntent = new Intent(getBaseContext(), BluetoothLeService.class);
+        ContextCompat.startForegroundService(getBaseContext(), gattServiceIntent);
         bindService(gattServiceIntent, mBLEServiceConnection, BIND_AUTO_CREATE);
     }
 
@@ -2207,6 +2208,12 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
                 permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION);
+            }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS);
             }
         }
 

@@ -131,6 +131,7 @@ public class BlasterManager {
 
         if (!isBound) {
             Intent gattServiceIntent = new Intent(context, BluetoothLeService.class);
+            ContextCompat.startForegroundService(context, gattServiceIntent);
             context.bindService(gattServiceIntent, serviceConnection, Context.BIND_AUTO_CREATE);
             isBound = true;
         } else if (bluetoothLeService != null) {
