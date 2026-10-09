@@ -178,16 +178,18 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
                     capacity = sizes[row.teamNumber - 1];
                 }
                 int teamScore = 0;
+                int playerCount = 0;
                 int startID = Globals.getInstance().getTeamStartID(row.teamNumber);
                 int endID = Globals.getInstance().getTeamEndID(row.teamNumber);
                 if (data != null) {
                     for (int pId = startID; pId <= endID; pId++) {
                         if (pId < data.length && data[pId] != null) {
                             teamScore += data[pId].points;
+                            playerCount++;
                         }
                     }
                 }
-                titleTV.setText(context.getString(R.string.player_list_team_header, row.teamNumber, capacity, teamScore));
+                titleTV.setText(context.getString(R.string.player_list_team_header, row.teamNumber, playerCount, capacity, teamScore));
                 if (canEdit) {
                     actionTV.setVisibility(View.VISIBLE);
                     actionTV.setText("Tap to edit ratio");
