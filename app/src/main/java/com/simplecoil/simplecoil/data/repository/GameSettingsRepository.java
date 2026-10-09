@@ -171,7 +171,7 @@ public class GameSettingsRepository {
     public void setReloadOnEmpty(boolean reloadOnEmpty) { this.reloadOnEmpty = reloadOnEmpty; }
 
     public int getGameMode() { return gameMode; }
-    public void setGameMode(int gameMode) {
+    public synchronized void setGameMode(int gameMode) {
         if (this.gameMode != gameMode) {
             this.gameMode = gameMode;
             resetDefaultTeamSizes();
@@ -180,6 +180,14 @@ public class GameSettingsRepository {
 
     public int getGameLimit() { return gameLimit; }
     public void setGameLimit(int gameLimit) { this.gameLimit = gameLimit; }
+
+    public synchronized void addGameLimitFlag(int flag) {
+        this.gameLimit |= flag;
+    }
+
+    public synchronized void removeGameLimitFlag(int flag) {
+        this.gameLimit &= ~flag;
+    }
 
     public int getTimeLimit() { return timeLimit; }
     public void setTimeLimit(int timeLimit) { this.timeLimit = timeLimit; }

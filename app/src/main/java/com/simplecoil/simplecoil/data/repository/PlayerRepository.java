@@ -84,6 +84,17 @@ public class PlayerRepository {
         return grenadePairings.clone();
     }
 
+    public int[] getGrenadePairingsInternal() {
+        return grenadePairings;
+    }
+
+    public synchronized int getGrenadePairing(int index) {
+        if (index >= 0 && index < MAX_GRENADE_IDS) {
+            return grenadePairings[index];
+        }
+        return INVALID_PLAYER_ID;
+    }
+
     public synchronized void setGrenadePairing(int index, int value) {
         if (index >= 0 && index < MAX_GRENADE_IDS) {
             grenadePairings[index] = value;

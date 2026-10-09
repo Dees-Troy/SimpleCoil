@@ -126,7 +126,7 @@ public class Globals {
         mTeamPlayerNameMap = playerRepo.getTeamPlayerNameMap();
         mGPSData = playerRepo.getGpsData();
         mPlayerSettings = playerRepo.getPlayerSettings();
-        mGrenadePairings = playerRepo.getGrenadePairings();
+        mGrenadePairings = playerRepo.getGrenadePairingsInternal();
 
         mIPTeamMapSemaphore = new Semaphore(1);
         mTeamIPMapSemaphore = new Semaphore(1);
@@ -139,55 +139,56 @@ public class Globals {
     public static synchronized Globals getInstance() {
         if (mInstance == null) {
             mInstance = new Globals();
+            mInstance.syncToRepositories();
         }
+        return mInstance;
+    }
 
-        // Sync legacy fields with repositories
+    public void syncToRepositories() {
         GameSettingsRepository settings = GameSettingsRepository.getInstance();
         GameStateRepository gameState = GameStateRepository.getInstance();
         PlayerRepository player = PlayerRepository.getInstance();
 
-        settings.setGameMode(mInstance.mGameMode);
-        settings.setGameLimit(mInstance.mGameLimit);
-        settings.setTimeLimit(mInstance.mTimeLimit);
-        settings.setScoreLimit(mInstance.mScoreLimit);
-        settings.setLivesLimit(mInstance.mLivesLimit);
-        settings.setGpsMode(mInstance.mGPSMode);
-        settings.setUseGPS(mInstance.mUseGPS);
-        settings.setFullHealth(mInstance.mFullHealth);
-        settings.setFullReload(mInstance.mFullReload);
-        settings.setReloadTime(mInstance.mReloadTime);
-        settings.setRespawnTime(mInstance.mRespawnTime);
-        settings.setDamage(mInstance.mDamage);
-        settings.setOverrideLives(mInstance.mOverrideLives);
-        settings.setOverrideLivesVal(mInstance.mOverrideLivesVal);
-        settings.setAllowPlayerSettings(mInstance.mAllowPlayerSettings);
-        settings.setReloadOnEmpty(mInstance.mReloadOnEmpty);
-        settings.setOnlyServerSettings(mInstance.mOnlyServerSettings);
-        settings.setServerRecoilSetting(mInstance.mServerRecoilSetting);
-        settings.setCurrentFiringMode(mInstance.mCurrentFiringMode);
-        settings.setAllowSingleShotMode(mInstance.mAllowSingleShotMode);
-        settings.setAllowBurst3ShotMode(mInstance.mAllowBurst3ShotMode);
-        settings.setAllowAutoShotMode(mInstance.mAllowAutoShotMode);
+        settings.setGameMode(mGameMode);
+        settings.setGameLimit(mGameLimit);
+        settings.setTimeLimit(mTimeLimit);
+        settings.setScoreLimit(mScoreLimit);
+        settings.setLivesLimit(mLivesLimit);
+        settings.setGpsMode(mGPSMode);
+        settings.setUseGPS(mUseGPS);
+        settings.setFullHealth(mFullHealth);
+        settings.setFullReload(mFullReload);
+        settings.setReloadTime(mReloadTime);
+        settings.setRespawnTime(mRespawnTime);
+        settings.setDamage(mDamage);
+        settings.setOverrideLives(mOverrideLives);
+        settings.setOverrideLivesVal(mOverrideLivesVal);
+        settings.setAllowPlayerSettings(mAllowPlayerSettings);
+        settings.setReloadOnEmpty(mReloadOnEmpty);
+        settings.setOnlyServerSettings(mOnlyServerSettings);
+        settings.setServerRecoilSetting(mServerRecoilSetting);
+        settings.setCurrentFiringMode(mCurrentFiringMode);
+        settings.setAllowSingleShotMode(mAllowSingleShotMode);
+        settings.setAllowBurst3ShotMode(mAllowBurst3ShotMode);
+        settings.setAllowAutoShotMode(mAllowAutoShotMode);
 
-        gameState.setGameState(mInstance.mGameState);
-        gameState.setServerGameTimeRemaining(mInstance.mServerGameTimeRemaining);
-        gameState.setServerIP(mInstance.mServerIP);
+        gameState.setGameState(mGameState);
+        gameState.setServerGameTimeRemaining(mServerGameTimeRemaining);
+        gameState.setServerIP(mServerIP);
 
-        player.setPlayerID(mInstance.mPlayerID);
-        player.setPlayerName(mInstance.mPlayerName);
-        player.setAdmin(mInstance.mIsAdmin);
-        player.setPairedGrenadeID(mInstance.mPairedGrenadeID);
-
-        return mInstance;
+        player.setPlayerID(mPlayerID);
+        player.setPlayerName(mPlayerName);
+        player.setAdmin(mIsAdmin);
+        player.setPairedGrenadeID(mPairedGrenadeID);
     }
 
-    public void resetDefaultTeamSizes() {
+    public synchronized void resetDefaultTeamSizes() {
         GameSettingsRepository.getInstance().setGameMode(mGameMode);
         GameSettingsRepository.getInstance().resetDefaultTeamSizes();
         mTeamSizes = GameSettingsRepository.getInstance().getTeamSizes();
     }
 
-    public void setTeamSizes(int[] sizes) {
+    public synchronized void setTeamSizes(int[] sizes) {
         GameSettingsRepository.getInstance().setGameMode(mGameMode);
         GameSettingsRepository.getInstance().setTeamSizes(sizes);
         if (sizes != null) {
@@ -195,7 +196,7 @@ public class Globals {
         }
     }
 
-    public int[] getTeamSizes() {
+    public synchronized int[] getTeamSizes() {
         GameSettingsRepository.getInstance().setGameMode(mGameMode);
         mTeamSizes = GameSettingsRepository.getInstance().getTeamSizes();
         return mTeamSizes;
@@ -254,54 +255,87 @@ public class Globals {
     }
 
     public static class GPSData {
-        public double latitude = 0;
-        public double longitude = 0;
-        public int team = 0;
-        public boolean hasUpdate = false;
+        public volatile double latitude = 0;
+        public volatile double longitude = 0;
+        public volatile int team = 0;
+        public volatile boolean hasUpdate = false;
     }
 
     public static class PlayerSettings {
-        public int health = Globals.MAX_HEALTH;
-        public byte shots = Globals.RELOAD_COUNT;
-        public long reloadTime = Globals.RELOAD_TIME_MILLISECONDS;
-        public boolean reloadOnEmpty = false;
-        public long spawnTime = Globals.RESPAWN_TIME_SECONDS;
-        public int damage = Globals.DAMAGE_PER_HIT;
-        public boolean overrideLives = false;
-        public int lives = 0;
-        public boolean allowShotModeSingle = true;
-        public boolean allowShotModeBurst3 = true;
-        public boolean allowShotModeAuto = true;
-        public int firingMode = FIRING_MODE_OUTDOOR_NO_CONE;
-        public int recoilSetting = RECOIL_SETTING_DEFAULT;
-        public boolean isAdmin = false;
+        public volatile int health = Globals.MAX_HEALTH;
+        public volatile byte shots = Globals.RELOAD_COUNT;
+        public volatile long reloadTime = Globals.RELOAD_TIME_MILLISECONDS;
+        public volatile boolean reloadOnEmpty = false;
+        public volatile long spawnTime = Globals.RESPAWN_TIME_SECONDS;
+        public volatile int damage = Globals.DAMAGE_PER_HIT;
+        public volatile boolean overrideLives = false;
+        public volatile int lives = 0;
+        public volatile boolean allowShotModeSingle = true;
+        public volatile boolean allowShotModeBurst3 = true;
+        public volatile boolean allowShotModeAuto = true;
+        public volatile int firingMode = FIRING_MODE_OUTDOOR_NO_CONE;
+        public volatile int recoilSetting = RECOIL_SETTING_DEFAULT;
+        public volatile boolean isAdmin = false;
     }
 
     public static void getmIPTeamMapSemaphore() {
         getInstance().mIPTeamMapSemaphore.acquireUninterruptibly();
     }
 
+    public static void releaseIPTeamMapSemaphore() {
+        getInstance().mIPTeamMapSemaphore.release();
+    }
+
     public static void getmTeamIPMapSemaphore() {
         getInstance().mTeamIPMapSemaphore.acquireUninterruptibly();
+    }
+
+    public static void releaseTeamIPMapSemaphore() {
+        getInstance().mTeamIPMapSemaphore.release();
     }
 
     public static void getmTeamPlayerNameSemaphore() {
         getInstance().mTeamPlayerNameSemaphore.acquireUninterruptibly();
     }
 
+    public static void releaseTeamPlayerNameSemaphore() {
+        getInstance().mTeamPlayerNameSemaphore.release();
+    }
+
     public static void getmGPSDataSemaphore() {
         getInstance().mGPSDataSemaphore.acquireUninterruptibly();
+    }
+
+    public static void releaseGPSDataSemaphore() {
+        getInstance().mGPSDataSemaphore.release();
     }
 
     public static void getmPlayerSettingsSemaphore() {
         getInstance().mPlayerSettingsSemaphore.acquireUninterruptibly();
     }
 
+    public static void releasePlayerSettingsSemaphore() {
+        getInstance().mPlayerSettingsSemaphore.release();
+    }
+
     public static void getmGrenadePairingsSemaphore() {
         getInstance().mGrenadePairingsSemaphore.acquireUninterruptibly();
     }
 
+    public static void releaseGrenadePairingsSemaphore() {
+        getInstance().mGrenadePairingsSemaphore.release();
+    }
+
     public static void ClearGrenadePairings(boolean getSemaphore) {
-        PlayerRepository.getInstance().clearGrenadePairings();
+        if (getSemaphore) {
+            getmGrenadePairingsSemaphore();
+        }
+        try {
+            PlayerRepository.getInstance().clearGrenadePairings();
+        } finally {
+            if (getSemaphore) {
+                releaseGrenadePairingsSemaphore();
+            }
+        }
     }
 }
