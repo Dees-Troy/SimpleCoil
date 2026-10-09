@@ -24,7 +24,6 @@ import android.graphics.BitmapFactory;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 
@@ -247,28 +246,32 @@ public class MapLocationManager {
         Bitmap teammateIcon = BitmapFactory.decodeResource(context.getResources(), R.drawable.ic_gps_teammate);
         Bitmap enemyIcon = BitmapFactory.decodeResource(context.getResources(), R.drawable.ic_gps_enemy);
 
-        for (Map.Entry<Byte, Globals.GPSData> entry : gpsDataMap.entrySet()) {
-            Byte pid = entry.getKey();
-            Globals.GPSData data = entry.getValue();
-            if (pid != null && pid != currentPlayerId && data != null && data.hasUpdate) {
-                data.hasUpdate = false;
-                removePlayerMarker(mapControl, pid, playerMarkers);
+        for (int x = 0; x <= Globals.MAX_PLAYER_ID; x++) {
+            if (x == currentPlayerId) continue;
+            Byte pid = (byte) x;
+            if (gpsDataMap.containsKey(pid)) {
+                Globals.GPSData data = gpsDataMap.get(pid);
+                if (data != null) {
+                    boolean isTeammate = (currentTeam != -1 && data.team == currentTeam);
+                    boolean isAllowed = isTeammate || (settingsRepo.getGpsMode() == GameSettingsRepository.GPS_ALL);
+                    if (!isAllowed) {
+                        removePlayerMarker(mapControl, x, playerMarkers);
+                        data.hasUpdate = false;
+                    } else if (data.hasUpdate || (x >= 0 && x < playerMarkers.length && playerMarkers[x] == null)) {
+                        data.hasUpdate = false;
+                        removePlayerMarker(mapControl, x, playerMarkers);
 
-                ScreenMarker playerMarker = new ScreenMarker();
-                playerMarker.loc = Point2d.FromDegrees(data.longitude, data.latitude);
-                playerMarker.size = markerSize;
-
-                if (data.team == currentTeam) {
-                    playerMarker.image = teammateIcon;
-                    if (pid >= 0 && pid < playerMarkers.length) {
-                        playerMarkers[pid] = mapControl.addScreenMarker(playerMarker, markerInfo, MaplyBaseController.ThreadMode.ThreadCurrent);
-                    }
-                } else if (settingsRepo.getGpsMode() == GameSettingsRepository.GPS_ALL) {
-                    playerMarker.image = enemyIcon;
-                    if (pid >= 0 && pid < playerMarkers.length) {
-                        playerMarkers[pid] = mapControl.addScreenMarker(playerMarker, markerInfo, MaplyBaseController.ThreadMode.ThreadCurrent);
+                        ScreenMarker playerMarker = new ScreenMarker();
+                        playerMarker.loc = Point2d.FromDegrees(data.longitude, data.latitude);
+                        playerMarker.size = markerSize;
+                        playerMarker.image = isTeammate ? teammateIcon : enemyIcon;
+                        if (x >= 0 && x < playerMarkers.length) {
+                            playerMarkers[x] = mapControl.addScreenMarker(playerMarker, markerInfo, MaplyBaseController.ThreadMode.ThreadCurrent);
+                        }
                     }
                 }
+            } else {
+                removePlayerMarker(mapControl, x, playerMarkers);
             }
         }
     }

@@ -50,7 +50,6 @@ import com.mousebird.maply.ScreenMarker;
 import com.mousebird.maply.SphericalMercatorCoordSystem;
 
 import java.io.File;
-import java.util.Map;
 
 public class MapFragment extends GlobeMapFragment {
     private static final String TAG = "map";
@@ -285,10 +284,11 @@ public class MapFragment extends GlobeMapFragment {
                 sendLocation(currentBestLocation);
                 insertYourMarker();
             }
+            insertPlayerMarkers();
         } else {
+            removeAllPlayerMarkers();
+            removeYourMarker();
             if (mLocationListener != null) {
-                removeAllPlayerMarkers();
-                removeYourMarker();
                 mLocationManager.removeUpdates(mLocationListener);
                 mLocationListener = null;
             }
@@ -365,6 +365,7 @@ public class MapFragment extends GlobeMapFragment {
     }
 
     private void insertPlayerMarkers() {
+        if (mapControl == null) return;
         MarkerInfo markerInfo = new MarkerInfo();
         Point2d markerSize = new Point2d(72, 72);
         // Add other players to the map
@@ -374,20 +375,30 @@ public class MapFragment extends GlobeMapFragment {
         Bitmap teammate = BitmapFactory.decodeResource(getActivity().getResources(), R.drawable.ic_gps_teammate);
         Bitmap enemy = BitmapFactory.decodeResource(getActivity().getResources(), R.drawable.ic_gps_enemy);
         Globals.getmGPSDataSemaphore();
-        for (Map.Entry<Byte, Globals.GPSData> entry : Globals.getInstance().mGPSData.entrySet()) {
-            if (entry.getKey() != Globals.getInstance().mPlayerID && entry.getValue().hasUpdate) {
-                entry.getValue().hasUpdate = false;
-                removePlayerMarker(entry.getKey());
-                ScreenMarker player = new ScreenMarker();
-                player.loc = Point2d.FromDegrees(entry.getValue().longitude, entry.getValue().latitude);
-                player.size = markerSize;
-                if (entry.getValue().team == currentTeam) {
-                    player.image = teammate;
-                    mPlayerMarkers[entry.getKey()] = mapControl.addScreenMarker(player, markerInfo, MaplyBaseController.ThreadMode.ThreadCurrent);
-                } else if (Globals.getInstance().mGPSMode == Globals.GPS_ALL) {
-                    player.image = enemy;
-                    mPlayerMarkers[entry.getKey()] = mapControl.addScreenMarker(player, markerInfo, MaplyBaseController.ThreadMode.ThreadCurrent);
+        for (int x = 0; x <= Globals.MAX_PLAYER_ID; x++) {
+            if (x == Globals.getInstance().mPlayerID) continue;
+            Byte pid = (byte) x;
+            if (Globals.getInstance().mGPSData.containsKey(pid)) {
+                Globals.GPSData data = Globals.getInstance().mGPSData.get(pid);
+                if (data != null) {
+                    boolean isTeammate = (currentTeam != -1 && data.team == currentTeam);
+                    boolean isAllowed = isTeammate || (Globals.getInstance().mGPSMode == Globals.GPS_ALL);
+                    if (!isAllowed) {
+                        removePlayerMarker(x);
+                        data.hasUpdate = false;
+                    } else if (data.hasUpdate || mPlayerMarkers[x] == null) {
+                        data.hasUpdate = false;
+                        removePlayerMarker(x);
+
+                        ScreenMarker player = new ScreenMarker();
+                        player.loc = Point2d.FromDegrees(data.longitude, data.latitude);
+                        player.size = markerSize;
+                        player.image = isTeammate ? teammate : enemy;
+                        mPlayerMarkers[x] = mapControl.addScreenMarker(player, markerInfo, MaplyBaseController.ThreadMode.ThreadCurrent);
+                    }
                 }
+            } else {
+                removePlayerMarker(x);
             }
         }
         Globals.getInstance().mGPSDataSemaphore.release();
