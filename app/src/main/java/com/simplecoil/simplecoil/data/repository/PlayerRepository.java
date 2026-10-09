@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class PlayerRepository {
@@ -115,13 +116,34 @@ public class PlayerRepository {
     }
 
     public synchronized byte findAutoSortPlayerID() {
+        return findAutoSortPlayerID(null);
+    }
+
+    public synchronized byte findAutoSortPlayerID(Set<Byte> additionalOccupiedIDs) {
         GameSettingsRepository settings = GameSettingsRepository.getInstance();
         int gameMode = settings.getGameMode();
         int maxPlayers = GameSettingsRepository.MAX_PLAYER_ID;
 
+        boolean[] occupied = new boolean[maxPlayers + 1];
+        if (playerID != 0 && playerID <= maxPlayers) {
+            occupied[playerID] = true;
+        }
+        for (byte id : teamIPMap.keySet()) {
+            if (id >= 1 && id <= maxPlayers) {
+                occupied[id] = true;
+            }
+        }
+        if (additionalOccupiedIDs != null) {
+            for (byte id : additionalOccupiedIDs) {
+                if (id >= 1 && id <= maxPlayers) {
+                    occupied[id] = true;
+                }
+            }
+        }
+
         if (gameMode == GameSettingsRepository.GAME_MODE_FFA) {
             for (byte i = 1; i <= maxPlayers; i++) {
-                if (i != playerID && !teamIPMap.containsKey(i)) {
+                if (!occupied[i]) {
                     return i;
                 }
             }
@@ -131,7 +153,7 @@ public class PlayerRepository {
             int[] teamCounts = new int[numTeams + 1];
 
             for (byte i = 1; i <= maxPlayers; i++) {
-                if (i == playerID || teamIPMap.containsKey(i)) {
+                if (occupied[i]) {
                     int team = calcNetworkTeam(i);
                     if (team >= 1 && team <= numTeams) {
                         teamCounts[team]++;
@@ -157,14 +179,14 @@ public class PlayerRepository {
                 int endID = settings.getTeamEndID(bestTeam);
                 for (int i = startID; i <= endID; i++) {
                     byte testID = (byte) i;
-                    if (testID != playerID && !teamIPMap.containsKey(testID)) {
+                    if (!occupied[testID]) {
                         return testID;
                     }
                 }
             }
 
             for (byte i = 1; i <= maxPlayers; i++) {
-                if (i != playerID && !teamIPMap.containsKey(i)) {
+                if (!occupied[i]) {
                     return i;
                 }
             }
@@ -173,6 +195,10 @@ public class PlayerRepository {
     }
 
     public synchronized byte findOpenPlayerIDOnTeam(int targetTeam) {
+        return findOpenPlayerIDOnTeam(targetTeam, null);
+    }
+
+    public synchronized byte findOpenPlayerIDOnTeam(int targetTeam, Set<Byte> additionalOccupiedIDs) {
         GameSettingsRepository settings = GameSettingsRepository.getInstance();
         int gameMode = settings.getGameMode();
         int numTeams = (gameMode == GameSettingsRepository.GAME_MODE_4TEAMS) ? 4 : 2;
@@ -180,12 +206,30 @@ public class PlayerRepository {
             return 0;
         }
 
+        int maxPlayers = GameSettingsRepository.MAX_PLAYER_ID;
+        boolean[] occupied = new boolean[maxPlayers + 1];
+        if (playerID != 0 && playerID <= maxPlayers) {
+            occupied[playerID] = true;
+        }
+        for (byte id : teamIPMap.keySet()) {
+            if (id >= 1 && id <= maxPlayers) {
+                occupied[id] = true;
+            }
+        }
+        if (additionalOccupiedIDs != null) {
+            for (byte id : additionalOccupiedIDs) {
+                if (id >= 1 && id <= maxPlayers) {
+                    occupied[id] = true;
+                }
+            }
+        }
+
         int startID = settings.getTeamStartID(targetTeam);
         int endID = settings.getTeamEndID(targetTeam);
 
         for (int i = startID; i <= endID; i++) {
             byte testID = (byte) i;
-            if (testID != playerID && !teamIPMap.containsKey(testID)) {
+            if (!occupied[testID]) {
                 return testID;
             }
         }

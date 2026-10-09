@@ -794,60 +794,60 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         mTcpServer.lockAccess();
         Globals.getmTeamPlayerNameSemaphore();
         Globals.getmPlayerSettingsSemaphore();
-        int[] teamPoints = new int[4];
-        for (int i = 0; i < 4; i++)
-            teamPoints[i] = 0;
-        for (byte x = 0; x <= Globals.MAX_PLAYER_ID + 1; x++) {
-            if (x == Globals.MAX_PLAYER_ID + 1) {
-                // Team totals
-                if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
-                    String total;
-                    if (Globals.getInstance().mGameMode == Globals.GAME_MODE_2TEAMS) {
-                        total = getString(R.string.player_list_team2_total, teamPoints[0], teamPoints[1]);
+        try {
+            int[] teamPoints = new int[4];
+            for (int i = 0; i < 4; i++)
+                teamPoints[i] = 0;
+            for (byte x = 0; x <= Globals.MAX_PLAYER_ID + 1; x++) {
+                if (x == Globals.MAX_PLAYER_ID + 1) {
+                    // Team totals
+                    if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
+                        String total;
+                        if (Globals.getInstance().mGameMode == Globals.GAME_MODE_2TEAMS) {
+                            total = getString(R.string.player_list_team2_total, teamPoints[0], teamPoints[1]);
+                        } else {
+                            total = getString(R.string.player_list_team4_total, teamPoints[0], teamPoints[1], teamPoints[2], teamPoints[3]);
+                        }
+                        if (mPlayerDisplayData[x] == null)
+                            mPlayerDisplayData[x] = new PlayerDisplayData();
+                        mPlayerDisplayData[x].playerName = total;
                     } else {
-                        total = getString(R.string.player_list_team4_total, teamPoints[0], teamPoints[1], teamPoints[2], teamPoints[3]);
+                        if (mPlayerDisplayData[x] == null)
+                            mPlayerDisplayData[x] = new PlayerDisplayData();
+                        mPlayerDisplayData[x].playerName = "";
                     }
-                    if (mPlayerDisplayData[x] == null)
-                        mPlayerDisplayData[x] = new PlayerDisplayData();
-                    mPlayerDisplayData[x].playerName = total;
-                } else {
-                    if (mPlayerDisplayData[x] == null)
-                        mPlayerDisplayData[x] = new PlayerDisplayData();
-                    mPlayerDisplayData[x].playerName = "";
+                    break;
                 }
-                break;
-            }
-            TcpServer.ScoreData scoreData = mTcpServer.getScore(x);
-            if (scoreData == null) {
-                mPlayerDisplayData[x] = null;
-            } else {
-                mPlayerDisplayData[x] = new PlayerDisplayData();
-                mPlayerDisplayData[x].playerID = x;
-                mPlayerDisplayData[x].playerName = Globals.getInstance().mTeamPlayerNameMap.get(x);
-                mPlayerDisplayData[x].points = scoreData.points;
-                if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
-                    int teamIndex = Globals.getInstance().calcNetworkTeam(x) - 1;
-                    if (teamIndex >= 0 && teamIndex < 4) {
-                        teamPoints[teamIndex] += scoreData.points;
+                TcpServer.ScoreData scoreData = mTcpServer.getScore(x);
+                if (scoreData == null) {
+                    mPlayerDisplayData[x] = null;
+                } else {
+                    mPlayerDisplayData[x] = new PlayerDisplayData();
+                    mPlayerDisplayData[x].playerID = x;
+                    mPlayerDisplayData[x].playerName = Globals.getInstance().mTeamPlayerNameMap.get(x);
+                    mPlayerDisplayData[x].points = scoreData.points;
+                    if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
+                        int teamIndex = Globals.getInstance().calcNetworkTeam(x) - 1;
+                        if (teamIndex >= 0 && teamIndex < 4) {
+                            teamPoints[teamIndex] += scoreData.points;
+                        }
                     }
-                }
-                mPlayerDisplayData[x].eliminated = scoreData.eliminated;
-                mPlayerDisplayData[x].isConnected = scoreData.isConnected;
-                if (Globals.getInstance().mPlayerSettings.get(x) == null) {
-                    mPlayerDisplayData[x].overrideLives = false;
-                    mPlayerDisplayData[x].lives = 0;
-                } else {
-                    mPlayerDisplayData[x].overrideLives = Globals.getInstance().mPlayerSettings.get(x).overrideLives;
-                    mPlayerDisplayData[x].lives = Globals.getInstance().mPlayerSettings.get(x).lives;
+                    mPlayerDisplayData[x].eliminated = scoreData.eliminated;
+                    mPlayerDisplayData[x].isConnected = scoreData.isConnected;
+                    if (Globals.getInstance().mPlayerSettings.get(x) == null) {
+                        mPlayerDisplayData[x].overrideLives = false;
+                        mPlayerDisplayData[x].lives = 0;
+                    } else {
+                        mPlayerDisplayData[x].overrideLives = Globals.getInstance().mPlayerSettings.get(x).overrideLives;
+                        mPlayerDisplayData[x].lives = Globals.getInstance().mPlayerSettings.get(x).lives;
+                    }
                 }
             }
+        } finally {
+            Globals.getInstance().mPlayerSettingsSemaphore.release();
+            Globals.getInstance().mTeamPlayerNameSemaphore.release();
+            mTcpServer.unlockAccess();
         }
-        Globals.getInstance().mPlayerSettingsSemaphore.release();
-        Globals.getInstance().mTeamPlayerNameSemaphore.release();
-        mTcpServer.unlockAccess();
-        Globals.getInstance().mTeamPlayerNameSemaphore.release();
-        Globals.getInstance().mPlayerSettingsSemaphore.release();
-        mTcpServer.unlockAccess();
         if (mPlayerDisplayListAdapter != null) {
             mPlayerDisplayListAdapter.setData(mPlayerDisplayData);
             if (mPlayerDisplayList != null)

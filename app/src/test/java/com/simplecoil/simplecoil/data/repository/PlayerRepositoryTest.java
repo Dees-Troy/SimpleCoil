@@ -19,10 +19,13 @@ package com.simplecoil.simplecoil.data.repository;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.net.InetAddress;
+import java.util.HashSet;
+import java.util.Set;
 
 public class PlayerRepositoryTest {
 
@@ -111,5 +114,36 @@ public class PlayerRepositoryTest {
         assert(player1ID != player2ID);
         assertEquals(1, playerRepo.calcNetworkTeam(player1ID));
         assertEquals(2, playerRepo.calcNetworkTeam(player2ID));
+    }
+
+    @Test
+    public void testAutoSortPlayerIDWithAdditionalOccupiedIDs() {
+        playerRepo.setPlayerID((byte) 0);
+        settingsRepo.setGameMode(GameSettingsRepository.GAME_MODE_2TEAMS);
+
+        Set<Byte> additional = new HashSet<>();
+        additional.add((byte) 1);
+        additional.add((byte) 17);
+
+        byte newID = playerRepo.findAutoSortPlayerID(additional);
+        Assert.assertNotEquals((byte) 1, newID);
+        Assert.assertNotEquals((byte) 17, newID);
+        Assert.assertTrue(newID > 0 && newID <= GameSettingsRepository.MAX_PLAYER_ID);
+    }
+
+    @Test
+    public void testNoDuplicatePlayerIDsInSequence() throws Exception {
+        playerRepo.setPlayerID((byte) 0);
+        settingsRepo.setGameMode(GameSettingsRepository.GAME_MODE_2TEAMS);
+
+        Set<Byte> assignedIDs = new HashSet<>();
+        for (int i = 0; i < GameSettingsRepository.MAX_PLAYER_ID; i++) {
+            byte id = playerRepo.findAutoSortPlayerID();
+            Assert.assertFalse("ID " + id + " was assigned twice!", assignedIDs.contains(id));
+            Assert.assertTrue("ID " + id + " is invalid!", id > 0 && id <= GameSettingsRepository.MAX_PLAYER_ID);
+            assignedIDs.add(id);
+            playerRepo.getTeamIPMap().put(id, InetAddress.getByName("192.168.1." + (100 + i)));
+        }
+        assertEquals(GameSettingsRepository.MAX_PLAYER_ID, assignedIDs.size());
     }
 }

@@ -401,56 +401,54 @@ public class TcpClient extends Service {
     }
 
     private void parseGameInfo(String message) {
-        boolean gotGPSSemaphore = false;
-        boolean gotPlayerSemaphores = false;
-        boolean gotPlayerSettingsSemaphore = false;
-        boolean gotGrenadePairingsSemaphore = false;
         try {
             JSONObject game = new JSONObject(message);
             if (game.has(TcpServer.JSON_GRENADE_PAIRINGS)) {
                 Globals.getmGrenadePairingsSemaphore();
-                gotGrenadePairingsSemaphore = true;
-                Globals.ClearGrenadePairings(false);
-                JSONArray grenadePairings = game.getJSONArray(TcpServer.JSON_GRENADE_PAIRINGS);
-                for (int x = 0; x < grenadePairings.length(); x++) {
-                    JSONObject grenadePairing = grenadePairings.getJSONObject(x);
-                    Globals.getInstance().mGrenadePairings[grenadePairing.getInt(TcpServer.JSON_PAIRED_GRENADE_ID)] = grenadePairing.getInt(TcpServer.JSON_PLAYERID);
+                try {
+                    Globals.ClearGrenadePairings(false);
+                    JSONArray grenadePairings = game.getJSONArray(TcpServer.JSON_GRENADE_PAIRINGS);
+                    for (int x = 0; x < grenadePairings.length(); x++) {
+                        JSONObject grenadePairing = grenadePairings.getJSONObject(x);
+                        Globals.getInstance().mGrenadePairings[grenadePairing.getInt(TcpServer.JSON_PAIRED_GRENADE_ID)] = grenadePairing.getInt(TcpServer.JSON_PLAYERID);
+                    }
+                } finally {
+                    Globals.getInstance().mGrenadePairingsSemaphore.release();
                 }
-                gotGrenadePairingsSemaphore = false;
-                Globals.getInstance().mGrenadePairingsSemaphore.release();
                 return;
             }
             if (game.has(TcpServer.JSON_GPSUPDATE)) {
                 JSONArray updates = game.getJSONArray(TcpServer.JSON_GPSUPDATE);
                 Globals.getmGPSDataSemaphore();
-                gotGPSSemaphore = true;
                 boolean fullUpdate = false;
-                if (game.has(TcpServer.JSON_GPSFULLUPDATE)) {
-                    Globals.getInstance().mGPSData.clear();
-                    fullUpdate = true;
-                }
-                for (int x = 0; x < updates.length(); x++) {
-                    JSONObject update = updates.getJSONObject(x);
-                    Byte playerID = (byte) update.getInt(TcpServer.JSON_PLAYERID);
-                    if (playerID != Globals.getInstance().mPlayerID) {
-                        double longitude = update.getDouble(TcpServer.JSON_GPSLONGITUDE);
-                        double latitude = update.getDouble(TcpServer.JSON_GPSLATITUDE);
-                        Globals.GPSData gps = Globals.getInstance().mGPSData.get(playerID);
-                        if (gps == null) {
-                            gps = new Globals.GPSData();
-                            gps.longitude = longitude;
-                            gps.latitude = latitude;
-                            gps.team = update.getInt(TcpServer.JSON_TEAM);
-                            Globals.getInstance().mGPSData.put(playerID, gps);
-                        } else {
-                            gps.longitude = longitude;
-                            gps.latitude = latitude;
-                        }
-                        gps.hasUpdate = true; // Anything that the server sends us is considered an update
+                try {
+                    if (game.has(TcpServer.JSON_GPSFULLUPDATE)) {
+                        Globals.getInstance().mGPSData.clear();
+                        fullUpdate = true;
                     }
+                    for (int x = 0; x < updates.length(); x++) {
+                        JSONObject update = updates.getJSONObject(x);
+                        Byte playerID = (byte) update.getInt(TcpServer.JSON_PLAYERID);
+                        if (playerID != Globals.getInstance().mPlayerID) {
+                            double longitude = update.getDouble(TcpServer.JSON_GPSLONGITUDE);
+                            double latitude = update.getDouble(TcpServer.JSON_GPSLATITUDE);
+                            Globals.GPSData gps = Globals.getInstance().mGPSData.get(playerID);
+                            if (gps == null) {
+                                gps = new Globals.GPSData();
+                                gps.longitude = longitude;
+                                gps.latitude = latitude;
+                                gps.team = update.getInt(TcpServer.JSON_TEAM);
+                                Globals.getInstance().mGPSData.put(playerID, gps);
+                            } else {
+                                gps.longitude = longitude;
+                                gps.latitude = latitude;
+                            }
+                            gps.hasUpdate = true; // Anything that the server sends us is considered an update
+                        }
+                    }
+                } finally {
+                    Globals.getInstance().mGPSDataSemaphore.release();
                 }
-                gotGPSSemaphore = false;
-                Globals.getInstance().mGPSDataSemaphore.release();
                 Intent intent = new Intent(NetMsg.NETMSG_GPSDATAUPDATE);
                 intent.putExtra(NetMsg.INTENT_FULLUPDATE, fullUpdate);
                 sendBroadcast(intent);
@@ -465,94 +463,98 @@ public class TcpClient extends Service {
             if (game.has(TcpServer.JSON_PLAYERSETTINGS)) {
                 JSONArray settings = game.getJSONArray(TcpServer.JSON_PLAYERSETTINGS);
                 Globals.getmPlayerSettingsSemaphore();
-                gotPlayerSettingsSemaphore = true;
-                for (byte x = 0; x < settings.length(); x++) {
-                    JSONObject setting = settings.getJSONObject(x);
-                    Byte playerID = (byte) setting.getInt(TcpServer.JSON_PLAYERID);
-                    Globals.PlayerSettings playerSettings = Globals.getInstance().mPlayerSettings.get(playerID);
-                    if (playerSettings == null) {
-                        playerSettings = new Globals.PlayerSettings();
-                        Globals.getInstance().mPlayerSettings.put(playerID, playerSettings);
+                try {
+                    for (byte x = 0; x < settings.length(); x++) {
+                        JSONObject setting = settings.getJSONObject(x);
+                        Byte playerID = (byte) setting.getInt(TcpServer.JSON_PLAYERID);
+                        Globals.PlayerSettings playerSettings = Globals.getInstance().mPlayerSettings.get(playerID);
+                        if (playerSettings == null) {
+                            playerSettings = new Globals.PlayerSettings();
+                            Globals.getInstance().mPlayerSettings.put(playerID, playerSettings);
+                        }
+                        playerSettings.health = setting.getInt(TcpServer.JSON_HEALTH);
+                        playerSettings.shots = (byte)setting.getInt(TcpServer.JSON_RELOAD_SHOTS);
+                        playerSettings.reloadTime = setting.getLong(TcpServer.JSON_RELOAD_TIME);
+                        playerSettings.reloadOnEmpty = setting.getBoolean(TcpServer.JSON_RELOAD_ON_EMPTY);
+                        playerSettings.spawnTime = setting.getLong(TcpServer.JSON_SPAWN_TIME);
+                        playerSettings.damage = setting.getInt(TcpServer.JSON_DAMAGE);
+                        if (setting.has(TcpServer.JSON_LIVESLIMIT)) {
+                            playerSettings.overrideLives = true;
+                            playerSettings.lives = setting.getInt(TcpServer.JSON_LIVESLIMIT);
+                        } else {
+                            playerSettings.overrideLives = false;
+                            playerSettings.lives = 0;
+                        }
+                        playerSettings.allowShotModeSingle = setting.getBoolean(TcpServer.JSON_SHOT_MODE_SINGLE);
+                        playerSettings.allowShotModeBurst3 = setting.getBoolean(TcpServer.JSON_SHOT_MODE_BURST3);
+                        playerSettings.allowShotModeAuto = setting.getBoolean(TcpServer.JSON_SHOT_MODE_AUTO);
+                        playerSettings.firingMode = setting.getInt(TcpServer.JSON_FIRING_MODE);
+                        if (setting.has(TcpServer.JSON_RECOIL_SETTING)) {
+                            playerSettings.recoilSetting = setting.getInt(TcpServer.JSON_RECOIL_SETTING);
+                        }
+                        if (setting.has(TcpServer.JSON_IS_ADMIN)) {
+                            playerSettings.isAdmin = setting.getBoolean(TcpServer.JSON_IS_ADMIN);
+                        }
+                        if (playerID == Globals.getInstance().mPlayerID) {
+                            Globals.getInstance().mFullHealth = playerSettings.health;
+                            Globals.getInstance().mFullReload = playerSettings.shots;
+                            Globals.getInstance().mReloadTime = playerSettings.reloadTime;
+                            Globals.getInstance().mReloadOnEmpty = playerSettings.reloadOnEmpty;
+                            Globals.getInstance().mRespawnTime = playerSettings.spawnTime;
+                            Globals.getInstance().mDamage = playerSettings.damage;
+                            Globals.getInstance().mOverrideLives = playerSettings.overrideLives;
+                            Globals.getInstance().mOverrideLivesVal = playerSettings.lives;
+                            Globals.getInstance().mAllowSingleShotMode = playerSettings.allowShotModeSingle;
+                            Globals.getInstance().mAllowBurst3ShotMode = playerSettings.allowShotModeBurst3;
+                            Globals.getInstance().mAllowAutoShotMode = playerSettings.allowShotModeAuto;
+                            Globals.getInstance().mCurrentFiringMode = playerSettings.firingMode;
+                            Globals.getInstance().mServerRecoilSetting = playerSettings.recoilSetting;
+                            Globals.getInstance().mIsAdmin = playerSettings.isAdmin;
+                        }
                     }
-                    playerSettings.health = setting.getInt(TcpServer.JSON_HEALTH);
-                    playerSettings.shots = (byte)setting.getInt(TcpServer.JSON_RELOAD_SHOTS);
-                    playerSettings.reloadTime = setting.getLong(TcpServer.JSON_RELOAD_TIME);
-                    playerSettings.reloadOnEmpty = setting.getBoolean(TcpServer.JSON_RELOAD_ON_EMPTY);
-                    playerSettings.spawnTime = setting.getLong(TcpServer.JSON_SPAWN_TIME);
-                    playerSettings.damage = setting.getInt(TcpServer.JSON_DAMAGE);
-                    if (setting.has(TcpServer.JSON_LIVESLIMIT)) {
-                        playerSettings.overrideLives = true;
-                        playerSettings.lives = setting.getInt(TcpServer.JSON_LIVESLIMIT);
-                    } else {
-                        playerSettings.overrideLives = false;
-                        playerSettings.lives = 0;
-                    }
-                    playerSettings.allowShotModeSingle = setting.getBoolean(TcpServer.JSON_SHOT_MODE_SINGLE);
-                    playerSettings.allowShotModeBurst3 = setting.getBoolean(TcpServer.JSON_SHOT_MODE_BURST3);
-                    playerSettings.allowShotModeAuto = setting.getBoolean(TcpServer.JSON_SHOT_MODE_AUTO);
-                    playerSettings.firingMode = setting.getInt(TcpServer.JSON_FIRING_MODE);
-                    if (setting.has(TcpServer.JSON_RECOIL_SETTING)) {
-                        playerSettings.recoilSetting = setting.getInt(TcpServer.JSON_RECOIL_SETTING);
-                    }
-                    if (setting.has(TcpServer.JSON_IS_ADMIN)) {
-                        playerSettings.isAdmin = setting.getBoolean(TcpServer.JSON_IS_ADMIN);
-                    }
-                    if (playerID == Globals.getInstance().mPlayerID) {
-                        Globals.getInstance().mFullHealth = playerSettings.health;
-                        Globals.getInstance().mFullReload = playerSettings.shots;
-                        Globals.getInstance().mReloadTime = playerSettings.reloadTime;
-                        Globals.getInstance().mReloadOnEmpty = playerSettings.reloadOnEmpty;
-                        Globals.getInstance().mRespawnTime = playerSettings.spawnTime;
-                        Globals.getInstance().mDamage = playerSettings.damage;
-                        Globals.getInstance().mOverrideLives = playerSettings.overrideLives;
-                        Globals.getInstance().mOverrideLivesVal = playerSettings.lives;
-                        Globals.getInstance().mAllowSingleShotMode = playerSettings.allowShotModeSingle;
-                        Globals.getInstance().mAllowBurst3ShotMode = playerSettings.allowShotModeBurst3;
-                        Globals.getInstance().mAllowAutoShotMode = playerSettings.allowShotModeAuto;
-                        Globals.getInstance().mCurrentFiringMode = playerSettings.firingMode;
-                        Globals.getInstance().mServerRecoilSetting = playerSettings.recoilSetting;
-                        Globals.getInstance().mIsAdmin = playerSettings.isAdmin;
-                    }
+                } finally {
+                    Globals.getInstance().mPlayerSettingsSemaphore.release();
                 }
-                Globals.getInstance().mPlayerSettingsSemaphore.release();
                 Globals.getInstance().mAllowPlayerSettings = game.getBoolean(TcpServer.JSON_ALLOWPLAYERSETTINGS);
-                gotPlayerSettingsSemaphore = false;
                 sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERSETTINGSUPDATE));
             }
             if (game.has(TcpServer.JSON_PLAYERS)) {
-                Globals.getmTeamPlayerNameSemaphore();
                 Globals.getmTeamIPMapSemaphore();
                 Globals.getmIPTeamMapSemaphore();
-                gotPlayerSemaphores = true;
-                Globals.getInstance().mTeamIPMap.clear();
-                Globals.getInstance().mIPTeamMap.clear();
-                Globals.getInstance().mTeamPlayerNameMap.clear();
-                Globals.getInstance().mGameLimit = Globals.GAME_LIMIT_NONE;
-                JSONArray players = game.getJSONArray(TcpServer.JSON_PLAYERS);
-                for (int x = 0; x < players.length(); x++) {
-                    JSONObject player = players.getJSONObject(x);
-                    Byte playerID = (byte) player.getInt(TcpServer.JSON_PLAYERID);
-                    if (playerID != Globals.getInstance().mPlayerID) {
-                        InetAddress playerIP = null;
-                        String ip = player.getString(TcpServer.JSON_PLAYERIP);
-                        if (ip.startsWith("/")) ip = ip.substring(1);
-                        try {
-                            playerIP = InetAddress.getByName(ip);
-                        } catch (UnknownHostException e) {
-                            e.printStackTrace();
-                        }
-                        if (playerIP != null) {
-                            String playerName = player.getString(TcpServer.JSON_PLAYERNAME);
-                            Globals.getInstance().mTeamIPMap.put(playerID, playerIP);
-                            Globals.getInstance().mIPTeamMap.put(playerIP, playerID);
-                            Globals.getInstance().mTeamPlayerNameMap.put(playerID, playerName);
-                            Log.d(TAG, "player '" + playerName + "' (" + playerID + ") found at " + playerIP.toString());
+                Globals.getmTeamPlayerNameSemaphore();
+                try {
+                    Globals.getInstance().mTeamIPMap.clear();
+                    Globals.getInstance().mIPTeamMap.clear();
+                    Globals.getInstance().mTeamPlayerNameMap.clear();
+                    Globals.getInstance().mGameLimit = Globals.GAME_LIMIT_NONE;
+                    JSONArray players = game.getJSONArray(TcpServer.JSON_PLAYERS);
+                    for (int x = 0; x < players.length(); x++) {
+                        JSONObject player = players.getJSONObject(x);
+                        Byte playerID = (byte) player.getInt(TcpServer.JSON_PLAYERID);
+                        if (playerID != Globals.getInstance().mPlayerID) {
+                            InetAddress playerIP = null;
+                            String ip = player.getString(TcpServer.JSON_PLAYERIP);
+                            if (ip.startsWith("/")) ip = ip.substring(1);
+                            try {
+                                playerIP = InetAddress.getByName(ip);
+                            } catch (UnknownHostException e) {
+                                e.printStackTrace();
+                            }
+                            if (playerIP != null) {
+                                String playerName = player.getString(TcpServer.JSON_PLAYERNAME);
+                                Globals.getInstance().mTeamIPMap.put(playerID, playerIP);
+                                Globals.getInstance().mIPTeamMap.put(playerIP, playerID);
+                                Globals.getInstance().mTeamPlayerNameMap.put(playerID, playerName);
+                                Log.d(TAG, "player '" + playerName + "' (" + playerID + ") found at " + playerIP.toString());
+                            }
                         }
                     }
+                } finally {
+                    Globals.getInstance().mTeamPlayerNameSemaphore.release();
+                    Globals.getInstance().mIPTeamMapSemaphore.release();
+                    Globals.getInstance().mTeamIPMapSemaphore.release();
                 }
-                Globals.getInstance().mTeamIPMapSemaphore.release();
-                Globals.getInstance().mIPTeamMapSemaphore.release();
-                Globals.getInstance().mTeamPlayerNameSemaphore.release();
+                JSONArray players = game.getJSONArray(TcpServer.JSON_PLAYERS);
                 Log.d(TAG, "Found " + players.length() + " players");
                 JSONObject limits = game.getJSONObject(TcpServer.JSON_LIMITS);
                 if (limits.has(TcpServer.JSON_TIMELIMIT)) {
@@ -602,14 +604,6 @@ public class TcpClient extends Service {
             }
         } catch (JSONException e) {
             e.printStackTrace();
-            if (gotPlayerSemaphores) {
-                Globals.getInstance().mTeamIPMapSemaphore.release();
-                Globals.getInstance().mIPTeamMapSemaphore.release();
-                Globals.getInstance().mTeamPlayerNameSemaphore.release();
-            }
-            if (gotGPSSemaphore) Globals.getInstance().mGPSDataSemaphore.release();
-            if (gotPlayerSettingsSemaphore) Globals.getInstance().mPlayerSettingsSemaphore.release();
-            if (gotGrenadePairingsSemaphore) Globals.getInstance().mGrenadePairingsSemaphore.release();
         }
     }
 

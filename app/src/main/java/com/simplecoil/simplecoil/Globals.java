@@ -22,6 +22,7 @@ import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 
 import java.net.InetAddress;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Semaphore;
 
 /**
@@ -217,9 +218,19 @@ public class Globals {
         return PlayerRepository.getInstance().findAutoSortPlayerID();
     }
 
+    public static byte findAutoSortPlayerID(Set<Byte> additionalOccupiedIDs) {
+        getInstance();
+        return PlayerRepository.getInstance().findAutoSortPlayerID(additionalOccupiedIDs);
+    }
+
     public static byte findOpenPlayerIDOnTeam(int targetTeam) {
         getInstance();
         return PlayerRepository.getInstance().findOpenPlayerIDOnTeam(targetTeam);
+    }
+
+    public static byte findOpenPlayerIDOnTeam(int targetTeam, Set<Byte> additionalOccupiedIDs) {
+        getInstance();
+        return PlayerRepository.getInstance().findOpenPlayerIDOnTeam(targetTeam, additionalOccupiedIDs);
     }
 
     public String getPlayerName(Byte playerID) {
@@ -271,6 +282,7 @@ public class Globals {
             getInstance().mIPTeamMapSemaphore.acquire();
         } catch (InterruptedException e) {
             e.printStackTrace();
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -279,6 +291,7 @@ public class Globals {
             getInstance().mTeamIPMapSemaphore.acquire();
         } catch (InterruptedException e) {
             e.printStackTrace();
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -287,6 +300,7 @@ public class Globals {
             getInstance().mTeamPlayerNameSemaphore.acquire();
         } catch (InterruptedException e) {
             e.printStackTrace();
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -295,6 +309,7 @@ public class Globals {
             getInstance().mGPSDataSemaphore.acquire();
         } catch (InterruptedException e) {
             e.printStackTrace();
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -303,6 +318,7 @@ public class Globals {
             getInstance().mPlayerSettingsSemaphore.acquire();
         } catch (InterruptedException e) {
             e.printStackTrace();
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -311,6 +327,7 @@ public class Globals {
             getInstance().mGrenadePairingsSemaphore.acquire();
         } catch (InterruptedException e) {
             e.printStackTrace();
+            Thread.currentThread().interrupt();
         }
     }
 
