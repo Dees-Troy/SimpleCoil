@@ -428,17 +428,19 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
                             else
                                 playerSettings.firingMode = Globals.FIRING_MODE_INDOOR_NO_CONE;
                             Globals.getInstance().mPlayerSettingsSemaphore.release();
+                            byte targetPlayerID = mPlayerID;
                             if (mSelectedTargetTeam != 0 && isServer) {
                                 byte newPlayerID = Globals.findOpenPlayerIDOnTeam(mSelectedTargetTeam);
                                 if (newPlayerID == 0) {
                                     Toast.makeText(getContext(), mContext.getString(R.string.error_team_full, mSelectedTargetTeam), Toast.LENGTH_SHORT).show();
                                 } else if (mTcpServer != null) {
                                     mTcpServer.switchPlayerTeam(mPlayerID, newPlayerID);
+                                    targetPlayerID = newPlayerID;
                                 }
                             }
                             if (mTcpServer != null) {
                                 boolean applyTeam = (mApplyTeamSwitch != null && mApplyTeamSwitch.isChecked());
-                                mTcpServer.sendPlayerSettings(mPlayerID, mApplyAllSwitch.isChecked(), applyTeam, Globals.getInstance().mAllowPlayerSettings);
+                                mTcpServer.sendPlayerSettings(targetPlayerID, mApplyAllSwitch.isChecked(), applyTeam, Globals.getInstance().mAllowPlayerSettings);
                             }
                             Intent intentData = new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE);
                             intentData.setPackage(mContext.getPackageName());

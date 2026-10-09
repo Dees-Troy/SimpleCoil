@@ -22,6 +22,8 @@ import static org.junit.Assert.assertNotNull;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.net.InetAddress;
+
 public class PlayerRepositoryTest {
 
     private PlayerRepository playerRepo;
@@ -87,5 +89,27 @@ public class PlayerRepositoryTest {
         playerRepo.setGrenadePairing(0, 5);
         pairings = playerRepo.getGrenadePairings();
         assertEquals(5, pairings[0]);
+    }
+
+    @Test
+    public void testAutoSortPlayerIDDedicatedServer() throws Exception {
+        // On a dedicated server, host playerID is 0
+        playerRepo.setPlayerID((byte) 0);
+        settingsRepo.setGameMode(GameSettingsRepository.GAME_MODE_2TEAMS);
+
+        // Player 1 joins -> should receive Team 1 ID (e.g. ID 1)
+        byte player1ID = playerRepo.findAutoSortPlayerID();
+        assertEquals((byte) 1, player1ID);
+        playerRepo.getTeamIPMap().put(player1ID, InetAddress.getByName("192.168.1.101"));
+
+        // Player 2 joins -> should receive Team 2 ID (e.g. ID 17) because team 1 has 1 player and team 2 has 0
+        byte player2ID = playerRepo.findAutoSortPlayerID();
+        assertEquals((byte) 17, player2ID);
+        playerRepo.getTeamIPMap().put(player2ID, InetAddress.getByName("192.168.1.102"));
+
+        // Verify Player 1 and Player 2 have distinct player IDs and teams
+        assert(player1ID != player2ID);
+        assertEquals(1, playerRepo.calcNetworkTeam(player1ID));
+        assertEquals(2, playerRepo.calcNetworkTeam(player2ID));
     }
 }
