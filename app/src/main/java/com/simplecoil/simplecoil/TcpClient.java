@@ -42,9 +42,9 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class TcpClient extends Service {
     private static final String TAG = "TCPClient";
@@ -55,8 +55,9 @@ public class TcpClient extends Service {
 
     private static volatile boolean keepListening = false;
     private static volatile boolean isListening = false;
-    private static boolean mIsDedicatedServer = false;
+    private static volatile boolean mIsDedicatedServer = false;
 
+    private final Object mOutLock = new Object();
     private DataOutputStream out = null;
     private Queue<String> messageQueue;
 
@@ -103,27 +104,37 @@ public class TcpClient extends Service {
     }
 
     public void sendTCPMessage(final String message, final boolean queueMessage) {
-        if (out == null) {
-            Log.d(TAG, "Writer is null");
-            if (queueMessage) {
-                Log.e(TAG, "queuing: " + message);
-                messageQueue.add(message);
+        synchronized (mOutLock) {
+            if (out == null) {
+                Log.d(TAG, "Writer is null");
+                if (queueMessage && messageQueue != null) {
+                    Log.e(TAG, "queuing: " + message);
+                    messageQueue.add(message);
+                }
+                return;
             }
-            return;
         }
         Thread sendThread = new Thread(new Runnable() {
             public void run() {
-                try {
-                    out.writeUTF(message);
-                    out.flush();
-                    if (!message.equals(TCP_CLIENT_PONG))
-                        Log.i(TAG, "sent: " + message);
-                } catch (IOException e) {
-                    //Log.e(TAG, "IO Error:", e);
-                    e.printStackTrace();
-                    if (queueMessage) {
-                        Log.e(TAG, "queuing: " + message);
-                        messageQueue.add(message);
+                synchronized (mOutLock) {
+                    if (out == null) {
+                        if (queueMessage && messageQueue != null) {
+                            Log.e(TAG, "queuing: " + message);
+                            messageQueue.add(message);
+                        }
+                        return;
+                    }
+                    try {
+                        out.writeUTF(message);
+                        out.flush();
+                        if (!message.equals(TCP_CLIENT_PONG))
+                            Log.i(TAG, "sent: " + message);
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        if (queueMessage && messageQueue != null) {
+                            Log.e(TAG, "queuing: " + message);
+                            messageQueue.add(message);
+                        }
                     }
                 }
             }
@@ -131,7 +142,7 @@ public class TcpClient extends Service {
         sendThread.start();
     }
 
-    void startTcpClient() {
+    synchronized void startTcpClient() {
         if (keepListening) {
             Log.d(TAG, "Client is already listening");
             return;
@@ -140,6 +151,8 @@ public class TcpClient extends Service {
             Log.e(TAG, "Please wait for client to stop listening");
             return;
         }
+        keepListening = true;
+        isListening = true;
         new Thread(new Runnable() {
             public void run() {
                 runTcpClient();
@@ -148,12 +161,17 @@ public class TcpClient extends Service {
     }
 
     private void runTcpClient() {
-        if (Globals.getInstance().mGPSData == null)
-            Globals.getInstance().mGPSData = new HashMap<>();
-        else
-            Globals.getInstance().mGPSData.clear();
+        Globals.getmGPSDataSemaphore();
+        try {
+            if (Globals.getInstance().mGPSData == null)
+                Globals.getInstance().mGPSData = new ConcurrentHashMap<>();
+            else
+                Globals.getInstance().mGPSData.clear();
+        } finally {
+            Globals.getInstance().mGPSDataSemaphore.release();
+        }
         if (messageQueue == null) {
-            messageQueue = new LinkedList<>();
+            messageQueue = new ConcurrentLinkedQueue<>();
         } else {
             messageQueue.clear();
         }
@@ -180,7 +198,9 @@ public class TcpClient extends Service {
                 is = s.getInputStream();
                 in = new DataInputStream(is);
                 os = s.getOutputStream();
-                out = new DataOutputStream(new BufferedOutputStream(os));
+                synchronized (mOutLock) {
+                    out = new DataOutputStream(new BufferedOutputStream(os));
+                }
                 sendPlayerInfo(rejoin);
                 wasConnected = true;
                 if (rejoin)
@@ -287,11 +307,14 @@ public class TcpClient extends Service {
             } catch (IOException e) {
                 e.printStackTrace();
             } finally {
+                synchronized (mOutLock) {
+                    try { if (out != null) out.close(); } catch (Exception e) { /* ignored */ }
+                    out = null;
+                }
                 try { if (s != null) s.close(); } catch (Exception e) { /* ignored */ }
                 try { if (is != null) is.close(); } catch (Exception e) { /* ignored */ }
                 try { if (in != null) in.close(); } catch (Exception e) { /* ignored */ }
                 try { if (os != null) os.close(); } catch (Exception e) { /* ignored */ }
-                try { if (out != null) out.close(); } catch (Exception e) { /* ignored */ }
             }
         }
         if (retryCount == 0 && keepListening) {
@@ -309,10 +332,12 @@ public class TcpClient extends Service {
             playerInfo.put(TcpServer.JSON_PLAYERNAMECHANGE, Globals.getInstance().mPlayerName);
             String message = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + playerInfo.toString();
             sendTCPMessage(message);
-            while (messageQueue.size() > 0) {
-                Log.e(TAG, "sending queued: " + messageQueue.peek());
-                sendTCPMessage(messageQueue.peek());
-                messageQueue.remove();
+            if (messageQueue != null) {
+                String queuedMsg;
+                while ((queuedMsg = messageQueue.poll()) != null) {
+                    Log.e(TAG, "sending queued: " + queuedMsg);
+                    sendTCPMessage(queuedMsg);
+                }
             }
         } catch (JSONException e) {
             e.printStackTrace();
@@ -330,10 +355,12 @@ public class TcpClient extends Service {
             }
             String message = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + playerInfo.toString();
             sendTCPMessage(message);
-            while (messageQueue.size() > 0) {
-                Log.e(TAG, "sending queued: " + messageQueue.peek());
-                sendTCPMessage(messageQueue.peek());
-                messageQueue.remove();
+            if (messageQueue != null) {
+                String queuedMsg;
+                while ((queuedMsg = messageQueue.poll()) != null) {
+                    Log.e(TAG, "sending queued: " + queuedMsg);
+                    sendTCPMessage(queuedMsg);
+                }
             }
         } catch (JSONException e) {
             e.printStackTrace();

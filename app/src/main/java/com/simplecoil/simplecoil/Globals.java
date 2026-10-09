@@ -278,57 +278,27 @@ public class Globals {
     }
 
     public static void getmIPTeamMapSemaphore() {
-        try {
-            getInstance().mIPTeamMapSemaphore.acquire();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-            Thread.currentThread().interrupt();
-        }
+        getInstance().mIPTeamMapSemaphore.acquireUninterruptibly();
     }
 
     public static void getmTeamIPMapSemaphore() {
-        try {
-            getInstance().mTeamIPMapSemaphore.acquire();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-            Thread.currentThread().interrupt();
-        }
+        getInstance().mTeamIPMapSemaphore.acquireUninterruptibly();
     }
 
     public static void getmTeamPlayerNameSemaphore() {
-        try {
-            getInstance().mTeamPlayerNameSemaphore.acquire();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-            Thread.currentThread().interrupt();
-        }
+        getInstance().mTeamPlayerNameSemaphore.acquireUninterruptibly();
     }
 
     public static void getmGPSDataSemaphore() {
-        try {
-            getInstance().mGPSDataSemaphore.acquire();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-            Thread.currentThread().interrupt();
-        }
+        getInstance().mGPSDataSemaphore.acquireUninterruptibly();
     }
 
     public static void getmPlayerSettingsSemaphore() {
-        try {
-            getInstance().mPlayerSettingsSemaphore.acquire();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-            Thread.currentThread().interrupt();
-        }
+        getInstance().mPlayerSettingsSemaphore.acquireUninterruptibly();
     }
 
     public static void getmGrenadePairingsSemaphore() {
-        try {
-            getInstance().mGrenadePairingsSemaphore.acquire();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-            Thread.currentThread().interrupt();
-        }
+        getInstance().mGrenadePairingsSemaphore.acquireUninterruptibly();
     }
 
     public static void ClearGrenadePairings(boolean getSemaphore) {
