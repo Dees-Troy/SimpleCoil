@@ -2929,17 +2929,26 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_TEAMELIMINATED);
                     }
                 }
-                if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_SCORE) != 0 && mScore >= Globals.getInstance().mScoreLimit) {
-                    if (mTcpClient != null) {
-                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ENDGAME);
+                if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_SCORE) != 0) {
+                    int currentScore = (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) ? mTeamScore : mScore;
+                    if (currentScore >= Globals.getInstance().mScoreLimit) {
+                        if (mTcpClient != null) {
+                            mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ENDGAME);
+                        }
+                        endGame();
                     }
-                    endGame();
                 }
             } else if (NetMsg.NETMSG_TEAMELIMINATED.equals(action)) {
                 // Increase team score in team games
                 mTeamScore++;
                 String score = "" + mTeamScore;
                 mTeamScoreTV.setText(score);
+                if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_SCORE) != 0 && mTeamScore >= Globals.getInstance().mScoreLimit) {
+                    if (mTcpClient != null) {
+                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ENDGAME);
+                    }
+                    endGame();
+                }
             } else if (NetMsg.NETMSG_JOIN.equals(action) || NetMsg.NETMSG_LEAVE.equals(action)) {
                 mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, Globals.getPlayerCount()));
                 mNetworkPlayerCountTV.setVisibility(View.VISIBLE);
@@ -3306,8 +3315,15 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         playerData.playerID = (byte) player.getInt(TcpServer.JSON_PLAYERID);
                         playerData.playerName = player.getString(TcpServer.JSON_PLAYERNAME);
                         playerData.points = player.getInt(TcpServer.JSON_PLAYERPOINTS);
-                        if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA)
-                            teamPoints[Globals.getInstance().calcNetworkTeam(playerData.playerID) - 1] += playerData.points;
+                        if (playerData.playerID == Globals.getInstance().mPlayerID) {
+                            mScore = playerData.points;
+                        }
+                        if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
+                            int teamIdx = Globals.getInstance().calcNetworkTeam(playerData.playerID) - 1;
+                            if (teamIdx >= 0 && teamIdx < 4) {
+                                teamPoints[teamIdx] += playerData.points;
+                            }
+                        }
                         playerData.eliminated = player.getInt(TcpServer.JSON_PLAYERELIMINATED);
                         if (Globals.getInstance().mPlayerSettings.get(playerData.playerID) == null) {
                             playerData.overrideLives = false;
@@ -3327,6 +3343,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     return;
                 }
                 if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
+                    int myTeamIdx = Globals.getInstance().calcNetworkTeam(Globals.getInstance().mPlayerID) - 1;
+                    if (myTeamIdx >= 0 && myTeamIdx < 4) {
+                        mTeamScore = teamPoints[myTeamIdx];
+                    }
                     String total;
                     if (Globals.getInstance().mGameMode == Globals.GAME_MODE_2TEAMS) {
                         total = getString(R.string.player_list_team2_total, teamPoints[0], teamPoints[1]);
@@ -3338,7 +3358,15 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 }
                 final PlayerDisplayDataListAdapter playerDisplayListAdapter = new PlayerDisplayDataListAdapter(FullscreenActivity.this, playerDisplayData, true);
 
-                if (mShowPlayerDataDialog) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (mScoreTV != null) mScoreTV.setText(String.valueOf(mScore));
+                        if (mTeamScoreTV != null) mTeamScoreTV.setText(String.valueOf(mTeamScore));
+                    }
+                });
+
+                if (mShowPlayerDataDialog || (mScoreboardDialog != null && mScoreboardDialog.isShowing())) {
                     mShowPlayerDataDialog = false;
                     runOnUiThread(new Runnable() {
 

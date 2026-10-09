@@ -308,8 +308,7 @@ public class TcpServer extends Service {
         Globals.getInstance().mGameState = Globals.GAME_STATE_NONE;
         Thread sendThread = new Thread(new Runnable() {
             public void run() {
-                if (mIsDedicated)
-                    sendPlayerData(SEND_ALL);
+                sendPlayerData(SEND_ALL);
                 // we want to make sure that we have sent the end game message to all clients before removing all clients
                 String message = TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ENDGAME;
                 try {
@@ -1378,8 +1377,21 @@ public class TcpServer extends Service {
                                                 }
                                                 sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
                                                 int scoreLimit = ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_SCORE) != 0 ? Globals.getInstance().mScoreLimit : 0);
-                                                if (clientID >= 0 && scoreLimit != 0 && mClientData.get(clientID).points >= scoreLimit)
-                                                    endGame();
+                                                if (scoreLimit != 0) {
+                                                    if (Globals.getInstance().mGameMode == Globals.GAME_MODE_FFA) {
+                                                        if (clientID >= 0 && mClientData.get(clientID).points >= scoreLimit)
+                                                            endGame();
+                                                    } else {
+                                                        int teamPoints = 0;
+                                                        int team = Globals.getInstance().calcNetworkTeam(id);
+                                                        for (byte x = 0; x <= Globals.MAX_PLAYER_ID; x++) {
+                                                            if (Globals.getInstance().calcNetworkTeam(x) == team && getScore(x) != null)
+                                                                teamPoints += getScore(x).points;
+                                                        }
+                                                        if (teamPoints >= scoreLimit)
+                                                            endGame();
+                                                    }
+                                                }
                                             } else if (message.equals(NetMsg.NETMSG_SHOTFIRED)) {
                                                 sendTCPMessageAll(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SHOTFIRED);
                                             } else if (message.startsWith(NetMsg.NETMSG_HIT)) {
