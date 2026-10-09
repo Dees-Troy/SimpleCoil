@@ -186,6 +186,14 @@ public class Globals {
         mTeamSizes = GameSettingsRepository.getInstance().getTeamSizes();
     }
 
+    public void setTeamSizes(int[] sizes) {
+        GameSettingsRepository.getInstance().setGameMode(mGameMode);
+        GameSettingsRepository.getInstance().setTeamSizes(sizes);
+        if (sizes != null) {
+            mTeamSizes = sizes.clone();
+        }
+    }
+
     public int[] getTeamSizes() {
         GameSettingsRepository.getInstance().setGameMode(mGameMode);
         mTeamSizes = GameSettingsRepository.getInstance().getTeamSizes();

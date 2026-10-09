@@ -3265,7 +3265,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     return;
                 }
 
-                Globals.getInstance().mTeamSizes = newSizes;
+                Globals.getInstance().setTeamSizes(newSizes);
                 if (mIsServer && mTcpServer != null) {
                     mTcpServer.rebalanceAllPlayers(false);
                 } else if (mTcpClient != null) {

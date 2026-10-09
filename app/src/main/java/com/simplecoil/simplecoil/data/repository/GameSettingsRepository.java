@@ -172,8 +172,10 @@ public class GameSettingsRepository {
 
     public int getGameMode() { return gameMode; }
     public void setGameMode(int gameMode) {
-        this.gameMode = gameMode;
-        resetDefaultTeamSizes();
+        if (this.gameMode != gameMode) {
+            this.gameMode = gameMode;
+            resetDefaultTeamSizes();
+        }
     }
 
     public int getGameLimit() { return gameLimit; }

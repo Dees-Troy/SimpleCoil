@@ -32,6 +32,7 @@ public class GameSettingsRepositoryTest {
     public void setUp() {
         repository = GameSettingsRepository.getInstance();
         repository.setGameMode(GameSettingsRepository.GAME_MODE_2TEAMS);
+        repository.resetDefaultTeamSizes();
         repository.setFullHealth(GameSettingsRepository.MAX_HEALTH);
         repository.setFullReload(GameSettingsRepository.RELOAD_COUNT);
     }
@@ -76,6 +77,22 @@ public class GameSettingsRepositoryTest {
         assertEquals(24, repository.getTeamEndID(3));
         assertEquals(25, repository.getTeamStartID(4));
         assertEquals(32, repository.getTeamEndID(4));
+    }
+
+    @Test
+    public void testCustomTeamSizes() {
+        repository.setGameMode(GameSettingsRepository.GAME_MODE_2TEAMS);
+        repository.setTeamSizes(new int[]{20, 12});
+        assertArrayEquals(new int[]{20, 12}, repository.getTeamSizes());
+
+        // Calling setGameMode with the same game mode should preserve custom team sizes
+        repository.setGameMode(GameSettingsRepository.GAME_MODE_2TEAMS);
+        assertArrayEquals(new int[]{20, 12}, repository.getTeamSizes());
+
+        assertEquals(1, repository.getTeamStartID(1));
+        assertEquals(20, repository.getTeamEndID(1));
+        assertEquals(21, repository.getTeamStartID(2));
+        assertEquals(32, repository.getTeamEndID(2));
     }
 
     @Test

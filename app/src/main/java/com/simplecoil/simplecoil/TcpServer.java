@@ -476,10 +476,10 @@ public class TcpServer extends Service {
     private int findBestTeamForRebalance(int numTeams, int[] teamPointers, int[] teamLimits, int[] teamCounts) {
         double minRatio = Double.MAX_VALUE;
         int bestTeam = -1;
-        int[] sizes = Globals.getInstance().mTeamSizes;
+        int[] sizes = Globals.getInstance().getTeamSizes();
         if (sizes == null || sizes.length < numTeams) {
             Globals.getInstance().resetDefaultTeamSizes();
-            sizes = Globals.getInstance().mTeamSizes;
+            sizes = Globals.getInstance().getTeamSizes();
         }
 
         for (int t = 1; t <= numTeams; t++) {
@@ -729,9 +729,9 @@ public class TcpServer extends Service {
             }
             game.put(JSON_LIMITS, limits);
             game.put(JSON_GAMEMODE, Globals.getInstance().mGameMode);
-            if (Globals.getInstance().mTeamSizes != null) {
+            if (Globals.getInstance().getTeamSizes() != null) {
                 JSONArray teamSizesArr = new JSONArray();
-                for (int size : Globals.getInstance().mTeamSizes) {
+                for (int size : Globals.getInstance().getTeamSizes()) {
                     teamSizesArr.put(size);
                 }
                 game.put(JSON_TEAMSIZES, teamSizesArr);
@@ -1369,7 +1369,7 @@ public class TcpServer extends Service {
                                                         sum += newSizes[i];
                                                     }
                                                     if (sum == Globals.MAX_PLAYER_ID) {
-                                                        Globals.getInstance().mTeamSizes = newSizes;
+                                                        Globals.getInstance().setTeamSizes(newSizes);
                                                         rebalanceAllPlayers(false);
                                                     }
                                                 } catch (Exception e) {

@@ -656,7 +656,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                     return;
                 }
 
-                Globals.getInstance().mTeamSizes = newSizes;
+                Globals.getInstance().setTeamSizes(newSizes);
                 if (mTcpServer != null) {
                     mTcpServer.rebalanceAllPlayers(false);
                 }

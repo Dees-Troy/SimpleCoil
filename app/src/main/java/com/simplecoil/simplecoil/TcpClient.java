@@ -575,7 +575,7 @@ public class TcpClient extends Service {
                     for (int i = 0; i < teamSizesArr.length(); i++) {
                         sizes[i] = teamSizesArr.getInt(i);
                     }
-                    Globals.getInstance().mTeamSizes = sizes;
+                    Globals.getInstance().setTeamSizes(sizes);
                 }
                 Globals.getInstance().mUseGPS = game.has(TcpServer.JSON_USEGPS);
                 if (Globals.getInstance().mUseGPS) {
