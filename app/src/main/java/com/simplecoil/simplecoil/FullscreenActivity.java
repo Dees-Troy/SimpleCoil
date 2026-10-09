@@ -2045,6 +2045,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 if (allGranted) {
                     // Permissions Granted
                     connectWeapon();
+                    Intent intent = new Intent(NetMsg.NETMSG_GPSSETTING);
+                    sendBroadcast(intent);
                 } else {
                     // Permission Denied
                     Toast.makeText(this, getString(R.string.error_location_permission_required), Toast.LENGTH_SHORT)

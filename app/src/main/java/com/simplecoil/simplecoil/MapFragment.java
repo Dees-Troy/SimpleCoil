@@ -84,14 +84,18 @@ public class MapFragment extends GlobeMapFragment {
      * @return the last know best location
      */
     private Location getLastBestLocation() {
-        // We already have this permission because of Bluetooth, but Android Studio insists on having this code or it throws an error
+        if (getActivity() == null) return null;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             int hasLocationPermission = getActivity().checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION);
             if (hasLocationPermission != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
                 return null;
             }
         }
+        if (mLocationManager == null) {
+            mLocationManager = (LocationManager) getActivity().getSystemService(Context.LOCATION_SERVICE);
+        }
+        if (mLocationManager == null) return null;
+
         Location locationGPS = mLocationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
         Location locationNet = mLocationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
 
@@ -236,7 +240,9 @@ public class MapFragment extends GlobeMapFragment {
     @Override
     public void onPause() {
         super.onPause();
-        getActivity().unregisterReceiver(mGPSDataReceiver);
+        if (getActivity() != null) {
+            getActivity().unregisterReceiver(mGPSDataReceiver);
+        }
     }
 
     @Override
@@ -266,31 +272,46 @@ public class MapFragment extends GlobeMapFragment {
     };
 
     public void enableGPS(boolean enabled) {
+        if (getActivity() == null) return;
+        if (mLocationManager == null) {
+            mLocationManager = (LocationManager) getActivity().getSystemService(Context.LOCATION_SERVICE);
+        }
         if (enabled) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                int hasLocationPermission = getActivity().checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION);
+                if (hasLocationPermission != PackageManager.PERMISSION_GRANTED) {
+                    requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+                    return;
+                }
+            }
             if (mLocationListener == null) {
                 mLongitude = 0;
                 mLatitude = 0;
                 mLocationListener = new MyLocationListener();
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    int hasLocationPermission = getActivity().checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION);
-                    if (hasLocationPermission != PackageManager.PERMISSION_GRANTED) {
-                        requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
-                                1);
-                        return;
-                    }
+                if (mLocationManager != null) {
+                    mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 500, 1, mLocationListener);
                 }
-                mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 500, 1, mLocationListener);
                 currentBestLocation = getLastBestLocation();
                 sendLocation(currentBestLocation);
-                insertYourMarker();
             }
+            insertYourMarker();
             insertPlayerMarkers();
         } else {
             removeAllPlayerMarkers();
             removeYourMarker();
-            if (mLocationListener != null) {
+            if (mLocationManager != null && mLocationListener != null) {
                 mLocationManager.removeUpdates(mLocationListener);
-                mLocationListener = null;
+            }
+            mLocationListener = null;
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 1) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                enableGPS(Globals.getInstance().mUseGPS);
             }
         }
     }
@@ -336,7 +357,7 @@ public class MapFragment extends GlobeMapFragment {
     private ComponentObject[] mPlayerMarkers = null;
 
     private void insertYourMarker() {
-        if (mapControl == null) return;
+        if (mapControl == null || getActivity() == null || mPlayerMarkers == null) return;
         removeYourMarker();
 
         if (currentBestLocation == null) return;
@@ -349,7 +370,10 @@ public class MapFragment extends GlobeMapFragment {
         you.image = icon;
         you.size = markerSize;
 
-        mPlayerMarkers[Globals.getInstance().mPlayerID] = mapControl.addScreenMarker(you, markerInfo, MaplyBaseController.ThreadMode.ThreadCurrent);
+        int playerId = Globals.getInstance().mPlayerID;
+        if (playerId >= 0 && playerId < mPlayerMarkers.length) {
+            mPlayerMarkers[playerId] = mapControl.addScreenMarker(you, markerInfo, MaplyBaseController.ThreadMode.ThreadCurrent);
+        }
         mapControl.setPositionGeo(currentBestLocation.getLongitude() * PI180, currentBestLocation.getLatitude() * PI180, ZOOM_LEVEL);
 
         mapControl.currentMapZoom(Point2d.FromDegrees(currentBestLocation.getLongitude(), currentBestLocation.getLatitude()));
@@ -357,15 +381,16 @@ public class MapFragment extends GlobeMapFragment {
     }
 
     private void removeYourMarker() {
-        if (mapControl == null) return;
-        if (mPlayerMarkers[Globals.getInstance().mPlayerID] != null) {
-            mapControl.removeObject(mPlayerMarkers[Globals.getInstance().mPlayerID], MaplyBaseController.ThreadMode.ThreadCurrent);
-            mPlayerMarkers[Globals.getInstance().mPlayerID] = null;
+        if (mapControl == null || mPlayerMarkers == null) return;
+        int playerId = Globals.getInstance().mPlayerID;
+        if (playerId >= 0 && playerId < mPlayerMarkers.length && mPlayerMarkers[playerId] != null) {
+            mapControl.removeObject(mPlayerMarkers[playerId], MaplyBaseController.ThreadMode.ThreadCurrent);
+            mPlayerMarkers[playerId] = null;
         }
     }
 
     private void insertPlayerMarkers() {
-        if (mapControl == null) return;
+        if (mapControl == null || getActivity() == null || mPlayerMarkers == null) return;
         MarkerInfo markerInfo = new MarkerInfo();
         Point2d markerSize = new Point2d(72, 72);
         // Add other players to the map
@@ -394,7 +419,9 @@ public class MapFragment extends GlobeMapFragment {
                         player.loc = Point2d.FromDegrees(data.longitude, data.latitude);
                         player.size = markerSize;
                         player.image = isTeammate ? teammate : enemy;
-                        mPlayerMarkers[x] = mapControl.addScreenMarker(player, markerInfo, MaplyBaseController.ThreadMode.ThreadCurrent);
+                        if (x >= 0 && x < mPlayerMarkers.length) {
+                            mPlayerMarkers[x] = mapControl.addScreenMarker(player, markerInfo, MaplyBaseController.ThreadMode.ThreadCurrent);
+                        }
                     }
                 }
             } else {
@@ -405,10 +432,11 @@ public class MapFragment extends GlobeMapFragment {
     }
 
     private void removePlayerMarker(int playerID) {
-        if (mapControl == null) return;
-        if (mPlayerMarkers[playerID] != null)
+        if (mapControl == null || mPlayerMarkers == null) return;
+        if (playerID >= 0 && playerID < mPlayerMarkers.length && mPlayerMarkers[playerID] != null) {
             mapControl.removeObject(mPlayerMarkers[playerID], MaplyBaseController.ThreadMode.ThreadCurrent);
-        mPlayerMarkers[playerID] = null;
+            mPlayerMarkers[playerID] = null;
+        }
     }
 
     private void removeAllPlayerMarkers() {
