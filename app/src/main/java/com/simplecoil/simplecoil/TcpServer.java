@@ -465,8 +465,11 @@ public class TcpServer extends Service {
                         Globals.getInstance().mPlayerSettingsSemaphore.release();
                     }
 
+                    PlayerRepository.getInstance().removePlayer(playerID);
+                    mGPSIntervalCount.set(SEND_ALL_GPS_INTERVAL);
                     sendPlayerData(SEND_ALL);
                     sendAllGameInfo(SEND_ALL);
+                    sendBroadcast(new Intent(NetMsg.NETMSG_LEAVE));
                     sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
                 } catch (Exception e) {
                     e.printStackTrace();

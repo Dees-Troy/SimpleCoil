@@ -733,6 +733,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             final String action = intent.getAction();
             Log.d(TAG, "mServerUpdateReceiver onReceive action=" + action);
             if (NetMsg.NETMSG_JOIN.equals(action) || NetMsg.NETMSG_LEAVE.equals(action)) {
+                mViewModel.updatePlayerCount();
                 mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, Globals.getPlayerCount(true)));
                 if (Globals.getInstance().mGameMode == Globals.GAME_MODE_FFA && Globals.getInstance().mGameState != Globals.GAME_STATE_NONE && NetMsg.NETMSG_LEAVE.equals(action) && Globals.getPlayerCount(true) <= 1)
                     endGame(); // Everyone else is out so game is over - this only works in FFA because we don't keep track of who and how many people are on each team
@@ -758,6 +759,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 mServerIPTV.setText("");
                 Toast.makeText(getApplicationContext(), getString(R.string.error_server_cancel), Toast.LENGTH_SHORT).show();
             } else if (NetMsg.NETMSG_PLAYERDATAUPDATE.equals(action)) {
+                mViewModel.updatePlayerCount();
                 getPlayerDisplayData();
                 updateGameModeButtonText();
             }
