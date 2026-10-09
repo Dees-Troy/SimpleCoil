@@ -795,29 +795,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         Globals.getmTeamPlayerNameSemaphore();
         Globals.getmPlayerSettingsSemaphore();
         try {
-            int[] teamPoints = new int[4];
-            for (int i = 0; i < 4; i++)
-                teamPoints[i] = 0;
-            for (byte x = 0; x <= Globals.MAX_PLAYER_ID + 1; x++) {
-                if (x == Globals.MAX_PLAYER_ID + 1) {
-                    // Team totals
-                    if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
-                        String total;
-                        if (Globals.getInstance().mGameMode == Globals.GAME_MODE_2TEAMS) {
-                            total = getString(R.string.player_list_team2_total, teamPoints[0], teamPoints[1]);
-                        } else {
-                            total = getString(R.string.player_list_team4_total, teamPoints[0], teamPoints[1], teamPoints[2], teamPoints[3]);
-                        }
-                        if (mPlayerDisplayData[x] == null)
-                            mPlayerDisplayData[x] = new PlayerDisplayData();
-                        mPlayerDisplayData[x].playerName = total;
-                    } else {
-                        if (mPlayerDisplayData[x] == null)
-                            mPlayerDisplayData[x] = new PlayerDisplayData();
-                        mPlayerDisplayData[x].playerName = "";
-                    }
-                    break;
-                }
+            for (byte x = 1; x <= Globals.MAX_PLAYER_ID; x++) {
                 TcpServer.ScoreData scoreData = mTcpServer.getScore(x);
                 if (scoreData == null) {
                     mPlayerDisplayData[x] = null;
@@ -826,12 +804,6 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                     mPlayerDisplayData[x].playerID = x;
                     mPlayerDisplayData[x].playerName = Globals.getInstance().mTeamPlayerNameMap.get(x);
                     mPlayerDisplayData[x].points = scoreData.points;
-                    if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
-                        int teamIndex = Globals.getInstance().calcNetworkTeam(x) - 1;
-                        if (teamIndex >= 0 && teamIndex < 4) {
-                            teamPoints[teamIndex] += scoreData.points;
-                        }
-                    }
                     mPlayerDisplayData[x].eliminated = scoreData.eliminated;
                     mPlayerDisplayData[x].isConnected = scoreData.isConnected;
                     if (Globals.getInstance().mPlayerSettings.get(x) == null) {

@@ -70,11 +70,6 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
         colHeader.type = DisplayRow.TYPE_COLUMN_HEADER;
         displayRows.add(colHeader);
 
-        // 2. Team totals row
-        DisplayRow teamTotals = new DisplayRow();
-        teamTotals.type = DisplayRow.TYPE_TEAM_TOTALS;
-        displayRows.add(teamTotals);
-
         int gameMode = Globals.getInstance().mGameMode;
 
         if (gameMode == Globals.GAME_MODE_FFA) {
@@ -182,7 +177,17 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
                 if (sizes != null && (row.teamNumber - 1) < sizes.length) {
                     capacity = sizes[row.teamNumber - 1];
                 }
-                titleTV.setText("TEAM " + row.teamNumber + " (Limit: " + capacity + ")");
+                int teamScore = 0;
+                int startID = Globals.getInstance().getTeamStartID(row.teamNumber);
+                int endID = Globals.getInstance().getTeamEndID(row.teamNumber);
+                if (data != null) {
+                    for (int pId = startID; pId <= endID; pId++) {
+                        if (pId < data.length && data[pId] != null) {
+                            teamScore += data[pId].points;
+                        }
+                    }
+                }
+                titleTV.setText(context.getString(R.string.player_list_team_header, row.teamNumber, capacity, teamScore));
                 if (canEdit) {
                     actionTV.setVisibility(View.VISIBLE);
                     actionTV.setText("Tap to edit ratio");

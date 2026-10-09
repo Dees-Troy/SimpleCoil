@@ -3347,14 +3347,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     if (myTeamIdx >= 0 && myTeamIdx < 4) {
                         mTeamScore = teamPoints[myTeamIdx];
                     }
-                    String total;
-                    if (Globals.getInstance().mGameMode == Globals.GAME_MODE_2TEAMS) {
-                        total = getString(R.string.player_list_team2_total, teamPoints[0], teamPoints[1]);
-                    } else {
-                        total = getString(R.string.player_list_team4_total, teamPoints[0], teamPoints[1], teamPoints[2], teamPoints[3]);
-                    }
-                    playerDisplayData[Globals.MAX_PLAYER_ID + 1] = new PlayerDisplayData();
-                    playerDisplayData[Globals.MAX_PLAYER_ID + 1].playerName = total;
                 }
                 final PlayerDisplayDataListAdapter playerDisplayListAdapter = new PlayerDisplayDataListAdapter(FullscreenActivity.this, playerDisplayData, true);
 
