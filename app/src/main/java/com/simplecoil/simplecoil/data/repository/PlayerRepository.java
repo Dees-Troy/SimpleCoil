@@ -63,10 +63,22 @@ public class PlayerRepository {
     }
 
     public byte getPlayerID() { return playerID; }
-    public void setPlayerID(byte playerID) { this.playerID = playerID; }
+    public void setPlayerID(byte playerID) {
+        this.playerID = playerID;
+        Globals.updatePlayerIDFromRepo(playerID);
+    }
+    public void setPlayerIDDirect(byte playerID) {
+        this.playerID = playerID;
+    }
 
     public String getPlayerName() { return playerName; }
-    public void setPlayerName(String playerName) { this.playerName = playerName != null ? playerName : ""; }
+    public void setPlayerName(String playerName) {
+        this.playerName = playerName != null ? playerName : "";
+        Globals.updatePlayerNameFromRepo(this.playerName);
+    }
+    public void setPlayerNameDirect(String playerName) {
+        this.playerName = playerName != null ? playerName : "";
+    }
 
     public boolean isAdmin() { return isAdmin; }
     public void setAdmin(boolean admin) { isAdmin = admin; }
@@ -84,7 +96,7 @@ public class PlayerRepository {
         return grenadePairings.clone();
     }
 
-    public int[] getGrenadePairingsInternal() {
+    public synchronized int[] getGrenadePairingsInternal() {
         return grenadePairings;
     }
 
@@ -105,7 +117,56 @@ public class PlayerRepository {
         Arrays.fill(grenadePairings, INVALID_PLAYER_ID);
     }
 
-    public int calcNetworkTeam(byte id) {
+    public synchronized void addOrUpdatePlayer(byte playerId, InetAddress ip, String name) {
+        if (ip != null) {
+            teamIPMap.put(playerId, ip);
+            ipTeamMap.put(ip, playerId);
+        }
+        if (name != null) {
+            teamPlayerNameMap.put(playerId, name);
+        }
+    }
+
+    public synchronized void removePlayer(byte playerId) {
+        InetAddress ip = teamIPMap.remove(playerId);
+        if (ip != null) {
+            ipTeamMap.remove(ip);
+        }
+        teamPlayerNameMap.remove(playerId);
+        gpsData.remove(playerId);
+        playerSettings.remove(playerId);
+    }
+
+    public synchronized void reassignPlayer(byte oldPlayerId, byte newPlayerId) {
+        InetAddress ip = teamIPMap.remove(oldPlayerId);
+        String name = teamPlayerNameMap.remove(oldPlayerId);
+        Globals.PlayerSettings settings = playerSettings.remove(oldPlayerId);
+        Globals.GPSData gps = gpsData.remove(oldPlayerId);
+
+        if (ip != null) {
+            teamIPMap.put(newPlayerId, ip);
+            ipTeamMap.put(ip, newPlayerId);
+        }
+        if (name != null) {
+            teamPlayerNameMap.put(newPlayerId, name);
+        }
+        if (settings != null) {
+            playerSettings.put(newPlayerId, settings);
+        }
+        if (gps != null) {
+            gpsData.put(newPlayerId, gps);
+        }
+    }
+
+    public synchronized void clearAllPlayers() {
+        teamIPMap.clear();
+        ipTeamMap.clear();
+        teamPlayerNameMap.clear();
+        gpsData.clear();
+        playerSettings.clear();
+    }
+
+    public synchronized int calcNetworkTeam(byte id) {
         if (id < 1 || id > GameSettingsRepository.MAX_PLAYER_ID) {
             return INVALID_PLAYER_ID;
         }
@@ -116,6 +177,9 @@ public class PlayerRepository {
         }
         int numTeams = (gameMode == GameSettingsRepository.GAME_MODE_4TEAMS) ? 4 : 2;
         int[] sizes = settings.getTeamSizes();
+        if (sizes == null || sizes.length < numTeams) {
+            return numTeams;
+        }
         int currentCumulative = 0;
         for (int t = 0; t < numTeams; t++) {
             currentCumulative += sizes[t];

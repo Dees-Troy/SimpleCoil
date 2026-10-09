@@ -146,4 +146,37 @@ public class PlayerRepositoryTest {
         }
         assertEquals(GameSettingsRepository.MAX_PLAYER_ID, assignedIDs.size());
     }
+
+    @Test
+    public void testConcurrentPlayerRegistrationAndGrenadePairings() throws InterruptedException {
+        playerRepo.setPlayerID((byte) 0);
+        playerRepo.clearAllPlayers();
+        playerRepo.clearGrenadePairings();
+
+        int threadCount = 10;
+        Thread[] threads = new Thread[threadCount];
+        for (int i = 0; i < threadCount; i++) {
+            final int index = i;
+            threads[i] = new Thread(() -> {
+                try {
+                    byte assignedID = playerRepo.findAutoSortPlayerID();
+                    if (assignedID > 0) {
+                        playerRepo.addOrUpdatePlayer(assignedID, InetAddress.getByName("192.168.1." + (100 + index)), "Player" + index);
+                    }
+                    playerRepo.setGrenadePairing(index % PlayerRepository.MAX_GRENADE_IDS, index + 1);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+
+        for (Thread t : threads) {
+            t.start();
+        }
+        for (Thread t : threads) {
+            t.join();
+        }
+
+        Assert.assertTrue(playerRepo.getPlayerCount(true) > 1);
+    }
 }

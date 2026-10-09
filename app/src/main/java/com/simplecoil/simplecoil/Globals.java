@@ -182,6 +182,28 @@ public class Globals {
         player.setPairedGrenadeID(mPairedGrenadeID);
     }
 
+    public static void updatePlayerIDFromRepo(byte playerID) {
+        if (mInstance != null) {
+            mInstance.mPlayerID = playerID;
+        }
+    }
+
+    public static void updatePlayerNameFromRepo(String playerName) {
+        if (mInstance != null) {
+            mInstance.mPlayerName = playerName != null ? playerName : "";
+        }
+    }
+
+    public void setPlayerID(byte playerID) {
+        this.mPlayerID = playerID;
+        PlayerRepository.getInstance().setPlayerIDDirect(playerID);
+    }
+
+    public void setPlayerName(String playerName) {
+        this.mPlayerName = playerName != null ? playerName : "";
+        PlayerRepository.getInstance().setPlayerNameDirect(this.mPlayerName);
+    }
+
     public synchronized void resetDefaultTeamSizes() {
         GameSettingsRepository.getInstance().setGameMode(mGameMode);
         GameSettingsRepository.getInstance().resetDefaultTeamSizes();

@@ -27,6 +27,8 @@ import android.util.Log;
 
 import androidx.core.content.ContextCompat;
 
+import com.simplecoil.simplecoil.data.repository.PlayerRepository;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -437,7 +439,10 @@ public class TcpClient extends Service {
                     JSONArray grenadePairings = game.getJSONArray(TcpServer.JSON_GRENADE_PAIRINGS);
                     for (int x = 0; x < grenadePairings.length(); x++) {
                         JSONObject grenadePairing = grenadePairings.getJSONObject(x);
-                        Globals.getInstance().mGrenadePairings[grenadePairing.getInt(TcpServer.JSON_PAIRED_GRENADE_ID)] = grenadePairing.getInt(TcpServer.JSON_PLAYERID);
+                        PlayerRepository.getInstance().setGrenadePairing(
+                                grenadePairing.getInt(TcpServer.JSON_PAIRED_GRENADE_ID),
+                                grenadePairing.getInt(TcpServer.JSON_PLAYERID)
+                        );
                     }
                 } finally {
                     Globals.getInstance().mGrenadePairingsSemaphore.release();
@@ -550,9 +555,7 @@ public class TcpClient extends Service {
                 Globals.getmIPTeamMapSemaphore();
                 Globals.getmTeamPlayerNameSemaphore();
                 try {
-                    Globals.getInstance().mTeamIPMap.clear();
-                    Globals.getInstance().mIPTeamMap.clear();
-                    Globals.getInstance().mTeamPlayerNameMap.clear();
+                    PlayerRepository.getInstance().clearAllPlayers();
                     Globals.getInstance().mGameLimit = Globals.GAME_LIMIT_NONE;
                     JSONArray players = game.getJSONArray(TcpServer.JSON_PLAYERS);
                     for (int x = 0; x < players.length(); x++) {
@@ -569,9 +572,7 @@ public class TcpClient extends Service {
                             }
                             if (playerIP != null) {
                                 String playerName = player.getString(TcpServer.JSON_PLAYERNAME);
-                                Globals.getInstance().mTeamIPMap.put(playerID, playerIP);
-                                Globals.getInstance().mIPTeamMap.put(playerIP, playerID);
-                                Globals.getInstance().mTeamPlayerNameMap.put(playerID, playerName);
+                                PlayerRepository.getInstance().addOrUpdatePlayer(playerID, playerIP, playerName);
                                 Log.d(TAG, "player '" + playerName + "' (" + playerID + ") found at " + playerIP.toString());
                             }
                         }

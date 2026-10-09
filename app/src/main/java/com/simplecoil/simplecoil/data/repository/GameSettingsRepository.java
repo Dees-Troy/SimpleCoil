@@ -125,7 +125,7 @@ public class GameSettingsRepository {
         }
     }
 
-    public int getTeamStartID(int team) {
+    public synchronized int getTeamStartID(int team) {
         int numTeams = (gameMode == GAME_MODE_4TEAMS) ? 4 : 2;
         int[] sizes = getTeamSizes();
         int startID = 1;
@@ -135,11 +135,15 @@ public class GameSettingsRepository {
         return startID;
     }
 
-    public int getTeamEndID(int team) {
+    public synchronized int getTeamEndID(int team) {
         int numTeams = (gameMode == GAME_MODE_4TEAMS) ? 4 : 2;
-        int[] sizes = getTeamSizes();
         if (team < 1 || team > numTeams) return MAX_PLAYER_ID;
-        return getTeamStartID(team) + sizes[team - 1] - 1;
+        int[] sizes = getTeamSizes();
+        int startID = 1;
+        for (int t = 1; t < team; t++) {
+            startID += sizes[t - 1];
+        }
+        return startID + sizes[team - 1] - 1;
     }
 
     // Getters and Setters
@@ -170,7 +174,7 @@ public class GameSettingsRepository {
     public boolean isReloadOnEmpty() { return reloadOnEmpty; }
     public void setReloadOnEmpty(boolean reloadOnEmpty) { this.reloadOnEmpty = reloadOnEmpty; }
 
-    public int getGameMode() { return gameMode; }
+    public synchronized int getGameMode() { return gameMode; }
     public synchronized void setGameMode(int gameMode) {
         if (this.gameMode != gameMode) {
             this.gameMode = gameMode;
@@ -178,8 +182,8 @@ public class GameSettingsRepository {
         }
     }
 
-    public int getGameLimit() { return gameLimit; }
-    public void setGameLimit(int gameLimit) { this.gameLimit = gameLimit; }
+    public synchronized int getGameLimit() { return gameLimit; }
+    public synchronized void setGameLimit(int gameLimit) { this.gameLimit = gameLimit; }
 
     public synchronized void addGameLimitFlag(int flag) {
         this.gameLimit |= flag;

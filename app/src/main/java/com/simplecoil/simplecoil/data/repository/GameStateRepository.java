@@ -17,7 +17,7 @@
 package com.simplecoil.simplecoil.data.repository;
 
 import java.net.InetAddress;
-import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class GameStateRepository {
@@ -31,12 +31,44 @@ public class GameStateRepository {
     private volatile long serverGameTimeRemaining = 0; // in seconds
     private volatile InetAddress serverIP = null;
 
-    private final List<GameStateChangeListener> listeners = new CopyOnWriteArrayList<>();
+    private final CopyOnWriteArrayList<GameStateChangeListener> listeners = new CopyOnWriteArrayList<>();
 
     public interface GameStateChangeListener {
         void onGameStateChanged(int oldState, int newState);
         void onTimeRemainingUpdated(long secondsRemaining);
         void onServerIPChanged(InetAddress serverIP);
+    }
+
+    public static class GameStateSnapshot {
+        private final int gameState;
+        private final long serverGameTimeRemaining;
+        private final InetAddress serverIP;
+
+        public GameStateSnapshot(int gameState, long serverGameTimeRemaining, InetAddress serverIP) {
+            this.gameState = gameState;
+            this.serverGameTimeRemaining = serverGameTimeRemaining;
+            this.serverIP = serverIP;
+        }
+
+        public int getGameState() {
+            return gameState;
+        }
+
+        public long getServerGameTimeRemaining() {
+            return serverGameTimeRemaining;
+        }
+
+        public InetAddress getServerIP() {
+            return serverIP;
+        }
+
+        public boolean isGameRunning() {
+            return gameState == GAME_STATE_RUNNING;
+        }
+
+        public boolean isGameStarted() {
+            return gameState != GAME_STATE_NONE;
+        }
     }
 
     private GameStateRepository() {}
@@ -53,8 +85,8 @@ public class GameStateRepository {
     }
 
     public void addListener(GameStateChangeListener listener) {
-        if (listener != null && !listeners.contains(listener)) {
-            listeners.add(listener);
+        if (listener != null) {
+            listeners.addIfAbsent(listener);
         }
     }
 
@@ -76,10 +108,10 @@ public class GameStateRepository {
             }
             oldState = this.gameState;
             this.gameState = newState;
-        }
 
-        for (GameStateChangeListener listener : listeners) {
-            listener.onGameStateChanged(oldState, newState);
+            for (GameStateChangeListener listener : listeners) {
+                listener.onGameStateChanged(oldState, newState);
+            }
         }
     }
 
@@ -88,9 +120,15 @@ public class GameStateRepository {
     }
 
     public void setServerGameTimeRemaining(long seconds) {
-        this.serverGameTimeRemaining = seconds;
-        for (GameStateChangeListener listener : listeners) {
-            listener.onTimeRemainingUpdated(seconds);
+        synchronized (this) {
+            if (this.serverGameTimeRemaining == seconds) {
+                return;
+            }
+            this.serverGameTimeRemaining = seconds;
+
+            for (GameStateChangeListener listener : listeners) {
+                listener.onTimeRemainingUpdated(seconds);
+            }
         }
     }
 
@@ -99,10 +137,20 @@ public class GameStateRepository {
     }
 
     public void setServerIP(InetAddress ip) {
-        this.serverIP = ip;
-        for (GameStateChangeListener listener : listeners) {
-            listener.onServerIPChanged(ip);
+        synchronized (this) {
+            if (Objects.equals(this.serverIP, ip)) {
+                return;
+            }
+            this.serverIP = ip;
+
+            for (GameStateChangeListener listener : listeners) {
+                listener.onServerIPChanged(ip);
+            }
         }
+    }
+
+    public synchronized GameStateSnapshot getSnapshot() {
+        return new GameStateSnapshot(gameState, serverGameTimeRemaining, serverIP);
     }
 
     public boolean isGameRunning() {

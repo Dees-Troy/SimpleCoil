@@ -23,6 +23,8 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.util.Log;
 
+import com.simplecoil.simplecoil.data.repository.PlayerRepository;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -367,35 +369,16 @@ public class TcpServer extends Service {
                         client.sendTCPMessage(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERREPLY + newPlayerID);
                     }
 
-                    InetAddress ip = Globals.getInstance().mTeamIPMap.get(oldPlayerID);
-                    if (ip != null) {
-                        Globals.getInstance().mTeamIPMap.remove(oldPlayerID);
-                        Globals.getInstance().mTeamIPMap.put(newPlayerID, ip);
-                        Globals.getInstance().mIPTeamMap.put(ip, newPlayerID);
-                    }
+                    PlayerRepository.getInstance().reassignPlayer(oldPlayerID, newPlayerID);
 
-                    String name = Globals.getInstance().mTeamPlayerNameMap.get(oldPlayerID);
-                    if (name != null) {
-                        Globals.getInstance().mTeamPlayerNameMap.remove(oldPlayerID);
-                        Globals.getInstance().mTeamPlayerNameMap.put(newPlayerID, name);
-                    }
-
-                    Globals.PlayerSettings settings = Globals.getInstance().mPlayerSettings.get(oldPlayerID);
-                    if (settings != null) {
-                        Globals.getInstance().mPlayerSettings.remove(oldPlayerID);
-                        Globals.getInstance().mPlayerSettings.put(newPlayerID, settings);
-                    }
-
-                    Globals.GPSData gps = Globals.getInstance().mGPSData.get(oldPlayerID);
+                    Globals.GPSData gps = Globals.getInstance().mGPSData.get(newPlayerID);
                     if (gps != null) {
-                        Globals.getInstance().mGPSData.remove(oldPlayerID);
                         gps.team = Globals.getInstance().calcNetworkTeam(newPlayerID);
                         gps.hasUpdate = true;
-                        Globals.getInstance().mGPSData.put(newPlayerID, gps);
                     }
 
                     if (oldPlayerID == Globals.getInstance().mPlayerID) {
-                        Globals.getInstance().mPlayerID = newPlayerID;
+                        Globals.getInstance().setPlayerID(newPlayerID);
                     }
 
                     Globals.getInstance().mGPSDataSemaphore.release();
@@ -1779,8 +1762,7 @@ public class TcpServer extends Service {
 
                 InetAddress inetAddress = client.clientSocket.getInetAddress();
                 if (inetAddress != null) {
-                    Globals.getInstance().mTeamIPMap.put(client.mPlayerID, inetAddress);
-                    Globals.getInstance().mIPTeamMap.put(inetAddress, client.mPlayerID);
+                    PlayerRepository.getInstance().addOrUpdatePlayer(client.mPlayerID, inetAddress, null);
                 }
             } finally {
                 Globals.getInstance().mIPTeamMapSemaphore.release();
@@ -1797,7 +1779,7 @@ public class TcpServer extends Service {
             if (playerName.isEmpty() || playerName.equalsIgnoreCase("Player") || ProfanityFilter.containsProfanity(playerName) || usedNames.contains(playerName)) {
                 playerName = NameGenerator.getRandomUniqueName(usedNames);
             }
-            Globals.getInstance().mTeamPlayerNameMap.put(client.mPlayerID, playerName);
+            PlayerRepository.getInstance().addOrUpdatePlayer(client.mPlayerID, null, playerName);
             Globals.getInstance().mTeamPlayerNameSemaphore.release();
 
             sendAllGameInfo(id);
@@ -1807,19 +1789,8 @@ public class TcpServer extends Service {
         private void removeClient(ClientData client, Integer clientID, boolean alwaysRemove) {
             if (client.mPlayerID != 0) {
                 if (alwaysRemove) {
-                    Globals.getmTeamPlayerNameSemaphore();
-                    Globals.getInstance().mTeamPlayerNameMap.remove(client.mPlayerID);
-                    Globals.getInstance().mTeamPlayerNameSemaphore.release();
-                    Globals.getmIPTeamMapSemaphore();
-                    Globals.getInstance().mIPTeamMap.remove(client.clientSocket.getInetAddress());
-                    Globals.getInstance().mIPTeamMapSemaphore.release();
-                    Globals.getmTeamIPMapSemaphore();
-                    Globals.getInstance().mTeamIPMap.remove(client.mPlayerID);
-                    Globals.getInstance().mTeamIPMapSemaphore.release();
-                    Globals.getmGPSDataSemaphore();
-                    Globals.getInstance().mGPSData.remove(client.mPlayerID);
+                    PlayerRepository.getInstance().removePlayer(client.mPlayerID);
                     mGPSIntervalCount.set(SEND_ALL_GPS_INTERVAL); // Force a full GPS update when someone leaves
-                    Globals.getInstance().mGPSDataSemaphore.release();
                     sendAllGameInfo(SEND_ALL);
                     sendBroadcast(new Intent(NetMsg.NETMSG_LEAVE));
                     client.close();

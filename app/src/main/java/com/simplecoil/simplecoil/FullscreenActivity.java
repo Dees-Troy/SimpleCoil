@@ -51,6 +51,7 @@ import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
 import androidx.fragment.app.Fragment;
@@ -2700,10 +2701,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                                     if (hit_by_player1 == Globals.GRENADE_PLAYER_ID) {
                                         int grenadeID = (data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0xF0) >> 4;
                                         if (grenadeID != 0) {
-                                            Globals.getmGrenadePairingsSemaphore();
-                                            if (Globals.getInstance().mGrenadePairings[grenadeID] != Globals.INVALID_PLAYER_ID)
-                                                hit_by_id = (byte)Globals.getInstance().mGrenadePairings[grenadeID];
-                                            Globals.getInstance().mGrenadePairingsSemaphore.release();
+                                            int pairedPlayer = PlayerRepository.getInstance().getGrenadePairing(grenadeID);
+                                            if (pairedPlayer != PlayerRepository.INVALID_PLAYER_ID)
+                                                hit_by_id = (byte) pairedPlayer;
                                         }
                                     }
                                     if (Globals.getInstance().mPlayerSettings.get(hit_by_id) != null)
@@ -2738,10 +2738,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                                     if (hit_by_player2 == Globals.GRENADE_PLAYER_ID) {
                                         int grenadeID = (data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0xF0) >> 4;
                                         if (grenadeID != 0) {
-                                            Globals.getmGrenadePairingsSemaphore();
-                                            if (Globals.getInstance().mGrenadePairings[grenadeID] != Globals.INVALID_PLAYER_ID)
-                                                hit_by_id = (byte)Globals.getInstance().mGrenadePairings[grenadeID];
-                                            Globals.getInstance().mGrenadePairingsSemaphore.release();
+                                            int pairedPlayer = PlayerRepository.getInstance().getGrenadePairing(grenadeID);
+                                            if (pairedPlayer != PlayerRepository.INVALID_PLAYER_ID)
+                                                hit_by_id = (byte) pairedPlayer;
                                         }
                                     }
                                     if (Globals.getInstance().mPlayerSettings.get(hit_by_id) != null)
