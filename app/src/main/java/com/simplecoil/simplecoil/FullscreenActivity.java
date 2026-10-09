@@ -382,10 +382,12 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mSearchTimeoutRunnable = new Runnable() {
             @Override
             public void run() {
-                if (mNetworkMenuType == NETWORK_TYPE_JOINING) {
-                    Log.d(TAG, "Server search timed out after 10 seconds.");
-                    stopServerSearch(false);
-                    Toast.makeText(getApplicationContext(), "No server found", Toast.LENGTH_SHORT).show();
+                if (mUseNetwork && !mIsServer && mNetworkMenuType == NETWORK_TYPE_JOINING) {
+                    Log.d(TAG, "Server search cycle ended; re-triggering scan...");
+                    if (mUDPListenerService != null) {
+                        mUDPListenerService.joinServer();
+                    }
+                    startServerSearchTimeout();
                 }
             }
         };
@@ -404,6 +406,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         if (mUDPListenerService != null) {
             mUDPListenerService.endScanning();
         }
+        mReady = false;
+        setReady(disableNetwork);
         if (disableNetwork) {
             displayAllNetworkingOptions(false);
             mUseNetwork = false;
@@ -640,7 +644,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         Globals.getInstance().mPlayerID = 1;
                         setTeam();
                     }
-                    if (mUseNetwork) {
+                    if (mUseNetwork && mNetworkMenuType == NETWORK_TYPE_JOINED) {
                         if (Globals.getPlayerCount() <= 1) {
                             Toast.makeText(getApplicationContext(), getString(R.string.not_enough_players_toast), Toast.LENGTH_SHORT).show();
                             mNetworkPlayerCountTV.setText(R.string.network_player_1count);
@@ -650,8 +654,12 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                             mTcpServer.startGame();
                         else
                             mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_STARTGAME);
-                    } else
+                    } else {
+                        if (mUseNetwork) {
+                            stopServerSearch(true);
+                        }
                         startGame();
+                    }
                 }
             }));
         }
@@ -971,30 +979,30 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     break;
             }
         }
-        if (mNetworkPopup == null)
-            return;
-        mNetworkPopup.getMenu().close();
-        mNetworkPopup.getMenu().clear();
-        switch (networkMenuType) {
-            case NETWORK_TYPE_ENABLED:
-                mNetworkPopup.getMenu().add(0, R.id.join_item, 20, R.string.join_button);
-                mNetworkPopup.getMenu().add(0, R.id.join_ip_item, 30, R.string.join_ip_button);
-                mNetworkPopup.getMenu().add(0, R.id.player_name_item, 50, getString(R.string.player_name_button, Globals.getInstance().mPlayerName));
-                if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE) {
-                    mNetworkPopup.getMenu().add(0, R.id.game_mode_item, 60, R.string.game_mode_toggle_button);
-                }
-                mNetworkPopup.getMenu().add(0, R.id.disable_network_item, 70, R.string.no_network_button);
-                return;
-            case NETWORK_TYPE_JOINING:
-                mNetworkPopup.getMenu().add(0, R.id.stop_searching_item, 10, "Stop Searching");
-                mNetworkPopup.getMenu().add(0, R.id.disable_network_item, 70, R.string.no_network_button);
-                return;
-            case NETWORK_TYPE_JOINED:
-                mNetworkPopup.getMenu().add(0, R.id.leave_item, 1, R.string.not_ready_button);
-                mNetworkPopup.getMenu().add(0, R.id.player_name_item, 50, getString(R.string.player_name_button, Globals.getInstance().mPlayerName));
-                mNetworkPopup.getMenu().add(0, R.id.disable_network_item, 70, R.string.no_network_button);
-                return;
+        if (mNetworkPopup != null) {
+            mNetworkPopup.getMenu().close();
+            mNetworkPopup.getMenu().clear();
+            switch (networkMenuType) {
+                case NETWORK_TYPE_ENABLED:
+                    mNetworkPopup.getMenu().add(0, R.id.join_item, 20, R.string.join_button);
+                    mNetworkPopup.getMenu().add(0, R.id.join_ip_item, 30, R.string.join_ip_button);
+                    mNetworkPopup.getMenu().add(0, R.id.player_name_item, 50, getString(R.string.player_name_button, Globals.getInstance().mPlayerName));
+                    if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE) {
+                        mNetworkPopup.getMenu().add(0, R.id.game_mode_item, 60, R.string.game_mode_toggle_button);
+                    }
+                    mNetworkPopup.getMenu().add(0, R.id.disable_network_item, 70, R.string.no_network_button);
+                    break;
+                case NETWORK_TYPE_JOINING:
+                    mNetworkPopup.getMenu().add(0, R.id.join_ip_item, 30, R.string.join_ip_button);
+                    mNetworkPopup.getMenu().add(0, R.id.disable_network_item, 70, R.string.no_network_button);
+                    break;
+                case NETWORK_TYPE_JOINED:
+                    mNetworkPopup.getMenu().add(0, R.id.player_name_item, 50, getString(R.string.player_name_button, Globals.getInstance().mPlayerName));
+                    mNetworkPopup.getMenu().add(0, R.id.disable_network_item, 70, R.string.no_network_button);
+                    break;
+            }
         }
+        updatePreGameButtonVisibilities();
     }
 
     @Override
@@ -1346,11 +1354,17 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             Globals.getInstance().mOnlyServerSettings = false;
             Globals.getInstance().mUseGPS = false;
             if (sendPlayerLeft) {
-                mTcpClient.leaveServer();
+                if (mTcpClient != null) {
+                    mTcpClient.leaveServer();
+                }
             }
             if (!mIsServer) {
-                mUDPListenerService.stopListen();
-                mTcpClient.stopTcpClient();
+                if (mUDPListenerService != null) {
+                    mUDPListenerService.stopListen();
+                }
+                if (mTcpClient != null) {
+                    mTcpClient.stopTcpClient();
+                }
             }
             mNetworkStatusIV.setVisibility(View.GONE);
             mNetworkPlayerCountTV.setVisibility(View.GONE);
@@ -1560,17 +1574,20 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mGameLimitButton.setVisibility(View.VISIBLE);
         }
 
+        boolean isConnectedClient = mUseNetwork && mNetworkMenuType == NETWORK_TYPE_JOINED && !mIsServer;
+        boolean isSearchingForServer = mUseNetwork && mNetworkMenuType == NETWORK_TYPE_JOINING && !mIsServer;
+        if (Globals.getInstance().mOnlyServerSettings || isConnectedClient) {
+            mStartGameButton.setVisibility(View.GONE);
+        } else {
+            mStartGameButton.setVisibility(View.VISIBLE);
+            mStartGameButton.setEnabled(!isSearchingForServer);
+        }
+
         if (Globals.getInstance().mOnlyServerSettings) {
             mFiringModeButton.setVisibility(View.GONE);
-            mStartGameButton.setVisibility(View.GONE);
             mPlayerSettingsButton.setVisibility(View.GONE);
-        } else if (!mIsServer) {
-            mFiringModeButton.setVisibility(View.VISIBLE);
-            mStartGameButton.setVisibility(View.GONE);
-            mPlayerSettingsButton.setVisibility(View.VISIBLE);
         } else {
             mFiringModeButton.setVisibility(View.VISIBLE);
-            mStartGameButton.setVisibility(View.VISIBLE);
             mPlayerSettingsButton.setVisibility(View.VISIBLE);
         }
 
