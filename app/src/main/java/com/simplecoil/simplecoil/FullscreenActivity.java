@@ -60,6 +60,7 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.lifecycle.ViewModelProvider;
 
+import com.journeyapps.barcodescanner.CaptureActivity;
 import com.simplecoil.simplecoil.ui.main.MainViewModel;
 import android.os.Bundle;
 import android.util.Log;
@@ -353,22 +354,69 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private UDPListenerService mUDPListenerService = null;
     private boolean mAutoScanStarted = false;
     private int mNetworkMenuType = NETWORK_TYPE_ENABLED;
-    private volatile boolean mShowPlayerDataDialog = false;
+    private volatile boolean mIsScoreboardVisible = false;
+    private PlayerDisplayData[] mLatestPlayerDisplayData = null;
     private AlertDialog mScoreboardDialog = null;
+    private PlayerDisplayDataListAdapter mScoreboardAdapter = null;
     private String mLastPlayerDataJson = null;
 
-    private void dismissScoreboardDialog() {
-        mShowPlayerDataDialog = false;
-        if (mScoreboardDialog != null) {
-            try {
-                if (mScoreboardDialog.isShowing()) {
-                    mScoreboardDialog.dismiss();
+    private void openScoreboard() {
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                mIsScoreboardVisible = true;
+                if (mLatestPlayerDisplayData != null) {
+                    showOrUpdateScoreboardDialog(mLatestPlayerDisplayData);
                 }
-            } catch (Exception e) {
-                Log.e(TAG, "Error dismissing scoreboard dialog", e);
+                if (mUseNetwork) {
+                    if (mIsServer && mTcpServer != null) {
+                        String json = mTcpServer.getPlayerDataJson();
+                        if (json != null && !json.isEmpty()) {
+                            displayPlayerData(json);
+                        } else {
+                            mTcpServer.sendPlayerData(TcpServer.SEND_ALL);
+                        }
+                    } else if (mTcpClient != null) {
+                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_PLAYERDATAREQUEST);
+                    }
+                }
             }
-            mScoreboardDialog = null;
+        };
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            runnable.run();
+        } else {
+            runOnUiThread(runnable);
         }
+    }
+
+    private void closeScoreboard() {
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                mIsScoreboardVisible = false;
+                if (mScoreboardDialog != null) {
+                    try {
+                        mScoreboardDialog.setOnDismissListener(null);
+                        if (mScoreboardDialog.isShowing()) {
+                            mScoreboardDialog.dismiss();
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error dismissing scoreboard dialog", e);
+                    }
+                    mScoreboardDialog = null;
+                    mScoreboardAdapter = null;
+                }
+            }
+        };
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            runnable.run();
+        } else {
+            runOnUiThread(runnable);
+        }
+    }
+
+    private void dismissScoreboardDialog() {
+        closeScoreboard();
     }
 
     private Handler mSearchTimeoutHandler = new Handler(Looper.getMainLooper());
@@ -860,29 +908,11 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         setGameLimit();
         mPlayerDataButton = findViewById(R.id.player_data_button);
         if (mPlayerDataButton != null) {
-            mPlayerDataButton.setOnClickListener((new View.OnClickListener() {
+            mPlayerDataButton.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) {
-                    mShowPlayerDataDialog = true;
-                    if (mUseNetwork) {
-                        if (mIsServer && mTcpServer != null) {
-                            String json = mTcpServer.getPlayerDataJson();
-                            if (json != null && !json.isEmpty()) {
-                                displayPlayerData(json);
-                            } else {
-                                mTcpServer.sendPlayerData(TcpServer.SEND_ALL);
-                            }
-                        } else if (mTcpClient != null) {
-                            mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_PLAYERDATAREQUEST);
-                        }
-                    }
-                    mPlayerDataButton.setEnabled(false);
-                    new Handler().postDelayed(new Runnable(){
-                        public void run(){
-                            mPlayerDataButton.setEnabled(true);
-                        }
-                    }, 1000);
+                    openScoreboard();
                 }
-            }));
+            });
         }
         loadFragment();
         updatePlayerSettings();
@@ -1486,17 +1516,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void showScoreboard() {
-        mShowPlayerDataDialog = true;
-        if (mIsServer && mTcpServer != null) {
-            String json = mTcpServer.getPlayerDataJson();
-            if (json != null && !json.isEmpty()) {
-                displayPlayerData(json);
-            } else {
-                mTcpServer.sendPlayerData(TcpServer.SEND_ALL);
-            }
-        } else if (mTcpClient != null) {
-            mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_PLAYERDATAREQUEST);
-        }
+        openScoreboard();
     }
 
     private void endGame() {
@@ -1999,7 +2019,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             integrator.setPrompt(getString(R.string.scan_qr_prompt));
             integrator.setOrientationLocked(false);
             integrator.setBeepEnabled(true);
-            integrator.setCaptureActivity(com.journeyapps.barcodescanner.CaptureActivity.class);
+            integrator.setCaptureActivity(CaptureActivity.class);
             integrator.initiateScan();
         } catch (Exception e) {
             Log.e(TAG, "Failed to launch built-in QR scanner: " + e.getMessage());
@@ -3048,8 +3068,11 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         if (serverGameState != Globals.GAME_STATE_ELIMINATED) {
                             if (serverGameState == Globals.GAME_STATE_NONE && Globals.getInstance().mGameState != serverGameState) {
                                 endGame();
-                            } else if (serverGameState == Globals.GAME_STATE_RUNNING && Globals.getInstance().mGameState == Globals.GAME_STATE_NONE) {
-                                startGame();
+                            } else if (serverGameState == Globals.GAME_STATE_RUNNING) {
+                                closeScoreboard();
+                                if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE) {
+                                    startGame();
+                                }
                             }
                         }
                     }
@@ -3058,6 +3081,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             } else if (NetMsg.NETMSG_PLAYERDATAUPDATE.equals(action)) {
                 displayPlayerData(intent.getStringExtra(NetMsg.INTENT_PLAYERDATA));
             } else if (NetMsg.NETMSG_STARTGAME.equals(action)) {
+                closeScoreboard();
                 if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE)
                     startGame();
             } else if (NetMsg.NETMSG_ENDGAME.equals(action)) {
@@ -3378,7 +3402,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         mTeamScore = teamPoints[myTeamIdx];
                     }
                 }
-                final PlayerDisplayDataListAdapter playerDisplayListAdapter = new PlayerDisplayDataListAdapter(FullscreenActivity.this, playerDisplayData, true);
+                final PlayerDisplayData[] finalData = playerDisplayData;
 
                 runOnUiThread(new Runnable() {
                     @Override
@@ -3388,57 +3412,90 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     }
                 });
 
-                if (mShowPlayerDataDialog || (mScoreboardDialog != null && mScoreboardDialog.isShowing())) {
-                    mShowPlayerDataDialog = false;
-                    runOnUiThread(new Runnable() {
-
-                        @Override
-                        public void run() {
-                            if (isFinishing() || isDestroyed()) return;
-                            dismissScoreboardDialog();
-                            AlertDialog.Builder alertDialog = new AlertDialog.Builder(FullscreenActivity.this, R.style.Theme_AppCompat_DayNight_Dialog_Alert);
-                            alertDialog.setNegativeButton(R.string.ok,
-                                    new DialogInterface.OnClickListener() {
-                                        public void onClick(DialogInterface dialog,int id) {
-                                            dialog.cancel();
-                                        }
-                                    });
-                            LayoutInflater inflater = getLayoutInflater();
-                            View view = inflater.inflate(R.layout.player_data_dialog, null);
-                            alertDialog.setView(view);
-                            ListView listView = view.findViewById(R.id.player_list);
-                            listView.setAdapter(playerDisplayListAdapter);
-                            if (mIsServer) {
-                                listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-                                    @Override
-                                    public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                                        PlayerDisplayDataListAdapter.DisplayRow row = playerDisplayListAdapter.getDisplayRow(position);
-                                        if (row != null && row.type == PlayerDisplayDataListAdapter.DisplayRow.TYPE_TEAM_HEADER && row.teamNumber > 0) {
-                                            showTeamRatioDialog();
-                                            return;
-                                        }
-                                        byte playerID = playerDisplayListAdapter.getPlayerID(position);
-                                        if (playerID <= 0)
-                                            return;
-                                        PlayerSettingsAlertDialog dialog = new PlayerSettingsAlertDialog(FullscreenActivity.this);
-                                        dialog.setServer(playerID, mTcpServer);
-                                        dialog.show();
-                                    }
-                                });
-                            }
-                            mScoreboardDialog = alertDialog.create();
-                            mScoreboardDialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
-                                @Override
-                                public void onDismiss(DialogInterface dialog) {
-                                    mScoreboardDialog = null;
-                                }
-                            });
-                            mScoreboardDialog.show();
-                        }
-                    });
-                }
+                updateScoreboardData(finalData);
             }
         }).start();
+    }
+
+    private void updateScoreboardData(final PlayerDisplayData[] playerDisplayData) {
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
+                mLatestPlayerDisplayData = playerDisplayData;
+                if (!mIsScoreboardVisible) {
+                    return;
+                }
+                showOrUpdateScoreboardDialog(playerDisplayData);
+            }
+        };
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            runnable.run();
+        } else {
+            runOnUiThread(runnable);
+        }
+    }
+
+    private void showOrUpdateScoreboardDialog(PlayerDisplayData[] playerDisplayData) {
+        if (isFinishing() || isDestroyed() || !mIsScoreboardVisible) return;
+
+        if (mScoreboardDialog != null && mScoreboardDialog.isShowing() && mScoreboardAdapter != null) {
+            mScoreboardAdapter.setData(playerDisplayData);
+            return;
+        }
+
+        if (mScoreboardDialog != null) {
+            try {
+                mScoreboardDialog.setOnDismissListener(null);
+                if (mScoreboardDialog.isShowing()) {
+                    mScoreboardDialog.dismiss();
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error dismissing scoreboard dialog", e);
+            }
+            mScoreboardDialog = null;
+            mScoreboardAdapter = null;
+        }
+
+        mScoreboardAdapter = new PlayerDisplayDataListAdapter(FullscreenActivity.this, playerDisplayData, true);
+        AlertDialog.Builder alertDialog = new AlertDialog.Builder(FullscreenActivity.this, R.style.Theme_AppCompat_DayNight_Dialog_Alert);
+        alertDialog.setNegativeButton(R.string.ok, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int id) {
+                dialog.cancel();
+            }
+        });
+        LayoutInflater inflater = getLayoutInflater();
+        View view = inflater.inflate(R.layout.player_data_dialog, null);
+        alertDialog.setView(view);
+        ListView listView = view.findViewById(R.id.player_list);
+        listView.setAdapter(mScoreboardAdapter);
+        if (mIsServer) {
+            listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+                @Override
+                public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                    PlayerDisplayDataListAdapter.DisplayRow row = mScoreboardAdapter.getDisplayRow(position);
+                    if (row != null && row.type == PlayerDisplayDataListAdapter.DisplayRow.TYPE_TEAM_HEADER && row.teamNumber > 0) {
+                        showTeamRatioDialog();
+                        return;
+                    }
+                    byte playerID = mScoreboardAdapter.getPlayerID(position);
+                    if (playerID <= 0)
+                        return;
+                    PlayerSettingsAlertDialog dialog = new PlayerSettingsAlertDialog(FullscreenActivity.this);
+                    dialog.setServer(playerID, mTcpServer);
+                    dialog.show();
+                }
+            });
+        }
+        mScoreboardDialog = alertDialog.create();
+        mScoreboardDialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
+            @Override
+            public void onDismiss(DialogInterface dialog) {
+                mScoreboardDialog = null;
+                mScoreboardAdapter = null;
+                mIsScoreboardVisible = false;
+            }
+        });
+        mScoreboardDialog.show();
     }
 
     private void updateAdminButtonVisibility() {
