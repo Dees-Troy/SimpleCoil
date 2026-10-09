@@ -73,6 +73,9 @@ public class MainViewModel extends AndroidViewModel implements
     private final MutableLiveData<String> playerNameLiveData = new MutableLiveData<>();
     private final MutableLiveData<Integer> playerCountLiveData = new MutableLiveData<>();
     private final MutableLiveData<Integer> teamLiveData = new MutableLiveData<>();
+    private final MutableLiveData<Integer> scoreLiveData = new MutableLiveData<>(0);
+    private final MutableLiveData<Integer> teamScoreLiveData = new MutableLiveData<>(0);
+    private final MutableLiveData<Integer> livesLiveData = new MutableLiveData<>(0);
     private final MutableLiveData<Location> locationLiveData = new MutableLiveData<>();
     private final MutableLiveData<String> discoveredServerIpLiveData = new MutableLiveData<>();
     private final MutableLiveData<String> discoveredServerNameLiveData = new MutableLiveData<>();
@@ -369,6 +372,21 @@ public class MainViewModel extends AndroidViewModel implements
     public LiveData<String> getPlayerNameLiveData() { return playerNameLiveData; }
     public LiveData<Integer> getPlayerCountLiveData() { return playerCountLiveData; }
     public LiveData<Integer> getTeamLiveData() { return teamLiveData; }
+    public LiveData<Integer> getScoreLiveData() { return scoreLiveData; }
+    public LiveData<Integer> getTeamScoreLiveData() { return teamScoreLiveData; }
+    public LiveData<Integer> getLivesLiveData() { return livesLiveData; }
+
+    public void setScore(int score) { scoreLiveData.postValue(score); }
+    public void incrementScore() {
+        Integer current = scoreLiveData.getValue();
+        scoreLiveData.postValue((current != null ? current : 0) + 1);
+    }
+    public void setTeamScore(int teamScore) { teamScoreLiveData.postValue(teamScore); }
+    public void incrementTeamScore() {
+        Integer current = teamScoreLiveData.getValue();
+        teamScoreLiveData.postValue((current != null ? current : 0) + 1);
+    }
+    public void setLives(int lives) { livesLiveData.postValue(lives); }
     public LiveData<Location> getLocationLiveData() { return locationLiveData; }
     public LiveData<String> getDiscoveredServerIpLiveData() { return discoveredServerIpLiveData; }
     public LiveData<String> getDiscoveredServerNameLiveData() { return discoveredServerNameLiveData; }
