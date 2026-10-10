@@ -41,6 +41,7 @@ import androidx.appcompat.widget.Toolbar;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
 
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.ui.server.DedicatedServerViewModel;
 import android.util.Log;
 import android.widget.EditText;
@@ -261,8 +262,10 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         Globals.getInstance().mGPSMode = sharedPreferences.getInt(PREF_GPS_MODE, Globals.GPS_ALL);
         setGPSMode(Globals.getInstance().mGPSMode);
         mAllowJoinSwitch = findViewById(R.id.allow_join_switch);
+        GameSettingsRepository.getInstance().setAllowJoinInProgress(mAllowJoinSwitch.isChecked());
         mAllowJoinSwitch.setOnClickListener((new View.OnClickListener() {
             public void onClick(View v) {
+                GameSettingsRepository.getInstance().setAllowJoinInProgress(mAllowJoinSwitch.isChecked());
                 if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
                     mUDPListenerService.allowJoin(mAllowJoinSwitch.isChecked());
             }
@@ -676,6 +679,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         Button shuffleTeamsBtn = findViewById(R.id.shuffle_teams_button);
         if (shuffleTeamsBtn != null) shuffleTeamsBtn.setEnabled(false);
         mGameStatusTV.setText(R.string.dedicated_game_running);
+        GameSettingsRepository.getInstance().setAllowJoinInProgress(mAllowJoinSwitch.isChecked());
         mUDPListenerService.allowJoin(mAllowJoinSwitch.isChecked());
         mEndGameButton.setEnabled(true);
         if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_TIME) != 0) {

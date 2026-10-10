@@ -16,6 +16,8 @@
 
 package com.simplecoil.simplecoil;
 
+import android.graphics.Color;
+
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
@@ -56,6 +58,26 @@ public class Globals {
     public static final int GAME_MODE_2TEAMS = GameSettingsRepository.GAME_MODE_2TEAMS;
     public static final int GAME_MODE_4TEAMS = GameSettingsRepository.GAME_MODE_4TEAMS;
     public volatile int mGameMode = GAME_MODE_2TEAMS;
+
+    public static final int TEAM_1_COLOR = 0xFFD32F2F; // Red
+    public static final int TEAM_2_COLOR = 0xFF2196F3; // Blue
+    public static final int TEAM_3_COLOR = 0xFF4CAF50; // Green
+    public static final int TEAM_4_COLOR = 0xFFFFEB3B; // Yellow
+
+    public static int getTeamColor(int team) {
+        switch (team) {
+            case 1:
+                return TEAM_1_COLOR;
+            case 2:
+                return TEAM_2_COLOR;
+            case 3:
+                return TEAM_3_COLOR;
+            case 4:
+                return TEAM_4_COLOR;
+            default:
+                return Color.TRANSPARENT;
+        }
+    }
 
     public static final int GAME_LIMIT_NONE = GameSettingsRepository.GAME_LIMIT_NONE;
     public static final int GAME_LIMIT_TIME = GameSettingsRepository.GAME_LIMIT_TIME;

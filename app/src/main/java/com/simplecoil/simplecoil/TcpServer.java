@@ -23,6 +23,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.util.Log;
 
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 
 import org.json.JSONArray;
@@ -285,6 +286,33 @@ public class TcpServer extends Service {
             return;
         Globals.getInstance().mGameState = Globals.GAME_STATE_RUNNING;
         resetScores();
+
+        PlayerRepository.getInstance().clearActiveGameMacMap();
+        try {
+            mClientDataSemaphore.acquire();
+            try {
+                for (Map.Entry<Integer, ClientData> entry : mClientData.entrySet()) {
+                    ClientData c = entry.getValue();
+                    if (c != null && c.mPlayerID != 0) {
+                        String mac = PlayerRepository.getInstance().getPlayerMacMap().get(c.mPlayerID);
+                        String pName = PlayerRepository.getInstance().getPlayerName(c.mPlayerID);
+                        PlayerRepository.getInstance().addActiveGamePlayer(mac, c.mPlayerID, c.mNetworkTeam, pName);
+                    }
+                }
+            } finally {
+                mClientDataSemaphore.release();
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        if (!mIsDedicated && Globals.getInstance().mPlayerID != 0) {
+            byte hostId = Globals.getInstance().mPlayerID;
+            String hostMac = PlayerRepository.getInstance().getPlayerMacMap().get(hostId);
+            String hostName = Globals.getInstance().mPlayerName;
+            int hostTeam = Globals.getInstance().calcNetworkTeam(hostId);
+            PlayerRepository.getInstance().addActiveGamePlayer(hostMac, hostId, hostTeam, hostName);
+        }
+
         Thread sendThread = new Thread(new Runnable() {
             public void run() {
                 // we want to make sure that we have sent the start game message to all clients before broadcasting that the game has started locally
@@ -316,6 +344,7 @@ public class TcpServer extends Service {
         if (mClientData == null)
             return;
         Globals.getInstance().mGameState = Globals.GAME_STATE_NONE;
+        PlayerRepository.getInstance().clearActiveGameMacMap();
         Thread sendThread = new Thread(new Runnable() {
             public void run() {
                 sendPlayerData(SEND_ALL);
@@ -1675,7 +1704,12 @@ public class TcpServer extends Service {
                     return;
                 }
                 Globals.getmTeamPlayerNameSemaphore();
-                Set<String> usedNames = new HashSet<>(Globals.getInstance().mTeamPlayerNameMap.values());
+                Set<String> usedNames = new HashSet<>();
+                for (Map.Entry<Byte, String> entry : Globals.getInstance().mTeamPlayerNameMap.entrySet()) {
+                    if (entry.getKey() != client.mPlayerID) {
+                        usedNames.add(entry.getValue());
+                    }
+                }
                 if (playerName.isEmpty() || playerName.equalsIgnoreCase("Player") || ProfanityFilter.containsProfanity(playerName) || usedNames.contains(playerName)) {
                     playerName = NameGenerator.getRandomUniqueName(usedNames);
                 }
@@ -1687,12 +1721,10 @@ public class TcpServer extends Service {
                 return;
             }
             mGPSIntervalCount.set(SEND_ALL_GPS_INTERVAL); // Send all GPS info because of the new client
-            boolean rejoin;
             byte id;
             String playerName;
             String blasterMac;
             try {
-                rejoin = player.has(JSON_REJOIN);
                 id = (byte) player.getInt(JSON_PLAYERID);
                 playerName = player.getString(JSON_PLAYERNAME);
                 blasterMac = player.has(JSON_BLASTER_MAC) ? player.getString(JSON_BLASTER_MAC) : "";
@@ -1716,57 +1748,59 @@ public class TcpServer extends Service {
                 }
             }
 
+            boolean isGameRunning = Globals.getInstance().mGameState != Globals.GAME_STATE_NONE;
+
             try {
                 Globals.getmTeamIPMapSemaphore();
                 Globals.getmIPTeamMapSemaphore();
 
-                Byte existingPlayerId = null;
-                if (!blasterMac.isEmpty()) {
-                    existingPlayerId = PlayerRepository.getInstance().getPlayerIdByMac(blasterMac);
+                PlayerRepository.ActiveGamePlayerInfo activeInfo = null;
+                if (isGameRunning && !blasterMac.isEmpty()) {
+                    activeInfo = PlayerRepository.getInstance().getActiveGamePlayerByMac(blasterMac);
                 }
 
-                if (existingPlayerId != null) {
-                    ClientData existingClient = null;
-                    for (Map.Entry<Integer, ClientData> entry : mClientData.entrySet()) {
-                        if (entry.getValue().mPlayerID == existingPlayerId) {
-                            existingClient = entry.getValue();
-                            break;
+                if (isGameRunning) {
+                    if (activeInfo != null) {
+                        byte existingPlayerId = activeInfo.playerId;
+                        ClientData existingClient = null;
+                        for (Map.Entry<Integer, ClientData> entry : mClientData.entrySet()) {
+                            if (entry.getValue().mPlayerID == existingPlayerId) {
+                                existingClient = entry.getValue();
+                                break;
+                            }
                         }
-                    }
-                    if (existingClient != null) {
-                        Log.d(TAG, "rejoining client " + client.clientID + " to existing client " + existingClient.clientID + " for player ID " + existingPlayerId + " (MAC: " + blasterMac + ")");
-                        existingClient.rejoin(client.clientSocket);
-                        mClientData.remove(client.clientID);
-                    } else {
-                        Log.d(TAG, "restoring disconnected player ID " + existingPlayerId + " to new client socket " + client.clientID + " (MAC: " + blasterMac + ")");
-                        client.mPlayerID = existingPlayerId;
-                        client.mNetworkTeam = 1;
-                        if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
-                            client.mNetworkTeam = Globals.getInstance().calcNetworkTeam(existingPlayerId);
-                        }
-                        existingClient = client;
-                    }
-
-                    InetAddress inetAddress = existingClient.clientSocket.getInetAddress();
-                    Globals.getmTeamPlayerNameSemaphore();
-                    String existingName = Globals.getInstance().getPlayerName(existingPlayerId);
-                    if (existingName == null || existingName.isEmpty() || existingName.equalsIgnoreCase("Player")) {
-                        if (!playerName.isEmpty() && !playerName.equalsIgnoreCase("Player")) {
-                            existingName = playerName;
+                        if (existingClient != null) {
+                            Log.d(TAG, "rejoining client " + client.clientID + " to existing client " + existingClient.clientID + " for player ID " + existingPlayerId + " (MAC: " + blasterMac + ")");
+                            existingClient.rejoin(client.clientSocket);
+                            mClientData.remove(client.clientID);
                         } else {
-                            Set<String> usedNames = new HashSet<>(Globals.getInstance().mTeamPlayerNameMap.values());
-                            existingName = NameGenerator.getRandomUniqueName(usedNames);
+                            Log.d(TAG, "restoring disconnected player ID " + existingPlayerId + " to new client socket " + client.clientID + " (MAC: " + blasterMac + ")");
+                            client.mPlayerID = existingPlayerId;
+                            client.mNetworkTeam = activeInfo.team;
+                            existingClient = client;
+                        }
+
+                        InetAddress inetAddress = existingClient.clientSocket.getInetAddress();
+                        Globals.getmTeamPlayerNameSemaphore();
+                        playerName = activeInfo.originalName;
+                        PlayerRepository.getInstance().addOrUpdatePlayer(existingPlayerId, inetAddress, playerName, blasterMac);
+                        Globals.getInstance().mTeamPlayerNameSemaphore.release();
+
+                        existingClient.sendTCPMessage(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERREPLY + existingPlayerId);
+                        sendAllGameInfo(existingPlayerId);
+                        sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+                        sendBroadcast(new Intent(NetMsg.NETMSG_JOIN));
+                        return;
+                    } else {
+                        boolean allowJoin = GameSettingsRepository.getInstance().isAllowJoinInProgress();
+                        if (!allowJoin) {
+                            Log.d(TAG, "Rejecting client " + client.clientID + " (MAC: " + blasterMac + ") - Game in progress and allowJoin is false.");
+                            client.sendTCPMessage(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ERROR + "Cannot join game in progress due to server settings.");
+                            client.close();
+                            mClientData.remove(client.clientID);
+                            return;
                         }
                     }
-                    playerName = existingName;
-                    PlayerRepository.getInstance().addOrUpdatePlayer(existingPlayerId, inetAddress, playerName, blasterMac);
-                    Globals.getInstance().mTeamPlayerNameSemaphore.release();
-
-                    existingClient.sendTCPMessage(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERREPLY + existingPlayerId);
-                    sendAllGameInfo(existingPlayerId);
-                    sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
-                    sendBroadcast(new Intent(NetMsg.NETMSG_JOIN));
-                    return;
                 }
 
                 if (id != 0 && occupiedIDs.contains(id)) {
@@ -1791,11 +1825,19 @@ public class TcpServer extends Service {
 
                 InetAddress inetAddress = client.clientSocket.getInetAddress();
                 Globals.getmTeamPlayerNameSemaphore();
-                Set<String> usedNames = new HashSet<>(Globals.getInstance().mTeamPlayerNameMap.values());
+                Set<String> usedNames = new HashSet<>();
+                for (Map.Entry<Byte, String> entry : Globals.getInstance().mTeamPlayerNameMap.entrySet()) {
+                    if (entry.getKey() != client.mPlayerID) {
+                        usedNames.add(entry.getValue());
+                    }
+                }
                 if (playerName.isEmpty() || playerName.equalsIgnoreCase("Player") || ProfanityFilter.containsProfanity(playerName) || usedNames.contains(playerName)) {
                     playerName = NameGenerator.getRandomUniqueName(usedNames);
                 }
                 PlayerRepository.getInstance().addOrUpdatePlayer(client.mPlayerID, inetAddress, playerName, blasterMac);
+                if (isGameRunning && !blasterMac.isEmpty()) {
+                    PlayerRepository.getInstance().addActiveGamePlayer(blasterMac, client.mPlayerID, client.mNetworkTeam, playerName);
+                }
                 Globals.getInstance().mTeamPlayerNameSemaphore.release();
             } finally {
                 Globals.getInstance().mIPTeamMapSemaphore.release();
@@ -1813,15 +1855,16 @@ public class TcpServer extends Service {
 
         private void removeClient(ClientData client, Integer clientID, boolean alwaysRemove) {
             if (client.mPlayerID != 0) {
-                if (alwaysRemove) {
-                    PlayerRepository.getInstance().removePlayer(client.mPlayerID);
+                boolean isGameRunning = Globals.getInstance().mGameState != Globals.GAME_STATE_NONE;
+                if (alwaysRemove || !isGameRunning) {
+                    PlayerRepository.getInstance().removePlayer(client.mPlayerID, isGameRunning);
                     mGPSIntervalCount.set(SEND_ALL_GPS_INTERVAL); // Force a full GPS update when someone leaves
                     sendAllGameInfo(SEND_ALL);
                     sendBroadcast(new Intent(NetMsg.NETMSG_LEAVE));
                     client.close();
                     mClientData.remove(clientID);
                 } else {
-                    client.close(); // We'll keep this client around in case they rejoin later since the game was underway
+                    client.close(); // Keep client info in activeGameMacMap since game is underway
                 }
             } else {
                 client.close();

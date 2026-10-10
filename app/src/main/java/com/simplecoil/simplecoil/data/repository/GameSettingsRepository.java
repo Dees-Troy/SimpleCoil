@@ -62,6 +62,7 @@ public class GameSettingsRepository {
     private volatile int overrideLivesVal = 0;
     private volatile boolean allowPlayerSettings = true;
     private volatile boolean reloadOnEmpty = false;
+    private volatile boolean allowJoinInProgress = true;
 
     private volatile int gameMode = GAME_MODE_2TEAMS;
     private volatile int gameLimit = GAME_LIMIT_NONE;
@@ -173,6 +174,9 @@ public class GameSettingsRepository {
 
     public boolean isReloadOnEmpty() { return reloadOnEmpty; }
     public void setReloadOnEmpty(boolean reloadOnEmpty) { this.reloadOnEmpty = reloadOnEmpty; }
+
+    public boolean isAllowJoinInProgress() { return allowJoinInProgress; }
+    public void setAllowJoinInProgress(boolean allowJoinInProgress) { this.allowJoinInProgress = allowJoinInProgress; }
 
     public synchronized int getGameMode() { return gameMode; }
     public synchronized void setGameMode(int gameMode) {

@@ -35,7 +35,9 @@ import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.graphics.drawable.AnimationDrawable;
+import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -1695,6 +1697,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private void displayCurrentTeam() {
         if ((mUseNetwork || mSelectedPlayerID == 0) && Globals.getInstance().mPlayerID == 0) {
             mTeamLabelTV.setText(R.string.team_label);
+            mTeamLabelTV.setBackground(null);
+            mTeamLabelTV.setPadding(0, 0, 0, 0);
+            mTeamLabelTV.setTextColor(Color.WHITE);
             mTeamTV.setText(R.string.auto_sort_team);
             mTeamScoreLabelTV.setVisibility(View.INVISIBLE);
             mTeamScoreTV.setVisibility(View.INVISIBLE);
@@ -1707,6 +1712,26 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 int startID = Globals.getInstance().getTeamStartID(mNetworkTeam);
                 int player = Globals.getInstance().mPlayerID - startID + 1;
                 mTeamLabelTV.setText(getString(R.string.team_number_label, mNetworkTeam));
+
+                int teamColor = Globals.getTeamColor(mNetworkTeam);
+
+                if (teamColor != Color.TRANSPARENT) {
+                    GradientDrawable drawable = new GradientDrawable();
+                    drawable.setColor(teamColor);
+                    drawable.setCornerRadius(8f);
+                    mTeamLabelTV.setBackground(drawable);
+                    mTeamLabelTV.setPadding(24, 12, 24, 12);
+                    if (mNetworkTeam == 4) {
+                        mTeamLabelTV.setTextColor(Color.BLACK);
+                    } else {
+                        mTeamLabelTV.setTextColor(Color.WHITE);
+                    }
+                } else {
+                    mTeamLabelTV.setBackground(null);
+                    mTeamLabelTV.setPadding(0, 0, 0, 0);
+                    mTeamLabelTV.setTextColor(Color.WHITE);
+                }
+
                 if (mUseNetwork && mTcpClient != null && mTcpClient.isDedicatedServer()) {
                     String playerName = Globals.getInstance().mPlayerName;
                     if (playerName == null || playerName.isEmpty()) {
@@ -1727,6 +1752,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 }
             } else {
                 mTeamLabelTV.setText(R.string.team_label);
+                mTeamLabelTV.setBackground(null);
+                mTeamLabelTV.setPadding(0, 0, 0, 0);
+                mTeamLabelTV.setTextColor(Color.WHITE);
                 String teamStr = "" + Globals.getInstance().mPlayerID;
                 mTeamTV.setText(teamStr);
                 mTeamScoreLabelTV.setVisibility(View.INVISIBLE);

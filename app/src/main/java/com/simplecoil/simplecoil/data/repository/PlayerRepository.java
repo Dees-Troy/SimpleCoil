@@ -46,6 +46,22 @@ public class PlayerRepository {
     private final Map<String, Byte> macPlayerMap = new ConcurrentHashMap<>();
     private final Map<Byte, String> playerMacMap = new ConcurrentHashMap<>();
 
+    public static class ActiveGamePlayerInfo {
+        public final String macAddress;
+        public final byte playerId;
+        public final int team;
+        public final String originalName;
+
+        public ActiveGamePlayerInfo(String macAddress, byte playerId, int team, String originalName) {
+            this.macAddress = macAddress;
+            this.playerId = playerId;
+            this.team = team;
+            this.originalName = originalName != null ? originalName : "";
+        }
+    }
+
+    private final Map<String, ActiveGamePlayerInfo> activeGameMacMap = new ConcurrentHashMap<>();
+
     private volatile byte pairedGrenadeID = 0;
     private final int[] grenadePairings = new int[MAX_GRENADE_IDS];
 
@@ -148,14 +164,62 @@ public class PlayerRepository {
         return macPlayerMap.get(mac);
     }
 
+    public synchronized void clearActiveGameMacMap() {
+        activeGameMacMap.clear();
+    }
+
+    public synchronized void addActiveGamePlayer(String mac, byte playerId, int team, String originalName) {
+        if (mac != null && !mac.isEmpty()) {
+            activeGameMacMap.put(mac, new ActiveGamePlayerInfo(mac, playerId, team, originalName));
+        }
+    }
+
+    public synchronized ActiveGamePlayerInfo getActiveGamePlayerByMac(String mac) {
+        if (mac == null || mac.isEmpty()) return null;
+        return activeGameMacMap.get(mac);
+    }
+
+    public Map<String, ActiveGamePlayerInfo> getActiveGameMacMap() {
+        return activeGameMacMap;
+    }
+
+    public synchronized boolean isNameUnique(String name, byte excludePlayerId) {
+        if (name == null || name.trim().isEmpty()) {
+            return false;
+        }
+        String trimmed = name.trim();
+        for (Map.Entry<Byte, String> entry : teamPlayerNameMap.entrySet()) {
+            if (excludePlayerId != 0 && entry.getKey() == excludePlayerId) {
+                continue;
+            }
+            if (trimmed.equalsIgnoreCase(entry.getValue())) {
+                return false;
+            }
+        }
+        if (excludePlayerId != playerID && trimmed.equalsIgnoreCase(playerName)) {
+            return false;
+        }
+        return true;
+    }
+
     public synchronized void removePlayer(byte playerId) {
+        removePlayer(playerId, GameStateRepository.getInstance().isGameRunning());
+    }
+
+    public synchronized void removePlayer(byte playerId, boolean isGameRunning) {
         InetAddress ip = teamIPMap.remove(playerId);
         if (ip != null) {
             ipTeamMap.remove(ip);
         }
         gpsData.remove(playerId);
         playerSettings.remove(playerId);
-        // Retain teamPlayerNameMap, playerMacMap, and macPlayerMap across disconnections to preserve player name, ID, and team.
+        if (!isGameRunning) {
+            teamPlayerNameMap.remove(playerId);
+            String mac = playerMacMap.remove(playerId);
+            if (mac != null) {
+                macPlayerMap.remove(mac);
+            }
+        }
     }
 
     public synchronized void reassignPlayer(byte oldPlayerId, byte newPlayerId) {
@@ -192,6 +256,7 @@ public class PlayerRepository {
         playerSettings.clear();
         macPlayerMap.clear();
         playerMacMap.clear();
+        activeGameMacMap.clear();
     }
 
     public synchronized int calcNetworkTeam(byte id) {

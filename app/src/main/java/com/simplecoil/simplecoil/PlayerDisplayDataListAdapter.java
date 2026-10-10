@@ -163,6 +163,7 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
             View headerView = inflater.inflate(R.layout.player_display_team_header, null, true);
             TextView titleTV = headerView.findViewById(R.id.team_header_title_tv);
             TextView actionTV = headerView.findViewById(R.id.team_header_action_tv);
+            View colorSq = headerView.findViewById(R.id.team_header_color_sq);
 
             boolean isAdmin = Globals.getInstance().mIsAdmin;
             boolean canEdit = (!isClient || isAdmin);
@@ -171,6 +172,9 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
             if (gameMode == Globals.GAME_MODE_FFA) {
                 titleTV.setText("PLAYERS");
                 actionTV.setVisibility(View.GONE);
+                if (colorSq != null) {
+                    colorSq.setVisibility(View.GONE);
+                }
             } else {
                 int[] sizes = Globals.getInstance().getTeamSizes();
                 int capacity = 16;
@@ -190,6 +194,15 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
                     }
                 }
                 titleTV.setText(context.getString(R.string.player_list_team_header, row.teamNumber, playerCount, capacity, teamScore));
+                if (colorSq != null) {
+                    int teamColor = Globals.getTeamColor(row.teamNumber);
+                    if (teamColor != Color.TRANSPARENT) {
+                        colorSq.setBackgroundColor(teamColor);
+                        colorSq.setVisibility(View.VISIBLE);
+                    } else {
+                        colorSq.setVisibility(View.GONE);
+                    }
+                }
                 if (canEdit) {
                     actionTV.setVisibility(View.VISIBLE);
                     actionTV.setText("Tap to edit ratio");
