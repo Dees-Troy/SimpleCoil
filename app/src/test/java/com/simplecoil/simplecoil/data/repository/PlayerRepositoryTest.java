@@ -226,6 +226,26 @@ public class PlayerRepositoryTest {
         assertEquals("MacPlayerUpdated", playerRepo.getPlayerName(playerId));
         assertEquals(newIp, playerRepo.getTeamIPMap().get(playerId));
     }
+
+    @Test
+    public void testMacAddressRetainedAfterPlayerRemoval() throws Exception {
+        playerRepo.setPlayerID((byte) 0);
+        playerRepo.clearAllPlayers();
+
+        byte playerId = 7;
+        String testMac = "11:22:33:44:55:66";
+        InetAddress ip = InetAddress.getByName("192.168.1.107");
+
+        playerRepo.addOrUpdatePlayer(playerId, ip, "PersistedPlayer", testMac);
+        assertEquals((Byte) playerId, playerRepo.getPlayerIdByMac(testMac));
+
+        // Simulate player disconnecting (removePlayer called)
+        playerRepo.removePlayer(playerId);
+
+        // MAC mapping should still be retained so that reconnecting via MAC restores the session!
+        assertEquals((Byte) playerId, playerRepo.getPlayerIdByMac(testMac));
+        assertEquals("PersistedPlayer", playerRepo.getPlayerName(playerId));
+    }
 }
 
 

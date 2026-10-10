@@ -153,13 +153,9 @@ public class PlayerRepository {
         if (ip != null) {
             ipTeamMap.remove(ip);
         }
-        teamPlayerNameMap.remove(playerId);
         gpsData.remove(playerId);
         playerSettings.remove(playerId);
-        String mac = playerMacMap.remove(playerId);
-        if (mac != null) {
-            macPlayerMap.remove(mac);
-        }
+        // Retain teamPlayerNameMap, playerMacMap, and macPlayerMap across disconnections to preserve player name, ID, and team.
     }
 
     public synchronized void reassignPlayer(byte oldPlayerId, byte newPlayerId) {

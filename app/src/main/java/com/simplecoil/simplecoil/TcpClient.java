@@ -612,7 +612,13 @@ public class TcpClient extends Service {
                     for (int x = 0; x < players.length(); x++) {
                         JSONObject player = players.getJSONObject(x);
                         Byte playerID = (byte) player.getInt(TcpServer.JSON_PLAYERID);
-                        if (playerID != Globals.getInstance().mPlayerID) {
+                        String playerName = player.getString(TcpServer.JSON_PLAYERNAME);
+                        if (playerID == Globals.getInstance().mPlayerID) {
+                            if (!playerName.isEmpty() && !playerName.equals(Globals.getInstance().mPlayerName)) {
+                                Globals.getInstance().mPlayerName = playerName;
+                                PlayerRepository.getInstance().setPlayerName(playerName);
+                            }
+                        } else {
                             InetAddress playerIP = null;
                             String ip = player.getString(TcpServer.JSON_PLAYERIP);
                             if (ip.startsWith("/")) ip = ip.substring(1);
@@ -622,7 +628,6 @@ public class TcpClient extends Service {
                                 e.printStackTrace();
                             }
                             if (playerIP != null) {
-                                String playerName = player.getString(TcpServer.JSON_PLAYERNAME);
                                 PlayerRepository.getInstance().addOrUpdatePlayer(playerID, playerIP, playerName);
                                 Log.d(TAG, "player '" + playerName + "' (" + playerID + ") found at " + playerIP.toString());
                             }
