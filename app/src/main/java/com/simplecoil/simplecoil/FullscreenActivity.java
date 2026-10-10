@@ -465,6 +465,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mReady = false;
         setReady(disableNetwork);
         if (disableNetwork) {
+            mAutoScanStarted = false;
             displayAllNetworkingOptions(false);
             mUseNetwork = false;
             mUseNetworkingButton.setText(R.string.use_network_button);
