@@ -43,6 +43,8 @@ public class PlayerRepository {
     private final Map<Byte, String> teamPlayerNameMap = new ConcurrentHashMap<>();
     private final Map<Byte, Globals.GPSData> gpsData = new ConcurrentHashMap<>();
     private final Map<Byte, Globals.PlayerSettings> playerSettings = new ConcurrentHashMap<>();
+    private final Map<String, Byte> macPlayerMap = new ConcurrentHashMap<>();
+    private final Map<Byte, String> playerMacMap = new ConcurrentHashMap<>();
 
     private volatile byte pairedGrenadeID = 0;
     private final int[] grenadePairings = new int[MAX_GRENADE_IDS];
@@ -91,6 +93,8 @@ public class PlayerRepository {
     public Map<Byte, String> getTeamPlayerNameMap() { return teamPlayerNameMap; }
     public Map<Byte, Globals.GPSData> getGpsData() { return gpsData; }
     public Map<Byte, Globals.PlayerSettings> getPlayerSettings() { return playerSettings; }
+    public Map<String, Byte> getMacPlayerMap() { return macPlayerMap; }
+    public Map<Byte, String> getPlayerMacMap() { return playerMacMap; }
 
     public synchronized int[] getGrenadePairings() {
         return grenadePairings.clone();
@@ -118,6 +122,10 @@ public class PlayerRepository {
     }
 
     public synchronized void addOrUpdatePlayer(byte playerId, InetAddress ip, String name) {
+        addOrUpdatePlayer(playerId, ip, name, null);
+    }
+
+    public synchronized void addOrUpdatePlayer(byte playerId, InetAddress ip, String name, String mac) {
         if (ip != null) {
             teamIPMap.put(playerId, ip);
             ipTeamMap.put(ip, playerId);
@@ -125,6 +133,19 @@ public class PlayerRepository {
         if (name != null) {
             teamPlayerNameMap.put(playerId, name);
         }
+        if (mac != null && !mac.isEmpty()) {
+            String oldMac = playerMacMap.remove(playerId);
+            if (oldMac != null) {
+                macPlayerMap.remove(oldMac);
+            }
+            macPlayerMap.put(mac, playerId);
+            playerMacMap.put(playerId, mac);
+        }
+    }
+
+    public synchronized Byte getPlayerIdByMac(String mac) {
+        if (mac == null || mac.isEmpty()) return null;
+        return macPlayerMap.get(mac);
     }
 
     public synchronized void removePlayer(byte playerId) {
@@ -135,6 +156,10 @@ public class PlayerRepository {
         teamPlayerNameMap.remove(playerId);
         gpsData.remove(playerId);
         playerSettings.remove(playerId);
+        String mac = playerMacMap.remove(playerId);
+        if (mac != null) {
+            macPlayerMap.remove(mac);
+        }
     }
 
     public synchronized void reassignPlayer(byte oldPlayerId, byte newPlayerId) {
@@ -142,6 +167,7 @@ public class PlayerRepository {
         String name = teamPlayerNameMap.remove(oldPlayerId);
         Globals.PlayerSettings settings = playerSettings.remove(oldPlayerId);
         Globals.GPSData gps = gpsData.remove(oldPlayerId);
+        String mac = playerMacMap.remove(oldPlayerId);
 
         if (ip != null) {
             teamIPMap.put(newPlayerId, ip);
@@ -156,6 +182,10 @@ public class PlayerRepository {
         if (gps != null) {
             gpsData.put(newPlayerId, gps);
         }
+        if (mac != null && !mac.isEmpty()) {
+            macPlayerMap.put(mac, newPlayerId);
+            playerMacMap.put(newPlayerId, mac);
+        }
     }
 
     public synchronized void clearAllPlayers() {
@@ -164,6 +194,8 @@ public class PlayerRepository {
         teamPlayerNameMap.clear();
         gpsData.clear();
         playerSettings.clear();
+        macPlayerMap.clear();
+        playerMacMap.clear();
     }
 
     public synchronized int calcNetworkTeam(byte id) {

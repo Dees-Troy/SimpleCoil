@@ -187,6 +187,11 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private boolean mHasConnectedToBlaster = false;
     private boolean mCommunicating = false; // Used to make sure that we start receiving telemetry data after initial connection
     private String mDeviceAddress = ""; // MAC address of the tagger
+
+    private void setDeviceAddress(String address) {
+        mDeviceAddress = address != null ? address : "";
+        Globals.getInstance().mDeviceAddress = mDeviceAddress;
+    }
     private static byte mLastTeam = 0;
     private int mHitsTaken = 0; // total hits taken regardless of lives
     private static int mHealth = Globals.MAX_HEALTH;
@@ -591,6 +596,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         if (savedInstanceState != null) {
             mSelectedPlayerID = savedInstanceState.getByte("mSelectedPlayerID", (byte)0);
             mDeviceAddress = savedInstanceState.getString("mDeviceAddress", "");
+            setDeviceAddress(mDeviceAddress);
             mUseNetwork = savedInstanceState.getBoolean("mUseNetwork", false);
             mIsServer = savedInstanceState.getBoolean("mIsServer", false);
             mNetworkMenuType = savedInstanceState.getInt("mNetworkMenuType", NETWORK_TYPE_ENABLED);
@@ -622,6 +628,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 if (sharedPreferences == null)
                     sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
                 mDeviceAddress = sharedPreferences.getString(PREF_DEVICE_ADDRESS, "");
+                setDeviceAddress(mDeviceAddress);
                 if (!mDeviceAddress.isEmpty())
                     connectWeapon();
                 else {
@@ -634,6 +641,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mConnectButton.setOnClickListener((new View.OnClickListener() {
                 public void onClick(View v) {
                     mDeviceAddress = "";
+                    setDeviceAddress(mDeviceAddress);
                     connectWeapon();
                 }
             }));
@@ -841,6 +849,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         if (Globals.getInstance().mScoreLimit != 0)
             Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_SCORE;
         mDeviceAddress = sharedPreferences.getString(PREF_DEVICE_ADDRESS, "");
+        setDeviceAddress(mDeviceAddress);
         if (!mDeviceAddress.isEmpty()) {
             mReconnectButton.setVisibility(View.VISIBLE);
         } else {
@@ -2071,6 +2080,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         connectStatusTV.setText(R.string.connect_status_connecting);
                     }
                     mDeviceAddress = device.getAddress();
+                    setDeviceAddress(mDeviceAddress);
                     mBluetoothLeScanner.stopScan(mLeScanCallback);
                     mScanning = false;
                     setupBLEServiceConnection();
@@ -2202,7 +2212,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         }
 
         if (!macAddress.isEmpty()) {
-            mDeviceAddress = macAddress;
+            setDeviceAddress(macAddress);
             Log.d(TAG, "Got QR Code MAC: " + mDeviceAddress);
             if (!playerName.isEmpty()) {
                 Log.d(TAG, "Got QR Code Player Name: " + playerName);

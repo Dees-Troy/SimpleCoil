@@ -89,6 +89,7 @@ public class TcpServer extends Service {
     public static final String JSON_ONLY_SERVER_SETTINGS = "onlyserversettings";
     public static final String JSON_PAIRED_GRENADE_ID = "pairedgrenadeID";
     public static final String JSON_GRENADE_PAIRINGS = "grenadepairings";
+    public static final String JSON_BLASTER_MAC = "blaster_mac";
 
     public static final String JSON_GPSLONGITUDE = "gpslongitude";
     public static final String JSON_GPSLATITUDE = "gpslatitude";
@@ -1688,10 +1689,12 @@ public class TcpServer extends Service {
             boolean rejoin;
             byte id;
             String playerName;
+            String blasterMac;
             try {
                 rejoin = player.has(JSON_REJOIN);
                 id = (byte) player.getInt(JSON_PLAYERID);
                 playerName = player.getString(JSON_PLAYERNAME);
+                blasterMac = player.has(JSON_BLASTER_MAC) ? player.getString(JSON_BLASTER_MAC) : "";
             } catch (JSONException e) {
                 e.printStackTrace();
                 return;
@@ -1712,32 +1715,52 @@ public class TcpServer extends Service {
                 }
             }
 
-            boolean isRejoiningClient = false;
             try {
                 Globals.getmTeamIPMapSemaphore();
                 Globals.getmIPTeamMapSemaphore();
 
-                if (id != 0) {
+                Byte existingPlayerId = null;
+                if (!blasterMac.isEmpty()) {
+                    existingPlayerId = PlayerRepository.getInstance().getPlayerIdByMac(blasterMac);
+                }
+                if (existingPlayerId == null && id != 0) {
                     for (Map.Entry<Integer, ClientData> entry : mClientData.entrySet()) {
                         if (entry.getValue().clientID != client.clientID && entry.getValue().mPlayerID == id) {
-                            if (rejoin) {
-                                Log.d(TAG, "rejoining " + client.clientID + " to " + entry.getValue().clientID);
-                                entry.getValue().rejoin(client.clientSocket);
-                                mClientData.remove(client.clientID);
-                                isRejoiningClient = true;
-                                break;
-                            } else {
-                                Log.d(TAG, "Requested player ID " + id + " is already in use by active client " + entry.getValue().clientID + "; reassigning new auto-sorted ID.");
-                                id = 0;
-                                break;
-                            }
+                            existingPlayerId = id;
+                            break;
                         }
                     }
                 }
 
-                if (isRejoiningClient) {
-                    sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
-                    return;
+                if (existingPlayerId != null) {
+                    ClientData existingClient = null;
+                    for (Map.Entry<Integer, ClientData> entry : mClientData.entrySet()) {
+                        if (entry.getValue().mPlayerID == existingPlayerId) {
+                            existingClient = entry.getValue();
+                            break;
+                        }
+                    }
+                    if (existingClient != null) {
+                        Log.d(TAG, "rejoining " + client.clientID + " to " + existingClient.clientID + " for player ID " + existingPlayerId + " (MAC: " + blasterMac + ")");
+                        existingClient.rejoin(client.clientSocket);
+                        mClientData.remove(client.clientID);
+
+                        InetAddress inetAddress = existingClient.clientSocket.getInetAddress();
+                        Globals.getmTeamPlayerNameSemaphore();
+                        Set<String> usedNames = new HashSet<>(Globals.getInstance().mTeamPlayerNameMap.values());
+                        usedNames.remove(Globals.getInstance().getPlayerName(existingPlayerId));
+                        if (playerName.isEmpty() || playerName.equalsIgnoreCase("Player") || ProfanityFilter.containsProfanity(playerName) || usedNames.contains(playerName)) {
+                            playerName = NameGenerator.getRandomUniqueName(usedNames);
+                        }
+                        PlayerRepository.getInstance().addOrUpdatePlayer(existingPlayerId, inetAddress, playerName, blasterMac);
+                        Globals.getInstance().mTeamPlayerNameSemaphore.release();
+
+                        existingClient.sendTCPMessage(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERREPLY + existingPlayerId);
+                        sendAllGameInfo(existingPlayerId);
+                        sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+                        sendBroadcast(new Intent(NetMsg.NETMSG_JOIN));
+                        return;
+                    }
                 }
 
                 if (id != 0 && occupiedIDs.contains(id)) {
@@ -1754,9 +1777,6 @@ public class TcpServer extends Service {
                     }
                 }
 
-                if (rejoin)
-                    Log.d(TAG, "rejoined client " + client.clientID + " not present so adding as a new player");
-
                 client.mPlayerID = id;
                 client.mNetworkTeam = 1;
                 if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
@@ -1764,9 +1784,13 @@ public class TcpServer extends Service {
                 }
 
                 InetAddress inetAddress = client.clientSocket.getInetAddress();
-                if (inetAddress != null) {
-                    PlayerRepository.getInstance().addOrUpdatePlayer(client.mPlayerID, inetAddress, null);
+                Globals.getmTeamPlayerNameSemaphore();
+                Set<String> usedNames = new HashSet<>(Globals.getInstance().mTeamPlayerNameMap.values());
+                if (playerName.isEmpty() || playerName.equalsIgnoreCase("Player") || ProfanityFilter.containsProfanity(playerName) || usedNames.contains(playerName)) {
+                    playerName = NameGenerator.getRandomUniqueName(usedNames);
                 }
+                PlayerRepository.getInstance().addOrUpdatePlayer(client.mPlayerID, inetAddress, playerName, blasterMac);
+                Globals.getInstance().mTeamPlayerNameSemaphore.release();
             } finally {
                 Globals.getInstance().mIPTeamMapSemaphore.release();
                 Globals.getInstance().mTeamIPMapSemaphore.release();
@@ -1776,14 +1800,6 @@ public class TcpServer extends Service {
             Log.e(TAG, "network team is " + client.mNetworkTeam);
             InetAddress inetAddress = client.clientSocket.getInetAddress();
             Log.d(TAG, "client " + client.clientID + " player '" + playerName + "' (" + client.mPlayerID + ") found at " + (inetAddress != null ? inetAddress.toString() : "null"));
-
-            Globals.getmTeamPlayerNameSemaphore();
-            Set<String> usedNames = new HashSet<>(Globals.getInstance().mTeamPlayerNameMap.values());
-            if (playerName.isEmpty() || playerName.equalsIgnoreCase("Player") || ProfanityFilter.containsProfanity(playerName) || usedNames.contains(playerName)) {
-                playerName = NameGenerator.getRandomUniqueName(usedNames);
-            }
-            PlayerRepository.getInstance().addOrUpdatePlayer(client.mPlayerID, null, playerName);
-            Globals.getInstance().mTeamPlayerNameSemaphore.release();
 
             sendAllGameInfo(id);
             sendBroadcast(new Intent(NetMsg.NETMSG_JOIN));

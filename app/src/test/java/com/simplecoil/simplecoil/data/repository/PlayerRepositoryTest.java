@@ -179,4 +179,53 @@ public class PlayerRepositoryTest {
 
         Assert.assertTrue(playerRepo.getPlayerCount(true) > 1);
     }
+
+    @Test
+    public void testPlayerReconnectionUpdateIPAndName() throws Exception {
+        playerRepo.setPlayerID((byte) 0);
+        playerRepo.clearAllPlayers();
+
+        byte playerId = 2;
+        InetAddress initialIp = InetAddress.getByName("192.168.1.100");
+        playerRepo.addOrUpdatePlayer(playerId, initialIp, "OldName");
+
+        assertEquals(1, playerRepo.getPlayerCount(true));
+        assertEquals("OldName", playerRepo.getPlayerName(playerId));
+        assertEquals(initialIp, playerRepo.getTeamIPMap().get(playerId));
+
+        // Reconnect with new IP and new name
+        InetAddress newIp = InetAddress.getByName("192.168.1.150");
+        playerRepo.addOrUpdatePlayer(playerId, newIp, "NewName");
+
+        // Player count should still be 1 (not incremented)
+        assertEquals(1, playerRepo.getPlayerCount(true));
+        assertEquals("NewName", playerRepo.getPlayerName(playerId));
+        assertEquals(newIp, playerRepo.getTeamIPMap().get(playerId));
+        assertEquals((Byte) playerId, playerRepo.getIpTeamMap().get(newIp));
+    }
+
+    @Test
+    public void testPlayerMacAddressMappingAndLookup() throws Exception {
+        playerRepo.setPlayerID((byte) 0);
+        playerRepo.clearAllPlayers();
+
+        byte playerId = 5;
+        String testMac = "AA:BB:CC:DD:EE:FF";
+        InetAddress ip = InetAddress.getByName("192.168.1.105");
+
+        playerRepo.addOrUpdatePlayer(playerId, ip, "MacPlayer", testMac);
+
+        assertEquals((Byte) playerId, playerRepo.getPlayerIdByMac(testMac));
+        assertEquals(testMac, playerRepo.getPlayerMacMap().get(playerId));
+
+        // Reconnect with new IP and new name but same MAC
+        InetAddress newIp = InetAddress.getByName("192.168.1.120");
+        playerRepo.addOrUpdatePlayer(playerId, newIp, "MacPlayerUpdated", testMac);
+
+        assertEquals((Byte) playerId, playerRepo.getPlayerIdByMac(testMac));
+        assertEquals("MacPlayerUpdated", playerRepo.getPlayerName(playerId));
+        assertEquals(newIp, playerRepo.getTeamIPMap().get(playerId));
+    }
 }
+
+

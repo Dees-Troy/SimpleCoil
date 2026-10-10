@@ -399,6 +399,9 @@ public class TcpClient extends Service {
             JSONObject playerInfo = new JSONObject();
             playerInfo.put(TcpServer.JSON_PLAYERID, (int) Globals.getInstance().mPlayerID);
             playerInfo.put(TcpServer.JSON_PLAYERNAME, Globals.getInstance().mPlayerName);
+            if (Globals.getInstance().mDeviceAddress != null && !Globals.getInstance().mDeviceAddress.isEmpty()) {
+                playerInfo.put(TcpServer.JSON_BLASTER_MAC, Globals.getInstance().mDeviceAddress);
+            }
             if (rejoin) {
                 Log.d(TAG, "Attempting to rejoin server");
                 playerInfo.put(TcpServer.JSON_REJOIN, true);

@@ -90,6 +90,7 @@ public class Globals {
 
     public volatile byte mPlayerID = 0;
     public volatile String mPlayerName = "";
+    public volatile String mDeviceAddress = "";
     public volatile Map<InetAddress, Byte> mIPTeamMap;
     public volatile Map<Byte, InetAddress> mTeamIPMap;
     public volatile Map<Byte, String> mTeamPlayerNameMap;
