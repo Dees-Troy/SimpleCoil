@@ -250,16 +250,17 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             mGameModeButton.setText(R.string.game_mode_4teams);
         else
             mGameModeButton.setText(R.string.game_mode_ffa);
-        Globals.getInstance().mGameLimit = Globals.GAME_LIMIT_NONE;
+        int gameLimit = Globals.GAME_LIMIT_NONE;
         Globals.getInstance().mTimeLimit = sharedPreferences.getInt(FullscreenActivity.PREF_LIMIT_TIME, 0);
         if (Globals.getInstance().mTimeLimit != 0)
-            Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_TIME;
+            gameLimit += Globals.GAME_LIMIT_TIME;
         Globals.getInstance().mLivesLimit = sharedPreferences.getInt(FullscreenActivity.PREF_LIMIT_LIVES, 0);
         if (Globals.getInstance().mLivesLimit != 0)
-            Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_LIVES;
+            gameLimit += Globals.GAME_LIMIT_LIVES;
         Globals.getInstance().mScoreLimit = sharedPreferences.getInt(FullscreenActivity.PREF_LIMIT_SCORE, 0);
         if (Globals.getInstance().mScoreLimit != 0)
-            Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_SCORE;
+            gameLimit += Globals.GAME_LIMIT_SCORE;
+        Globals.getInstance().mGameLimit = gameLimit;
         setGameLimit();
         Globals.getInstance().mGPSMode = sharedPreferences.getInt(PREF_GPS_MODE, Globals.GPS_ALL);
         setGPSMode(Globals.getInstance().mGPSMode);
@@ -514,25 +515,27 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                                     dialog.dismiss();
                                     return;
                                 }
+                                int gameLimit = Globals.getInstance().mGameLimit;
                                 if (gameLimitTime.isChecked()) {
-                                    if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_TIME) == 0)
-                                        Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_TIME;
+                                    if ((gameLimit & Globals.GAME_LIMIT_TIME) == 0)
+                                        gameLimit += Globals.GAME_LIMIT_TIME;
                                     else if (limit <= 0)
-                                        Globals.getInstance().mGameLimit -= Globals.GAME_LIMIT_TIME;
+                                        gameLimit -= Globals.GAME_LIMIT_TIME;
                                     Globals.getInstance().mTimeLimit = limit;
                                 } else if (gameLimitLives.isChecked()) {
-                                    if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_LIVES) == 0)
-                                        Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_LIVES;
+                                    if ((gameLimit & Globals.GAME_LIMIT_LIVES) == 0)
+                                        gameLimit += Globals.GAME_LIMIT_LIVES;
                                     else if (limit <= 0)
-                                        Globals.getInstance().mGameLimit -= Globals.GAME_LIMIT_LIVES;
+                                        gameLimit -= Globals.GAME_LIMIT_LIVES;
                                     Globals.getInstance().mLivesLimit = limit;
                                 } else {
-                                    if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_SCORE) == 0)
-                                        Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_SCORE;
+                                    if ((gameLimit & Globals.GAME_LIMIT_SCORE) == 0)
+                                        gameLimit += Globals.GAME_LIMIT_SCORE;
                                     else if (limit <= 0)
-                                        Globals.getInstance().mGameLimit -= Globals.GAME_LIMIT_SCORE;
+                                        gameLimit -= Globals.GAME_LIMIT_SCORE;
                                     Globals.getInstance().mScoreLimit = limit;
                                 }
+                                Globals.getInstance().mGameLimit = gameLimit;
                                 setGameLimit();
                                 dialog.dismiss();
                             }

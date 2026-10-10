@@ -647,19 +647,21 @@ public class TcpClient extends Service {
                 JSONArray players = game.getJSONArray(TcpServer.JSON_PLAYERS);
                 Log.d(TAG, "Found " + players.length() + " players");
                 JSONObject limits = game.getJSONObject(TcpServer.JSON_LIMITS);
+                int gameLimit = Globals.getInstance().mGameLimit;
                 if (limits.has(TcpServer.JSON_TIMELIMIT)) {
-                    Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_TIME;
+                    gameLimit += Globals.GAME_LIMIT_TIME;
                     Globals.getInstance().mTimeLimit = limits.getInt(TcpServer.JSON_TIMELIMIT);
                 }
                 if (limits.has(TcpServer.JSON_LIVESLIMIT)) {
-                    Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_LIVES;
+                    gameLimit += Globals.GAME_LIMIT_LIVES;
                     Globals.getInstance().mLivesLimit = limits.getInt(TcpServer.JSON_LIVESLIMIT);
                     Log.e(TAG, "tcpClient set lives limit to " + Globals.getInstance().mLivesLimit);
                 }
                 if (limits.has(TcpServer.JSON_SCORELIMIT)) {
-                    Globals.getInstance().mGameLimit += Globals.GAME_LIMIT_SCORE;
+                    gameLimit += Globals.GAME_LIMIT_SCORE;
                     Globals.getInstance().mScoreLimit = limits.getInt(TcpServer.JSON_SCORELIMIT);
                 }
+                Globals.getInstance().mGameLimit = gameLimit;
                 Globals.getInstance().mGameMode = game.getInt(TcpServer.JSON_GAMEMODE);
                 if (game.has(TcpServer.JSON_TEAMSIZES)) {
                     JSONArray teamSizesArr = game.getJSONArray(TcpServer.JSON_TEAMSIZES);

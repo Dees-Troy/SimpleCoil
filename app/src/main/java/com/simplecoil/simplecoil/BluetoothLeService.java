@@ -26,6 +26,7 @@ import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothProfile;
+import android.bluetooth.BluetoothStatusCodes;
 import android.content.Context;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -179,7 +180,20 @@ public class BluetoothLeService extends Service {
                                          int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 Log.d(TAG, "read success!");
-                broadcastUpdate(characteristic);
+                broadcastUpdate(characteristic, characteristic.getValue());
+            } else {
+                Log.d(TAG, "read failed");
+            }
+        }
+
+        @Override
+        public void onCharacteristicRead(BluetoothGatt gatt,
+                                         BluetoothGattCharacteristic characteristic,
+                                         byte[] value,
+                                         int status) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                Log.d(TAG, "read success!");
+                broadcastUpdate(characteristic, value);
             } else {
                 Log.d(TAG, "read failed");
             }
@@ -200,7 +214,14 @@ public class BluetoothLeService extends Service {
         @Override
         public void onCharacteristicChanged(BluetoothGatt gatt,
                                             BluetoothGattCharacteristic characteristic) {
-            broadcastUpdate(characteristic);
+            broadcastUpdate(characteristic, characteristic.getValue());
+        }
+
+        @Override
+        public void onCharacteristicChanged(BluetoothGatt gatt,
+                                            BluetoothGattCharacteristic characteristic,
+                                            byte[] value) {
+            broadcastUpdate(characteristic, value);
         }
 
         @Override
@@ -221,15 +242,16 @@ public class BluetoothLeService extends Service {
         sendBroadcast(intent);
     }
 
-    private void broadcastUpdate(final BluetoothGattCharacteristic characteristic) {
+    private void broadcastUpdate(final BluetoothGattCharacteristic characteristic, final byte[] value) {
         if (UUID_RECOIL_TELEMETRY.equals((characteristic.getUuid()))) {
             final Intent intent = new Intent(TELEMETRY_DATA_AVAILABLE);
+            intent.putExtra(EXTRA_DATA, value);
             sendBroadcast(intent);
         } else if (UUID_RECOIL_ID.equals((characteristic.getUuid()))) {
             int firmwareVer = (characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0) << 8) + characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 1);
             Log.d(TAG, "Firmware version: " + firmwareVer);
             final Intent intent = new Intent(ID_DATA_AVAILABLE);
-            final byte[] data = characteristic.getValue();
+            final byte[] data = value != null ? value : characteristic.getValue();
             if (data != null && data.length > 10) {
                 intent.putExtra(EXTRA_DATA, data[10]);
             }
@@ -365,6 +387,30 @@ public class BluetoothLeService extends Service {
         }
         try {
             if (mBluetoothGatt.writeCharacteristic(characteristic)) {
+                Log.d(TAG, "writeCharacteristic success");
+            } else {
+                Log.w(TAG, "writeCharacteristic failed for UUID: " + characteristic.getUuid());
+            }
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException in writeCharacteristic: " + e.getMessage());
+        }
+    }
+
+    public void writeCharacteristic(BluetoothGattCharacteristic characteristic, byte[] value, int writeType) {
+        if (mBluetoothAdapter == null || mBluetoothGatt == null || characteristic == null) {
+            Log.w(TAG, "BluetoothAdapter/Gatt/Characteristic not initialized");
+            return;
+        }
+        try {
+            boolean success;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                success = mBluetoothGatt.writeCharacteristic(characteristic, value, writeType) == BluetoothStatusCodes.SUCCESS;
+            } else {
+                characteristic.setValue(value);
+                characteristic.setWriteType(writeType);
+                success = mBluetoothGatt.writeCharacteristic(characteristic);
+            }
+            if (success) {
                 Log.d(TAG, "writeCharacteristic success");
             } else {
                 Log.w(TAG, "writeCharacteristic failed for UUID: " + characteristic.getUuid());
