@@ -563,6 +563,8 @@ public class TcpServer extends Service {
                         Map<Byte, String> newNameMap = new ConcurrentHashMap<>();
                         Map<Byte, Globals.PlayerSettings> newSettingsMap = new ConcurrentHashMap<>();
                         Map<Byte, Globals.GPSData> newGPSMap = new ConcurrentHashMap<>();
+                        Map<Byte, String> newPlayerMacMap = new ConcurrentHashMap<>();
+                        Map<String, Byte> newMacPlayerMap = new ConcurrentHashMap<>();
 
                         int maxPlayers = Globals.MAX_PLAYER_ID;
 
@@ -574,10 +576,20 @@ public class TcpServer extends Service {
                                 byte newHostID = nextID++;
                                 usedIDs.add(newHostID);
                                 Globals.getInstance().mPlayerID = newHostID;
-                                String hostName = Globals.getInstance().mTeamPlayerNameMap.get(oldHostID);
-                                if (hostName == null) hostName = Globals.getInstance().mPlayerName;
-                                if (hostName != null) newNameMap.put(newHostID, hostName);
+                                String hostName = PlayerRepository.getInstance().getPlayerName(oldHostID);
+                                if (hostName == null || hostName.isEmpty()) {
+                                    hostName = Globals.getInstance().mTeamPlayerNameMap.get(oldHostID);
+                                }
+                                if (hostName == null || hostName.isEmpty()) {
+                                    hostName = Globals.getInstance().mPlayerName;
+                                }
+                                if (hostName != null && !hostName.isEmpty()) {
+                                    newNameMap.put(newHostID, hostName);
+                                }
                                 InetAddress hostIP = Globals.getInstance().mTeamIPMap.get(oldHostID);
+                                if (hostIP == null) {
+                                    hostIP = PlayerRepository.getInstance().getTeamIPMap().get(oldHostID);
+                                }
                                 if (hostIP == null) {
                                     try { hostIP = InetAddress.getByName(Globals.getIPAddressStr()); } catch (Exception e) {}
                                 }
@@ -592,6 +604,11 @@ public class TcpServer extends Service {
                                     gps.team = newHostID;
                                     gps.hasUpdate = true;
                                     newGPSMap.put(newHostID, gps);
+                                }
+                                String hostMac = PlayerRepository.getInstance().getPlayerMacMap().get(oldHostID);
+                                if (hostMac != null && !hostMac.isEmpty()) {
+                                    newPlayerMacMap.put(newHostID, hostMac);
+                                    newMacPlayerMap.put(hostMac, newHostID);
                                 }
 
                                 Intent hostReplyIntent = new Intent(NetMsg.NETMSG_SERVERREPLY);
@@ -621,12 +638,20 @@ public class TcpServer extends Service {
                                 newClientMap.put((int) newID, client);
 
                                 InetAddress ip = Globals.getInstance().mTeamIPMap.get(oldID);
+                                if (ip == null) {
+                                    ip = PlayerRepository.getInstance().getTeamIPMap().get(oldID);
+                                }
                                 if (ip != null) {
                                     newTeamIPMap.put(newID, ip);
                                     newIPTeamMap.put(ip, newID);
                                 }
-                                String name = Globals.getInstance().mTeamPlayerNameMap.get(oldID);
-                                if (name != null) newNameMap.put(newID, name);
+                                String name = PlayerRepository.getInstance().getPlayerName(oldID);
+                                if (name == null || name.isEmpty()) {
+                                    name = Globals.getInstance().mTeamPlayerNameMap.get(oldID);
+                                }
+                                if (name != null && !name.isEmpty()) {
+                                    newNameMap.put(newID, name);
+                                }
                                 Globals.PlayerSettings set = Globals.getInstance().mPlayerSettings.get(oldID);
                                 if (set != null) newSettingsMap.put(newID, set);
                                 Globals.GPSData gps = Globals.getInstance().mGPSData.get(oldID);
@@ -634,6 +659,11 @@ public class TcpServer extends Service {
                                     gps.team = newID;
                                     gps.hasUpdate = true;
                                     newGPSMap.put(newID, gps);
+                                }
+                                String mac = PlayerRepository.getInstance().getPlayerMacMap().get(oldID);
+                                if (mac != null && !mac.isEmpty()) {
+                                    newPlayerMacMap.put(newID, mac);
+                                    newMacPlayerMap.put(mac, newID);
                                 }
 
                                 client.sendTCPMessage(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERREPLY + newID);
@@ -671,10 +701,20 @@ public class TcpServer extends Service {
                                 if (newHostID != 0) {
                                     usedIDs.add(newHostID);
                                     Globals.getInstance().mPlayerID = newHostID;
-                                    String hostName = Globals.getInstance().mTeamPlayerNameMap.get(oldHostID);
-                                    if (hostName == null) hostName = Globals.getInstance().mPlayerName;
-                                    if (hostName != null) newNameMap.put(newHostID, hostName);
+                                    String hostName = PlayerRepository.getInstance().getPlayerName(oldHostID);
+                                    if (hostName == null || hostName.isEmpty()) {
+                                        hostName = Globals.getInstance().mTeamPlayerNameMap.get(oldHostID);
+                                    }
+                                    if (hostName == null || hostName.isEmpty()) {
+                                        hostName = Globals.getInstance().mPlayerName;
+                                    }
+                                    if (hostName != null && !hostName.isEmpty()) {
+                                        newNameMap.put(newHostID, hostName);
+                                    }
                                     InetAddress hostIP = Globals.getInstance().mTeamIPMap.get(oldHostID);
+                                    if (hostIP == null) {
+                                        hostIP = PlayerRepository.getInstance().getTeamIPMap().get(oldHostID);
+                                    }
                                     if (hostIP == null) {
                                         try { hostIP = InetAddress.getByName(Globals.getIPAddressStr()); } catch (Exception e) {}
                                     }
@@ -689,6 +729,11 @@ public class TcpServer extends Service {
                                         gps.team = hostTeam;
                                         gps.hasUpdate = true;
                                         newGPSMap.put(newHostID, gps);
+                                    }
+                                    String hostMac = PlayerRepository.getInstance().getPlayerMacMap().get(oldHostID);
+                                    if (hostMac != null && !hostMac.isEmpty()) {
+                                        newPlayerMacMap.put(newHostID, hostMac);
+                                        newMacPlayerMap.put(hostMac, newHostID);
                                     }
 
                                     Intent hostReplyIntent = new Intent(NetMsg.NETMSG_SERVERREPLY);
@@ -729,12 +774,20 @@ public class TcpServer extends Service {
                                 newClientMap.put((int) newID, client);
 
                                 InetAddress ip = Globals.getInstance().mTeamIPMap.get(oldID);
+                                if (ip == null) {
+                                    ip = PlayerRepository.getInstance().getTeamIPMap().get(oldID);
+                                }
                                 if (ip != null) {
                                     newTeamIPMap.put(newID, ip);
                                     newIPTeamMap.put(ip, newID);
                                 }
-                                String name = Globals.getInstance().mTeamPlayerNameMap.get(oldID);
-                                if (name != null) newNameMap.put(newID, name);
+                                String name = PlayerRepository.getInstance().getPlayerName(oldID);
+                                if (name == null || name.isEmpty()) {
+                                    name = Globals.getInstance().mTeamPlayerNameMap.get(oldID);
+                                }
+                                if (name != null && !name.isEmpty()) {
+                                    newNameMap.put(newID, name);
+                                }
                                 Globals.PlayerSettings set = Globals.getInstance().mPlayerSettings.get(oldID);
                                 if (set != null) newSettingsMap.put(newID, set);
                                 Globals.GPSData gps = Globals.getInstance().mGPSData.get(oldID);
@@ -743,17 +796,31 @@ public class TcpServer extends Service {
                                     gps.hasUpdate = true;
                                     newGPSMap.put(newID, gps);
                                 }
+                                String mac = PlayerRepository.getInstance().getPlayerMacMap().get(oldID);
+                                if (mac != null && !mac.isEmpty()) {
+                                    newPlayerMacMap.put(newID, mac);
+                                    newMacPlayerMap.put(mac, newID);
+                                }
 
                                 client.sendTCPMessage(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERREPLY + newID);
                             }
                         }
 
                         mClientData = newClientMap;
-                        Globals.getInstance().mTeamIPMap = newTeamIPMap;
-                        Globals.getInstance().mIPTeamMap = newIPTeamMap;
-                        Globals.getInstance().mTeamPlayerNameMap = newNameMap;
-                        Globals.getInstance().mPlayerSettings = newSettingsMap;
-                        Globals.getInstance().mGPSData = newGPSMap;
+                        PlayerRepository.getInstance().updateAllPlayerMappings(
+                                newTeamIPMap,
+                                newIPTeamMap,
+                                newNameMap,
+                                newSettingsMap,
+                                newGPSMap,
+                                newPlayerMacMap,
+                                newMacPlayerMap
+                        );
+                        Globals.getInstance().mTeamIPMap = PlayerRepository.getInstance().getTeamIPMap();
+                        Globals.getInstance().mIPTeamMap = PlayerRepository.getInstance().getIpTeamMap();
+                        Globals.getInstance().mTeamPlayerNameMap = PlayerRepository.getInstance().getTeamPlayerNameMap();
+                        Globals.getInstance().mPlayerSettings = PlayerRepository.getInstance().getPlayerSettings();
+                        Globals.getInstance().mGPSData = PlayerRepository.getInstance().getGpsData();
                     } finally {
                         Globals.getInstance().mGPSDataSemaphore.release();
                         Globals.getInstance().mPlayerSettingsSemaphore.release();

@@ -248,6 +248,50 @@ public class PlayerRepository {
         }
     }
 
+    public synchronized void updateAllPlayerMappings(
+            Map<Byte, InetAddress> newTeamIPMap,
+            Map<InetAddress, Byte> newIPTeamMap,
+            Map<Byte, String> newNameMap,
+            Map<Byte, Globals.PlayerSettings> newSettingsMap,
+            Map<Byte, Globals.GPSData> newGPSMap,
+            Map<Byte, String> newPlayerMacMap,
+            Map<String, Byte> newMacPlayerMap) {
+        teamIPMap.clear();
+        if (newTeamIPMap != null) {
+            teamIPMap.putAll(newTeamIPMap);
+        }
+
+        ipTeamMap.clear();
+        if (newIPTeamMap != null) {
+            ipTeamMap.putAll(newIPTeamMap);
+        }
+
+        teamPlayerNameMap.clear();
+        if (newNameMap != null) {
+            teamPlayerNameMap.putAll(newNameMap);
+        }
+
+        playerSettings.clear();
+        if (newSettingsMap != null) {
+            playerSettings.putAll(newSettingsMap);
+        }
+
+        gpsData.clear();
+        if (newGPSMap != null) {
+            gpsData.putAll(newGPSMap);
+        }
+
+        playerMacMap.clear();
+        if (newPlayerMacMap != null) {
+            playerMacMap.putAll(newPlayerMacMap);
+        }
+
+        macPlayerMap.clear();
+        if (newMacPlayerMap != null) {
+            macPlayerMap.putAll(newMacPlayerMap);
+        }
+    }
+
     public synchronized void clearAllPlayers() {
         teamIPMap.clear();
         ipTeamMap.clear();

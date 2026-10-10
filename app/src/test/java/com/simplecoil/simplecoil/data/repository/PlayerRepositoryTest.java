@@ -25,7 +25,9 @@ import org.junit.Test;
 
 import java.net.InetAddress;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class PlayerRepositoryTest {
 
@@ -305,6 +307,69 @@ public class PlayerRepositoryTest {
 
         playerRepo.clearActiveGameMacMap();
         Assert.assertNull(playerRepo.getActiveGamePlayerByMac(mac));
+    }
+
+    @Test
+    public void testUpdateAllPlayerMappingsPreservesNamesAndMACs() throws Exception {
+        playerRepo.setPlayerID((byte) 0);
+        playerRepo.clearAllPlayers();
+
+        // Player 1: Alice at ID 1
+        byte p1OldId = 1;
+        InetAddress p1Ip = InetAddress.getByName("192.168.1.101");
+        String p1Name = "Alice";
+        String p1Mac = "11:11:11:11:11:11";
+        playerRepo.addOrUpdatePlayer(p1OldId, p1Ip, p1Name, p1Mac);
+
+        // Player 2: Bob at ID 17
+        byte p2OldId = 17;
+        InetAddress p2Ip = InetAddress.getByName("192.168.1.102");
+        String p2Name = "Bob";
+        String p2Mac = "22:22:22:22:22:22";
+        playerRepo.addOrUpdatePlayer(p2OldId, p2Ip, p2Name, p2Mac);
+
+        // Verify initial setup
+        assertEquals("Alice", playerRepo.getPlayerName(p1OldId));
+        assertEquals("Bob", playerRepo.getPlayerName(p2OldId));
+
+        // Simulate sort/rebalance: Alice moves to ID 17, Bob moves to ID 1
+        byte p1NewId = 17;
+        byte p2NewId = 1;
+
+        Map<Byte, InetAddress> newTeamIPMap = new ConcurrentHashMap<>();
+        Map<InetAddress, Byte> newIPTeamMap = new ConcurrentHashMap<>();
+        Map<Byte, String> newNameMap = new ConcurrentHashMap<>();
+        Map<Byte, String> newPlayerMacMap = new ConcurrentHashMap<>();
+        Map<String, Byte> newMacPlayerMap = new ConcurrentHashMap<>();
+
+        newNameMap.put(p1NewId, p1Name);
+        newTeamIPMap.put(p1NewId, p1Ip);
+        newIPTeamMap.put(p1Ip, p1NewId);
+        newPlayerMacMap.put(p1NewId, p1Mac);
+        newMacPlayerMap.put(p1Mac, p1NewId);
+
+        newNameMap.put(p2NewId, p2Name);
+        newTeamIPMap.put(p2NewId, p2Ip);
+        newIPTeamMap.put(p2Ip, p2NewId);
+        newPlayerMacMap.put(p2NewId, p2Mac);
+        newMacPlayerMap.put(p2Mac, p2NewId);
+
+        playerRepo.updateAllPlayerMappings(
+                newTeamIPMap,
+                newIPTeamMap,
+                newNameMap,
+                null,
+                null,
+                newPlayerMacMap,
+                newMacPlayerMap
+        );
+
+        // Verify that Player 17 is Alice and Player 1 is Bob (names retained)
+        assertEquals("Bob", playerRepo.getPlayerName((byte) 1));
+        assertEquals("Alice", playerRepo.getPlayerName((byte) 17));
+
+        assertEquals((Byte) (byte) 17, playerRepo.getPlayerIdByMac(p1Mac));
+        assertEquals((Byte) (byte) 1, playerRepo.getPlayerIdByMac(p2Mac));
     }
 }
 
