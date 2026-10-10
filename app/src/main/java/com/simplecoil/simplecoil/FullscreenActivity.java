@@ -177,6 +177,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private CountDownTimer mReloadTimer = null;
     private CountDownTimer mGameCountdownTimer = null;
     private CountDownTimer mConnectFailTimer = null;
+    private CountDownTimer mRespawnShieldTimer = null;
+    private TextView mRespawnShieldCountdownTV = null;
+    private volatile boolean mIsShielded = false;
     private boolean mGameTimerRunning = false;
 
     private BluetoothLeScanner mBluetoothLeScanner;
@@ -801,6 +804,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mEliminatedTV = findViewById(R.id.eliminated_tv);
         mEliminatedByTV = findViewById(R.id.eliminated_by_tv);
         mSpawnInTV = findViewById(R.id.spawn_countdown_tv);
+        mRespawnShieldCountdownTV = findViewById(R.id.respawn_shield_countdown_tv);
         mHitIV = findViewById(R.id.hit_animation_iv);
         mBatteryLevelIV = findViewById(R.id.battery_iv);
         WebView wv = findViewById(R.id.info_wv);
@@ -1652,6 +1656,14 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mSpawnTimer.cancel();
             mSpawnTimer = null;
         }
+        if (mRespawnShieldTimer != null) {
+            mRespawnShieldTimer.cancel();
+            mRespawnShieldTimer = null;
+        }
+        mIsShielded = false;
+        if (mRespawnShieldCountdownTV != null) {
+            mRespawnShieldCountdownTV.setVisibility(View.GONE);
+        }
         if (mReloadTimer != null) {
             mReloadTimer.cancel();
             mReloadTimer = null;
@@ -1884,9 +1896,41 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mLastShotCount = shotsRemaining;
     }
 
+    private void startRespawnShield(long shieldTimeInSeconds) {
+        if (mRespawnShieldTimer != null) {
+            mRespawnShieldTimer.cancel();
+            mRespawnShieldTimer = null;
+        }
+        mIsShielded = true;
+        mRespawnShieldCountdownTV.setText(getString(R.string.respawn_shield_label, shieldTimeInSeconds));
+        mRespawnShieldCountdownTV.setVisibility(View.VISIBLE);
+        mRespawnShieldTimer = new CountDownTimer(shieldTimeInSeconds * 1000, 999) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                long remainingSec = (millisUntilFinished / 1000) + 1;
+                mRespawnShieldCountdownTV.setText(getString(R.string.respawn_shield_label, remainingSec));
+            }
+
+            @Override
+            public void onFinish() {
+                mIsShielded = false;
+                mRespawnShieldCountdownTV.setVisibility(View.GONE);
+                mRespawnShieldTimer = null;
+            }
+        }.start();
+    }
+
     private void startSpawn(String eliminatedBy) {
         if (mReloadTimer != null)
             mReloadTimer.cancel();
+        if (mRespawnShieldTimer != null) {
+            mRespawnShieldTimer.cancel();
+            mRespawnShieldTimer = null;
+        }
+        mIsShielded = false;
+        if (mRespawnShieldCountdownTV != null) {
+            mRespawnShieldCountdownTV.setVisibility(View.GONE);
+        }
         Globals.getInstance().mGameState = Globals.GAME_STATE_ELIMINATED;
         startReload(RELOADING_STATE_ELIMINATED);
         mHitIV.setVisibility(View.GONE);
@@ -1921,6 +1965,11 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     } else {
                         mGameTimer.setBase(SystemClock.elapsedRealtime());
                         mGameTimer.start();
+                    }
+                } else {
+                    long shieldTime = Globals.getInstance().mRespawnShieldTime;
+                    if (shieldTime > 0) {
+                        startRespawnShield(shieldTime);
                     }
                 }
             }
@@ -2885,7 +2934,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         Globals.getInstance().mPairedGrenadeID = 0;
                     }
                 }
-                if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
+                if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE && !mIsShielded) {
                     if ((mLastHitData1.playerID == hit_by_player1 && mLastHitData1.shotID == shot_id1) || (mLastHitData2.playerID == hit_by_player1 && mLastHitData2.shotID == shot_id1)) {
                         //Log.e(TAG, "Hit by 1 is using same shot ID from a previous hit, filter!" + hit_by_player1 + " " + data[RECOIL_OFFSET_HIT_BY1_SHOTID]);
                     } else {

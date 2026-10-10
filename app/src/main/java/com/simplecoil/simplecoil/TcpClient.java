@@ -433,6 +433,7 @@ public class TcpClient extends Service {
             playerSettings.put(TcpServer.JSON_RELOAD_TIME, Globals.getInstance().mReloadTime);
             playerSettings.put(TcpServer.JSON_RELOAD_ON_EMPTY, Globals.getInstance().mReloadOnEmpty);
             playerSettings.put(TcpServer.JSON_SPAWN_TIME, Globals.getInstance().mRespawnTime);
+            playerSettings.put(TcpServer.JSON_RESPAWN_SHIELD_TIME, Globals.getInstance().mRespawnShieldTime);
             playerSettings.put(TcpServer.JSON_DAMAGE, Globals.getInstance().mDamage);
             if (Globals.getInstance().mOverrideLives)
                 playerSettings.put(TcpServer.JSON_LIVESLIMIT, Globals.getInstance().mOverrideLivesVal);
@@ -561,6 +562,9 @@ public class TcpClient extends Service {
                         playerSettings.reloadTime = setting.getLong(TcpServer.JSON_RELOAD_TIME);
                         playerSettings.reloadOnEmpty = setting.getBoolean(TcpServer.JSON_RELOAD_ON_EMPTY);
                         playerSettings.spawnTime = setting.getLong(TcpServer.JSON_SPAWN_TIME);
+                        if (setting.has(TcpServer.JSON_RESPAWN_SHIELD_TIME)) {
+                            playerSettings.respawnShieldTime = setting.getLong(TcpServer.JSON_RESPAWN_SHIELD_TIME);
+                        }
                         playerSettings.damage = setting.getInt(TcpServer.JSON_DAMAGE);
                         if (setting.has(TcpServer.JSON_LIVESLIMIT)) {
                             playerSettings.overrideLives = true;
@@ -585,6 +589,7 @@ public class TcpClient extends Service {
                             Globals.getInstance().mReloadTime = playerSettings.reloadTime;
                             Globals.getInstance().mReloadOnEmpty = playerSettings.reloadOnEmpty;
                             Globals.getInstance().mRespawnTime = playerSettings.spawnTime;
+                            Globals.getInstance().mRespawnShieldTime = playerSettings.respawnShieldTime;
                             Globals.getInstance().mDamage = playerSettings.damage;
                             Globals.getInstance().mOverrideLives = playerSettings.overrideLives;
                             Globals.getInstance().mOverrideLivesVal = playerSettings.lives;

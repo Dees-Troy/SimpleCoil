@@ -65,6 +65,7 @@ public class MainViewModel extends AndroidViewModel implements
     private final MutableLiveData<Integer> maxAmmoLiveData = new MutableLiveData<>();
     private final MutableLiveData<Integer> gameStateLiveData = new MutableLiveData<>();
     private final MutableLiveData<Long> timeRemainingLiveData = new MutableLiveData<>();
+    private final MutableLiveData<Boolean> isShieldedLiveData = new MutableLiveData<>(false);
     private final MutableLiveData<InetAddress> serverIPLiveData = new MutableLiveData<>();
     private final MutableLiveData<Boolean> blasterConnectedLiveData = new MutableLiveData<>();
     private final MutableLiveData<Long> batteryLevelLiveData = new MutableLiveData<>();
@@ -189,6 +190,10 @@ public class MainViewModel extends AndroidViewModel implements
         mapLocationManager.startLocationUpdates(context, this);
     }
 
+    public LiveData<Boolean> getIsShieldedLiveData() {
+        return isShieldedLiveData;
+    }
+
     public void stopLocationUpdates() {
         mapLocationManager.stopLocationUpdates();
     }
@@ -279,6 +284,16 @@ public class MainViewModel extends AndroidViewModel implements
         ammoLiveData.postValue((int) settingsRepo.getFullReload());
         gameStateLiveData.postValue(GameStateRepository.GAME_STATE_RUNNING);
         audioHapticsManager.playSpawnSound();
+    }
+
+    @Override
+    public void onRespawnShieldStarted(long respawnShieldTimeSeconds) {
+        isShieldedLiveData.postValue(true);
+    }
+
+    @Override
+    public void onRespawnShieldEnded() {
+        isShieldedLiveData.postValue(false);
     }
 
     // BlasterEventListener

@@ -37,12 +37,14 @@ public class Globals {
     public static final byte MAX_PLAYER_ID = GameSettingsRepository.MAX_PLAYER_ID;
     public static final byte RELOAD_COUNT = GameSettingsRepository.RELOAD_COUNT;
     public static final long RESPAWN_TIME_SECONDS = GameSettingsRepository.RESPAWN_TIME_SECONDS;
+    public static final long RESPAWN_SHIELD_TIME_SECONDS = GameSettingsRepository.RESPAWN_SHIELD_TIME_SECONDS;
     public static final long RELOAD_TIME_MILLISECONDS = GameSettingsRepository.RELOAD_TIME_MILLISECONDS;
     public static final int MAX_HEALTH = GameSettingsRepository.MAX_HEALTH;
     public static final int DAMAGE_PER_HIT = GameSettingsRepository.DAMAGE_PER_HIT;
 
     public volatile byte mFullReload = RELOAD_COUNT;
     public volatile long mRespawnTime = RESPAWN_TIME_SECONDS;
+    public volatile long mRespawnShieldTime = RESPAWN_SHIELD_TIME_SECONDS;
     public volatile long mReloadTime = RELOAD_TIME_MILLISECONDS;
     public volatile int mFullHealth = MAX_HEALTH;
     public volatile int mDamage = DAMAGE_PER_HIT;
@@ -184,6 +186,7 @@ public class Globals {
         settings.setFullReload(mFullReload);
         settings.setReloadTime(mReloadTime);
         settings.setRespawnTime(mRespawnTime);
+        settings.setRespawnShieldTime(mRespawnShieldTime);
         settings.setDamage(mDamage);
         settings.setOverrideLives(mOverrideLives);
         settings.setOverrideLivesVal(mOverrideLivesVal);
@@ -314,6 +317,7 @@ public class Globals {
         public volatile long reloadTime = Globals.RELOAD_TIME_MILLISECONDS;
         public volatile boolean reloadOnEmpty = false;
         public volatile long spawnTime = Globals.RESPAWN_TIME_SECONDS;
+        public volatile long respawnShieldTime = Globals.RESPAWN_SHIELD_TIME_SECONDS;
         public volatile int damage = Globals.DAMAGE_PER_HIT;
         public volatile boolean overrideLives = false;
         public volatile int lives = 0;

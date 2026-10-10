@@ -57,6 +57,7 @@
     <string name="starting_game_label">STARTING!</string>
     <string name="eliminated_label">ELIMINATED!</string>
     <string name="spawn_in_label">Spawn in %1$d</string>
+    <string name="respawn_shield_label">Shield: %1$d</string>
 
     <string name="ble_not_supported">BLE is not supported</string>
     <string name="error_bluetooth_not_supported">Bluetooth not supported.</string>
@@ -147,6 +148,7 @@
     <string name="player_settings_button">Player Settings</string>
     <string name="player_settings_health_title">Health</string>
     <string name="player_settings_spawn_time">Respawn Time (Seconds)</string>
+    <string name="player_settings_respawn_shield_time">Respawn Shield Time (Seconds)</string>
     <string name="player_settings_reload_time">Reload Time (Milliseconds)</string>
     <string name="player_settings_reload_shots">Shots Per Reload</string>
     <string name="player_settings_reload_on_empty">Reload on empty?</string>

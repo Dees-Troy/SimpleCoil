@@ -53,6 +53,7 @@ public class GameSettingsRepositoryTest {
     public void testDefaultSettings() {
         assertEquals(GameSettingsRepository.MAX_HEALTH, repository.getFullHealth());
         assertEquals(GameSettingsRepository.RELOAD_COUNT, repository.getFullReload());
+        assertEquals(GameSettingsRepository.RESPAWN_SHIELD_TIME_SECONDS, repository.getRespawnShieldTime());
         assertEquals(GameSettingsRepository.GAME_MODE_2TEAMS, repository.getGameMode());
         assertEquals(GameSettingsRepository.GAME_LIMIT_NONE, repository.getGameLimit());
     }

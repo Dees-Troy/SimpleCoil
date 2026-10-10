@@ -39,6 +39,7 @@ public class GameEngine {
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> reloadFuture;
     private ScheduledFuture<?> respawnFuture;
+    private ScheduledFuture<?> respawnShieldFuture;
 
     private final List<GameEngineListener> listeners = new CopyOnWriteArrayList<>();
 
@@ -46,6 +47,7 @@ public class GameEngine {
     private volatile int remainingShots;
     private volatile boolean isReloading = false;
     private volatile boolean isRespawning = false;
+    private volatile boolean isShielded = false;
     private volatile long lastHitTimestamp = 0L;
     private volatile long hitCooldownMs = DEFAULT_HIT_COOLDOWN_MS;
 
@@ -60,6 +62,8 @@ public class GameEngine {
         void onPlayerEliminated(int shooterPlayerId);
         void onRespawnStarted(long respawnTimeSeconds);
         void onPlayerRespawned();
+        void onRespawnShieldStarted(long respawnShieldTimeSeconds);
+        void onRespawnShieldEnded();
     }
 
     private GameEngine(GameSettingsRepository settingsRepo, GameStateRepository gameStateRepo, PlayerRepository playerRepo) {
@@ -167,7 +171,7 @@ public class GameEngine {
     }
 
     public synchronized void processHitReceived(int shooterPlayerId, int damageAmount) {
-        if (!gameStateRepo.isGameRunning() || isRespawning) {
+        if (!gameStateRepo.isGameRunning() || isRespawning || isShielded) {
             return;
         }
 
@@ -239,16 +243,45 @@ public class GameEngine {
                     listener.onHealthChanged(currentHealth, settingsRepo.getFullHealth());
                     listener.onAmmoChanged(remainingShots, settingsRepo.getFullReload());
                 }
+
+                long shieldTimeSec = settingsRepo.getRespawnShieldTime();
+                if (shieldTimeSec > 0) {
+                    startRespawnShieldTimer(shieldTimeSec);
+                } else {
+                    isShielded = false;
+                }
             }
         }, respawnTimeSec, TimeUnit.SECONDS);
+    }
+
+    private synchronized void startRespawnShieldTimer(long shieldTimeSec) {
+        isShielded = true;
+        for (GameEngineListener listener : listeners) {
+            listener.onRespawnShieldStarted(shieldTimeSec);
+        }
+
+        if (respawnShieldFuture != null && !respawnShieldFuture.isDone()) {
+            respawnShieldFuture.cancel(true);
+        }
+
+        respawnShieldFuture = scheduler.schedule(() -> {
+            synchronized (GameEngine.this) {
+                isShielded = false;
+                for (GameEngineListener listener : listeners) {
+                    listener.onRespawnShieldEnded();
+                }
+            }
+        }, shieldTimeSec, TimeUnit.SECONDS);
     }
 
     public synchronized void resetGameDefaults() {
         if (reloadFuture != null) reloadFuture.cancel(true);
         if (respawnFuture != null) respawnFuture.cancel(true);
+        if (respawnShieldFuture != null) respawnShieldFuture.cancel(true);
 
         isReloading = false;
         isRespawning = false;
+        isShielded = false;
         currentHealth = settingsRepo.getFullHealth();
         remainingShots = settingsRepo.getFullReload();
 
@@ -267,6 +300,7 @@ public class GameEngine {
 
     public boolean isReloading() { return isReloading; }
     public boolean isRespawning() { return isRespawning; }
+    public boolean isShielded() { return isShielded; }
 
     public long getHitCooldownMs() { return hitCooldownMs; }
     public void setHitCooldownMs(long hitCooldownMs) { this.hitCooldownMs = hitCooldownMs; }

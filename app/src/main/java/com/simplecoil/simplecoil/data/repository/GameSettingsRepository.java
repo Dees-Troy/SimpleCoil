@@ -23,6 +23,7 @@ public class GameSettingsRepository {
     public static final byte MAX_PLAYER_ID = (byte) 0x20;
     public static final byte RELOAD_COUNT = (byte) 30;
     public static final long RESPAWN_TIME_SECONDS = 10;
+    public static final long RESPAWN_SHIELD_TIME_SECONDS = 3;
     public static final long RELOAD_TIME_MILLISECONDS = 1500;
     public static final int MAX_HEALTH = 20;
     public static final int DAMAGE_PER_HIT = -1;
@@ -55,6 +56,7 @@ public class GameSettingsRepository {
     // Mutable Settings
     private volatile byte fullReload = RELOAD_COUNT;
     private volatile long respawnTime = RESPAWN_TIME_SECONDS;
+    private volatile long respawnShieldTime = RESPAWN_SHIELD_TIME_SECONDS;
     private volatile long reloadTime = RELOAD_TIME_MILLISECONDS;
     private volatile int fullHealth = MAX_HEALTH;
     private volatile int damage = DAMAGE_PER_HIT;
@@ -154,6 +156,9 @@ public class GameSettingsRepository {
 
     public long getRespawnTime() { return respawnTime; }
     public void setRespawnTime(long respawnTime) { this.respawnTime = respawnTime; }
+
+    public long getRespawnShieldTime() { return respawnShieldTime; }
+    public void setRespawnShieldTime(long respawnShieldTime) { this.respawnShieldTime = respawnShieldTime; }
 
     public long getReloadTime() { return reloadTime; }
     public void setReloadTime(long reloadTime) { this.reloadTime = reloadTime; }

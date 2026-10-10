@@ -114,6 +114,7 @@ public class TcpServer extends Service {
     public static final String JSON_RELOAD_TIME = "reloadtime";
     public static final String JSON_RELOAD_ON_EMPTY = "reloadonempty";
     public static final String JSON_SPAWN_TIME = "spawntime";
+    public static final String JSON_RESPAWN_SHIELD_TIME = "respawnshieldtime";
     public static final String JSON_DAMAGE = "damage";
     public static final String JSON_SHOT_MODE_SINGLE = "shotmodesingle";
     public static final String JSON_SHOT_MODE_BURST3 = "shotmodeburst3";
@@ -1130,6 +1131,7 @@ public class TcpServer extends Service {
                             playerSettings.reloadTime = src.reloadTime;
                             playerSettings.reloadOnEmpty = src.reloadOnEmpty;
                             playerSettings.spawnTime = src.spawnTime;
+                            playerSettings.respawnShieldTime = src.respawnShieldTime;
                             playerSettings.damage = src.damage;
                             playerSettings.overrideLives = src.overrideLives;
                             playerSettings.lives = src.lives;
@@ -1157,6 +1159,7 @@ public class TcpServer extends Service {
                             playerSettings.reloadTime = src.reloadTime;
                             playerSettings.reloadOnEmpty = src.reloadOnEmpty;
                             playerSettings.spawnTime = src.spawnTime;
+                            playerSettings.respawnShieldTime = src.respawnShieldTime;
                             playerSettings.damage = src.damage;
                             playerSettings.overrideLives = src.overrideLives;
                             playerSettings.lives = src.lives;
@@ -1182,6 +1185,7 @@ public class TcpServer extends Service {
                 player.put(JSON_RELOAD_TIME, entry.getValue().reloadTime);
                 player.put(JSON_RELOAD_ON_EMPTY, entry.getValue().reloadOnEmpty);
                 player.put(JSON_SPAWN_TIME, entry.getValue().spawnTime);
+                player.put(JSON_RESPAWN_SHIELD_TIME, entry.getValue().respawnShieldTime);
                 player.put(JSON_DAMAGE, entry.getValue().damage);
                 if (entry.getValue().overrideLives)
                     player.put(JSON_LIVESLIMIT, entry.getValue().lives);
@@ -1749,6 +1753,9 @@ public class TcpServer extends Service {
                     settings.reloadTime = player.getLong(JSON_RELOAD_TIME);
                     settings.reloadOnEmpty = player.getBoolean(JSON_RELOAD_ON_EMPTY);
                     settings.spawnTime = player.getLong(JSON_SPAWN_TIME);
+                    if (player.has(JSON_RESPAWN_SHIELD_TIME)) {
+                        settings.respawnShieldTime = player.getLong(JSON_RESPAWN_SHIELD_TIME);
+                    }
                     settings.damage = player.getInt(JSON_DAMAGE);
                     if (player.has(JSON_LIVESLIMIT)) {
                         settings.overrideLives = true;

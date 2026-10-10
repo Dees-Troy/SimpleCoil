@@ -34,6 +34,8 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
+
 public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.OnMenuItemClickListener {
     private TextView mTitleTV = null;
     private EditText mHealthET = null;
@@ -41,6 +43,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
     private EditText mReloadTimeET = null;
     private Switch mReloadOnEmptySwitch = null;
     private EditText mSpawnTimeET = null;
+    private EditText mRespawnShieldTimeET = null;
     private EditText mDamageET = null;
     private Switch mOverrideLivesSwitch = null;
     private EditText mLivesET = null;
@@ -109,6 +112,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
         mReloadTimeET.setText("" + playerSettings.reloadTime);
         mReloadOnEmptySwitch.setChecked(playerSettings.reloadOnEmpty);
         mSpawnTimeET.setText("" + playerSettings.spawnTime);
+        mRespawnShieldTimeET.setText("" + playerSettings.respawnShieldTime);
         mDamageET.setText("" + (playerSettings.damage * -1));
         mOverrideLivesSwitch.setChecked(playerSettings.overrideLives);
         mLivesET.setText("" + playerSettings.lives);
@@ -198,6 +202,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
         mReloadTimeET.setText("" + Globals.getInstance().mReloadTime);
         mReloadOnEmptySwitch.setChecked(Globals.getInstance().mReloadOnEmpty);
         mSpawnTimeET.setText("" + Globals.getInstance().mRespawnTime);
+        mRespawnShieldTimeET.setText("" + Globals.getInstance().mRespawnShieldTime);
         mDamageET.setText("" + (Globals.getInstance().mDamage * -1));
         mOverrideLivesSwitch.setChecked(Globals.getInstance().mOverrideLives);
         mLivesET.setText("" + Globals.getInstance().mOverrideLivesVal);
@@ -222,6 +227,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
         mReloadTimeET = view.findViewById(R.id.reload_time_et);
         mReloadOnEmptySwitch = view.findViewById(R.id.reload_on_empty_switch);
         mSpawnTimeET = view.findViewById(R.id.spawn_time_et);
+        mRespawnShieldTimeET = view.findViewById(R.id.respawn_shield_time_et);
         mDamageET = view.findViewById(R.id.damage_et);
         mOverrideLivesSwitch = view.findViewById(R.id.override_lives_limit_switch);
         mLivesET = view.findViewById(R.id.lives_et);
@@ -249,6 +255,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
                 mReloadTimeET.setText("" + Globals.RELOAD_TIME_MILLISECONDS);
                 mReloadOnEmptySwitch.setChecked(false);
                 mSpawnTimeET.setText("" + Globals.RESPAWN_TIME_SECONDS);
+                mRespawnShieldTimeET.setText("" + Globals.RESPAWN_SHIELD_TIME_SECONDS);
                 mDamageET.setText("" + (Globals.DAMAGE_PER_HIT * -1));
                 mOverrideLivesSwitch.setChecked(false);
                 mShotModeAuto.setChecked(true);
@@ -365,6 +372,11 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
                             if (value > 1000 || value <= 0)
                                 value = (int) Globals.RESPAWN_TIME_SECONDS;
                             Globals.getInstance().mRespawnTime = value;
+                            value = Integer.parseInt(mRespawnShieldTimeET.getText().toString());
+                            if (value > 1000 || value < 0)
+                                value = (int) Globals.RESPAWN_SHIELD_TIME_SECONDS;
+                            Globals.getInstance().mRespawnShieldTime = value;
+                            GameSettingsRepository.getInstance().setRespawnShieldTime(value);
                             value = Integer.parseInt(mDamageET.getText().toString());
                             if (value > 1000 || value <= 0) value = Globals.DAMAGE_PER_HIT * -1;
                             value = value * -1;
@@ -405,6 +417,10 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
                             if (value > 1000 || value <= 0)
                                 value = (int) Globals.RESPAWN_TIME_SECONDS;
                             playerSettings.spawnTime = value;
+                            value = Integer.parseInt(mRespawnShieldTimeET.getText().toString());
+                            if (value > 1000 || value < 0)
+                                value = (int) Globals.RESPAWN_SHIELD_TIME_SECONDS;
+                            playerSettings.respawnShieldTime = value;
                             value = Integer.parseInt(mDamageET.getText().toString());
                             if (value > 1000 || value <= 0) value = Globals.DAMAGE_PER_HIT * -1;
                             value = value * -1;

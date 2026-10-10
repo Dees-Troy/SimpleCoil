@@ -117,6 +117,26 @@
         </EditText>
 
         <TextView
+            android:id="@+id/respawn_shield_time_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/player_settings_respawn_shield_time"
+            android:textColor="#FFFFFF"
+            android:textAppearance="?android:attr/textAppearanceMedium" />
+
+        <EditText
+            android:id="@+id/respawn_shield_time_et"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:digits="0123456789"
+            android:maxLength="3"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#AAAAAA"
+            android:backgroundTint="@color/colorPrimary"
+            android:inputType="number" >
+        </EditText>
+
+        <TextView
             android:id="@+id/damage_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

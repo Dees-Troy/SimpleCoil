@@ -321,6 +321,16 @@
             android:layout_centerVertical="true"/>
 
         <TextView
+            android:id="@+id/respawn_shield_countdown_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerHorizontal="true"
+            android:layout_centerVertical="true"
+            android:visibility="gone"
+            android:textColor="#00FFFF"
+            android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
+
+        <TextView
             android:id="@+id/eliminated_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

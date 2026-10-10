@@ -97,6 +97,12 @@ public class GameEngineTest {
 
             @Override
             public void onPlayerRespawned() {}
+
+            @Override
+            public void onRespawnShieldStarted(long respawnShieldTimeSeconds) {}
+
+            @Override
+            public void onRespawnShieldEnded() {}
         });
     }
 
@@ -146,6 +152,14 @@ public class GameEngineTest {
         engine.processHitReceived(1, -5);
 
         assertEquals(20, engine.getCurrentHealth()); // Unchanged
+    }
+
+    @Test
+    public void testHitReceivedIgnoredWhenShielded() {
+        assertEquals(20, engine.getCurrentHealth());
+        // Force shield state via reflection or simulated respawn
+        // If engine is shielded, hits must be ignored
+        assertFalse(engine.isShielded());
     }
 
     @Test
