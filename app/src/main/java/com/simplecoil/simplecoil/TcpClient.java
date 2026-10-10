@@ -16,15 +16,21 @@
 
 package com.simplecoil.simplecoil;
 
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Build;
 import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
 
+import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
@@ -81,10 +87,52 @@ public class TcpClient extends Service {
 
     private final IBinder mBinder = new LocalBinder();
 
+    private static final int NOTIFICATION_ID = 1338;
+    private static final String CHANNEL_ID = "TcpClientServiceChannel";
+
     @Override
     public void onCreate() {
         super.onCreate();
+        createNotificationChannel();
+        startAsForeground("SimpleCoil Network Connected");
         ContextCompat.registerReceiver(this, mGPSUpdateReceiver, new IntentFilter(NetMsg.NETMSG_GPSLOCUPDATE), ContextCompat.RECEIVER_EXPORTED);
+    }
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel serviceChannel = new NotificationChannel(
+                    CHANNEL_ID,
+                    "SimpleCoil Network Service",
+                    NotificationManager.IMPORTANCE_LOW
+            );
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.createNotificationChannel(serviceChannel);
+            }
+        }
+    }
+
+    private Notification createPersistentNotification(String contentText) {
+        Intent notificationIntent = new Intent(this, FullscreenActivity.class);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                this,
+                0,
+                notificationIntent,
+                PendingIntent.FLAG_IMMUTABLE
+        );
+
+        return new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("SimpleCoil Game Network")
+                .setContentText(contentText)
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentIntent(pendingIntent)
+                .setOngoing(true)
+                .build();
+    }
+
+    public void startAsForeground(String statusText) {
+        Notification notification = createPersistentNotification(statusText);
+        startForeground(NOTIFICATION_ID, notification);
     }
 
     @Override
@@ -346,7 +394,7 @@ public class TcpClient extends Service {
         }
     }
 
-    private void sendPlayerInfo(boolean rejoin) {
+    public void sendPlayerInfo(boolean rejoin) {
         try {
             JSONObject playerInfo = new JSONObject();
             playerInfo.put(TcpServer.JSON_PLAYERID, (int) Globals.getInstance().mPlayerID);
@@ -624,7 +672,7 @@ public class TcpClient extends Service {
                         intent.putExtra(NetMsg.INTENT_TIMEREMAINING, playerGameUpdate.getLong(TcpServer.JSON_TIMEREMAINING));
                 }
                 mIsDedicatedServer = game.has(TcpServer.JSON_DEDICATED);
-                if (mIsDedicatedServer) {
+                if (game.has(TcpServer.JSON_GAMESTATE)) {
                     int gameState = game.getInt(TcpServer.JSON_GAMESTATE);
                     intent.putExtra(NetMsg.INTENT_GAMESTATE, gameState);
                 }

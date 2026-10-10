@@ -501,6 +501,19 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         }
     }
 
+    private void startForegroundServiceSafely(Intent intent) {
+        try {
+            ContextCompat.startForegroundService(getBaseContext(), intent);
+        } catch (Exception e) {
+            Log.w(TAG, "Could not start foreground service: " + e.getMessage());
+            try {
+                startService(intent);
+            } catch (Exception ex) {
+                Log.w(TAG, "Could not start service directly: " + ex.getMessage());
+            }
+        }
+    }
+
     private void setupUDPServiceConnection() {
         mUDPServiceConnection = new ServiceConnection() {
 
@@ -547,7 +560,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             }
         };
         Intent serviceIntent = new Intent(getBaseContext(), TcpClient.class);
-        startServiceSafely(serviceIntent);
+        startForegroundServiceSafely(serviceIntent);
         bindService(serviceIntent, mTcpClientServiceConnection, BIND_AUTO_CREATE);
     }
 
@@ -573,6 +586,21 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_fullscreen);
+        sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+
+        if (savedInstanceState != null) {
+            mSelectedPlayerID = savedInstanceState.getByte("mSelectedPlayerID", (byte)0);
+            mDeviceAddress = savedInstanceState.getString("mDeviceAddress", "");
+            mUseNetwork = savedInstanceState.getBoolean("mUseNetwork", false);
+            mIsServer = savedInstanceState.getBoolean("mIsServer", false);
+            mNetworkMenuType = savedInstanceState.getInt("mNetworkMenuType", NETWORK_TYPE_ENABLED);
+        } else {
+            mSelectedPlayerID = (byte) sharedPreferences.getInt(PREF_SELECTED_PLAYER_ID, 0);
+            if (mSelectedPlayerID == 0) {
+                mSelectedPlayerID = (byte) sharedPreferences.getInt(PREF_PLAYER_ID, 0);
+            }
+        }
+        Globals.getInstance().mPlayerID = mSelectedPlayerID;
 
         mMainViewModel = new ViewModelProvider(this).get(MainViewModel.class);
         mMainViewModel.getHealthLiveData().observe(this, health -> {
@@ -1470,7 +1498,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             } else {
                 mEndNetworkGameButton.setVisibility(View.GONE);
             }
-            mUDPListenerService.startGame();
+            if (mUDPListenerService != null) {
+                mUDPListenerService.startGame();
+            }
         } else {
             displayAllNetworkingOptions(false);
             mEndGameButton.setVisibility(View.VISIBLE);
@@ -1645,6 +1675,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         if (sharedPreferences != null) {
             SharedPreferences.Editor editor = sharedPreferences.edit();
             editor.putInt(PREF_PLAYER_ID, (int) Globals.getInstance().mPlayerID);
+            editor.putInt(PREF_SELECTED_PLAYER_ID, (int) Globals.getInstance().mPlayerID);
             editor.putInt(PREF_GAME_MODE, Globals.getInstance().mGameMode);
             editor.apply();
         }
@@ -1904,8 +1935,39 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putByte("mSelectedPlayerID", mSelectedPlayerID);
+        outState.putString("mDeviceAddress", mDeviceAddress);
+        outState.putBoolean("mUseNetwork", mUseNetwork);
+        outState.putBoolean("mIsServer", mIsServer);
+        outState.putInt("mNetworkMenuType", mNetworkMenuType);
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
+        if (sharedPreferences == null)
+            sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+        if (mSelectedPlayerID == 0) {
+            mSelectedPlayerID = (byte) sharedPreferences.getInt(PREF_SELECTED_PLAYER_ID, 0);
+            if (mSelectedPlayerID == 0) {
+                mSelectedPlayerID = (byte) sharedPreferences.getInt(PREF_PLAYER_ID, 0);
+            }
+        }
+        if (mSelectedPlayerID != 0 && Globals.getInstance().mPlayerID == 0) {
+            Globals.getInstance().mPlayerID = mSelectedPlayerID;
+        }
+        String savedName = sharedPreferences.getString(PREF_PLAYER_NAME, "");
+        if (!savedName.isEmpty()) {
+            Globals.getInstance().mPlayerName = savedName;
+        }
+        if (mPlayerNameTV != null && Globals.getInstance().mPlayerName != null) {
+            mPlayerNameTV.setText(Globals.getInstance().mPlayerName);
+        }
+        displayCurrentTeam();
+        updatePlayerSettings();
+
         ContextCompat.registerReceiver(this, mGattUpdateReceiver, makeGattUpdateIntentFilter(), ContextCompat.RECEIVER_EXPORTED);
         if (mBluetoothLeService != null && mDeviceAddress != null && !mDeviceAddress.isEmpty()) {
             final boolean result = mBluetoothLeService.connect(mDeviceAddress);
@@ -1917,6 +1979,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         setupUDPServiceConnection();
         setupTcpClientServiceConnection();
         setupTcpServerServiceConnection();
+        if (mUseNetwork && mTcpClient != null) {
+            mTcpClient.sendPlayerInfo(true);
+        }
     }
 
     @Override
@@ -2876,8 +2941,12 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             if (mLastTeam != player_id) {
                 Log.d(TAG, "Player ID changed to " + player_id);
                 mLastTeam = player_id;
-                Globals.getInstance().mPlayerID = player_id;
-                displayCurrentTeam();
+                if (player_id != 0) {
+                    Globals.getInstance().mPlayerID = player_id;
+                    displayCurrentTeam();
+                } else if (Globals.getInstance().mPlayerID != 0) {
+                    setTeam();
+                }
             }
             /* We monitor the last shot count rather than trigger pulls here so we know when to
                update the displayed shots remaining and play shooting sounds. pew! pew! */
@@ -3095,7 +3164,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                             }
                         }
                     }
-                    if (mTcpClient.isDedicatedServer()) {
+                    if (intent.hasExtra(NetMsg.INTENT_GAMESTATE)) {
                         int serverGameState = intent.getIntExtra(NetMsg.INTENT_GAMESTATE, Globals.GAME_STATE_ELIMINATED);
                         if (serverGameState != Globals.GAME_STATE_ELIMINATED) {
                             if (serverGameState == Globals.GAME_STATE_NONE && Globals.getInstance().mGameState != serverGameState) {

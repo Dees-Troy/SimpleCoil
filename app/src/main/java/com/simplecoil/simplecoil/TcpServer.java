@@ -780,11 +780,11 @@ public class TcpServer extends Service {
                 }
                 game.put(JSON_TEAMSIZES, teamSizesArr);
             }
+            game.put(JSON_GAMESTATE, Globals.getInstance().mGameState);
+            if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE && (Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_TIME) != 0)
+                game.put(JSON_TIMEREMAINING, Globals.getInstance().mServerGameTimeRemaining);
             if (mIsDedicated) {
                 game.put(JSON_DEDICATED, true);
-                game.put(JSON_GAMESTATE, Globals.getInstance().mGameState);
-                if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE && (Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_TIME) != 0)
-                    game.put(JSON_TIMEREMAINING, Globals.getInstance().mServerGameTimeRemaining);
             }
             if (Globals.getInstance().mUseGPS)
                 game.put(JSON_USEGPS, Globals.getInstance().mGPSMode);
