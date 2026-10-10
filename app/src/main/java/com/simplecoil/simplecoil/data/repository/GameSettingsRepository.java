@@ -63,6 +63,7 @@ public class GameSettingsRepository {
     private volatile boolean allowPlayerSettings = true;
     private volatile boolean reloadOnEmpty = false;
     private volatile boolean allowJoinInProgress = true;
+    private volatile boolean allowChooseTeams = true;
 
     private volatile int gameMode = GAME_MODE_2TEAMS;
     private volatile int gameLimit = GAME_LIMIT_NONE;
@@ -226,6 +227,9 @@ public class GameSettingsRepository {
 
     public boolean isOnlyServerSettings() { return onlyServerSettings; }
     public void setOnlyServerSettings(boolean onlyServerSettings) { this.onlyServerSettings = onlyServerSettings; }
+
+    public boolean isAllowChooseTeams() { return allowChooseTeams; }
+    public void setAllowChooseTeams(boolean allowChooseTeams) { this.allowChooseTeams = allowChooseTeams; }
 
     public int getServerRecoilSetting() { return serverRecoilSetting; }
     public void setServerRecoilSetting(int serverRecoilSetting) { this.serverRecoilSetting = serverRecoilSetting; }

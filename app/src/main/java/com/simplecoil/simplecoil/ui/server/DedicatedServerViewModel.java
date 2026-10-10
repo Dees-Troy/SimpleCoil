@@ -49,6 +49,7 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
     private final MutableLiveData<Integer> gpsModeLiveData = new MutableLiveData<>();
     private final MutableLiveData<Boolean> allowJoinLiveData = new MutableLiveData<>();
     private final MutableLiveData<Boolean> onlyServerSettingsLiveData = new MutableLiveData<>();
+    private final MutableLiveData<Boolean> allowChooseTeamsLiveData = new MutableLiveData<>();
 
     public DedicatedServerViewModel(@NonNull Application application) {
         this(
@@ -87,6 +88,7 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
         gpsModeLiveData.postValue(settingsRepo.getGpsMode());
         allowJoinLiveData.postValue(true);
         onlyServerSettingsLiveData.postValue(settingsRepo.isOnlyServerSettings());
+        allowChooseTeamsLiveData.postValue(settingsRepo.isAllowChooseTeams());
     }
 
     @Override
@@ -138,6 +140,11 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
         onlyServerSettingsLiveData.postValue(settingsRepo.isOnlyServerSettings());
     }
 
+    public void setAllowChooseTeams(boolean allowChooseTeams) {
+        settingsRepo.setAllowChooseTeams(allowChooseTeams);
+        allowChooseTeamsLiveData.postValue(settingsRepo.isAllowChooseTeams());
+    }
+
     public void updatePlayerCount() {
         playerCountLiveData.postValue(playerRepo.getPlayerCount(true));
     }
@@ -170,4 +177,5 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
     public LiveData<Integer> getGpsModeLiveData() { return gpsModeLiveData; }
     public LiveData<Boolean> getAllowJoinLiveData() { return allowJoinLiveData; }
     public LiveData<Boolean> getOnlyServerSettingsLiveData() { return onlyServerSettingsLiveData; }
+    public LiveData<Boolean> getAllowChooseTeamsLiveData() { return allowChooseTeamsLiveData; }
 }

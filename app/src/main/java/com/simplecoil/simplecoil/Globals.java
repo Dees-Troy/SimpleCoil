@@ -132,6 +132,7 @@ public class Globals {
 
     public volatile boolean mUseGPS = false;
     public volatile boolean mOnlyServerSettings = true;
+    public volatile boolean mAllowChooseTeams = true;
     public volatile long mServerGameTimeRemaining = 0;
     public volatile InetAddress mServerIP = null;
     public volatile int[] mTeamSizes = new int[]{16, 16};
@@ -189,6 +190,7 @@ public class Globals {
         settings.setAllowPlayerSettings(mAllowPlayerSettings);
         settings.setReloadOnEmpty(mReloadOnEmpty);
         settings.setOnlyServerSettings(mOnlyServerSettings);
+        settings.setAllowChooseTeams(mAllowChooseTeams);
         settings.setServerRecoilSetting(mServerRecoilSetting);
         settings.setCurrentFiringMode(mCurrentFiringMode);
         settings.setAllowSingleShotMode(mAllowSingleShotMode);

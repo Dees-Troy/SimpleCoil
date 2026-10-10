@@ -24,6 +24,7 @@ import android.os.IBinder;
 import android.util.Log;
 
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
+import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 
 import org.json.JSONArray;
@@ -89,6 +90,8 @@ public class TcpServer extends Service {
     public static final String JSON_TEAM = "team";
     public static final String JSON_GAMESTATE = "gamestate";
     public static final String JSON_ONLY_SERVER_SETTINGS = "onlyserversettings";
+    public static final String JSON_ALLOW_CHOOSE_TEAMS = "allowchooseteams";
+    public static final String JSON_REQUEST_TEAM_CHANGE = "requestteamchange";
     public static final String JSON_PAIRED_GRENADE_ID = "pairedgrenadeID";
     public static final String JSON_GRENADE_PAIRINGS = "grenadepairings";
     public static final String JSON_BLASTER_MAC = "blaster_mac";
@@ -822,6 +825,7 @@ public class TcpServer extends Service {
             game.put(JSON_ALLOWPLAYERSETTINGS, Globals.getInstance().mAllowPlayerSettings);
             game.put(JSON_PLAYERSETTINGS, getPlayerSettings(id, false));
             game.put(JSON_ONLY_SERVER_SETTINGS, Globals.getInstance().mOnlyServerSettings);
+            game.put(JSON_ALLOW_CHOOSE_TEAMS, GameSettingsRepository.getInstance().isAllowChooseTeams());
             final String allMessage = TCPMESSAGE_PREFIX + TCPPREFIX_JSON + game.toString();
             if (id == SEND_ALL)
                 sendTCPMessageAll(allMessage);
@@ -1617,6 +1621,15 @@ public class TcpServer extends Service {
                 e.printStackTrace();
                 return;
             }
+            if (player.has(JSON_REQUEST_TEAM_CHANGE)) {
+                try {
+                    int targetTeam = player.getInt(JSON_REQUEST_TEAM_CHANGE);
+                    handleClientTeamChangeRequest(client, targetTeam);
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+                return;
+            }
             if (player.has(JSON_PAIRED_GRENADE_ID)) {
                 Globals.getmGrenadePairingsSemaphore();
                 try {
@@ -1851,6 +1864,118 @@ public class TcpServer extends Service {
 
             sendAllGameInfo(id);
             sendBroadcast(new Intent(NetMsg.NETMSG_JOIN));
+        }
+
+        private void handleClientTeamChangeRequest(final ClientData client, final int targetTeam) {
+            if (client == null || client.mPlayerID <= 0) {
+                return;
+            }
+            if (!GameSettingsRepository.getInstance().isAllowChooseTeams()) {
+                Log.w(TAG, "Team change rejected: Allow players to choose teams is turned off.");
+                return;
+            }
+            if (GameStateRepository.getInstance().isGameRunning()) {
+                Log.w(TAG, "Team change rejected: Game is currently in progress.");
+                return;
+            }
+            int gameMode = GameSettingsRepository.getInstance().getGameMode();
+            if (gameMode == GameSettingsRepository.GAME_MODE_FFA) {
+                Log.w(TAG, "Team change rejected: Free For All mode.");
+                return;
+            }
+            int numTeams = (gameMode == GameSettingsRepository.GAME_MODE_4TEAMS) ? 4 : 2;
+            if (targetTeam < 1 || targetTeam > numTeams) {
+                Log.w(TAG, "Team change rejected: Invalid target team " + targetTeam);
+                return;
+            }
+            if (client.mNetworkTeam == targetTeam) {
+                Log.d(TAG, "Client " + client.mPlayerID + " is already on team " + targetTeam);
+                return;
+            }
+
+            Thread switchThread = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    byte oldPlayerID = 0;
+                    byte newPlayerID = 0;
+                    boolean success = false;
+
+                    try {
+                        mClientDataSemaphore.acquire();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                        return;
+                    }
+                    Globals.getmTeamIPMapSemaphore();
+                    Globals.getmIPTeamMapSemaphore();
+                    Globals.getmTeamPlayerNameSemaphore();
+                    Globals.getmPlayerSettingsSemaphore();
+                    Globals.getmGPSDataSemaphore();
+
+                    try {
+                        Set<Byte> occupiedIDs = new HashSet<>();
+                        if (!mIsDedicated && Globals.getInstance().mPlayerID != 0) {
+                            occupiedIDs.add(Globals.getInstance().mPlayerID);
+                        }
+                        if (Globals.getInstance().mTeamIPMap != null) {
+                            occupiedIDs.addAll(Globals.getInstance().mTeamIPMap.keySet());
+                        }
+                        if (mClientData != null) {
+                            for (Map.Entry<Integer, ClientData> entry : mClientData.entrySet()) {
+                                if (entry.getValue().mPlayerID != 0) {
+                                    occupiedIDs.add(entry.getValue().mPlayerID);
+                                }
+                            }
+                        }
+                        occupiedIDs.remove(client.mPlayerID);
+
+                        newPlayerID = PlayerRepository.getInstance().findOpenPlayerIDOnTeam(targetTeam, occupiedIDs);
+                        if (newPlayerID == 0) {
+                            Log.w(TAG, "Team change rejected: No open slot on team " + targetTeam);
+                            return;
+                        }
+
+                        oldPlayerID = client.mPlayerID;
+                        if (client.clientID == (int) oldPlayerID) {
+                            mClientData.remove(client.clientID);
+                            client.clientID = (int) newPlayerID;
+                            mClientData.put((int) newPlayerID, client);
+                        }
+                        client.mPlayerID = newPlayerID;
+                        client.mNetworkTeam = targetTeam;
+
+                        PlayerRepository.getInstance().reassignPlayer(oldPlayerID, newPlayerID);
+
+                        Globals.GPSData gps = Globals.getInstance().mGPSData.get(newPlayerID);
+                        if (gps != null) {
+                            gps.team = targetTeam;
+                            gps.hasUpdate = true;
+                        }
+
+                        if (oldPlayerID == Globals.getInstance().mPlayerID) {
+                            Globals.getInstance().setPlayerID(newPlayerID);
+                        }
+                        success = true;
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    } finally {
+                        Globals.getInstance().mGPSDataSemaphore.release();
+                        Globals.getInstance().mPlayerSettingsSemaphore.release();
+                        Globals.getInstance().mTeamPlayerNameSemaphore.release();
+                        Globals.getInstance().mIPTeamMapSemaphore.release();
+                        Globals.getInstance().mTeamIPMapSemaphore.release();
+                        mClientDataSemaphore.release();
+                    }
+
+                    if (success) {
+                        client.sendTCPMessage(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERREPLY + newPlayerID);
+                        sendPlayerData(SEND_ALL);
+                        sendAllGameInfo(SEND_ALL);
+                        sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+                    }
+                }
+            });
+            switchThread.start();
         }
 
         private void removeClient(ClientData client, Integer clientID, boolean alwaysRemove) {

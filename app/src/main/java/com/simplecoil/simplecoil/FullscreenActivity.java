@@ -37,6 +37,7 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.drawable.AnimationDrawable;
+import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.media.MediaPlayer;
 import android.net.ConnectivityManager;
@@ -53,6 +54,7 @@ import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.google.zxing.integration.android.IntentIntegrator;
 import com.google.zxing.integration.android.IntentResult;
@@ -82,7 +84,7 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ListView;
-import android.widget.PopupMenu;
+import androidx.appcompat.widget.PopupMenu;
 import android.widget.ProgressBar;
 import android.widget.RadioButton;
 import android.widget.RelativeLayout;
@@ -1053,6 +1055,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             }
         }
         if (mNetworkPopup != null) {
+            mNetworkPopup.setForceShowIcon(true);
             mNetworkPopup.getMenu().close();
             mNetworkPopup.getMenu().clear();
             switch (networkMenuType) {
@@ -1071,6 +1074,33 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     break;
                 case NETWORK_TYPE_JOINED:
                     mNetworkPopup.getMenu().add(0, R.id.player_name_item, 50, getString(R.string.player_name_button, Globals.getInstance().mPlayerName));
+                    if (GameSettingsRepository.getInstance().isAllowChooseTeams() && Globals.getInstance().mGameState == Globals.GAME_STATE_NONE) {
+                        int gameMode = Globals.getInstance().mGameMode;
+                        if (gameMode == Globals.GAME_MODE_2TEAMS || gameMode == Globals.GAME_MODE_4TEAMS) {
+                            int currentTeam = Globals.getInstance().calcNetworkTeam(Globals.getInstance().mPlayerID);
+                            int numTeams = (gameMode == Globals.GAME_MODE_4TEAMS) ? 4 : 2;
+                            int order = 51;
+                            for (int t = 1; t <= numTeams; t++) {
+                                if (t != currentTeam) {
+                                    int itemId;
+                                    switch (t) {
+                                        case 1: itemId = R.id.switch_team_1_item; break;
+                                        case 2: itemId = R.id.switch_team_2_item; break;
+                                        case 3: itemId = R.id.switch_team_3_item; break;
+                                        case 4: itemId = R.id.switch_team_4_item; break;
+                                        default: itemId = 0; break;
+                                    }
+                                    if (itemId != 0) {
+                                        MenuItem item = mNetworkPopup.getMenu().add(0, itemId, order++, getString(R.string.switch_to_team, t));
+                                        int teamColor = Globals.getTeamColor(t);
+                                        if (teamColor != Color.TRANSPARENT) {
+                                            item.setIcon(createTeamColorSquare(teamColor));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                     mNetworkPopup.getMenu().add(0, R.id.disable_network_item, 70, R.string.no_network_button);
                     break;
             }
@@ -1103,6 +1133,18 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 return true;
             case R.id.player_name_item:
                 requestPlayerName();
+                return true;
+            case R.id.switch_team_1_item:
+                requestSwitchTeam(1);
+                return true;
+            case R.id.switch_team_2_item:
+                requestSwitchTeam(2);
+                return true;
+            case R.id.switch_team_3_item:
+                requestSwitchTeam(3);
+                return true;
+            case R.id.switch_team_4_item:
+                requestSwitchTeam(4);
                 return true;
             case R.id.game_mode_item:
                 PopupMenu popup = new PopupMenu(new ContextThemeWrapper(FullscreenActivity.this, R.style.AppTheme_PopupOverlay), mUseNetworkingButton);
@@ -1183,6 +1225,34 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             default:
                 return false;
         }
+    }
+
+    private void requestSwitchTeam(int targetTeam) {
+        if (mTcpClient == null) {
+            return;
+        }
+        if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
+            Log.w(TAG, "Cannot request team change while game is running");
+            return;
+        }
+        try {
+            JSONObject json = new JSONObject();
+            json.put(TcpServer.JSON_PLAYERID, (int) Globals.getInstance().mPlayerID);
+            json.put(TcpServer.JSON_REQUEST_TEAM_CHANGE, targetTeam);
+            mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + json.toString());
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private Drawable createTeamColorSquare(int color) {
+        GradientDrawable drawable = new GradientDrawable();
+        drawable.setShape(GradientDrawable.RECTANGLE);
+        drawable.setColor(color);
+        drawable.setStroke((int) (1 * getResources().getDisplayMetrics().density), Color.WHITE);
+        int size = (int) (16 * getResources().getDisplayMetrics().density);
+        drawable.setSize(size, size);
+        return drawable;
     }
 
     private void getFiringMode() {

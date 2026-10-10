@@ -73,6 +73,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     private static final String TAG = "DEDSRV";
 
     private static final String PREF_GPS_MODE = "GPSMode";
+    private static final String PREF_ALLOW_CHOOSE_TEAMS = "AllowChooseTeams";
 
     private TextView mServerIPTV = null;
     private Chronometer mGameTimer = null;
@@ -87,6 +88,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     private TextView mGameStatusTV = null;
     private Switch mAllowJoinSwitch = null;
     private Switch mOnlyServerSettingsSwitch = null;
+    private Switch mAllowChooseTeamsSwitch = null;
     private ListView mPlayerDisplayList = null;
 
     private CountDownTimer mGameCountdownTimer = null;
@@ -278,6 +280,26 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 mTcpServer.sendAllGameInfo(TcpServer.SEND_ALL);
             }
         }));
+        mAllowChooseTeamsSwitch = findViewById(R.id.allow_choose_teams_switch);
+        if (mAllowChooseTeamsSwitch != null) {
+            boolean allowChooseTeams = sharedPreferences.getBoolean(PREF_ALLOW_CHOOSE_TEAMS, true);
+            Globals.getInstance().mAllowChooseTeams = allowChooseTeams;
+            GameSettingsRepository.getInstance().setAllowChooseTeams(allowChooseTeams);
+            mAllowChooseTeamsSwitch.setChecked(allowChooseTeams);
+            mAllowChooseTeamsSwitch.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) {
+                    boolean isChecked = mAllowChooseTeamsSwitch.isChecked();
+                    Globals.getInstance().mAllowChooseTeams = isChecked;
+                    GameSettingsRepository.getInstance().setAllowChooseTeams(isChecked);
+                    SharedPreferences.Editor editor = sharedPreferences.edit();
+                    editor.putBoolean(PREF_ALLOW_CHOOSE_TEAMS, isChecked);
+                    editor.apply();
+                    if (mTcpServer != null) {
+                        mTcpServer.sendAllGameInfo(TcpServer.SEND_ALL);
+                    }
+                }
+            });
+        }
         try {
             // Display app version
             PackageInfo pInfo = this.getPackageManager().getPackageInfo(getPackageName(), 0);

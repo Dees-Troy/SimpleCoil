@@ -33,6 +33,7 @@ import android.util.Log;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 
 import org.json.JSONArray;
@@ -668,6 +669,11 @@ public class TcpClient extends Service {
                     Globals.getInstance().mGPSMode = game.getInt(TcpServer.JSON_USEGPS);
                 }
                 Globals.getInstance().mOnlyServerSettings = game.getBoolean(TcpServer.JSON_ONLY_SERVER_SETTINGS);
+                if (game.has(TcpServer.JSON_ALLOW_CHOOSE_TEAMS)) {
+                    boolean allowChooseTeams = game.getBoolean(TcpServer.JSON_ALLOW_CHOOSE_TEAMS);
+                    Globals.getInstance().mAllowChooseTeams = allowChooseTeams;
+                    GameSettingsRepository.getInstance().setAllowChooseTeams(allowChooseTeams);
+                }
                 Intent intent = new Intent(NetMsg.NETMSG_LISTPLAYERS);
                 if (game.has(TcpServer.JSON_PLAYERGAMEUPDATE)) {
                     intent.putExtra(NetMsg.INTENT_HASGAMEUPDATE, true);
