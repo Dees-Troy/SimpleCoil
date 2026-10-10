@@ -24,7 +24,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.Log;
 
 import androidx.core.content.ContextCompat;
@@ -212,8 +214,8 @@ public class BlasterManager {
     }
 
     public void setRecoil(boolean enabled) {
-        if (bluetoothLeService == null || configCharacteristic == null) return;
         this.recoilEnabled = enabled;
+        if (bluetoothLeService == null || configCharacteristic == null) return;
         byte[] config = GattProtocolHandler.buildRecoilConfig(enabled);
         configCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
         configCharacteristic.setValue(config);
@@ -262,6 +264,10 @@ public class BlasterManager {
                 if (idCharacteristic != null) {
                     bluetoothLeService.readCharacteristic(idCharacteristic);
                 }
+
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    setRecoil(recoilEnabled);
+                }, 500);
             }
         }
     }

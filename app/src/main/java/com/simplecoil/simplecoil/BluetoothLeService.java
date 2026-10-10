@@ -367,7 +367,7 @@ public class BluetoothLeService extends Service {
             if (mBluetoothGatt.writeCharacteristic(characteristic)) {
                 Log.d(TAG, "writeCharacteristic success");
             } else {
-                Log.d(TAG, "writeCharacteristic failed");
+                Log.w(TAG, "writeCharacteristic failed for UUID: " + characteristic.getUuid());
             }
         } catch (SecurityException e) {
             Log.e(TAG, "SecurityException in writeCharacteristic: " + e.getMessage());

@@ -26,4 +26,16 @@ public class BlasterConnectionMockTest {
         BlasterManager manager = BlasterManager.getInstance();
         assertNotNull(manager);
     }
+
+    @Test
+    public void testRecoilStatePreservedOnManager() {
+        BlasterManager manager = BlasterManager.getInstance();
+        assertTrue(manager.isRecoilEnabled());
+
+        manager.setRecoil(false);
+        assertFalse(manager.isRecoilEnabled());
+
+        manager.setRecoil(true);
+        assertTrue(manager.isRecoilEnabled());
+    }
 }

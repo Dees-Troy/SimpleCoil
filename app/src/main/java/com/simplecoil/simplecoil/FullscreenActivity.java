@@ -2077,10 +2077,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         config[4]  = (byte)0xFF;
         if (enabled) {
             config[3] = (byte)0x03;
-            mRecoilModeTV.setText(R.string.recoil_enabled);
+            if (mRecoilModeTV != null) mRecoilModeTV.setText(R.string.recoil_enabled);
         } else {
             config[3] = (byte)0x02;
-            mRecoilModeTV.setText(R.string.recoil_disabled);
+            if (mRecoilModeTV != null) mRecoilModeTV.setText(R.string.recoil_disabled);
         }
         mRecoilEnabled = enabled;
         SharedPreferences.Editor editor = sharedPreferences.edit();
@@ -2089,6 +2089,17 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mConfigCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
         mConfigCharacteristic.setValue(config);
         mBluetoothLeService.writeCharacteristic(mConfigCharacteristic);
+    }
+
+    private void applyCurrentRecoilSetting() {
+        int recoilMode = Globals.getInstance().mServerRecoilSetting;
+        if (recoilMode == Globals.RECOIL_SETTING_ENABLED) {
+            setRecoil(true);
+        } else if (recoilMode == Globals.RECOIL_SETTING_DISABLED) {
+            setRecoil(false);
+        } else {
+            setRecoil(mRecoilEnabled);
+        }
     }
 
     @Override
@@ -2606,6 +2617,12 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         if (mBlasterDisconnectDialog != null) {
             mBlasterDisconnectDialog.dismiss();
             mBlasterDisconnectDialog = null;
+            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    applyCurrentRecoilSetting();
+                }
+            }, 600);
         }
     }
 
@@ -2786,10 +2803,19 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 mLastThumbButtonCount = thumb_counter;
                 mLastPowerButtonCount = power_counter;
                 setShotMode(mCurrentShotMode);
-                if (Globals.getInstance().mPlayerID != 0)
-                    setTeam();
-                if (!mRecoilEnabled)
-                    setRecoil(mRecoilEnabled);
+                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (Globals.getInstance().mPlayerID != 0)
+                            setTeam();
+                    }
+                }, 250);
+                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        applyCurrentRecoilSetting();
+                    }
+                }, 500);
                 autoStartServerScan();
             }
             if (trigger_counter != mLastTriggerCount) {
@@ -3772,14 +3798,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         setGameLimit();
         updateAdminButtonVisibility();
 
-        int recoilMode = Globals.getInstance().mServerRecoilSetting;
-        if (recoilMode == Globals.RECOIL_SETTING_ENABLED) {
-            setRecoil(true);
-        } else if (recoilMode == Globals.RECOIL_SETTING_DISABLED) {
-            setRecoil(false);
-        } else {
-            setRecoil(mRecoilEnabled);
-        }
+        applyCurrentRecoilSetting();
         switch (mCurrentShotMode) {
             case Globals.SHOT_MODE_SINGLE:
                 if (!Globals.getInstance().mAllowSingleShotMode) {
