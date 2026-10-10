@@ -29,7 +29,6 @@ import android.bluetooth.le.ScanResult;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
@@ -98,7 +97,6 @@ import androidx.appcompat.widget.PopupMenu;
 import android.widget.ProgressBar;
 import android.widget.RadioButton;
 import android.widget.RelativeLayout;
-import android.widget.AdapterView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -268,7 +266,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     /* Reloading is done in 2 stages. The first stage effectively tells the tagger that it can't
        shoot anymore. We also use this state when the player is eliminated so they can't shoot while
        out of the game. At the second stage, we tell the tagger how many shots it now has. With a
-       normal reload sequence, we wait until the tagger has received the first stage command and
+       normal reload sequence, we wait until the tagger has received the first stage command, and
        we automatically start a timer thread to finish the reload after the reload wait timer is up.
        We don't want this timer to run/finish if the player is eliminated, hence the eliminated
        state here. */
@@ -286,7 +284,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private BluetoothGattCharacteristic mCommandCharacteristic = null;
     private BluetoothGattCharacteristic mConfigCharacteristic = null;
 
-    public final static int RECOIL_OFFSET_BUTTONS = 2;
     public final static int RECOIL_OFFSET_RELOAD_TRIGGER_COUNTER = 3;
     public final static int RECOIL_OFFSET_THUMB_COUNTER = 4;
     public final static int RECOIL_OFFSET_POWER_COUNTER = 5;
@@ -297,12 +294,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     public final static int RECOIL_OFFSET_HIT_BY2 = 12;
     public final static int RECOIL_OFFSET_TEAM = 1;
     public final static int RECOIL_OFFSET_SHOTS_REMAINING = 14;
-    public final static int RECOIL_OFFSET_STATUS = 15;
-
-    public final static int RECOIL_TRIGGER_BIT = 0x01;
-    public final static int RECOIL_RELOAD_BIT = 0x02;
-    public final static int RECOIL_THUMB_BIT = 0x04;
-    public final static int RECOIL_POWER_BIT = 0x10;
 
     private static final byte WEAPON_PROFILE = (byte)0x00;
 
@@ -334,7 +325,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private static final int CONNECTION_FAIL_TEST_INTERVAL_MILLISECONDS = 30000;
 
     private static final int HIT_VIBRATE_DURATION_MILLISECONDS = 250;
-    // If you change these durations you will also need to change the duration in the res/anim/fadeout xml files to match
+    // If you change these durations you will also need to change the duration in the res/anim/fadeout XML files to match
     private static final int HIT_ANIMATION_DURATION_MILLISECONDS = 400;
     private static final int ELIMINATED_ANIMATION_DURATION_MILLISECONDS = 800;
 
@@ -395,24 +386,21 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private PlayerDisplayDataListAdapter mScoreboardAdapter = null;
 
     private void openScoreboard() {
-        Runnable runnable = new Runnable() {
-            @Override
-            public void run() {
-                mIsScoreboardVisible = true;
-                if (mLatestPlayerDisplayData != null) {
-                    showOrUpdateScoreboardDialog(mLatestPlayerDisplayData);
-                }
-                if (mUseNetwork) {
-                    if (mIsServer && mTcpServer != null) {
-                        String json = mTcpServer.getPlayerDataJson();
-                        if (json != null && !json.isEmpty()) {
-                            displayPlayerData(json);
-                        } else {
-                            mTcpServer.sendPlayerData(TcpServer.SEND_ALL);
-                        }
-                    } else if (mTcpClient != null) {
-                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_PLAYERDATAREQUEST);
+        Runnable runnable = () -> {
+            mIsScoreboardVisible = true;
+            if (mLatestPlayerDisplayData != null) {
+                showOrUpdateScoreboardDialog(mLatestPlayerDisplayData);
+            }
+            if (mUseNetwork) {
+                if (mIsServer && mTcpServer != null) {
+                    String json = mTcpServer.getPlayerDataJson();
+                    if (json != null && !json.isEmpty()) {
+                        displayPlayerData(json);
+                    } else {
+                        mTcpServer.sendPlayerData(TcpServer.SEND_ALL);
                     }
+                } else if (mTcpClient != null) {
+                    mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_PLAYERDATAREQUEST);
                 }
             }
         };
@@ -424,22 +412,19 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void closeScoreboard() {
-        Runnable runnable = new Runnable() {
-            @Override
-            public void run() {
-                mIsScoreboardVisible = false;
-                if (mScoreboardDialog != null) {
-                    try {
-                        mScoreboardDialog.setOnDismissListener(null);
-                        if (mScoreboardDialog.isShowing()) {
-                            mScoreboardDialog.dismiss();
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error dismissing scoreboard dialog", e);
+        Runnable runnable = () -> {
+            mIsScoreboardVisible = false;
+            if (mScoreboardDialog != null) {
+                try {
+                    mScoreboardDialog.setOnDismissListener(null);
+                    if (mScoreboardDialog.isShowing()) {
+                        mScoreboardDialog.dismiss();
                     }
-                    mScoreboardDialog = null;
-                    mScoreboardAdapter = null;
+                } catch (Exception e) {
+                    Log.e(TAG, "Error dismissing scoreboard dialog", e);
                 }
+                mScoreboardDialog = null;
+                mScoreboardAdapter = null;
             }
         };
         if (Looper.myLooper() == Looper.getMainLooper()) {
@@ -459,17 +444,13 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
     private void startServerSearchTimeout() {
         cancelServerSearchTimeout();
-        long mSearchStartTime = SystemClock.elapsedRealtime();
-        mSearchTimeoutRunnable = new Runnable() {
-            @Override
-            public void run() {
-                if (mUseNetwork && !mIsServer && mNetworkMenuType == NETWORK_TYPE_JOINING) {
-                    Log.d(TAG, "Server search cycle ended; re-triggering scan...");
-                    if (mUDPListenerService != null) {
-                        mUDPListenerService.joinServer();
-                    }
-                    startServerSearchTimeout();
+        mSearchTimeoutRunnable = () -> {
+            if (mUseNetwork && !mIsServer && mNetworkMenuType == NETWORK_TYPE_JOINING) {
+                Log.d(TAG, "Server search cycle ended; re-triggering scan...");
+                if (mUDPListenerService != null) {
+                    mUDPListenerService.joinServer();
                 }
+                startServerSearchTimeout();
             }
         };
         mSearchTimeoutHandler.postDelayed(mSearchTimeoutRunnable, SEARCH_TIMEOUT_MS);
@@ -676,166 +657,142 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mFragmentMgr = getSupportFragmentManager();
         mEliminationCountTV = findViewById(R.id.eliminations_count_tv);
         mReconnectButton = findViewById(R.id.reconnect_weapon_button);
-        mReconnectButton.setOnClickListener((new View.OnClickListener() {
-            public void onClick(View v) {
-                if (sharedPreferences == null)
-                    sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-                mDeviceAddress = sharedPreferences.getString(PREF_DEVICE_ADDRESS, "");
-                setDeviceAddress(mDeviceAddress);
-                if (!mDeviceAddress.isEmpty())
-                    connectWeapon();
-                else {
-                    mReconnectButton.setVisibility(View.GONE);
-                }
+        mReconnectButton.setOnClickListener((v -> {
+            if (sharedPreferences == null)
+                sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
+            mDeviceAddress = sharedPreferences.getString(PREF_DEVICE_ADDRESS, "");
+            setDeviceAddress(mDeviceAddress);
+            if (!mDeviceAddress.isEmpty())
+                connectWeapon();
+            else {
+                mReconnectButton.setVisibility(View.GONE);
             }
         }));
         mConnectButton = findViewById(R.id.connect_weapon_button);
         if (mConnectButton != null) {
-            mConnectButton.setOnClickListener((new View.OnClickListener() {
-                public void onClick(View v) {
-                    mDeviceAddress = "";
-                    setDeviceAddress(mDeviceAddress);
-                    connectWeapon();
-                }
+            mConnectButton.setOnClickListener((v -> {
+                mDeviceAddress = "";
+                setDeviceAddress(mDeviceAddress);
+                connectWeapon();
             }));
         }
         mQRConnectButton = findViewById(R.id.connect_qr_weapon_button);
         if (mQRConnectButton != null) {
-            mQRConnectButton.setOnClickListener((new View.OnClickListener() {
-                public void onClick(View v) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                            requestPermissions(new String[]{Manifest.permission.CAMERA}, REQUEST_CODE_CAMERA_PERMISSION);
-                            return;
-                        }
+            mQRConnectButton.setOnClickListener((v -> {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                    if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                        requestPermissions(new String[]{Manifest.permission.CAMERA}, REQUEST_CODE_CAMERA_PERMISSION);
+                        return;
                     }
-                    startQRScan();
                 }
+                startQRScan();
             }));
         }
         mDedicatedServerButton = findViewById(R.id.dedicated_server_button);
         if (mDedicatedServerButton != null) {
-            mDedicatedServerButton.setOnClickListener((new View.OnClickListener() {
-                public void onClick(View v) {
-                    if (mUDPServiceConnection != null)
-                        unbindService(mUDPServiceConnection);
-                    if (mTcpClientServiceConnection != null)
-                        unbindService(mTcpClientServiceConnection);
-                    if (mTcpServerServiceConnection != null)
-                        unbindService(mTcpServerServiceConnection);
-                    mUDPListenerService = null;
-                    mTcpClientServiceConnection = null;
-                    mTcpServerServiceConnection = null;
-                    startActivity(new Intent(FullscreenActivity.this, DedicatedServerActivity.class));
-                }
+            mDedicatedServerButton.setOnClickListener((v -> {
+                if (mUDPServiceConnection != null)
+                    unbindService(mUDPServiceConnection);
+                if (mTcpClientServiceConnection != null)
+                    unbindService(mTcpClientServiceConnection);
+                if (mTcpServerServiceConnection != null)
+                    unbindService(mTcpServerServiceConnection);
+                mUDPListenerService = null;
+                mTcpClientServiceConnection = null;
+                mTcpServerServiceConnection = null;
+                startActivity(new Intent(FullscreenActivity.this, DedicatedServerActivity.class));
             }));
         }
         mTeamMinusButton = findViewById(R.id.team_minus_button);
         if (mTeamMinusButton != null) {
             mTeamMinusButton.setVisibility(View.VISIBLE);
-            mTeamMinusButton.setOnClickListener((new View.OnClickListener() {
-                public void onClick(View v) {
-                    if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
-                        return;
-                    byte playerId = Globals.getInstance().mPlayerID;
-                    if (mUseNetwork) {
-                        if (playerId > (byte)0)
-                            playerId--;
-                        else
-                            playerId = Globals.MAX_PLAYER_ID;
-                    } else {
-                        if (playerId > (byte)1)
-                            playerId--;
-                        else
-                            playerId = Globals.MAX_PLAYER_ID;
-                    }
-                    Globals.getInstance().mPlayerID = playerId;
-                    mSelectedPlayerID = playerId;
-                    setTeam();
+            mTeamMinusButton.setOnClickListener((v -> {
+                if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
+                    return;
+                byte playerId = Globals.getInstance().mPlayerID;
+                if (mUseNetwork) {
+                    if (playerId > (byte)0)
+                        playerId--;
+                    else
+                        playerId = Globals.MAX_PLAYER_ID;
+                } else {
+                    if (playerId > (byte)1)
+                        playerId--;
+                    else
+                        playerId = Globals.MAX_PLAYER_ID;
                 }
+                Globals.getInstance().mPlayerID = playerId;
+                mSelectedPlayerID = playerId;
+                setTeam();
             }));
         }
         mTeamPlusButton = findViewById(R.id.team_plus_button);
         if (mTeamPlusButton != null) {
             mTeamPlusButton.setVisibility(View.VISIBLE);
-            mTeamPlusButton.setOnClickListener((new View.OnClickListener() {
-                public void onClick(View v) {
-                    if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
-                        return;
-                    byte playerId = Globals.getInstance().mPlayerID;
-                    if (mUseNetwork) {
-                        if (playerId < Globals.MAX_PLAYER_ID)
-                            playerId++;
-                        else
-                            playerId = (byte)0x00;
-                    } else {
-                        if (playerId < Globals.MAX_PLAYER_ID)
-                            playerId++;
-                        else
-                            playerId = (byte)0x01;
-                    }
-                    Globals.getInstance().mPlayerID = playerId;
-                    mSelectedPlayerID = playerId;
-                    setTeam();
+            mTeamPlusButton.setOnClickListener((v -> {
+                if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
+                    return;
+                byte playerId = Globals.getInstance().mPlayerID;
+                if (mUseNetwork) {
+                    if (playerId < Globals.MAX_PLAYER_ID)
+                        playerId++;
+                    else
+                        playerId = (byte)0x00;
+                } else {
+                    if (playerId < Globals.MAX_PLAYER_ID)
+                        playerId++;
+                    else
+                        playerId = (byte)0x01;
                 }
+                Globals.getInstance().mPlayerID = playerId;
+                mSelectedPlayerID = playerId;
+                setTeam();
             }));
         }
         mStartGameButton = findViewById(R.id.start_game_button);
         if (mStartGameButton != null) {
-            mStartGameButton.setOnClickListener((new View.OnClickListener() {
-                public void onClick(View v) {
-                    if (Globals.getInstance().mPlayerID == 0) {
-                        Globals.getInstance().mPlayerID = 1;
-                        setTeam();
+            mStartGameButton.setOnClickListener((v -> {
+                if (Globals.getInstance().mPlayerID == 0) {
+                    Globals.getInstance().mPlayerID = 1;
+                    setTeam();
+                }
+                if (mUseNetwork && mNetworkMenuType == NETWORK_TYPE_JOINED) {
+                    if (Globals.getPlayerCount() <= 1) {
+                        Toast.makeText(getApplicationContext(), getString(R.string.not_enough_players_toast), Toast.LENGTH_SHORT).show();
+                        mNetworkPlayerCountTV.setText(R.string.network_player_1count);
+                        return;
                     }
-                    if (mUseNetwork && mNetworkMenuType == NETWORK_TYPE_JOINED) {
-                        if (Globals.getPlayerCount() <= 1) {
-                            Toast.makeText(getApplicationContext(), getString(R.string.not_enough_players_toast), Toast.LENGTH_SHORT).show();
-                            mNetworkPlayerCountTV.setText(R.string.network_player_1count);
-                            return;
-                        }
-                        if (mIsServer)
-                            mTcpServer.startGame();
-                        else
-                            mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_STARTGAME);
-                    } else {
-                        if (mUseNetwork) {
-                            stopServerSearch(true);
-                        }
-                        startGame();
+                    if (mIsServer)
+                        mTcpServer.startGame();
+                    else
+                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_STARTGAME);
+                } else {
+                    if (mUseNetwork) {
+                        stopServerSearch(true);
                     }
+                    startGame();
                 }
             }));
         }
         mPlayerSettingsButton = findViewById(R.id.player_settings_button);
         if (mPlayerSettingsButton != null) {
-            mPlayerSettingsButton.setOnClickListener((new View.OnClickListener() {
-                public void onClick(View v) {
-                    if (!Globals.getInstance().mAllowPlayerSettings) {
-                        Toast.makeText(getApplicationContext(), getString(R.string.player_settings_not_allowed_toast), Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                    PlayerSettingsAlertDialog dialog = new PlayerSettingsAlertDialog(FullscreenActivity.this);
-                    dialog.setLocal(mTcpClient);
-                    dialog.show();
+            mPlayerSettingsButton.setOnClickListener((v -> {
+                if (!Globals.getInstance().mAllowPlayerSettings) {
+                    Toast.makeText(getApplicationContext(), getString(R.string.player_settings_not_allowed_toast), Toast.LENGTH_SHORT).show();
+                    return;
                 }
+                PlayerSettingsAlertDialog dialog = new PlayerSettingsAlertDialog(FullscreenActivity.this);
+                dialog.setLocal(mTcpClient);
+                dialog.show();
             }));
         }
         mEndGameButton = findViewById(R.id.end_game_button);
         if (mEndGameButton != null) {
-            mEndGameButton.setOnClickListener((new View.OnClickListener() {
-                public void onClick(View v) {
-                    confirmEndGame();
-                }
-            }));
+            mEndGameButton.setOnClickListener((v -> confirmEndGame()));
         }
         mEndNetworkGameButton = findViewById(R.id.end_network_game_button);
         if (mEndNetworkGameButton != null) {
-            mEndNetworkGameButton.setOnClickListener((new View.OnClickListener() {
-                public void onClick(View v) {
-                    confirmEndGame();
-                }
-            }));
+            mEndNetworkGameButton.setOnClickListener((v -> confirmEndGame()));
         }
         mShotsRemainingLabelTV = findViewById(R.id.shots_label_tv);
         mShotsRemainingTV = findViewById(R.id.shots_remaining_tv);
@@ -862,15 +819,13 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mGameTimer = findViewById(R.id.game_timer_chronometer);
         mFiringModeButton = findViewById(R.id.firing_mode_button);
         if (mFiringModeButton != null) {
-            mFiringModeButton.setOnClickListener((new View.OnClickListener() {
-                public void onClick(View v) {
-                    PopupMenu popup = new PopupMenu(new ContextThemeWrapper(FullscreenActivity.this, R.style.AppTheme_PopupOverlay), v);
-                    MenuInflater inflater = popup.getMenuInflater();
-                    inflater.inflate(R.menu.firing_mode_menu, popup.getMenu());
-                    popup.setOnMenuItemClickListener(FullscreenActivity.this);
-                    popup.show();
-                    Toast.makeText(getApplicationContext(), getString(R.string.firing_mode_cone_toast), Toast.LENGTH_LONG).show();
-                }
+            mFiringModeButton.setOnClickListener((v -> {
+                PopupMenu popup = new PopupMenu(new ContextThemeWrapper(FullscreenActivity.this, R.style.AppTheme_PopupOverlay), v);
+                MenuInflater inflater = popup.getMenuInflater();
+                inflater.inflate(R.menu.firing_mode_menu, popup.getMenu());
+                popup.setOnMenuItemClickListener(FullscreenActivity.this);
+                popup.show();
+                Toast.makeText(getApplicationContext(), getString(R.string.firing_mode_cone_toast), Toast.LENGTH_LONG).show();
             }));
         }
 
@@ -937,31 +892,29 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mNetworkPlayerCountTV = findViewById(R.id.player_count_tv);
         mUseNetworkingButton = findViewById(R.id.use_network_button);
         if (mUseNetworkingButton != null) {
-            mUseNetworkingButton.setOnClickListener((new View.OnClickListener() {
-                public void onClick(View v) {
-                    if (isWifiDisconnected()) {
-                        Toast.makeText(getApplicationContext(), getString(R.string.error_no_wifi), Toast.LENGTH_SHORT).show();
-                        mUseNetwork = false;
-                        return;
-                    }
-                    if (mNetworkPopup == null) {
-                        mNetworkPopup = new PopupMenu(new ContextThemeWrapper(FullscreenActivity.this, R.style.AppTheme_PopupOverlay), v);
-                        mNetworkPopup.setOnMenuItemClickListener(FullscreenActivity.this);
-                    }
-                    if (!mUseNetwork) {
-                        mUseNetwork = true;
-                        displayAllNetworkingOptions(true);
-                        Globals.getInstance().mPlayerID = mSelectedPlayerID;
-                        setNetworkMenu(NETWORK_TYPE_JOINING);
-                        if (mUDPListenerService != null) {
-                            mUDPListenerService.joinServer();
-                        }
-                    } else {
-                        setNetworkMenu(mNetworkMenuType);
-                    }
-                    mNetworkPopup.show();
-                    setTeam();
+            mUseNetworkingButton.setOnClickListener((v -> {
+                if (isWifiDisconnected()) {
+                    Toast.makeText(getApplicationContext(), getString(R.string.error_no_wifi), Toast.LENGTH_SHORT).show();
+                    mUseNetwork = false;
+                    return;
                 }
+                if (mNetworkPopup == null) {
+                    mNetworkPopup = new PopupMenu(new ContextThemeWrapper(FullscreenActivity.this, R.style.AppTheme_PopupOverlay), v);
+                    mNetworkPopup.setOnMenuItemClickListener(FullscreenActivity.this);
+                }
+                if (!mUseNetwork) {
+                    mUseNetwork = true;
+                    displayAllNetworkingOptions(true);
+                    Globals.getInstance().mPlayerID = mSelectedPlayerID;
+                    setNetworkMenu(NETWORK_TYPE_JOINING);
+                    if (mUDPListenerService != null) {
+                        mUDPListenerService.joinServer();
+                    }
+                } else {
+                    setNetworkMenu(mNetworkMenuType);
+                }
+                mNetworkPopup.show();
+                setTeam();
             }));
         }
         mGameModeLabelTV = findViewById(R.id.game_mode_label_tv);
@@ -978,11 +931,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mServerIPTV = findViewById(R.id.server_ip_tv);
         mGameLimitButton = findViewById(R.id.game_limit_button);
         if (mGameLimitButton != null) {
-            mGameLimitButton.setOnClickListener((new View.OnClickListener() {
-                public void onClick(View v) {
-                    requestGameLimit();
-                }
-            }));
+            mGameLimitButton.setOnClickListener((v -> requestGameLimit()));
         }
         mGameCountDownTV = findViewById(R.id.game_countdown_tv);
         mPlayerNameTV = findViewById(R.id.player_name_label_tv);
@@ -990,35 +939,23 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mPlayerNameTV.setText(Globals.getInstance().mPlayerName);
         Button shuffleTeamsButton = findViewById(R.id.shuffle_teams_button);
         if (shuffleTeamsButton != null) {
-            shuffleTeamsButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    if (mIsServer && mTcpServer != null) {
-                        mTcpServer.rebalanceAllPlayers(true);
-                        Toast.makeText(getApplicationContext(), "Teams Sorted & Randomized!", Toast.LENGTH_SHORT).show();
-                    }
+            shuffleTeamsButton.setOnClickListener(v -> {
+                if (mIsServer && mTcpServer != null) {
+                    mTcpServer.rebalanceAllPlayers(true);
+                    Toast.makeText(getApplicationContext(), "Teams Sorted & Randomized!", Toast.LENGTH_SHORT).show();
                 }
             });
         }
         Button adminControlsButton = findViewById(R.id.admin_controls_button);
         if (adminControlsButton != null) {
-            adminControlsButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    showAdminControlsMenu(v);
-                }
-            });
+            adminControlsButton.setOnClickListener(this::showAdminControlsMenu);
         }
         displayAllNetworkingOptions(false);
         mUseNetworkingButton.setVisibility(View.VISIBLE);
         setGameLimit();
         mPlayerDataButton = findViewById(R.id.player_data_button);
         if (mPlayerDataButton != null) {
-            mPlayerDataButton.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View v) {
-                    openScoreboard();
-                }
-            });
+            mPlayerDataButton.setOnClickListener(v -> openScoreboard());
         }
         loadFragment();
         updatePlayerSettings();
@@ -1037,51 +974,48 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             popup.getMenu().add(0, 102, 10, R.string.end_game_button);
         }
 
-        popup.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
-            @Override
-            public boolean onMenuItemClick(MenuItem item) {
-                Log.d(TAG, "showAdminControlsMenu onMenuItemClick: itemId=" + item.getItemId());
-                switch (item.getItemId()) {
-                    case 101:
-                        Log.d(TAG, "Server Controls: Start Game clicked. mIsServer=" + mIsServer + ", mTcpClient=" + (mTcpClient != null));
-                        if (mIsServer && mTcpServer != null) {
-                            mTcpServer.startGame();
-                        } else if (mTcpClient != null) {
-                            mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_STARTGAME);
-                            mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ADMIN_STARTGAME);
-                        }
-                        return true;
-                    case 102:
-                        Log.d(TAG, "Server Controls: End Game clicked. mIsServer=" + mIsServer + ", mTcpClient=" + (mTcpClient != null));
-                        if (mIsServer && mTcpServer != null) {
-                            mTcpServer.endGame();
-                        } else if (mTcpClient != null) {
-                            mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ADMIN_ENDGAME);
-                        }
-                        return true;
-                    case 103:
-                        Log.d(TAG, "Server Controls: 2 Teams clicked");
-                        changeAdminGameMode(Globals.GAME_MODE_2TEAMS);
-                        return true;
-                    case 104:
-                        Log.d(TAG, "Server Controls: 4 Teams clicked");
-                        changeAdminGameMode(Globals.GAME_MODE_4TEAMS);
-                        return true;
-                    case 105:
-                        Log.d(TAG, "Server Controls: FFA clicked");
-                        changeAdminGameMode(Globals.GAME_MODE_FFA);
-                        return true;
-                    case 106:
-                        Log.d(TAG, "Server Controls: Shuffle Teams clicked");
-                        if (mIsServer && mTcpServer != null) {
-                            mTcpServer.rebalanceAllPlayers(true);
-                        } else if (mTcpClient != null) {
-                            mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ADMIN_SORTTEAMS);
-                        }
-                        return true;
-                }
-                return false;
+        popup.setOnMenuItemClickListener(item -> {
+            Log.d(TAG, "showAdminControlsMenu onMenuItemClick: itemId=" + item.getItemId());
+            switch (item.getItemId()) {
+                case 101:
+                    Log.d(TAG, "Server Controls: Start Game clicked. mIsServer=" + mIsServer + ", mTcpClient=" + (mTcpClient != null));
+                    if (mIsServer && mTcpServer != null) {
+                        mTcpServer.startGame();
+                    } else if (mTcpClient != null) {
+                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_STARTGAME);
+                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ADMIN_STARTGAME);
+                    }
+                    return true;
+                case 102:
+                    Log.d(TAG, "Server Controls: End Game clicked. mIsServer=" + mIsServer + ", mTcpClient=" + (mTcpClient != null));
+                    if (mIsServer && mTcpServer != null) {
+                        mTcpServer.endGame();
+                    } else if (mTcpClient != null) {
+                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ADMIN_ENDGAME);
+                    }
+                    return true;
+                case 103:
+                    Log.d(TAG, "Server Controls: 2 Teams clicked");
+                    changeAdminGameMode(Globals.GAME_MODE_2TEAMS);
+                    return true;
+                case 104:
+                    Log.d(TAG, "Server Controls: 4 Teams clicked");
+                    changeAdminGameMode(Globals.GAME_MODE_4TEAMS);
+                    return true;
+                case 105:
+                    Log.d(TAG, "Server Controls: FFA clicked");
+                    changeAdminGameMode(Globals.GAME_MODE_FFA);
+                    return true;
+                case 106:
+                    Log.d(TAG, "Server Controls: Shuffle Teams clicked");
+                    if (mIsServer && mTcpServer != null) {
+                        mTcpServer.rebalanceAllPlayers(true);
+                    } else if (mTcpClient != null) {
+                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ADMIN_SORTTEAMS);
+                    }
+                    return true;
             }
+            return false;
         });
         popup.show();
     }
@@ -1299,7 +1233,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             JSONObject json = new JSONObject();
             json.put(TcpServer.JSON_PLAYERID, (int) Globals.getInstance().mPlayerID);
             json.put(TcpServer.JSON_REQUEST_TEAM_CHANGE, targetTeam);
-            mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + json.toString());
+            mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + json);
         } catch (JSONException e) {
             Log.e(TAG, "JSON Exception: " + e.getMessage());
         }
@@ -1341,19 +1275,13 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         alertDialogBuilder
                 .setCancelable(false)
                 .setPositiveButton(R.string.ok,
-                        new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog,int id) {
-                                String name = playerNameET.getText().toString().trim();
-                                setPlayerName(name);
-                                dialog.dismiss();
-                            }
+                        (dialog, id) -> {
+                            String name = playerNameET.getText().toString().trim();
+                            setPlayerName(name);
+                            dialog.dismiss();
                         })
                 .setNegativeButton(R.string.cancel,
-                        new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog,int id) {
-                                dialog.cancel();
-                            }
-                        });
+                        (dialog, id) -> dialog.cancel());
         AlertDialog alertDialog = alertDialogBuilder.create();
         alertDialog.show();
     }
@@ -1378,23 +1306,17 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         alertDialogBuilder
                 .setCancelable(false)
                 .setPositiveButton(R.string.ok,
-                        new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog,int id) {
-                                mIsServer = true; // This tricks the setReady function into not searching for a server
-                                mReady = true;
-                                setReady();
-                                mIsServer = false;
-                                mUDPListenerService.joinServer(serverIPET.getText().toString());
-                                setNetworkMenu(NETWORK_TYPE_JOINING);
-                                dialog.dismiss();
-                            }
+                        (dialog, id) -> {
+                            mIsServer = true; // This tricks the setReady function into not searching for a server
+                            mReady = true;
+                            setReady();
+                            mIsServer = false;
+                            mUDPListenerService.joinServer(serverIPET.getText().toString());
+                            setNetworkMenu(NETWORK_TYPE_JOINING);
+                            dialog.dismiss();
                         })
                 .setNegativeButton(R.string.cancel,
-                        new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog,int id) {
-                                dialog.cancel();
-                            }
-                        });
+                        (dialog, id) -> dialog.cancel());
         AlertDialog alertDialog = alertDialogBuilder.create();
         alertDialog.show();
     }
@@ -1417,80 +1339,68 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             gameLimitScore.setVisibility(View.VISIBLE);
         else
             gameLimitScore.setVisibility(View.GONE);
-        gameLimitTime.setOnClickListener((new View.OnClickListener() {
-            public void onClick(View v) {
-                gameLimitTime.setChecked(true);
-                gameLimitLives.setChecked(false);
-                gameLimitScore.setChecked(false);
-            }
+        gameLimitTime.setOnClickListener((v -> {
+            gameLimitTime.setChecked(true);
+            gameLimitLives.setChecked(false);
+            gameLimitScore.setChecked(false);
         }));
-        gameLimitLives.setOnClickListener((new View.OnClickListener() {
-            public void onClick(View v) {
-                gameLimitTime.setChecked(false);
-                gameLimitLives.setChecked(true);
-                gameLimitScore.setChecked(false);
-            }
+        gameLimitLives.setOnClickListener((v -> {
+            gameLimitTime.setChecked(false);
+            gameLimitLives.setChecked(true);
+            gameLimitScore.setChecked(false);
         }));
-        gameLimitScore.setOnClickListener((new View.OnClickListener() {
-            public void onClick(View v) {
-                gameLimitTime.setChecked(false);
-                gameLimitLives.setChecked(false);
-                gameLimitScore.setChecked(true);
-            }
+        gameLimitScore.setOnClickListener((v -> {
+            gameLimitTime.setChecked(false);
+            gameLimitLives.setChecked(false);
+            gameLimitScore.setChecked(true);
         }));
 
         alertDialogBuilder
                 .setCancelable(false)
                 .setPositiveButton(R.string.ok,
-                        new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog,int id) {
-                                if (gameLimitET.getText().toString().isEmpty()) {
-                                    dialog.dismiss();
-                                    return;
-                                }
-                                int limit = 0;
-                                try {
-                                    limit = Integer.parseInt(gameLimitET.getText().toString());
-                                } catch (Exception ignored) {
-                                    dialog.dismiss();
-                                    return;
-                                }
-                                if (limit > 100) {
-                                    Toast.makeText(getApplicationContext(), getString(R.string.error_limit_too_high), Toast.LENGTH_SHORT).show();
-                                    dialog.dismiss();
-                                    return;
-                                }
-                                int gameLimit = Globals.getInstance().mGameLimit;
-                                if (gameLimitTime.isChecked()) {
-                                    if ((gameLimit & Globals.GAME_LIMIT_TIME) == 0)
-                                        gameLimit += Globals.GAME_LIMIT_TIME;
-                                    else if (limit <= 0)
-                                        gameLimit -= Globals.GAME_LIMIT_TIME;
-                                    Globals.getInstance().mTimeLimit = limit;
-                                } else if (gameLimitLives.isChecked()) {
-                                    if ((gameLimit & Globals.GAME_LIMIT_LIVES) == 0)
-                                        gameLimit += Globals.GAME_LIMIT_LIVES;
-                                    else if (limit <= 0)
-                                        gameLimit -= Globals.GAME_LIMIT_LIVES;
-                                    Globals.getInstance().mLivesLimit = limit;
-                                } else {
-                                    if ((gameLimit & Globals.GAME_LIMIT_SCORE) == 0)
-                                        gameLimit += Globals.GAME_LIMIT_SCORE;
-                                    else if (limit <= 0)
-                                        gameLimit -= Globals.GAME_LIMIT_SCORE;
-                                    Globals.getInstance().mScoreLimit = limit;
-                                }
-                                Globals.getInstance().mGameLimit = gameLimit;
-                                setGameLimit();
+                        (dialog, id) -> {
+                            if (gameLimitET.getText().toString().isEmpty()) {
                                 dialog.dismiss();
+                                return;
                             }
+                            int limit;
+                            try {
+                                limit = Integer.parseInt(gameLimitET.getText().toString());
+                            } catch (Exception ignored) {
+                                dialog.dismiss();
+                                return;
+                            }
+                            if (limit > 100) {
+                                Toast.makeText(getApplicationContext(), getString(R.string.error_limit_too_high), Toast.LENGTH_SHORT).show();
+                                dialog.dismiss();
+                                return;
+                            }
+                            int gameLimit = Globals.getInstance().mGameLimit;
+                            if (gameLimitTime.isChecked()) {
+                                if ((gameLimit & Globals.GAME_LIMIT_TIME) == 0)
+                                    gameLimit += Globals.GAME_LIMIT_TIME;
+                                else if (limit <= 0)
+                                    gameLimit -= Globals.GAME_LIMIT_TIME;
+                                Globals.getInstance().mTimeLimit = limit;
+                            } else if (gameLimitLives.isChecked()) {
+                                if ((gameLimit & Globals.GAME_LIMIT_LIVES) == 0)
+                                    gameLimit += Globals.GAME_LIMIT_LIVES;
+                                else if (limit <= 0)
+                                    gameLimit -= Globals.GAME_LIMIT_LIVES;
+                                Globals.getInstance().mLivesLimit = limit;
+                            } else {
+                                if ((gameLimit & Globals.GAME_LIMIT_SCORE) == 0)
+                                    gameLimit += Globals.GAME_LIMIT_SCORE;
+                                else if (limit <= 0)
+                                    gameLimit -= Globals.GAME_LIMIT_SCORE;
+                                Globals.getInstance().mScoreLimit = limit;
+                            }
+                            Globals.getInstance().mGameLimit = gameLimit;
+                            setGameLimit();
+                            dialog.dismiss();
                         })
                 .setNegativeButton(R.string.cancel,
-                        new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog,int id) {
-                                dialog.cancel();
-                            }
-                        });
+                        (dialog, id) -> dialog.cancel());
         AlertDialog alertDialog = alertDialogBuilder.create();
         alertDialog.show();
     }
@@ -1662,31 +1572,23 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         builder.setTitle(R.string.end_game_dialog_title);
         builder.setMessage(R.string.end_game_dialog_message);
 
-        builder.setPositiveButton(R.string.yes, new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                if (mUseNetwork) {
-                    if (Globals.getInstance().mIsAdmin || mIsServer) {
-                        if (mTcpClient != null)
-                            mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ADMIN_ENDGAME);
-                        else if (mIsServer && mTcpServer != null)
-                            mTcpServer.endGame();
-                    } else {
-                        mTcpClient.leaveServer();
-                        endGame();
-                    }
+        builder.setPositiveButton(R.string.yes, (dialog, which) -> {
+            if (mUseNetwork) {
+                if (Globals.getInstance().mIsAdmin || mIsServer) {
+                    if (mTcpClient != null)
+                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ADMIN_ENDGAME);
+                    else if (mIsServer && mTcpServer != null)
+                        mTcpServer.endGame();
                 } else {
+                    mTcpClient.leaveServer();
                     endGame();
                 }
+            } else {
+                endGame();
             }
         });
 
-        builder.setNegativeButton(R.string.no, new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                dialog.dismiss();
-            }
-        });
+        builder.setNegativeButton(R.string.no, (dialog, which) -> dialog.dismiss());
 
         AlertDialog alert = builder.create();
         alert.show();
@@ -1818,8 +1720,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         }
         if (sharedPreferences != null) {
             SharedPreferences.Editor editor = sharedPreferences.edit();
-            editor.putInt(PREF_PLAYER_ID, (int) Globals.getInstance().mPlayerID);
-            editor.putInt(PREF_SELECTED_PLAYER_ID, (int) Globals.getInstance().mPlayerID);
+            editor.putInt(PREF_PLAYER_ID, Globals.getInstance().mPlayerID);
+            editor.putInt(PREF_SELECTED_PLAYER_ID, Globals.getInstance().mPlayerID);
             editor.putInt(PREF_GAME_MODE, Globals.getInstance().mGameMode);
             editor.apply();
         }
@@ -2045,12 +1947,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     if (mIsServer && mTcpServer != null) {
                         mTcpServer.endGame();
                     }
-                    new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
-                                endGame();
-                            }
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
+                            endGame();
                         }
                     }, 3000);
                 } else {
@@ -2387,7 +2286,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         }
 
         rawQr = rawQr.trim();
-        String macAddress = "";
+        String macAddress;
         String playerName = "";
 
         if (rawQr.length() > 17 && rawQr.charAt(17) == '-') {
@@ -2596,27 +2495,25 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         alertDialogBuilder
                 .setCancelable(false)
                 .setNegativeButton(R.string.blaster_disconnected_disconnect_quit,
-                        new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog,int id) {
-                                Log.d(TAG, "Disconnect & Quit clicked");
-                                mHasConnectedToBlaster = false;
-                                Globals.getInstance().mGameState = Globals.GAME_STATE_NONE;
-                                if (mConnectFailTimer != null)
-                                    mConnectFailTimer.cancel();
-                                if (mBluetoothLeScanner != null) {
-                                    try {
-                                        mBluetoothLeScanner.stopScan(mLeScanCallback);
-                                    } catch (SecurityException e) {
-                                        Log.e(TAG, "SecurityException stopping BLE scan: " + e.getMessage());
-                                    }
+                        (dialog, id) -> {
+                            Log.d(TAG, "Disconnect & Quit clicked");
+                            mHasConnectedToBlaster = false;
+                            Globals.getInstance().mGameState = Globals.GAME_STATE_NONE;
+                            if (mConnectFailTimer != null)
+                                mConnectFailTimer.cancel();
+                            if (mBluetoothLeScanner != null) {
+                                try {
+                                    mBluetoothLeScanner.stopScan(mLeScanCallback);
+                                } catch (SecurityException e) {
+                                    Log.e(TAG, "SecurityException stopping BLE scan: " + e.getMessage());
                                 }
-                                mScanning = false;
-                                stopServerSearch(true);
-                                endGame();
-                                handleDisconnect();
-                                dialog.cancel();
-                                mBlasterDisconnectDialog = null;
                             }
+                            mScanning = false;
+                            stopServerSearch(true);
+                            endGame();
+                            handleDisconnect();
+                            dialog.cancel();
+                            mBlasterDisconnectDialog = null;
                         });
         mBlasterDisconnectDialog = alertDialogBuilder.create();
         mBlasterDisconnectDialog.show();
@@ -2626,12 +2523,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         if (mBlasterDisconnectDialog != null) {
             mBlasterDisconnectDialog.dismiss();
             mBlasterDisconnectDialog = null;
-            new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    applyCurrentRecoilSetting();
-                }
-            }, 600);
+            new Handler(Looper.getMainLooper()).postDelayed(this::applyCurrentRecoilSetting, 600);
         }
     }
 
@@ -2648,8 +2540,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 handleDisconnect();
             } else if (BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
                 // Show all the supported services and characteristics on the user interface.
-                //displayGattServices(mBluetoothLeService.getSupportedGattServices());
-                //Log.d(TAG, "services discovered!");
                 TextView connectStatusTV = findViewById(R.id.connect_status_tv);
                 if (connectStatusTV != null) connectStatusTV.setText(R.string.connect_status_communicating);
                 for (BluetoothGattService gattService : mBluetoothLeService.getSupportedGattServices()) {
@@ -2765,13 +2655,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     public void playSound(int resId, Context ctx) {
         MediaPlayer mp = MediaPlayer.create(ctx, resId);
         mp.start();
-        mp.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-            @Override
-            public void onCompletion(MediaPlayer mp) {
-                mp.release();
-            }
-
-        });
+        mp.setOnCompletionListener(MediaPlayer::release);
         mp.setLooping(false);
     }
 
@@ -2826,19 +2710,11 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 mLastThumbButtonCount = thumb_counter;
                 mLastPowerButtonCount = power_counter;
                 setShotMode(mCurrentShotMode);
-                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (Globals.getInstance().mPlayerID != 0)
-                            setTeam();
-                    }
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    if (Globals.getInstance().mPlayerID != 0)
+                        setTeam();
                 }, 250);
-                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        applyCurrentRecoilSetting();
-                    }
-                }, 500);
+                new Handler(Looper.getMainLooper()).postDelayed(this::applyCurrentRecoilSetting, 500);
                 autoStartServerScan();
             }
             if (trigger_counter != mLastTriggerCount) {
@@ -2901,7 +2777,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             }
             byte battery_level = data[RECOIL_OFFSET_BATTERY_LEVEL];
             mBatteryQueue.add(battery_level);
-            mBatteryTotal += (long)battery_level;
+            mBatteryTotal += battery_level;
             if (mBatteryCount >= 100) {
                 Byte peek = mBatteryQueue.peek();
                 if (peek != null) {
@@ -3077,14 +2953,11 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                                         mEliminatedByTV.setText(Globals.getInstance().getPlayerName(hit_by_id));
                                     }
                                     mEliminatedByTV.startAnimation(animationFadeOut);
-                                    new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                                        @Override
-                                        public void run() {
-                                            mHitIV.setVisibility(View.GONE);
-                                            mHitAnimation.stop();
-                                            mHitAnimation = null;
-                                            mEliminatedByTV.setVisibility(View.INVISIBLE);
-                                        }
+                                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                                        mHitIV.setVisibility(View.GONE);
+                                        mHitAnimation.stop();
+                                        mHitAnimation = null;
+                                        mEliminatedByTV.setVisibility(View.INVISIBLE);
                                     }, HIT_ANIMATION_DURATION_MILLISECONDS);
                                 }
                             } else {
@@ -3174,12 +3047,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     mShotsFiredIV.setVisibility(View.VISIBLE);
                     Animation animationFadeOut = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadeout);
                     mShotsFiredIV.startAnimation(animationFadeOut);
-                    new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            mShotsFiredIV.setVisibility(View.GONE);
-                        }
-                    }, HIT_ANIMATION_DURATION_MILLISECONDS);
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> mShotsFiredIV.setVisibility(View.GONE), HIT_ANIMATION_DURATION_MILLISECONDS);
                 }
             } else if (NetMsg.NETMSG_HIT.equals(action)) {
                 // Play a sound?
@@ -3199,14 +3067,11 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         mHitPlayerNameTV.setText(Globals.getInstance().getPlayerName(hitPlayerID));
                     }
                     mHitPlayerNameTV.startAnimation(animationFadeOut);
-                    new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            mHitPlayerIV.setVisibility(View.GONE);
-                            mHitPlayerAnimation.stop();
-                            mHitPlayerAnimation = null;
-                            mHitPlayerNameTV.setVisibility(View.GONE);
-                        }
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        mHitPlayerIV.setVisibility(View.GONE);
+                        mHitPlayerAnimation.stop();
+                        mHitPlayerAnimation = null;
+                        mHitPlayerNameTV.setVisibility(View.GONE);
                     }, HIT_ANIMATION_DURATION_MILLISECONDS);
                 }
             } else if (NetMsg.NETMSG_OUT.equals(action)) {
@@ -3227,14 +3092,11 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         mHitPlayerNameTV.setText(Globals.getInstance().getPlayerName(hitPlayerID));
                     }
                     mHitPlayerNameTV.startAnimation(animationFadeOut);
-                    new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            mHitPlayerIV.setVisibility(View.GONE);
-                            mHitPlayerAnimation.stop();
-                            mHitPlayerAnimation = null;
-                            mHitPlayerNameTV.setVisibility(View.GONE);
-                        }
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        mHitPlayerIV.setVisibility(View.GONE);
+                        mHitPlayerAnimation.stop();
+                        mHitPlayerAnimation = null;
+                        mHitPlayerNameTV.setVisibility(View.GONE);
                     }, HIT_ANIMATION_DURATION_MILLISECONDS);
                 }
             } else if (NetMsg.NETMSG_ELIMINATED.equals(action)) {
@@ -3256,12 +3118,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     mScoreIncreasePlayerNameTV.setText(Globals.getInstance().getPlayerName(hitPlayerID));
                 }
                 mScoreIncreasePlayerNameTV.startAnimation(animationFadeOut);
-                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                    @Override
-                    public void run() {
-                        mScoreIncreaseIV.setVisibility(View.GONE);
-                        mScoreIncreasePlayerNameTV.setVisibility(View.GONE);
-                    }
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    mScoreIncreaseIV.setVisibility(View.GONE);
+                    mScoreIncreasePlayerNameTV.setVisibility(View.GONE);
                 }, ELIMINATED_ANIMATION_DURATION_MILLISECONDS);
                 playSound(R.raw.score, getApplicationContext());
                 if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
@@ -3336,10 +3195,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                             score = "" + mTeamScore;
                             mTeamScoreTV.setText(score);
                         }
-                        /*if (mHasLivesLimit && mEliminationCount <= 0) {
-                            Toast.makeText(getApplicationContext(), getString(R.string.dialog_out_of_lives), Toast.LENGTH_LONG).show();
-                            endGame(); // Sorry, you're out of the game
-                        }*/
                         long timeRemaining = intent.getLongExtra(NetMsg.INTENT_TIMEREMAINING, -1);
                         if (timeRemaining > 0 && Globals.getInstance().mGameState == Globals.GAME_STATE_RUNNING) {
                             if (mGameCountdownTimer != null)
@@ -3395,13 +3250,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             } else if (NetMsg.NETMSG_FAILEDTOJOIN.equals(action)) {
                 Log.d(TAG, "NETMSG_FAILEDTOJOIN received. mUseNetwork=" + mUseNetwork + ", mNetworkMenuType=" + mNetworkMenuType);
                 if (mUseNetwork && !mIsServer && mNetworkMenuType == NETWORK_TYPE_JOINING) {
-                    new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
-                        @Override
-                        public void run() {
-                            if (mUseNetwork && !mIsServer && mNetworkMenuType == NETWORK_TYPE_JOINING && mUDPListenerService != null) {
-                                Log.d(TAG, "Auto-retrying server scan...");
-                                mUDPListenerService.joinServer();
-                            }
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        if (mUseNetwork && !mIsServer && mNetworkMenuType == NETWORK_TYPE_JOINING && mUDPListenerService != null) {
+                            Log.d(TAG, "Auto-retrying server scan...");
+                            mUDPListenerService.joinServer();
                         }
                     }, 2000);
                 }
@@ -3568,154 +3420,139 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         alertDialogBuilder
                 .setCancelable(false)
                 .setPositiveButton(R.string.ok, null)
-                .setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int id) {
-                        dialog.cancel();
-                    }
-                });
+                .setNegativeButton(R.string.cancel, (dialog, id) -> dialog.cancel());
 
         final AlertDialog alertDialog = alertDialogBuilder.create();
         alertDialog.show();
 
-        alertDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                EditText[] editTexts = new EditText[]{team1ET, team2ET, team3ET, team4ET};
-                int[] newSizes = new int[numTeams];
-                boolean invalidInput = false;
-                int totalEnteredSum = 0;
+        alertDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            EditText[] editTexts = new EditText[]{team1ET, team2ET, team3ET, team4ET};
+            int[] newSizes = new int[numTeams];
+            boolean invalidInput = false;
+            int totalEnteredSum = 0;
 
-                for (int i = 0; i < numTeams; i++) {
-                    String text = editTexts[i].getText().toString().trim();
-                    if (text.isEmpty()) {
+            for (int i = 0; i < numTeams; i++) {
+                String text = editTexts[i].getText().toString().trim();
+                if (text.isEmpty()) {
+                    invalidInput = true;
+                    break;
+                }
+                try {
+                    int val = Integer.parseInt(text);
+                    if (val <= 0) {
                         invalidInput = true;
                         break;
                     }
-                    try {
-                        int val = Integer.parseInt(text);
-                        if (val <= 0) {
-                            invalidInput = true;
-                            break;
-                        }
-                        newSizes[i] = val;
-                        totalEnteredSum += val;
-                    } catch (NumberFormatException e) {
-                        invalidInput = true;
-                        break;
-                    }
+                    newSizes[i] = val;
+                    totalEnteredSum += val;
+                } catch (NumberFormatException e) {
+                    invalidInput = true;
+                    break;
                 }
-
-                if (invalidInput) {
-                    Toast.makeText(FullscreenActivity.this, "Team limits must be at least 1 player slot", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-
-                if (totalEnteredSum != Globals.MAX_PLAYER_ID) {
-                    Toast.makeText(FullscreenActivity.this, "Total player slots across all teams must equal " + Globals.MAX_PLAYER_ID + " (current sum: " + totalEnteredSum + ")", Toast.LENGTH_LONG).show();
-                    return;
-                }
-
-                Globals.getInstance().setTeamSizes(newSizes);
-                if (mIsServer && mTcpServer != null) {
-                    mTcpServer.rebalanceAllPlayers(false);
-                } else if (mTcpClient != null) {
-                    StringBuilder sb = new StringBuilder();
-                    for (int i = 0; i < newSizes.length; i++) {
-                        if (i > 0) sb.append(",");
-                        sb.append(newSizes[i]);
-                    }
-                    mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ADMIN_TEAMSIZES + sb.toString());
-                }
-                alertDialog.dismiss();
             }
+
+            if (invalidInput) {
+                Toast.makeText(FullscreenActivity.this, "Team limits must be at least 1 player slot", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            if (totalEnteredSum != Globals.MAX_PLAYER_ID) {
+                Toast.makeText(FullscreenActivity.this, "Total player slots across all teams must equal " + Globals.MAX_PLAYER_ID + " (current sum: " + totalEnteredSum + ")", Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            Globals.getInstance().setTeamSizes(newSizes);
+            if (mIsServer && mTcpServer != null) {
+                mTcpServer.rebalanceAllPlayers(false);
+            } else if (mTcpClient != null) {
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < newSizes.length; i++) {
+                    if (i > 0) sb.append(",");
+                    sb.append(newSizes[i]);
+                }
+                mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ADMIN_TEAMSIZES + sb);
+            }
+            alertDialog.dismiss();
         });
     }
 
     private void displayPlayerData(final String message) {
         if (message == null || message.isEmpty())
             return;
-        new Thread(new Runnable() {
-            public void run() {
-                PlayerDisplayData[] finalData = new PlayerDisplayData[Globals.MAX_PLAYER_ID + 2];
-                for (int x = 1; x <= Globals.MAX_PLAYER_ID; x++)
-                    finalData[x] = null;
+        new Thread(() -> {
+            PlayerDisplayData[] finalData = new PlayerDisplayData[Globals.MAX_PLAYER_ID + 2];
+            for (int x = 1; x <= Globals.MAX_PLAYER_ID; x++)
+                finalData[x] = null;
 
-                boolean hasSemaphore = false;
-                int[] teamPoints = new int[4];
-                for (int i = 0; i < 4; i++)
-                    teamPoints[i] = 0;
-                try {
-                    JSONObject json = new JSONObject(message);
-                    JSONArray players = json.getJSONArray(TcpServer.JSON_PLAYERDATA);
-                    Globals.getInstance();
-                    Globals.getmPlayerSettingsSemaphore();
-                    hasSemaphore = true;
-                    for (int x = 0; x < players.length(); x++) {
-                        JSONObject player = players.getJSONObject(x);
-                        PlayerDisplayData playerData = new PlayerDisplayData();
-                        playerData.playerID = (byte) player.getInt(TcpServer.JSON_PLAYERID);
-                        playerData.playerName = player.getString(TcpServer.JSON_PLAYERNAME);
-                        playerData.points = player.getInt(TcpServer.JSON_PLAYERPOINTS);
-                        if (playerData.playerID == Globals.getInstance().mPlayerID) {
-                            mScore = Math.max(mScore, playerData.points);
-                            if (mIsServer && mTcpServer != null) {
-                                mTcpServer.setHostScore(mScore, mEliminationCount);
-                            }
+            boolean hasSemaphore = false;
+            int[] teamPoints = new int[4];
+            for (int i = 0; i < 4; i++)
+                teamPoints[i] = 0;
+            try {
+                JSONObject json = new JSONObject(message);
+                JSONArray players = json.getJSONArray(TcpServer.JSON_PLAYERDATA);
+                Globals.getInstance();
+                Globals.getmPlayerSettingsSemaphore();
+                hasSemaphore = true;
+                for (int x = 0; x < players.length(); x++) {
+                    JSONObject player = players.getJSONObject(x);
+                    PlayerDisplayData playerData = new PlayerDisplayData();
+                    playerData.playerID = (byte) player.getInt(TcpServer.JSON_PLAYERID);
+                    playerData.playerName = player.getString(TcpServer.JSON_PLAYERNAME);
+                    playerData.points = player.getInt(TcpServer.JSON_PLAYERPOINTS);
+                    if (playerData.playerID == Globals.getInstance().mPlayerID) {
+                        mScore = Math.max(mScore, playerData.points);
+                        if (mIsServer && mTcpServer != null) {
+                            mTcpServer.setHostScore(mScore, mEliminationCount);
                         }
-                        if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
-                            int teamIdx = Globals.getInstance().calcNetworkTeam(playerData.playerID) - 1;
-                            if (teamIdx >= 0 && teamIdx < 4) {
-                                teamPoints[teamIdx] += playerData.points;
-                            }
-                        }
-                        playerData.eliminated = player.getInt(TcpServer.JSON_PLAYERELIMINATED);
-                        if (Globals.getInstance().mPlayerSettings.get(playerData.playerID) == null) {
-                            playerData.overrideLives = false;
-                            playerData.lives = 0;
-                        } else {
-                            playerData.overrideLives = Objects.requireNonNull(Globals.getInstance().mPlayerSettings.get(playerData.playerID)).overrideLives;
-                            playerData.lives = Objects.requireNonNull(Globals.getInstance().mPlayerSettings.get(playerData.playerID)).lives;
-                        }
-                        finalData[playerData.playerID] = playerData;
                     }
+                    if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
+                        int teamIdx = Globals.getInstance().calcNetworkTeam(playerData.playerID) - 1;
+                        if (teamIdx >= 0 && teamIdx < 4) {
+                            teamPoints[teamIdx] += playerData.points;
+                        }
+                    }
+                    playerData.eliminated = player.getInt(TcpServer.JSON_PLAYERELIMINATED);
+                    if (Globals.getInstance().mPlayerSettings.get(playerData.playerID) == null) {
+                        playerData.overrideLives = false;
+                        playerData.lives = 0;
+                    } else {
+                        playerData.overrideLives = Objects.requireNonNull(Globals.getInstance().mPlayerSettings.get(playerData.playerID)).overrideLives;
+                        playerData.lives = Objects.requireNonNull(Globals.getInstance().mPlayerSettings.get(playerData.playerID)).lives;
+                    }
+                    finalData[playerData.playerID] = playerData;
+                }
+                Globals.getInstance().mPlayerSettingsSemaphore.release();
+                hasSemaphore = false;
+            } catch (JSONException e) {
+                Log.e(TAG, "Error parsing player data", e);
+                if (hasSemaphore)
                     Globals.getInstance().mPlayerSettingsSemaphore.release();
-                    hasSemaphore = false;
-                } catch (JSONException e) {
-                    Log.e(TAG, "Error parsing player data", e);
-                    if (hasSemaphore)
-                        Globals.getInstance().mPlayerSettingsSemaphore.release();
-                    return;
-                }
-                if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
-                    int myTeamIdx = Globals.getInstance().calcNetworkTeam(Globals.getInstance().mPlayerID) - 1;
-                    if (myTeamIdx >= 0 && myTeamIdx < 4) {
-                        mTeamScore = teamPoints[myTeamIdx];
-                    }
-                }
-
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (mScoreTV != null) mScoreTV.setText(String.valueOf(mScore));
-                        if (mTeamScoreTV != null) mTeamScoreTV.setText(String.valueOf(mTeamScore));
-                    }
-                });
-
-                updateScoreboardData(finalData);
+                return;
             }
+            if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
+                int myTeamIdx = Globals.getInstance().calcNetworkTeam(Globals.getInstance().mPlayerID) - 1;
+                if (myTeamIdx >= 0 && myTeamIdx < 4) {
+                    mTeamScore = teamPoints[myTeamIdx];
+                }
+            }
+
+            runOnUiThread(() -> {
+                if (mScoreTV != null) mScoreTV.setText(String.valueOf(mScore));
+                if (mTeamScoreTV != null) mTeamScoreTV.setText(String.valueOf(mTeamScore));
+            });
+
+            updateScoreboardData(finalData);
         }).start();
     }
 
     private void updateScoreboardData(final PlayerDisplayData[] playerDisplayData) {
-        Runnable runnable = new Runnable() {
-            @Override
-            public void run() {
-                mLatestPlayerDisplayData = playerDisplayData;
-                if (!mIsScoreboardVisible) {
-                    return;
-                }
-                showOrUpdateScoreboardDialog(playerDisplayData);
+        Runnable runnable = () -> {
+            mLatestPlayerDisplayData = playerDisplayData;
+            if (!mIsScoreboardVisible) {
+                return;
             }
+            showOrUpdateScoreboardDialog(playerDisplayData);
         };
         if (Looper.myLooper() == Looper.getMainLooper()) {
             runnable.run();
@@ -3747,42 +3584,32 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
         mScoreboardAdapter = new PlayerDisplayDataListAdapter(FullscreenActivity.this, playerDisplayData, true);
         AlertDialog.Builder alertDialog = new AlertDialog.Builder(FullscreenActivity.this, R.style.Theme_AppCompat_DayNight_Dialog_Alert);
-        alertDialog.setNegativeButton(R.string.ok, new DialogInterface.OnClickListener() {
-            public void onClick(DialogInterface dialog, int id) {
-                dialog.cancel();
-            }
-        });
+        alertDialog.setNegativeButton(R.string.ok, (dialog, id) -> dialog.cancel());
         LayoutInflater inflater = getLayoutInflater();
         View view = inflater.inflate(R.layout.player_data_dialog, null);
         alertDialog.setView(view);
         ListView listView = view.findViewById(R.id.player_list);
         listView.setAdapter(mScoreboardAdapter);
         if (mIsServer) {
-            listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-                @Override
-                public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                    PlayerDisplayDataListAdapter.DisplayRow row = mScoreboardAdapter.getDisplayRow(position);
-                    if (row != null && row.type == PlayerDisplayDataListAdapter.DisplayRow.TYPE_TEAM_HEADER && row.teamNumber > 0) {
-                        showTeamRatioDialog();
-                        return;
-                    }
-                    byte playerID = mScoreboardAdapter.getPlayerID(position);
-                    if (playerID <= 0)
-                        return;
-                    PlayerSettingsAlertDialog dialog = new PlayerSettingsAlertDialog(FullscreenActivity.this);
-                    dialog.setServer(playerID, mTcpServer);
-                    dialog.show();
+            listView.setOnItemClickListener((parent, view1, position, id) -> {
+                PlayerDisplayDataListAdapter.DisplayRow row = mScoreboardAdapter.getDisplayRow(position);
+                if (row != null && row.type == PlayerDisplayDataListAdapter.DisplayRow.TYPE_TEAM_HEADER && row.teamNumber > 0) {
+                    showTeamRatioDialog();
+                    return;
                 }
+                byte playerID = mScoreboardAdapter.getPlayerID(position);
+                if (playerID <= 0)
+                    return;
+                PlayerSettingsAlertDialog dialog = new PlayerSettingsAlertDialog(FullscreenActivity.this);
+                dialog.setServer(playerID, mTcpServer);
+                dialog.show();
             });
         }
         mScoreboardDialog = alertDialog.create();
-        mScoreboardDialog.setOnDismissListener(new DialogInterface.OnDismissListener() {
-            @Override
-            public void onDismiss(DialogInterface dialog) {
-                mScoreboardDialog = null;
-                mScoreboardAdapter = null;
-                mIsScoreboardVisible = false;
-            }
+        mScoreboardDialog.setOnDismissListener(dialog -> {
+            mScoreboardDialog = null;
+            mScoreboardAdapter = null;
+            mIsScoreboardVisible = false;
         });
         mScoreboardDialog.show();
     }
