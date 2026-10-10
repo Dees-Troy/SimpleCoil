@@ -184,6 +184,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
     private boolean mScanning = false;
     private volatile boolean mConnected = false;
+    private boolean mHasConnectedToBlaster = false;
     private boolean mCommunicating = false; // Used to make sure that we start receiving telemetry data after initial connection
     private String mDeviceAddress = ""; // MAC address of the tagger
     private static byte mLastTeam = 0;
@@ -2303,8 +2304,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
     private void resetBluetoothServices() {
         mConnected = false;
-        if (mBluetoothLeService != null)
+        if (mBluetoothLeService != null) {
+            mBluetoothLeService.disconnect();
             mBluetoothLeService.close();
+        }
         if (mBLEServiceConnection != null)
             unbindService(mBLEServiceConnection);
         mBLEServiceConnection = null;
@@ -2312,11 +2315,12 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void handleDisconnect() {
+        Log.d(TAG, "handleDisconnect called. mHasConnectedToBlaster=" + mHasConnectedToBlaster + ", mGameState=" + Globals.getInstance().mGameState);
         if (mConnectFailTimer != null)
             mConnectFailTimer.cancel();
         mScanning = false;
-        if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
-            Log.e(TAG, "blaster disconnected mid-game, attempt to reconnect");
+        if (mHasConnectedToBlaster || Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
+            Log.e(TAG, "blaster disconnected, attempt to reconnect");
             connectWeapon();
             showWeaponDisconnect();
             return;
@@ -2348,11 +2352,24 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
         alertDialogBuilder
                 .setCancelable(false)
-                .setNegativeButton(R.string.blaster_disconnected_cancel_quit,
+                .setNegativeButton(R.string.blaster_disconnected_disconnect_quit,
                         new DialogInterface.OnClickListener() {
                             public void onClick(DialogInterface dialog,int id) {
-                                mDeviceAddress = "";
+                                Log.d(TAG, "Disconnect & Quit clicked");
+                                mHasConnectedToBlaster = false;
                                 Globals.getInstance().mGameState = Globals.GAME_STATE_NONE;
+                                if (mConnectFailTimer != null)
+                                    mConnectFailTimer.cancel();
+                                if (mBluetoothLeScanner != null) {
+                                    try {
+                                        mBluetoothLeScanner.stopScan(mLeScanCallback);
+                                    } catch (SecurityException e) {
+                                        Log.e(TAG, "SecurityException stopping BLE scan: " + e.getMessage());
+                                    }
+                                }
+                                mScanning = false;
+                                stopServerSearch(true);
+                                endGame();
                                 handleDisconnect();
                                 dialog.cancel();
                                 mBlasterDisconnectDialog = null;
@@ -2391,9 +2408,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     if (gattService.getUuid().toString().equals(GattAttributes.RECOIL_MAIN_SERVICE)) {
                         Log.d(TAG, "Found Recoil Main Service");
                         mTelemetryCharacteristic = gattService.getCharacteristic(UUID.fromString(GattAttributes.RECOIL_TELEMETRY_UUID));
-                        if (mTelemetryCharacteristic != null) {
-                            mBluetoothLeService.setCharacteristicNotification(mTelemetryCharacteristic, true);
-                        } else {
+                        if (mTelemetryCharacteristic == null) {
                             Log.e(TAG, "Failed to find Telemetry characteristic");
                             return;
                         }
@@ -2410,8 +2425,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         else {
                             if (Globals.getInstance().mGameState == Globals.GAME_STATE_RUNNING)
                                 startReload();
-                            hideWeaponDisconnect();
                         }
+                        hideWeaponDisconnect();
                     }
                 }
             } else if (BluetoothLeService.TELEMETRY_DATA_AVAILABLE.equals(action)) {
@@ -2423,6 +2438,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 } else {
                     // We'll automatically assume that this is a pistol
                     Toast.makeText(getApplicationContext(), getString(R.string.pistol_detected_toast, mDeviceAddress), Toast.LENGTH_LONG).show();
+                }
+                if (mTelemetryCharacteristic != null && mBluetoothLeService != null) {
+                    mBluetoothLeService.setCharacteristicNotification(mTelemetryCharacteristic, true);
                 }
             } else if (BluetoothLeService.CHARACTERISTIC_WRITE_FINISHED.equals(action)) {
                 if (mReloading == RELOADING_STATE_STARTED) {
@@ -2464,6 +2482,11 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             public void run(){
                 if (!mConnected)
                     return;
+                Log.d(TAG, "Connection test check: mCommunicating=" + mCommunicating + ", mConnectionTest=" + mConnectionTest + ", mConnected=" + mConnected);
+                if (!mCommunicating) {
+                    connectionTestHandler.postDelayed(this, CONNECTION_TEST_INTERVAL_MILLISECONDS);
+                    return;
+                }
                 if (!mConnectionTest) {
                     Log.d(TAG, "Connection test reports disconnect!");
                     handleDisconnect();
@@ -2529,6 +2552,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mConnectionTest = true;
             if (!mCommunicating) {
                 mCommunicating = true;
+                mHasConnectedToBlaster = true;
                 RelativeLayout connectLayout = findViewById(R.id.connect_layout);
                 if (connectLayout != null) connectLayout.setVisibility(View.GONE);
                 RelativeLayout playLayout = findViewById(R.id.play_layout);

@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/layout_root"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:background="#080808"
-    android:padding="10dp" >
+    android:padding="15dp" >
 
     <TextView
         android:id="@+id/title_tv"
@@ -16,4 +16,13 @@
         android:textColor="#FFFFFF"
         android:textAppearance="?android:attr/textAppearanceLarge" />
 
-</RelativeLayout>
+    <TextView
+        android:id="@+id/suggestion_tv"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:text="@string/blaster_disconnected_suggestion"
+        android:textColor="#CCCCCC"
+        android:textAppearance="?android:attr/textAppearanceMedium" />
+
+</LinearLayout>

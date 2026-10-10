@@ -34,13 +34,13 @@ import android.app.PendingIntent;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Binder;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.Log;
 import androidx.core.app.NotificationCompat;
 
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Queue;
 import java.util.UUID;
 
 /**
@@ -127,16 +127,11 @@ public class BluetoothLeService extends Service {
     public final static UUID UUID_RECOIL_ID =
             UUID.fromString(GattAttributes.RECOIL_ID_UUID);
 
-    private boolean mActionAvailable = true;
-    private Queue<BluetoothGattCharacteristic> mCharacteristicWriteQueue;
-    private Queue<BluetoothGattDescriptor> mDescriptorWriteQueue;
-    private Queue<BluetoothGattCharacteristic> mCharacteristicReadQueue;
-
-    // Implements callback methods for GATT events that the app cares about.  For example,
-    // connection change and services discovered.
+    // Implements callback methods for GATT events that the app cares about.
     private final BluetoothGattCallback mGattCallback = new BluetoothGattCallback() {
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+            Log.d(TAG, "onConnectionStateChange status=" + status + ", newState=" + newState);
             String intentAction;
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 intentAction = ACTION_GATT_CONNECTED;
@@ -144,9 +139,16 @@ public class BluetoothLeService extends Service {
                 broadcastUpdate(intentAction);
                 Log.i(TAG, "Connected to GATT server.");
                 startAsForeground("Connected to Blaster");
-                // Attempts to discover services after successful connection.
-                Log.i(TAG, "Attempting to start service discovery:" +
-                        mBluetoothGatt.discoverServices());
+                // Attempts to discover services after successful connection with delay.
+                new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (mBluetoothGatt != null) {
+                            Log.i(TAG, "Attempting to start service discovery after delay:" +
+                                    mBluetoothGatt.discoverServices());
+                        }
+                    }
+                }, 500);
 
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 intentAction = ACTION_GATT_DISCONNECTED;
@@ -163,6 +165,7 @@ public class BluetoothLeService extends Service {
 
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+            Log.d(TAG, "onServicesDiscovered status=" + status);
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED);
             } else {
@@ -180,24 +183,6 @@ public class BluetoothLeService extends Service {
             } else {
                 Log.d(TAG, "read failed");
             }
-            if (mCharacteristicWriteQueue.size() > 0) {
-                if (!mBluetoothGatt.writeCharacteristic(mCharacteristicWriteQueue.peek())) {
-                    Log.e(TAG, "Failed to write queued characteristic " + mCharacteristicWriteQueue.peek().getUuid().toString());
-                }
-                mCharacteristicWriteQueue.remove();
-            } else if (mDescriptorWriteQueue.size() > 0) {
-                if (!mBluetoothGatt.writeDescriptor(mDescriptorWriteQueue.peek())) {
-                    Log.e(TAG, "Failed to write queued descriptor " + mDescriptorWriteQueue.peek().getUuid().toString());
-                }
-                mDescriptorWriteQueue.remove();
-            } else if (mCharacteristicReadQueue.size() > 0) {
-                if (!mBluetoothGatt.readCharacteristic(mCharacteristicReadQueue.peek())) {
-                    Log.e(TAG, "Failed to read queued characteristic " + mCharacteristicReadQueue.peek().getUuid().toString());
-                }
-                mCharacteristicReadQueue.remove();
-            } else {
-                mActionAvailable = true;
-            }
         }
 
         @Override
@@ -208,24 +193,6 @@ public class BluetoothLeService extends Service {
                 Log.d(TAG, "write success!");
             } else {
                 Log.d(TAG, "write failed");
-            }
-            if (mCharacteristicWriteQueue.size() > 0) {
-                if (!mBluetoothGatt.writeCharacteristic(mCharacteristicWriteQueue.peek())) {
-                    Log.e(TAG, "Failed to write queued characteristic " + mCharacteristicWriteQueue.peek().getUuid().toString());
-                }
-                mCharacteristicWriteQueue.remove();
-            } else if (mDescriptorWriteQueue.size() > 0) {
-                if (!mBluetoothGatt.writeDescriptor(mDescriptorWriteQueue.peek())) {
-                    Log.e(TAG, "Failed to write queued descriptor " + mDescriptorWriteQueue.peek().getUuid().toString());
-                }
-                mDescriptorWriteQueue.remove();
-            } else if (mCharacteristicReadQueue.size() > 0) {
-                if (!mBluetoothGatt.readCharacteristic(mCharacteristicReadQueue.peek())) {
-                    Log.e(TAG, "Failed to read queued characteristic " + mCharacteristicReadQueue.peek().getUuid().toString());
-                }
-                mCharacteristicReadQueue.remove();
-            } else {
-                mActionAvailable = true;
             }
             broadcastUpdate(CHARACTERISTIC_WRITE_FINISHED);
         }
@@ -245,24 +212,6 @@ public class BluetoothLeService extends Service {
             } else {
                 Log.d(TAG, "descriptor write failed");
             }
-            if (mCharacteristicWriteQueue.size() > 0) {
-                if (!mBluetoothGatt.writeCharacteristic(mCharacteristicWriteQueue.peek())) {
-                    Log.e(TAG, "Failed to write queued characteristic " + mCharacteristicWriteQueue.peek().getUuid().toString());
-                }
-                mCharacteristicWriteQueue.remove();
-            } else if (mDescriptorWriteQueue.size() > 0) {
-                if (!mBluetoothGatt.writeDescriptor(mDescriptorWriteQueue.peek())) {
-                    Log.e(TAG, "Failed to write queued descriptor " + mDescriptorWriteQueue.peek().getUuid().toString());
-                }
-                mDescriptorWriteQueue.remove();
-            } else if (mCharacteristicReadQueue.size() > 0) {
-                if (!mBluetoothGatt.readCharacteristic(mCharacteristicReadQueue.peek())) {
-                    Log.e(TAG, "Failed to read queued characteristic " + mCharacteristicReadQueue.peek().getUuid().toString());
-                }
-                mCharacteristicReadQueue.remove();
-            } else {
-                mActionAvailable = true;
-            }
             broadcastUpdate(DESCRIPTOR_WRITE_FINISHED);
         }
     };
@@ -279,10 +228,11 @@ public class BluetoothLeService extends Service {
         } else if (UUID_RECOIL_ID.equals((characteristic.getUuid()))) {
             int firmwareVer = (characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 0) << 8) + characteristic.getIntValue(BluetoothGattCharacteristic.FORMAT_UINT8, 1);
             Log.d(TAG, "Firmware version: " + firmwareVer);
-            // This gets the blaster type, 1 for rifle and 2 for pistol
             final Intent intent = new Intent(ID_DATA_AVAILABLE);
             final byte[] data = characteristic.getValue();
-            intent.putExtra(EXTRA_DATA, data[10]);
+            if (data != null && data.length > 10) {
+                intent.putExtra(EXTRA_DATA, data[10]);
+            }
             sendBroadcast(intent);
         } else {
             Log.e(TAG, "unexpected characteristic data from " + characteristic.getUuid().toString());
@@ -310,23 +260,13 @@ public class BluetoothLeService extends Service {
 
     @Override
     public boolean onUnbind(Intent intent) {
-        // After using a given device, you should make sure that BluetoothGatt.close() is called
-        // such that resources are cleaned up properly.  In this particular example, close() is
-        // invoked when the UI is disconnected from the Service.
         close();
         return super.onUnbind(intent);
     }
 
     private final IBinder mBinder = new LocalBinder();
 
-    /**
-     * Initializes a reference to the local Bluetooth adapter.
-     *
-     * @return Return true if the initialization is successful.
-     */
     public boolean initialize() {
-        // For API level 18 and above, get a reference to BluetoothAdapter through
-        // BluetoothManager.
         if (mBluetoothManager == null) {
             mBluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
             if (mBluetoothManager == null) {
@@ -341,23 +281,9 @@ public class BluetoothLeService extends Service {
             return false;
         }
 
-        mCharacteristicWriteQueue = new LinkedList<>();
-        mCharacteristicReadQueue = new LinkedList<>();
-        mDescriptorWriteQueue = new LinkedList<>();
-
         return true;
     }
 
-    /**
-     * Connects to the GATT server hosted on the Bluetooth LE device.
-     *
-     * @param address The device address of the destination device.
-     *
-     * @return Return true if the connection is initiated successfully. The connection result
-     *         is reported asynchronously through the
-     *         {@code BluetoothGattCallback#onConnectionStateChange(android.bluetooth.BluetoothGatt, int, int)}
-     *         callback.
-     */
     public boolean connect(final String address) {
         if (mBluetoothAdapter == null || address == null) {
             Log.w(TAG, "BluetoothAdapter not initialized or unspecified address.");
@@ -365,7 +291,6 @@ public class BluetoothLeService extends Service {
         }
 
         try {
-            // Previously connected device.  Try to reconnect.
             if (mBluetoothDeviceAddress != null && address.equals(mBluetoothDeviceAddress)
                     && mBluetoothGatt != null) {
                 Log.d(TAG, "Trying to use an existing mBluetoothGatt for connection.");
@@ -382,8 +307,6 @@ public class BluetoothLeService extends Service {
                 Log.w(TAG, "Device not found.  Unable to connect.");
                 return false;
             }
-            // We want to directly connect to the device, so we are setting the autoConnect
-            // parameter to false.
             mBluetoothGatt = device.connectGatt(this, false, mGattCallback);
             Log.d(TAG, "Trying to create a new connection.");
             mBluetoothDeviceAddress = address;
@@ -395,12 +318,6 @@ public class BluetoothLeService extends Service {
         }
     }
 
-    /**
-     * Disconnects an existing connection or cancel a pending connection. The disconnection result
-     * is reported asynchronously through the
-     * {@code BluetoothGattCallback#onConnectionStateChange(android.bluetooth.BluetoothGatt, int, int)}
-     * callback.
-     */
     public void disconnect() {
         if (mBluetoothAdapter == null || mBluetoothGatt == null) {
             Log.w(TAG, "BluetoothAdapter not initialized");
@@ -413,10 +330,6 @@ public class BluetoothLeService extends Service {
         }
     }
 
-    /**
-     * After using a given BLE device, the app must call this method to ensure resources are
-     * released properly.
-     */
     public void close() {
         if (mBluetoothGatt == null) {
             return;
@@ -429,104 +342,90 @@ public class BluetoothLeService extends Service {
         mBluetoothGatt = null;
     }
 
-    /**
-     * Request a read on a given {@code BluetoothGattCharacteristic}. The read result is reported
-     * asynchronously through the {@code BluetoothGattCallback#onCharacteristicRead(android.bluetooth.BluetoothGatt, android.bluetooth.BluetoothGattCharacteristic, int)}
-     * callback.
-     *
-     * @param characteristic The characteristic to read from.
-     */
     public void readCharacteristic(BluetoothGattCharacteristic characteristic) {
-        if (mBluetoothAdapter == null || mBluetoothGatt == null) {
-            Log.w(TAG, "BluetoothAdapter not initialized");
+        if (mBluetoothAdapter == null || mBluetoothGatt == null || characteristic == null) {
+            Log.w(TAG, "BluetoothAdapter/Gatt/Characteristic not initialized");
             return;
         }
-        if ((!mActionAvailable)) {
-            Log.d(TAG, "Reading not available yet, queuing...");
-            mCharacteristicReadQueue.add(characteristic);
-            return;
-        }
-        if (mBluetoothGatt.readCharacteristic(characteristic)) {
-            Log.d(TAG, "read the char");
-            mActionAvailable = false;
-        } else {
-            Log.d(TAG, "failed to read the char");
+        try {
+            if (mBluetoothGatt.readCharacteristic(characteristic)) {
+                Log.d(TAG, "readCharacteristic success");
+            } else {
+                Log.d(TAG, "readCharacteristic failed");
+            }
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException in readCharacteristic: " + e.getMessage());
         }
     }
 
     public void writeCharacteristic(BluetoothGattCharacteristic characteristic) {
-        if (mBluetoothAdapter == null || mBluetoothGatt == null) {
-            Log.w(TAG, "BluetoothAdapter not initialized");
+        if (mBluetoothAdapter == null || mBluetoothGatt == null || characteristic == null) {
+            Log.w(TAG, "BluetoothAdapter/Gatt/Characteristic not initialized");
             return;
         }
-        if ((!mActionAvailable)) {
-            Log.d(TAG, "Writing not available yet, queuing...");
-            mCharacteristicWriteQueue.add(characteristic);
-            return;
-        }
-        if (mBluetoothGatt.writeCharacteristic(characteristic)) {
-            //Log.d(TAG, "wrote char");
-            mActionAvailable = false;
-        } else {
-            Log.d(TAG, "failed to write char");
+        try {
+            if (mBluetoothGatt.writeCharacteristic(characteristic)) {
+                Log.d(TAG, "writeCharacteristic success");
+            } else {
+                Log.d(TAG, "writeCharacteristic failed");
+            }
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException in writeCharacteristic: " + e.getMessage());
         }
     }
 
     public void writeDescriptor(BluetoothGattDescriptor descriptor) {
-        if (mBluetoothAdapter == null || mBluetoothGatt == null) {
-            Log.w(TAG, "BluetoothAdapter not initialized");
+        if (mBluetoothAdapter == null || mBluetoothGatt == null || descriptor == null) {
+            Log.w(TAG, "BluetoothAdapter/Gatt/Descriptor not initialized");
             return;
         }
-        if (!mActionAvailable) {
-            Log.d(TAG, "Writing not available yet, queuing...");
-            mDescriptorWriteQueue.add(descriptor);
-            return;
-        }
-        if (mBluetoothGatt.writeDescriptor(descriptor)) {
-            //Log.d(TAG, "wrote descriptor success");
-            mActionAvailable = false;
-        } else {
-            Log.d(TAG, "wrote descriptor FAIL");
+        try {
+            if (mBluetoothGatt.writeDescriptor(descriptor)) {
+                Log.d(TAG, "writeDescriptor success");
+            } else {
+                Log.d(TAG, "writeDescriptor failed");
+            }
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException in writeDescriptor: " + e.getMessage());
         }
     }
 
-    /**
-     * Enables or disables notification on a give characteristic.
-     *
-     * @param characteristic Characteristic to act on.
-     * @param enabled If true, enable notification.  False otherwise.
-     */
     public void setCharacteristicNotification(BluetoothGattCharacteristic characteristic,
                                               boolean enabled) {
-        if (mBluetoothAdapter == null || mBluetoothGatt == null) {
-            Log.w(TAG, "BluetoothAdapter not initialized");
+        if (mBluetoothAdapter == null || mBluetoothGatt == null || characteristic == null) {
+            Log.w(TAG, "BluetoothAdapter/Gatt/Characteristic not initialized");
             return;
         }
-        mBluetoothGatt.setCharacteristicNotification(characteristic, enabled);
+        try {
+            mBluetoothGatt.setCharacteristicNotification(characteristic, false);
+            mBluetoothGatt.setCharacteristicNotification(characteristic, enabled);
 
-        if (UUID_RECOIL_TELEMETRY.equals(characteristic.getUuid())) {
-            BluetoothGattDescriptor descriptor = characteristic.getDescriptor(
-                    UUID.fromString(GattAttributes.CLIENT_CHARACTERISTIC_CONFIG));
-            if (enabled) {
-                Log.d(TAG, "Telling telemetry to enable notifications");
-                descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-            } else {
-                Log.d(TAG, "Telling telemetry to disable notifications");
-                descriptor.setValue(BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+            if (UUID_RECOIL_TELEMETRY.equals(characteristic.getUuid())) {
+                BluetoothGattDescriptor descriptor = characteristic.getDescriptor(
+                        UUID.fromString(GattAttributes.CLIENT_CHARACTERISTIC_CONFIG));
+                if (descriptor == null) {
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        BluetoothGattDescriptor retryDesc = characteristic.getDescriptor(
+                                UUID.fromString(GattAttributes.CLIENT_CHARACTERISTIC_CONFIG));
+                        if (retryDesc != null) {
+                            retryDesc.setValue(enabled ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+                            writeDescriptor(retryDesc);
+                        } else {
+                            Log.e(TAG, "Failed to find CCCD descriptor for telemetry characteristic after delay!");
+                        }
+                    }, 300);
+                } else {
+                    descriptor.setValue(enabled ? BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE : BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE);
+                    writeDescriptor(descriptor);
+                }
             }
-            writeDescriptor(descriptor);
+        } catch (SecurityException e) {
+            Log.e(TAG, "SecurityException in setCharacteristicNotification: " + e.getMessage());
         }
     }
 
-    /**
-     * Retrieves a list of supported GATT services on the connected device. This should be
-     * invoked only after {@code BluetoothGatt#discoverServices()} completes successfully.
-     *
-     * @return A {@code List} of supported services.
-     */
     public List<BluetoothGattService> getSupportedGattServices() {
         if (mBluetoothGatt == null) return null;
-
         return mBluetoothGatt.getServices();
     }
 }

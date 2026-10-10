@@ -257,9 +257,13 @@ public class ServerDiscoveryManager {
                         }
                     }
                 } catch (IOException e) {
-                    Log.e(TAG, "Client discovery thread error", e);
-                    if (listener != null && mIsClientDiscovering) {
-                        listener.onDiscoveryFailed(e.getLocalizedMessage());
+                    if (mIsClientDiscovering) {
+                        Log.e(TAG, "Client discovery thread error", e);
+                        if (listener != null) {
+                            listener.onDiscoveryFailed(e.getLocalizedMessage());
+                        }
+                    } else {
+                        Log.d(TAG, "Client discovery socket closed normally");
                     }
                 } finally {
                     if (mClientSocket != null && !mClientSocket.isClosed()) {

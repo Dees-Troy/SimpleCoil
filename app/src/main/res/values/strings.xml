@@ -162,5 +162,6 @@
     <string name="player_settings_shot_mode_error">Must allow at least one shot mode!</string>
 
     <string name="blaster_disconnected_dialog">Blaster Disconnected! Trying to reconnect&#8230;</string>
-    <string name="blaster_disconnected_cancel_quit">Cancel &amp; Quit</string>
+    <string name="blaster_disconnected_suggestion">You can power cycle your blaster if the reconnect process is taking too long.</string>
+    <string name="blaster_disconnected_disconnect_quit">Disconnect &amp; Quit</string>
 </resources>
