@@ -371,6 +371,92 @@ public class PlayerRepositoryTest {
         assertEquals((Byte) (byte) 17, playerRepo.getPlayerIdByMac(p1Mac));
         assertEquals((Byte) (byte) 1, playerRepo.getPlayerIdByMac(p2Mac));
     }
+
+    @Test
+    public void testRemovePlayerWhenGameNotRunningClearsMacAndNameAndReleasesId() throws Exception {
+        playerRepo.setPlayerID((byte) 0);
+        playerRepo.clearAllPlayers();
+
+        byte p1 = 2;
+        InetAddress ip = InetAddress.getByName("192.168.1.102");
+        String name = "Alice";
+        String mac = "AA:BB:CC:DD:EE:FF";
+
+        playerRepo.addOrUpdatePlayer(p1, ip, name, mac);
+        assertEquals(name, playerRepo.getPlayerName(p1));
+        assertEquals((Byte) p1, playerRepo.getPlayerIdByMac(mac));
+
+        // Remove player when game state is NOT running
+        playerRepo.removePlayer(p1, false);
+
+        assertEquals("", playerRepo.getPlayerName(p1));
+        Assert.assertNull(playerRepo.getPlayerIdByMac(mac));
+        Assert.assertNull(playerRepo.getTeamIPMap().get(p1));
+
+        // ID 2 should now be available for auto-sort
+        byte availableId = playerRepo.findAutoSortPlayerID();
+        assertEquals((byte) 1, availableId);
+    }
+
+    @Test
+    public void testRemovePlayerWhenGameRunningPreservesNameAndMac() throws Exception {
+        playerRepo.setPlayerID((byte) 0);
+        playerRepo.clearAllPlayers();
+
+        byte p1 = 2;
+        InetAddress ip = InetAddress.getByName("192.168.1.102");
+        String name = "Bob";
+        String mac = "11:22:33:44:55:66";
+
+        playerRepo.addOrUpdatePlayer(p1, ip, name, mac);
+
+        // Remove player when game IS running
+        playerRepo.removePlayer(p1, true);
+
+        // Name and MAC map remain preserved so player can rejoin
+        assertEquals(name, playerRepo.getPlayerName(p1));
+        assertEquals((Byte) p1, playerRepo.getPlayerIdByMac(mac));
+        Assert.assertNull(playerRepo.getTeamIPMap().get(p1));
+    }
+
+    @Test
+    public void testPurgeDisconnectedPlayers() throws Exception {
+        playerRepo.setPlayerID((byte) 0);
+        playerRepo.clearAllPlayers();
+
+        byte activeP1 = 1;
+        byte disconnectedP2 = 2;
+
+        playerRepo.addOrUpdatePlayer(activeP1, InetAddress.getByName("192.168.1.101"), "Active1", "MAC1");
+        playerRepo.addOrUpdatePlayer(disconnectedP2, InetAddress.getByName("192.168.1.102"), "Dis2", "MAC2");
+
+        Set<Byte> activeConnectedIds = new HashSet<>();
+        activeConnectedIds.add(activeP1);
+
+        playerRepo.purgeDisconnectedPlayers(activeConnectedIds);
+
+        assertEquals("Active1", playerRepo.getPlayerName(activeP1));
+        assertEquals((Byte) activeP1, playerRepo.getPlayerIdByMac("MAC1"));
+
+        assertEquals("", playerRepo.getPlayerName(disconnectedP2));
+        Assert.assertNull(playerRepo.getPlayerIdByMac("MAC2"));
+    }
+
+    @Test
+    public void testIsNameUniqueCaseInsensitive() throws Exception {
+        playerRepo.setPlayerID((byte) 0);
+        playerRepo.clearAllPlayers();
+
+        byte p1 = 1;
+        playerRepo.addOrUpdatePlayer(p1, InetAddress.getByName("192.168.1.101"), "Alice");
+
+        // Case-insensitive duplicates should fail
+        Assert.assertFalse(playerRepo.isNameUnique("alice", (byte) 0));
+        Assert.assertFalse(playerRepo.isNameUnique("ALICE", (byte) 0));
+
+        // Different name should pass
+        Assert.assertTrue(playerRepo.isNameUnique("Bob", (byte) 0));
+    }
 }
 
 

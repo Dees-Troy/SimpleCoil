@@ -22,6 +22,7 @@ import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -218,6 +219,28 @@ public class PlayerRepository {
             String mac = playerMacMap.remove(playerId);
             if (mac != null) {
                 macPlayerMap.remove(mac);
+            }
+            // Ensure any stale entries in macPlayerMap referencing this playerId are removed
+            for (Map.Entry<String, Byte> entry : new HashSet<>(macPlayerMap.entrySet())) {
+                if (entry.getValue() != null && entry.getValue() == playerId) {
+                    macPlayerMap.remove(entry.getKey());
+                }
+            }
+        }
+    }
+
+    public synchronized void purgeDisconnectedPlayers(Set<Byte> activePlayerIds) {
+        Set<Byte> activeIds = activePlayerIds != null ? activePlayerIds : Collections.emptySet();
+        byte hostId = playerID;
+
+        Set<Byte> knownIds = new HashSet<>();
+        knownIds.addAll(teamIPMap.keySet());
+        knownIds.addAll(teamPlayerNameMap.keySet());
+        knownIds.addAll(playerMacMap.keySet());
+
+        for (byte id : knownIds) {
+            if (id != 0 && id != hostId && !activeIds.contains(id)) {
+                removePlayer(id, false);
             }
         }
     }

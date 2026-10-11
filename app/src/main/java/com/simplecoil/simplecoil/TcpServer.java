@@ -367,10 +367,67 @@ public class TcpServer extends Service {
                 Globals.getmGPSDataSemaphore();
                 Globals.getInstance().mGPSData.clear();
                 Globals.getInstance().mGPSDataSemaphore.release();
+                cleanUpDisconnectedClients();
                 sendBroadcast(new Intent(NetMsg.NETMSG_ENDGAME));
             }
         });
         sendThread.start();
+    }
+
+    public void cleanUpDisconnectedClients() {
+        if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
+            return;
+        }
+        try {
+            mClientDataSemaphore.acquire();
+            Globals.getmTeamIPMapSemaphore();
+            Globals.getmIPTeamMapSemaphore();
+            Globals.getmTeamPlayerNameSemaphore();
+            Globals.getmPlayerSettingsSemaphore();
+            Globals.getmGPSDataSemaphore();
+            try {
+                if (mClientData != null) {
+                    Set<Byte> activeConnectedIds = new HashSet<>();
+                    List<ClientData> toRemove = new ArrayList<>();
+
+                    for (Map.Entry<Integer, ClientData> entry : mClientData.entrySet()) {
+                        ClientData client = entry.getValue();
+                        if (client != null) {
+                            if (client.out == null || client.clientSocket == null || client.clientSocket.isClosed() || !client.clientSocket.isConnected()) {
+                                toRemove.add(client);
+                            } else if (client.mPlayerID != 0) {
+                                activeConnectedIds.add(client.mPlayerID);
+                            }
+                        }
+                    }
+
+                    for (ClientData client : toRemove) {
+                        mClientData.remove(client.clientID);
+                        if (client.mPlayerID != 0) {
+                            PlayerRepository.getInstance().removePlayer(client.mPlayerID, false);
+                        }
+                        client.close();
+                    }
+
+                    PlayerRepository.getInstance().purgeDisconnectedPlayers(activeConnectedIds);
+
+                    Globals.getInstance().mTeamIPMap = PlayerRepository.getInstance().getTeamIPMap();
+                    Globals.getInstance().mIPTeamMap = PlayerRepository.getInstance().getIpTeamMap();
+                    Globals.getInstance().mTeamPlayerNameMap = PlayerRepository.getInstance().getTeamPlayerNameMap();
+                    Globals.getInstance().mPlayerSettings = PlayerRepository.getInstance().getPlayerSettings();
+                    Globals.getInstance().mGPSData = PlayerRepository.getInstance().getGpsData();
+                }
+            } finally {
+                Globals.getInstance().mGPSDataSemaphore.release();
+                Globals.getInstance().mPlayerSettingsSemaphore.release();
+                Globals.getInstance().mTeamPlayerNameSemaphore.release();
+                Globals.getInstance().mIPTeamMapSemaphore.release();
+                Globals.getInstance().mTeamIPMapSemaphore.release();
+                mClientDataSemaphore.release();
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     public void switchPlayerTeam(final byte oldPlayerID, final byte newPlayerID) {
@@ -541,6 +598,7 @@ public class TcpServer extends Service {
             Log.w(TAG, "rebalanceAllPlayers: Game is running, skipping team rebalance!");
             return;
         }
+        cleanUpDisconnectedClients();
         Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -1792,12 +1850,28 @@ public class TcpServer extends Service {
                 }
                 Globals.getmTeamPlayerNameSemaphore();
                 Set<String> usedNames = new HashSet<>();
+                if (!mIsDedicated && Globals.getInstance().mPlayerID != 0) {
+                    String hostName = PlayerRepository.getInstance().getPlayerName(Globals.getInstance().mPlayerID);
+                    if (hostName == null || hostName.isEmpty()) {
+                        hostName = Globals.getInstance().mPlayerName;
+                    }
+                    if (hostName != null && !hostName.isEmpty()) {
+                        usedNames.add(hostName);
+                    }
+                }
                 for (Map.Entry<Byte, String> entry : Globals.getInstance().mTeamPlayerNameMap.entrySet()) {
                     if (entry.getKey() != client.mPlayerID) {
                         usedNames.add(entry.getValue());
                     }
                 }
-                if (playerName.isEmpty() || playerName.equalsIgnoreCase("Player") || ProfanityFilter.containsProfanity(playerName) || usedNames.contains(playerName)) {
+                boolean isDuplicate = false;
+                for (String used : usedNames) {
+                    if (used != null && used.equalsIgnoreCase(playerName)) {
+                        isDuplicate = true;
+                        break;
+                    }
+                }
+                if (playerName.isEmpty() || playerName.equalsIgnoreCase("Player") || ProfanityFilter.containsProfanity(playerName) || isDuplicate) {
                     playerName = NameGenerator.getRandomUniqueName(usedNames);
                 }
                 Globals.getInstance().mTeamPlayerNameMap.put(client.mPlayerID, playerName);
@@ -1820,22 +1894,25 @@ public class TcpServer extends Service {
                 return;
             }
 
+            boolean isGameRunning = Globals.getInstance().mGameState != Globals.GAME_STATE_NONE;
+
             Set<Byte> occupiedIDs = new HashSet<>();
             if (!mIsDedicated && Globals.getInstance().mPlayerID != 0) {
                 occupiedIDs.add(Globals.getInstance().mPlayerID);
             }
-            if (Globals.getInstance().mTeamIPMap != null) {
+            if (isGameRunning && Globals.getInstance().mTeamIPMap != null) {
                 occupiedIDs.addAll(Globals.getInstance().mTeamIPMap.keySet());
             }
             if (mClientData != null) {
                 for (Map.Entry<Integer, ClientData> entry : mClientData.entrySet()) {
-                    if (entry.getValue().clientID != client.clientID && entry.getValue().mPlayerID != 0) {
-                        occupiedIDs.add(entry.getValue().mPlayerID);
+                    ClientData c = entry.getValue();
+                    if (c != null && c.clientID != client.clientID && c.mPlayerID != 0) {
+                        if (isGameRunning || (c.out != null && c.clientSocket != null && !c.clientSocket.isClosed() && c.clientSocket.isConnected())) {
+                            occupiedIDs.add(c.mPlayerID);
+                        }
                     }
                 }
             }
-
-            boolean isGameRunning = Globals.getInstance().mGameState != Globals.GAME_STATE_NONE;
 
             try {
                 Globals.getmTeamIPMapSemaphore();
@@ -1913,12 +1990,28 @@ public class TcpServer extends Service {
                 InetAddress inetAddress = client.clientSocket.getInetAddress();
                 Globals.getmTeamPlayerNameSemaphore();
                 Set<String> usedNames = new HashSet<>();
+                if (!mIsDedicated && Globals.getInstance().mPlayerID != 0) {
+                    String hostName = PlayerRepository.getInstance().getPlayerName(Globals.getInstance().mPlayerID);
+                    if (hostName == null || hostName.isEmpty()) {
+                        hostName = Globals.getInstance().mPlayerName;
+                    }
+                    if (hostName != null && !hostName.isEmpty()) {
+                        usedNames.add(hostName);
+                    }
+                }
                 for (Map.Entry<Byte, String> entry : Globals.getInstance().mTeamPlayerNameMap.entrySet()) {
                     if (entry.getKey() != client.mPlayerID) {
                         usedNames.add(entry.getValue());
                     }
                 }
-                if (playerName.isEmpty() || playerName.equalsIgnoreCase("Player") || ProfanityFilter.containsProfanity(playerName) || usedNames.contains(playerName)) {
+                boolean isDuplicate = false;
+                for (String used : usedNames) {
+                    if (used != null && used.equalsIgnoreCase(playerName)) {
+                        isDuplicate = true;
+                        break;
+                    }
+                }
+                if (playerName.isEmpty() || playerName.equalsIgnoreCase("Player") || ProfanityFilter.containsProfanity(playerName) || isDuplicate) {
                     playerName = NameGenerator.getRandomUniqueName(usedNames);
                 }
                 PlayerRepository.getInstance().addOrUpdatePlayer(client.mPlayerID, inetAddress, playerName, blasterMac);
