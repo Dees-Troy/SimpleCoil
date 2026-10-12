@@ -72,27 +72,28 @@ data class PreGameButtons(
 
 /**
  * What the play screen can be told to do. GameViewModel calls these synchronously, in the same
- * order the activity used to make its view changes, so the screen ends up exactly as before;
- * FullscreenActivity implements it with views, dialogs and menus only.
+ * order the activity used to make its view changes, so the screen ends up exactly as before.
+ * FullscreenActivity assembles it from [GameView] (GameScreenRenderer), [GameDialogs]
+ * (DialogCoordinator) and [GameNavigator] (the activity itself).
  */
-interface GameScreen {
+interface GameScreen : GameView, GameDialogs, GameNavigator
+
+/** A [GameScreen] made of its three parts. */
+class CompositeGameScreen(view: GameView, dialogs: GameDialogs, navigator: GameNavigator) :
+    GameScreen, GameView by view, GameDialogs by dialogs, GameNavigator by navigator
+
+/** View and window changes. */
+interface GameView {
     // Connection
     fun showConnectScreen(reconnectVisible: Boolean)
     fun showPlayScreen()
     fun setReconnectVisible(visible: Boolean)
     fun setConnectButtonsEnabled(enabled: Boolean)
     fun showConnectStatus(status: ConnectStatus)
-    /** Run the permission / Bluetooth checks, then call [GameViewModel.startScan]. */
-    fun requestConnect()
-    fun showDisconnectDialog()
-    fun dismissDisconnectDialog()
-    fun showBlasterType(rifle: Boolean, address: String)
-    fun finishScreen()
 
     // Game
     fun showGameStarted(useNetwork: Boolean, isServer: Boolean, freeForAll: Boolean)
     fun showGameEnded(useNetwork: Boolean, freeForAll: Boolean)
-    fun confirmEndGame()
     fun showScore(score: Int)
     fun showTeamScore(teamScore: Int)
     fun showGameLimit(timeLimitMinutes: Int?, livesLabel: Boolean, scoreLimit: Int?)
@@ -103,18 +104,10 @@ interface GameScreen {
     fun showPlayerName(name: String)
     fun showPreGameButtons(buttons: PreGameButtons)
     fun showAdminButton(visible: Boolean)
-    fun showSessionToast(toast: SessionToast)
-    fun showMessage(message: GameMessage, arg: Int = 0)
-    fun showText(text: String)
 
     // Network
     fun showNetworkOptions(enabled: Boolean, freeForAll: Boolean)
     fun showNetworkButton(button: NetworkButton)
-    /** Rebuild the network popup (if it exists) from [GameViewModel.networkMenuEntries]. */
-    fun rebuildNetworkMenu()
-    fun prepareNetworkMenu()
-    fun showNetworkMenu()
-    fun showGameModeMenu()
     fun showServerSearching()
     fun showNotReady()
     fun setKeepScreenOn(on: Boolean)
@@ -127,6 +120,22 @@ interface GameScreen {
     fun showShotsFired()
     fun showHitOtherPlayer(out: Boolean, name: String)
     fun showScoreIncrease(name: String)
+}
+
+/** Dialogs, toasts and popup menus. */
+interface GameDialogs {
+    fun showDisconnectDialog()
+    fun dismissDisconnectDialog()
+    fun showBlasterType(rifle: Boolean, address: String)
+    fun confirmEndGame()
+    fun showSessionToast(toast: SessionToast)
+    fun showMessage(message: GameMessage, arg: Int = 0)
+    fun showText(text: String)
+    /** Rebuild the network popup (if it exists) from [GameViewModel.networkMenuEntries]. */
+    fun rebuildNetworkMenu()
+    fun prepareNetworkMenu()
+    fun showNetworkMenu()
+    fun showGameModeMenu()
     fun showServerIpDialog(suggestion: String)
     fun showPlayerNameDialog(current: String)
     fun showGameLimitDialog(allowScoreLimit: Boolean)
@@ -135,5 +144,12 @@ interface GameScreen {
     fun showServerPlayerSettings(playerId: Byte, server: TcpServer?)
     fun showScoreboard(players: Array<PlayerDisplayData?>, isServer: Boolean)
     fun closeScoreboard()
+}
+
+/** Leaving the play screen, or running the platform flows in front of a connect. */
+interface GameNavigator {
+    /** Run the permission / Bluetooth checks, then call [GameViewModel.startScan]. */
+    fun requestConnect()
+    fun finishScreen()
     fun openDedicatedServer()
 }

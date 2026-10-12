@@ -32,6 +32,7 @@ android {
 
     buildFeatures {
         buildConfig true
+        viewBinding true
     }
 
     testOptions {
