@@ -672,3 +672,106 @@ Changing any BLE byte, UUID, delay or write type; adding a GATT operation queue;
 formats; converting the network stack (`Globals`, `TcpServer`, `TcpClient`, `UDPListenerService`, `NetMsg`) to Kotlin;
 consolidating `Globals` into repositories; `DedicatedServerActivity` refactor; Compose migration; DataStore
 migration; Hilt; raising `targetSdk` to 35 (recommended separately, since it has its own behavior changes).
+
+---
+
+## 6. Phase 5 verification record (2026-10-12)
+
+Build under test: `9909812` (branch `V2-refactor`). Pre-refactor reference for lint: `d71e8a8`.
+
+### 6.1 Step 1 — `./gradlew clean test assembleDebug`
+`BUILD SUCCESSFUL`. **339 tests, 0 failures, 0 errors, 0 skipped** in each of `testDebugUnitTest` and
+`testReleaseUnitTest` (baseline: 168). `app-debug.apk` built.
+
+### 6.2 Step 2 — Protocol coverage audit
+
+**Fixtures.** `git diff 316a81c -- RecoilProtocolFixtures.java` changes only visibility (`public` added to the class and
+its members). With `public ` stripped from both sides the files are identical, so every golden array, grenade constant
+and reference decoder is byte-identical to `316a81c`.
+
+**§1.3.1 catalog.** Every item has a test that asserts it at `9909812`. Paths are relative to `app/src/test/java/com/simplecoil/simplecoil/`.
+
+| Catalog item | Asserted by |
+|---|---|
+| UUIDs: CCCD, service, ID/Telemetry/Command/Config, lowercase, shared base, distinct, `BluetoothLeService` derivations, exactly six constants | `GattAttributesProtocolTest` (all 7 tests; the reflective field count was replaced by an explicit list, per §1.3.3) |
+| Set team golden, min/max PID, no builder validation | `OutboundCommandProtocolTest.setTeam_*` |
+| Manager rejects PID < 1 (signed) without consuming a CID | `BlasterManagerGattTest.setTeam_rejectsPlayerIdBelow1WithoutConsumingSequenceId` |
+| Start reload golden, boundaries | `OutboundCommandProtocolTest.startReload_*` |
+| Finish reload golden, 0/127/128/255 shots, profile byte | `OutboundCommandProtocolTest.finishReload_*` |
+| Shot mode 2×3×3 matrix, rifle-burst `0x78`, unknown mode/cone/type | `OutboundCommandProtocolTest.shotModeConfig_*`; `BlasterManagerGattTest.blasterType_rifleReportedByIdCharacteristicChangesBurstRecoil`; `BleStackEndToEndTest.rifleIdRead_thenBurstShotMode_writesReducedRecoil` |
+| Recoil on/off | `OutboundCommandProtocolTest.recoilConfig_*`, `BlasterManagerGattTest.setRecoil_writesToConfigCharacteristic` |
+| Rolling CID `+0x10`, wraps after `0xF0`; config writes and dropped writes don't consume | `OutboundCommandProtocolTest.commandIdIncrement_*`, `commandPackets_allSixteenSequenceIds*`; `BlasterManagerGattTest.commandSequenceId_*`, `configWrites_doNotConsume*`, `commands_areDroppedWhenNotConnected` |
+| Builders return fresh buffers | `OutboundCommandProtocolTest.builders_returnFreshBuffersEachCall` |
+| Characteristic routing and `WRITE_TYPE_DEFAULT` on every write | `BlasterManagerGattTest.captureWrites` (verifies `eq(WRITE_TYPE_DEFAULT)` on every captured write); `BluetoothLeServiceGattTest.writeCharacteristic_preApi33PathSetsValueAndWriteType` |
+| Inbound offsets 1,2,3,4,5,7,8,9,11,12,14,15 | `TelemetryParsingProtocolTest.telemetryOffsets_matchFirmwareLayout` |
+| Golden idle/trigger/reload/single/double/grenade-damage/grenade-pair | `TelemetryParsingProtocolTest` packet tests; `GattProtocolHandlerTest.testParseTelemetryValid` |
+| Exhaustive 0–255: nibble split, unsigned hit-by, shot id `& 0x07`, raw pass-through | `TelemetryParsingProtocolTest.*_allValues` |
+| Ignored bytes; null/<16 → null; 16–20 identical; oversize; 5,000 random; no mutation | `TelemetryParsingProtocolTest.ignoredBytes_*`, `nullPacket_*`, `packetsShorterThan16Bytes_*`, `packetsOf16To20Bytes_*`, `oversizedPacket_*`, `randomPackets_neverThrow`, `parser_doesNotMutateInput`; `GattProtocolHandlerTest.testParseTelemetryNullOrShort` |
+| Reference grenade decoding (hi/lo nibble, `0x01`/`0x0D`/`0x0E`/`0x0F`, id `167`) | `TelemetryParsingProtocolTest.reference_*`; `GrenadeDecoderTest`; `TelemetryDecoderParityTest` (D1) |
+| Telemetry notification → event with full payload (API 33 + legacy) | `BluetoothLeServiceGattTest.telemetryNotification_*` |
+| ID read → byte 10 / no type if ≤ 10 bytes; failed read not reported; unknown characteristic dropped | `BluetoothLeServiceGattTest.idCharacteristicRead_*`, `failedRead_isNotBroadcast`, `notificationFromUnknownCharacteristic_isDropped` |
+| Write-finished always reported (even on failure); descriptor write always; discovered only on success; disconnect | `BluetoothLeServiceGattTest.characteristicWrite_*`, `descriptorWrite_*`, `servicesDiscovered_*`, `disconnect_*`; event order/payloads over the D8 transport: `events_arePublishedInCallbackOrderWithPayloads` |
+| CCCD `false` → `true` → `01 00` → `writeDescriptor`; disable `00 00`; non-telemetry untouched | `BluetoothLeServiceGattTest.enableTelemetryNotifications_*`, `disableTelemetryNotifications_*`, `notificationsOnNonTelemetryCharacteristic_*` |
+| Pre-33 write: value → write type → write; null/no-GATT guards | `BluetoothLeServiceGattTest.writeCharacteristic_preApi33*`, `writeAndRead_*` |
+| Discovery enables notifications, reads ID, no write at discovery | `BlasterManagerGattTest.discovery_enablesTelemetryNotificationsAndReadsIdCharacteristic`, `discovery_writesCurrentRecoilSettingAfterExactly500ms` (no write at 499 ms) |
+| Case-insensitive service match; non-Recoil services ignored | `BlasterManagerGattTest.discovery_matchesServiceUuidCaseInsensitively`, `discovery_ignoresOtherServices` |
+| Blaster type default pistol | `BlasterManagerGattTest.blasterType_defaultsToPistol`, `missingBlasterTypeDefaultsToPistol` |
+| Write-finished forwarded | `BlasterManagerGattTest.characteristicWriteFinished_isForwarded` |
+| Trigger/reload/thumb/power edges once per change, wrap-around | `BlasterManagerGattTest.telemetry_*CounterEdge*`, `telemetry_counterWrapAroundIsStillAnEdge` |
+| Power edge flips flag without writing | `BlasterManagerGattTest.telemetry_powerCounterEdgeTogglesRecoilStateWithoutWritingToBlaster` |
+| Hits per slot without de-dup; slot 2 reported with slot 1 empty | `BlasterManagerGattTest.telemetry_hitsAreReportedOnEveryPacketWithoutDedup`, `telemetry_secondarySlotReportedEvenIfPrimaryEmpty`, `telemetry_doubleHitReportsBothSlots`, `telemetry_grenadeHitReportsUnsignedId167` |
+| Battery rolling integer average of 100 | `BlasterManagerGattTest.telemetry_batteryIsRollingAverageSeededWith16`. The "no seed" expectation changed to a seed of `16` under **D3** (approved, commit `b75a45f`); the window of 100 is still asserted |
+| Battery carries blaster type | `BlasterManagerGattTest.telemetry_batteryReportCarriesBlasterType` |
+| Truncated/null ignored; fallback to `characteristic.getValue()` | `BlasterManagerGattTest.telemetry_truncatedPacketIsIgnoredSafely`, `telemetry_missingExtra*`; `BleStackEndToEndTest.shortTelemetry_isDroppedWithoutEvents` (B3) |
+
+**§1.6 timing invariants.** Each row has a virtual-time test (boundary at `n − 1` / `n` ms unless noted).
+
+| Row | Asserted by |
+|---|---|
+| Connected → `discoverServices()` 500 ms | `BluetoothLeServiceGattTest.connected_discoversServicesAfterExactly500ms`, `connected_thenClosedBefore500ms_doesNotDiscover` |
+| Missing CCCD → retry 300 ms, once | `BluetoothLeServiceGattTest.missingCccd_isRetriedOnceAfterExactly300ms`, `missingCccd_stillMissingAfterRetry_givesUp` |
+| Discovered → `setRecoil` 500 ms | `BlasterManagerGattTest.discovery_writesCurrentRecoilSettingAfterExactly500ms`, `discovery_deferredRecoilWriteUsesSettingAtFireTime`; `BleStackEndToEndTest.connect_discover_enableTelemetry_readId_thenRecoilAt500ms` |
+| First packet: shot mode now, team +250 (PID ≠ 0), recoil +500 | `BlasterSessionEngineTest.firstPacket_shotModeNow_teamAt250_recoilAt500`, `firstPacket_withoutPlayerId_sendsNoTeam`, `firstPacket_onlyOncePerConnection_andAgainAfterReconnect`; `SessionEndToEndTest.firstPacket_writesShotModeNow_teamAt250_recoilAt500` |
+| Disconnect dialog dismissed → recoil +600 | `BlasterSessionEngineTest.disconnectDialogDismissed_resendsRecoilAt600ms` |
+| Reload: stage 1 → write-finished → 1500 ms → stage 2 → write-finished | `BlasterSessionEngineTest.reloadButton_twoStageReloadWithReloadTimeBetweenStages` (1499/1500 against the default `RELOAD_TIME_MILLISECONDS`); `SessionEndToEndTest.reloadButton_twoStagesWithReloadTimeBetween`; `BleStackEndToEndTest.reloadSequence_commandBytesAndWriteFinishedOrdering` |
+| Watchdog 5,000 ms tick, only once communicating | `BleConnectionManagerTest.watchdog_*` (fires at 10,000 ms, not 9,999, after a packet in the first tick) |
+| Scan give-up 30,000 ms | `BleConnectionManagerTest.noBlasterFound_givesUpAfterExactly30s`, `noScannerStillRunsTheGiveUp` |
+| HIT/OUT and SHOTFIRED 400 ms | `HitResolverTest.hitMessages_areRateLimitedTo400Milliseconds` (HIT and OUT share `rateLimitedMessage`); `BlasterSessionEngineTest.shotsFired_playShotSoundAndRateLimitShotFiredTo400ms` |
+| Server game end → local fallback 3,000 ms | `BlasterSessionEngineTest.networkTimeLimit_hostEndsGame_andLocalFallbackAfter3s`, `networkTimeLimit_noFallbackWhenServerAlreadyEnded` |
+| Writes not queued | `BlasterManagerGattTest.commandSequenceId_*` (17 back-to-back writes reach the service with no write-finished in between); `BluetoothLeServiceGattTest.writeCharacteristic_preApi33*` (direct delegation to GATT) |
+
+Result: **no catalog item is uncovered.**
+
+### 6.3 Step 3 — Protocol trace vs. Phase 1 baseline
+**[device] — pending.** Not runnable off-device, and the baseline trace isn't in the repo. Capture it with
+`adb logcat -s SCProto` on a debug build of `9909812` with the same scripted session (connect, fire, reload, toggle
+recoil), then diff it against the Phase 1 trace (ignoring the `elapsedRealtime` column, delays within scheduler jitter).
+
+### 6.4 Step 4 — Lint (`./gradlew lintDebug`)
+Baseline `d71e8a8`: 2 errors (`MissingPermission` at `BluetoothLeService.java:149`, `ProtectedPermissions` for
+`BLUETOOTH_PRIVILEGED`). `f7466b4` had 20 errors, all new, and two annotation-only commits cleared them:
+
+| Errors | Cause | Fix |
+|---|---|---|
+| 18 × `MissingPermission`, `GattIo.kt` | The `BluetoothGatt` calls moved into the `GattIo.of` wrapper. Lint flags each delegating method. | `a3e8f24`: `@SuppressLint("MissingPermission")` on `GattIo.of`. The permission is checked before connect, as before. |
+| 2 × `UnsafeImplicitIntentLaunch`, `TcpClient.parseGameInfo` | Lint now sees non-exported receivers (P1), and it can't see that `TcpClient.sendBroadcast()` sets the package on every intent. | `9909812`: `@SuppressLint` on `parseGameInfo`. |
+
+javap shows identical instructions before and after both commits, so neither is a protocol or behavior change. At
+`9909812`: **0 errors** (215 warnings, 1 hint). Both baseline errors are gone (`ProtectedPermissions` via P3).
+
+### 6.5 Step 5 — On-device checklist
+**[device] — pending.** The developer runs this on their own blasters (pistol, and rifle if available), recording
+build hash, blaster model and pass/fail per item, as described in §3.0:
+
+- [ ] Scan / connect / QR connect
+- [ ] Reconnect after BT toggle
+- [ ] Every shot mode × firing mode
+- [ ] Recoil toggle / forced
+- [ ] Reload button; auto-reload after 3 empty pulls; reload-on-empty
+- [ ] Hits, double hits, grenade damage, pair, disarm
+- [ ] Elimination / respawn / shield
+- [ ] Lives / time / score limits
+- [ ] Network host / join / dedicated server
+- [ ] Scoreboard
+- [ ] Background → foreground mid-game
+- [ ] Process death
