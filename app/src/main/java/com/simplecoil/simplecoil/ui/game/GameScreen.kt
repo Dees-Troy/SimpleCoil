@@ -17,8 +17,6 @@
 package com.simplecoil.simplecoil.ui.game
 
 import com.simplecoil.simplecoil.PlayerDisplayData
-import com.simplecoil.simplecoil.TcpClient
-import com.simplecoil.simplecoil.TcpServer
 import com.simplecoil.simplecoil.domain.session.SessionToast
 
 /** Status line on the connect screen. */
@@ -140,8 +138,8 @@ interface GameDialogs {
     fun showPlayerNameDialog(current: String)
     fun showGameLimitDialog(allowScoreLimit: Boolean)
     fun showTeamRatioDialog(numTeams: Int, sizes: IntArray)
-    fun showLocalPlayerSettings(client: TcpClient?)
-    fun showServerPlayerSettings(playerId: Byte, server: TcpServer?)
+    fun showLocalPlayerSettings()
+    fun showServerPlayerSettings(playerId: Byte)
     fun showScoreboard(players: Array<PlayerDisplayData?>, isServer: Boolean)
     fun closeScoreboard()
 }

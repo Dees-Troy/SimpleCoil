@@ -28,6 +28,7 @@ import com.simplecoil.simplecoil.NetworkEvent
 import com.simplecoil.simplecoil.NetworkSessionGateway
 import com.simplecoil.simplecoil.PlayerDisplayData
 import com.simplecoil.simplecoil.ProfanityFilter
+import com.simplecoil.simplecoil.TcpClient
 import com.simplecoil.simplecoil.TcpServer
 import com.simplecoil.simplecoil.data.preferences.UserPreferencesRepository
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
@@ -98,14 +99,25 @@ class GameViewModel(
     private var autoScanStarted = false
     private var resumed = false
 
-    private var disconnectDialogShowing = false
-    private var scoreboardVisible = false
+    /** The blaster disconnected dialog should be showing. */
+    var disconnectDialogShowing = false
+        private set
+    /** The scoreboard should be showing. */
+    var scoreboardVisible = false
+        private set
     private var latestPlayerData: Array<PlayerDisplayData?>? = null
     private var searchTimeout: Job? = null
 
     val useNetwork: Boolean get() = net.useNetwork
     val isServer: Boolean get() = net.isServer
     val isScanning: Boolean get() = ble.isScanning
+
+    /** For the player settings dialog. */
+    val tcpClient: TcpClient? get() = net.tcpClient
+    val tcpServer: TcpServer? get() = net.tcpServer
+
+    /** The latest scoreboard data, if any arrived yet. */
+    val scoreboardPlayers: Array<PlayerDisplayData?>? get() = latestPlayerData
 
     init {
         viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) { blasterEvents.collect { onBlasterEvent(it) } }
@@ -436,7 +448,7 @@ class GameViewModel(
             screen?.showMessage(GameMessage.PLAYER_SETTINGS_NOT_ALLOWED)
             return
         }
-        screen?.showLocalPlayerSettings(net.tcpClient)
+        screen?.showLocalPlayerSettings()
     }
 
     fun onFiringModeSelected(firingMode: Int) {
@@ -938,7 +950,7 @@ class GameViewModel(
 
     fun onScoreboardPlayer(playerId: Byte) {
         if (playerId <= 0) return
-        screen?.showServerPlayerSettings(playerId, net.tcpServer)
+        screen?.showServerPlayerSettings(playerId)
     }
 
     private fun displayPlayerData(json: String?) {
