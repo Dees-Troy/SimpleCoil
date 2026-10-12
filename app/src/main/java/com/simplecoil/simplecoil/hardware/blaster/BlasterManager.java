@@ -33,6 +33,7 @@ import androidx.core.content.ContextCompat;
 
 import com.simplecoil.simplecoil.BluetoothLeService;
 import com.simplecoil.simplecoil.GattAttributes;
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 
 import java.util.LinkedList;
 import java.util.Queue;
@@ -178,48 +179,49 @@ public class BlasterManager {
     public byte getBlasterType() { return blasterType; }
     public boolean isRecoilEnabled() { return recoilEnabled; }
 
+    public void setBluetoothLeService(BluetoothLeService service) {
+        this.bluetoothLeService = service;
+        if (service != null) {
+            discoverGattCharacteristics();
+        }
+    }
+
     public void setTeam(byte playerId) {
         if (bluetoothLeService == null || commandCharacteristic == null || playerId < 1) return;
         byte[] command = GattProtocolHandler.buildSetTeamCommand(commandId, playerId);
         commandId += GattProtocolHandler.COMMAND_ID_INCREMENT;
-        commandCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
-        commandCharacteristic.setValue(command);
-        bluetoothLeService.writeCharacteristic(commandCharacteristic);
+        bluetoothLeService.writeCharacteristic(commandCharacteristic, command, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
     }
 
     public void startReload(byte playerId) {
         if (bluetoothLeService == null || commandCharacteristic == null) return;
         byte[] command = GattProtocolHandler.buildStartReloadCommand(commandId, playerId);
         commandId += GattProtocolHandler.COMMAND_ID_INCREMENT;
-        commandCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
-        commandCharacteristic.setValue(command);
-        bluetoothLeService.writeCharacteristic(commandCharacteristic);
+        bluetoothLeService.writeCharacteristic(commandCharacteristic, command, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
     }
 
     public void finishReload(byte playerId, byte fullReloadCount) {
         if (bluetoothLeService == null || commandCharacteristic == null) return;
         byte[] command = GattProtocolHandler.buildFinishReloadCommand(commandId, playerId, weaponProfile, fullReloadCount);
         commandId += GattProtocolHandler.COMMAND_ID_INCREMENT;
-        commandCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
-        commandCharacteristic.setValue(command);
-        bluetoothLeService.writeCharacteristic(commandCharacteristic);
+        bluetoothLeService.writeCharacteristic(commandCharacteristic, command, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
     }
 
     public void setShotMode(int shotMode, int firingMode) {
         if (bluetoothLeService == null || configCharacteristic == null) return;
         byte[] config = GattProtocolHandler.buildShotModeConfig(weaponProfile, shotMode, blasterType, firingMode);
-        configCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
-        configCharacteristic.setValue(config);
-        bluetoothLeService.writeCharacteristic(configCharacteristic);
+        bluetoothLeService.writeCharacteristic(configCharacteristic, config, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+    }
+
+    public void setShotMode(int shotMode) {
+        setShotMode(shotMode, GameSettingsRepository.getInstance().getCurrentFiringMode());
     }
 
     public void setRecoil(boolean enabled) {
         this.recoilEnabled = enabled;
         if (bluetoothLeService == null || configCharacteristic == null) return;
         byte[] config = GattProtocolHandler.buildRecoilConfig(enabled);
-        configCharacteristic.setWriteType(BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
-        configCharacteristic.setValue(config);
-        bluetoothLeService.writeCharacteristic(configCharacteristic);
+        bluetoothLeService.writeCharacteristic(configCharacteristic, config, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
     }
 
     private void handleGattIntent(Intent intent) {
@@ -237,8 +239,10 @@ public class BlasterManager {
             discoverGattCharacteristics();
             if (listener != null) listener.onServicesDiscovered();
         } else if (BluetoothLeService.TELEMETRY_DATA_AVAILABLE.equals(action)) {
-            if (telemetryCharacteristic != null) {
-                processTelemetryData(telemetryCharacteristic.getValue());
+            byte[] data = intent.getByteArrayExtra(BluetoothLeService.EXTRA_DATA);
+            byte[] telemetryData = (data != null) ? data : (telemetryCharacteristic != null ? telemetryCharacteristic.getValue() : null);
+            if (telemetryData != null) {
+                processTelemetryData(telemetryData);
             }
         } else if (BluetoothLeService.ID_DATA_AVAILABLE.equals(action)) {
             blasterType = intent.getByteExtra(BluetoothLeService.EXTRA_DATA, GattProtocolHandler.BLASTER_TYPE_PISTOL);
@@ -248,7 +252,7 @@ public class BlasterManager {
         }
     }
 
-    private void discoverGattCharacteristics() {
+    public void discoverGattCharacteristics() {
         if (bluetoothLeService == null || bluetoothLeService.getSupportedGattServices() == null) return;
 
         for (BluetoothGattService gattService : bluetoothLeService.getSupportedGattServices()) {

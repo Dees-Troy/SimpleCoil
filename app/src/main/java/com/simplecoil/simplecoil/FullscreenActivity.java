@@ -20,8 +20,6 @@ import android.Manifest;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothGattCharacteristic;
-import android.bluetooth.BluetoothGattService;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
@@ -62,6 +60,7 @@ import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
+import com.simplecoil.simplecoil.hardware.blaster.BlasterManager;
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -109,7 +108,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -260,9 +258,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     final private int REQUEST_CODE_LOCATION_PERMISSIONS = 1022;
     final private int REQUEST_CODE_CAMERA_PERMISSION = 1024;
 
-    private static final byte COMMAND_ID_INCREMENT = (byte) 0x10;
-    private static byte mCommandID = (byte) 0x00;
-
     /* Reloading is done in 2 stages. The first stage effectively tells the tagger that it can't
        shoot anymore. We also use this state when the player is eliminated so they can't shoot while
        out of the game. At the second stage, we tell the tagger how many shots it now has. With a
@@ -280,10 +275,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
     private boolean mRecoilEnabled = true;
 
-    private BluetoothGattCharacteristic mTelemetryCharacteristic = null;
-    private BluetoothGattCharacteristic mCommandCharacteristic = null;
-    private BluetoothGattCharacteristic mConfigCharacteristic = null;
-
     public final static int RECOIL_OFFSET_RELOAD_TRIGGER_COUNTER = 3;
     public final static int RECOIL_OFFSET_THUMB_COUNTER = 4;
     public final static int RECOIL_OFFSET_POWER_COUNTER = 5;
@@ -294,8 +285,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     public final static int RECOIL_OFFSET_HIT_BY2 = 12;
     public final static int RECOIL_OFFSET_TEAM = 1;
     public final static int RECOIL_OFFSET_SHOTS_REMAINING = 14;
-
-    private static final byte WEAPON_PROFILE = (byte)0x00;
 
     private boolean mUseNetwork = false;
     private int mScore = 0;
@@ -359,6 +348,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 }
                 // Automatically connects to the device upon successful start-up initialization.
                 mBluetoothLeService.connect(mDeviceAddress);
+                BlasterManager.getInstance().setBluetoothLeService(mBluetoothLeService);
                 SharedPreferences.Editor editor = sharedPreferences.edit();
                 editor.putString(PREF_DEVICE_ADDRESS, mDeviceAddress);
                 editor.apply();
@@ -368,6 +358,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             @Override
             public void onServiceDisconnected(ComponentName componentName) {
                 mBluetoothLeService = null;
+                BlasterManager.getInstance().setBluetoothLeService(null);
             }
         };
         Intent gattServiceIntent = new Intent(getBaseContext(), BluetoothLeService.class);
@@ -1707,15 +1698,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
        having previously set a team does not seem to work. We do a reload cycle before starting the
        game each time to ensure that the player starts on the right team and with full ammo. */
     private void setTeam() {
-        if (!TEST_NETWORK && mBluetoothLeService != null && mCommandCharacteristic != null) {
+        if (!TEST_NETWORK) {
             if (Globals.getInstance().mPlayerID >= 1 && Globals.getInstance().mPlayerID <= Globals.MAX_PLAYER_ID) {
                 Log.d(TAG, "setting player ID to " + Globals.getInstance().mPlayerID);
-                byte[] command = new byte[20];
-                command[0] = mCommandID;
-                mCommandID += COMMAND_ID_INCREMENT;
-                command[2] = (byte) 0x80;
-                command[4] = Globals.getInstance().mPlayerID;
-                mBluetoothLeService.writeCharacteristic(mCommandCharacteristic, command, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+                BlasterManager.getInstance().setTeam(Globals.getInstance().mPlayerID);
             }
         }
         if (sharedPreferences != null) {
@@ -1803,37 +1789,24 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
        remaining shot counter to 0). It also sets the tagger in what I guess is status 0x03 instead
        of the usual 0x02. The command format is F0 00 02 00 PLAYER_ID and then 0 filled to the end. */
     private void startReload(int reloadStatus) {
-        if (mReloading != RELOADING_STATE_NONE || mCommandCharacteristic == null || mBluetoothLeService == null)
+        if (mReloading != RELOADING_STATE_NONE)
             return;
         mReloading = reloadStatus;
         mShotsRemainingTV.setVisibility(View.INVISIBLE);
         mReloadBar.setVisibility(View.VISIBLE);
-        byte[] command = new byte[20];
-        command[0] = mCommandID;
-        mCommandID += COMMAND_ID_INCREMENT;
-        command[2] = (byte)0x02;
-        command[4] = Globals.getInstance().mPlayerID;
-        //command[5] = WEAPON_PROFILE; // changing profiles during the first stage of reload doesn't really do anything since the blaster can't shoot in this state anyway
-        mBluetoothLeService.writeCharacteristic(mCommandCharacteristic, command, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+        BlasterManager.getInstance().startReload(Globals.getInstance().mPlayerID);
     }
 
     /* Second stage of the reload commands which tells the tagger how many shots to load and allows
        it to shoot again. Command format is 00 00 04 00 PLAYER_ID 00 SHOT_COUNT and then 0 filled. */
     private void finishReload() {
-        if ((mReloading != RELOADING_STATE_STARTED && mReloading != RELOADING_STATE_ELIMINATED) || mCommandCharacteristic == null || mBluetoothLeService == null || Globals.getInstance().mGameState != Globals.GAME_STATE_RUNNING)
+        if ((mReloading != RELOADING_STATE_STARTED && mReloading != RELOADING_STATE_ELIMINATED) || Globals.getInstance().mGameState != Globals.GAME_STATE_RUNNING)
             return;
         mReloading = RELOADING_STATE_FINISHING;
         mEmptyTriggerCount = 0;
         Log.d(TAG, "Finishing reload");
-        byte[] command = new byte[20];
-        command[0] = mCommandID;
-        mCommandID += COMMAND_ID_INCREMENT;
-        command[2] = (byte)0x04;
-        command[4] = Globals.getInstance().mPlayerID;
-        command[5] = WEAPON_PROFILE;
-        command[6] = Globals.getInstance().mFullReload;
         setShotsRemaining(Globals.getInstance().mFullReload);
-        mBluetoothLeService.writeCharacteristic(mCommandCharacteristic, command, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+        BlasterManager.getInstance().finishReload(Globals.getInstance().mPlayerID, Globals.getInstance().mFullReload);
     }
 
     private void setShotsRemaining(byte shotsRemaining) {
@@ -1962,74 +1935,35 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     // Config 00 00 09 xx yy ff c8 ff ff 80 01 34 - xx is the number of shots and if you set yy to 01 for full auto for xx shots or 00 for single shot mode, increasing yy decreases RoF
     // setting 03 03 for shots and RoF gives a good 3 shot burst, 03 01 is so fast that you feel 1 recoil for 3 shots
     private void setShotMode(int shotMode) {
-        if (mConfigCharacteristic == null || mBluetoothLeService == null)
-            return;
-        byte[] config = new byte[20];
-        config[0]  = WEAPON_PROFILE;
-        config[2]  = (byte)0x09;
-        config[7]  = (byte)0xFF;
-        config[8]  = (byte)0xFF;
-        config[9]  = (byte)0x80; // Recoil strength
-        config[10] = (byte)0x02;
-        config[11] = (byte)0x34;
         if (shotMode == Globals.SHOT_MODE_SINGLE) {
-            config[3] = (byte)0xFE;
-            config[4] = (byte)0x00;
             mCurrentShotMode = Globals.SHOT_MODE_SINGLE;
             mShotModeTV.setText(R.string.shot_mode_single);
         } else if (shotMode == Globals.SHOT_MODE_BURST) {
-            config[3] = (byte)0x03;
-            config[4] = (byte)0x03;
-            if (mBlasterType == BLASTER_TYPE_RIFLE)
-                config[9] = (byte)0x78; // Reduce recoil strength on the rifle to make 3 shot mode recoil the correct number of times
             mCurrentShotMode = Globals.SHOT_MODE_BURST;
             mShotModeTV.setText(R.string.shot_mode_burst3);
         } else if (shotMode == Globals.SHOT_MODE_FULL_AUTO) {
-            config[3] = (byte)0xFE;
-            config[4] = (byte)0x01;
             mCurrentShotMode = Globals.SHOT_MODE_FULL_AUTO;
             mShotModeTV.setText(R.string.shot_mode_auto);
         }
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putInt(PREF_SHOT_MODE, mCurrentShotMode);
         editor.apply();
-        switch (Globals.getInstance().mCurrentFiringMode) {
-            case Globals.FIRING_MODE_OUTDOOR_NO_CONE:
-                config[5]  = (byte)0xFF;
-                config[6]  = (byte)0x00;
-                break;
-            case Globals.FIRING_MODE_OUTDOOR_WITH_CONE:
-                config[5]  = (byte)0xFF;
-                config[6]  = (byte)0xC8;
-                break;
-            case Globals.FIRING_MODE_INDOOR_NO_CONE:
-                config[5]  = (byte)0x19;
-                config[6]  = (byte)0x00;
-        }
-        mBluetoothLeService.writeCharacteristic(mConfigCharacteristic, config, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+        BlasterManager.getInstance().setShotMode(shotMode, Globals.getInstance().mCurrentFiringMode);
     }
 
     // Config 10 00 02 02 ff and 15 sets of 00 disables recoil
     // Config 10 00 02 03 ff and 15 sets of 00 enables recoil
     private void setRecoil(boolean enabled) {
-        if (mConfigCharacteristic == null || mBluetoothLeService == null)
-            return;
-        byte[] config = new byte[20];
-        config[0]  = (byte)0x10;
-        config[2]  = (byte)0x02;
-        config[4]  = (byte)0xFF;
         if (enabled) {
-            config[3] = (byte)0x03;
             if (mRecoilModeTV != null) mRecoilModeTV.setText(R.string.recoil_enabled);
         } else {
-            config[3] = (byte)0x02;
             if (mRecoilModeTV != null) mRecoilModeTV.setText(R.string.recoil_disabled);
         }
         mRecoilEnabled = enabled;
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putBoolean(PREF_RECOIL_ENABLED, mRecoilEnabled);
         editor.apply();
-        mBluetoothLeService.writeCharacteristic(mConfigCharacteristic, config, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT);
+        BlasterManager.getInstance().setRecoil(enabled);
     }
 
     private void applyCurrentRecoilSetting() {
@@ -2542,32 +2476,14 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 // Show all the supported services and characteristics on the user interface.
                 TextView connectStatusTV = findViewById(R.id.connect_status_tv);
                 if (connectStatusTV != null) connectStatusTV.setText(R.string.connect_status_communicating);
-                for (BluetoothGattService gattService : mBluetoothLeService.getSupportedGattServices()) {
-                    Log.d(TAG, "service: " + gattService.getUuid().toString());
-                    if (gattService.getUuid().toString().equals(GattAttributes.RECOIL_MAIN_SERVICE)) {
-                        Log.d(TAG, "Found Recoil Main Service");
-                        mTelemetryCharacteristic = gattService.getCharacteristic(UUID.fromString(GattAttributes.RECOIL_TELEMETRY_UUID));
-                        if (mTelemetryCharacteristic == null) {
-                            Log.e(TAG, "Failed to find Telemetry characteristic");
-                            return;
-                        }
-                        mCommandCharacteristic = gattService.getCharacteristic(UUID.fromString(GattAttributes.RECOIL_COMMAND_UUID));
-                        mConfigCharacteristic = gattService.getCharacteristic(UUID.fromString(GattAttributes.RECOIL_CONFIG_UUID));
-                        BluetoothGattCharacteristic idCharacteristic = gattService.getCharacteristic(UUID.fromString(GattAttributes.RECOIL_ID_UUID));
-                        if (idCharacteristic != null) {
-                            mBluetoothLeService.readCharacteristic(idCharacteristic); // to get the blaster type, rifle or pistol
-                        } else {
-                            Log.d(TAG, "failed to find ID characteristic");
-                        }
-                        if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE)
-                            playSound(R.raw.spawn, getApplicationContext());
-                        else {
-                            if (Globals.getInstance().mGameState == Globals.GAME_STATE_RUNNING)
-                                startReload();
-                        }
-                        hideWeaponDisconnect();
-                    }
+                BlasterManager.getInstance().discoverGattCharacteristics();
+                if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE)
+                    playSound(R.raw.spawn, getApplicationContext());
+                else {
+                    if (Globals.getInstance().mGameState == Globals.GAME_STATE_RUNNING)
+                        startReload();
                 }
+                hideWeaponDisconnect();
             } else if (BluetoothLeService.TELEMETRY_DATA_AVAILABLE.equals(action)) {
                 byte[] data = intent.getByteArrayExtra(BluetoothLeService.EXTRA_DATA);
                 if (data != null) {
@@ -2580,9 +2496,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 } else {
                     // We'll automatically assume that this is a pistol
                     Toast.makeText(getApplicationContext(), getString(R.string.pistol_detected_toast, mDeviceAddress), Toast.LENGTH_LONG).show();
-                }
-                if (mTelemetryCharacteristic != null && mBluetoothLeService != null) {
-                    mBluetoothLeService.setCharacteristicNotification(mTelemetryCharacteristic, true);
                 }
             } else if (BluetoothLeService.CHARACTERISTIC_WRITE_FINISHED.equals(action)) {
                 if (mReloading == RELOADING_STATE_STARTED) {
