@@ -17,14 +17,9 @@
 
 package com.simplecoil.simplecoil;
 
-import android.Manifest;
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothManager;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -32,16 +27,16 @@ import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
 import androidx.fragment.app.Fragment;
 import androidx.fragment.app.FragmentManager;
 import androidx.fragment.app.FragmentTransaction;
 import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleOwnerKt;
 import androidx.lifecycle.ViewModelProvider;
+
+import kotlin.Unit;
 
 import com.journeyapps.barcodescanner.CaptureActivity;
 import com.journeyapps.barcodescanner.ScanContract;
@@ -51,6 +46,7 @@ import com.simplecoil.simplecoil.ui.common.FlowCollectors;
 import com.simplecoil.simplecoil.databinding.ActivityFullscreenBinding;
 import com.simplecoil.simplecoil.ui.game.CompositeGameScreen;
 import com.simplecoil.simplecoil.ui.game.DialogCoordinator;
+import com.simplecoil.simplecoil.ui.permissions.BlePermissionController;
 import com.simplecoil.simplecoil.ui.game.GameNavigator;
 import com.simplecoil.simplecoil.ui.game.GameScreenRenderer;
 import com.simplecoil.simplecoil.ui.game.WindowController;
@@ -59,21 +55,15 @@ import com.simplecoil.simplecoil.ui.game.GameViewModelFactory;
 import com.simplecoil.simplecoil.ui.game.SavedGameScreen;
 import com.simplecoil.simplecoil.ui.main.MainViewModel;
 
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * The play screen: wires the views to {@link GameViewModel}, which makes every decision and tells
  * the screen what to show through its GameScreen. Views, window flags and session values are drawn
  * by {@link GameScreenRenderer}; dialogs, toasts and menus are shown by {@link DialogCoordinator}.
- * This activity runs the permission and Bluetooth flow in front of a connect.
+ * The permission and Bluetooth flow in front of a connect is run by {@link BlePermissionController}.
  */
 public class FullscreenActivity extends AppCompatActivity implements GameNavigator {
     private static final String TAG = "scmain";
-
-    private final ActivityResultLauncher<Intent> enableBtLauncher = registerForActivityResult(
-            new ActivityResultContracts.StartActivityForResult(),
-            result -> connectWeapon());
 
     private final ActivityResultLauncher<ScanOptions> barcodeLauncher = registerForActivityResult(new ScanContract(),
             result -> {
@@ -97,12 +87,11 @@ public class FullscreenActivity extends AppCompatActivity implements GameNavigat
     private ActivityFullscreenBinding binding;
     private GameScreenRenderer renderer;
     private DialogCoordinator dialogs;
+    private BlePermissionController permissions;
 
     private FragmentManager mFragmentMgr = null;
     private Fragment mMapFragment = null;
 
-    final private int REQUEST_CODE_LOCATION_PERMISSIONS = 1022;
-    final private int REQUEST_CODE_CAMERA_PERMISSION = 1024;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -123,6 +112,10 @@ public class FullscreenActivity extends AppCompatActivity implements GameNavigat
         vm = new ViewModelProvider(this, new GameViewModelFactory((SimpleCoilApp) getApplication())).get(GameViewModel.class);
         dialogs = new DialogCoordinator(this, vm, binding.useNetworkButton);
         vm.setScreen(new CompositeGameScreen(renderer, dialogs, this));
+        permissions = new BlePermissionController(this, vm, () -> {
+            startQRScan();
+            return Unit.INSTANCE;
+        });
         SavedGameScreen saved = null;
         if (savedInstanceState != null) {
             saved = new SavedGameScreen(savedInstanceState.getByte("mSelectedPlayerID", (byte)0),
@@ -151,15 +144,7 @@ public class FullscreenActivity extends AppCompatActivity implements GameNavigat
         mFragmentMgr = getSupportFragmentManager();
         binding.reconnectWeaponButton.setOnClickListener(v -> vm.onReconnectPressed());
         binding.connectWeaponButton.setOnClickListener(v -> vm.onConnectPressed());
-        binding.connectQrWeaponButton.setOnClickListener((v -> {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                    requestPermissions(new String[]{Manifest.permission.CAMERA}, REQUEST_CODE_CAMERA_PERMISSION);
-                    return;
-                }
-            }
-            startQRScan();
-        }));
+        binding.connectQrWeaponButton.setOnClickListener(v -> permissions.scanQr());
         binding.dedicatedServerButton.setOnClickListener(v -> vm.onDedicatedServerPressed());
         binding.teamMinusButton.setVisibility(View.VISIBLE);
         binding.teamMinusButton.setOnClickListener(v -> vm.onTeamMinusPressed());
@@ -240,7 +225,7 @@ public class FullscreenActivity extends AppCompatActivity implements GameNavigat
     }
 
     // ---------------------------------------------------------------------------------------
-    // Connecting: permissions and Bluetooth, then GameViewModel scans
+    // QR pairing
     // ---------------------------------------------------------------------------------------
 
     private void startQRScan() {
@@ -258,123 +243,12 @@ public class FullscreenActivity extends AppCompatActivity implements GameNavigat
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        switch (requestCode) {
-            case REQUEST_CODE_LOCATION_PERMISSIONS:
-                boolean allGranted = true;
-                if (grantResults.length > 0) {
-                    for (int result : grantResults) {
-                        if (result != PackageManager.PERMISSION_GRANTED) {
-                            allGranted = false;
-                            break;
-                        }
-                    }
-                } else {
-                    allGranted = false;
-                }
-                if (allGranted) {
-                    // Permissions Granted
-                    vm.onLocationPermissionsGranted();
-                } else {
-                    // Permission Denied
-                    Toast.makeText(this, getString(R.string.error_location_permission_required), Toast.LENGTH_SHORT)
-                            .show();
-                }
-                break;
-            case REQUEST_CODE_CAMERA_PERMISSION:
-                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    startQRScan();
-                } else {
-                    Toast.makeText(this, "Camera permission is required to scan QR codes", Toast.LENGTH_SHORT).show();
-                }
-                break;
-            default:
-                super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        }
-    }
-
-    @Override
     public void requestConnect() {
-        connectWeapon();
-    }
-
-    private void connectWeapon() {
         if (GameViewModel.TEST_NETWORK) {
             renderer.showPlayScreen();
             return;
         }
-
-        if (vm.isScanning())
-            return;
-
-        // Use this check to determine whether BLE is supported on the device.  Then you can
-        // selectively disable BLE-related features.
-        if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
-            Toast.makeText(this, R.string.ble_not_supported, Toast.LENGTH_SHORT).show();
-            finish();
-            return;
-        }
-
-        // Request Bluetooth & Location permissions dynamically based on Android version
-        List<String> permissionsToRequest = new ArrayList<>();
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) != PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(Manifest.permission.BLUETOOTH_SCAN);
-            }
-            if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(Manifest.permission.BLUETOOTH_CONNECT);
-            }
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(Manifest.permission.ACCESS_FINE_LOCATION);
-            }
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS);
-            }
-        }
-
-        if (!permissionsToRequest.isEmpty()) {
-            ActivityCompat.requestPermissions(this, permissionsToRequest.toArray(new String[0]), REQUEST_CODE_LOCATION_PERMISSIONS);
-            return;
-        }
-
-        // Initializes a Bluetooth manager and adapter.
-        final BluetoothManager bluetoothManager =
-                (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
-        if (bluetoothManager == null) {
-            Log.e(TAG, "Failed to get Bluetooth service");
-            Toast.makeText(this, R.string.error_bluetooth_not_supported, Toast.LENGTH_SHORT).show();
-            finish();
-            return;
-        }
-        BluetoothAdapter bluetoothAdapter = bluetoothManager.getAdapter();
-        // Checks if Bluetooth is supported on the device.
-        if (bluetoothAdapter == null) {
-            Toast.makeText(this, R.string.error_bluetooth_not_supported, Toast.LENGTH_SHORT).show();
-            finish();
-            return;
-        }
-        if (!bluetoothAdapter.isEnabled()) {
-            Log.d(TAG, "Bluetooth is off");
-            try {
-                Intent intentBtEnabled = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-                enableBtLauncher.launch(intentBtEnabled);
-            } catch (SecurityException e) {
-                Log.e(TAG, "SecurityException enabling bluetooth: " + e.getMessage());
-            }
-            return;
-        }
-
-        // Scans and starts the 30 s give-up.
-        if (!vm.startScan(bluetoothAdapter)) {
-            Toast.makeText(this, R.string.error_location_permission_required, Toast.LENGTH_SHORT).show();
-        }
+        permissions.connect();
     }
 
     // ---------------------------------------------------------------------------------------

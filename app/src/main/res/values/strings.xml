@@ -169,4 +169,12 @@
 
     <string name="dedicated_allow_choose_teams">Allow players to choose teams</string>
     <string name="switch_to_team">Switch to Team %1$d</string>
+    <string name="permission_rationale_title">Permissions needed</string>
+    <string name="permission_rationale_ble">SimpleCoil needs these permissions to find and connect to your blaster: Bluetooth, location (for Bluetooth scanning and the game map) and notifications (to keep the blaster connected while the app is in the background).</string>
+    <string name="permission_rationale_camera">SimpleCoil uses the camera to scan your blaster\'s QR code.</string>
+    <string name="permission_settings_title">Permissions turned off</string>
+    <string name="permission_settings_ble">The permissions SimpleCoil needs to connect to your blaster are turned off. Open the app settings to allow them, then connect again.</string>
+    <string name="permission_settings_camera">Camera permission is turned off for SimpleCoil. Open the app settings to allow it to scan QR codes.</string>
+    <string name="permission_continue">Continue</string>
+    <string name="permission_open_settings">Open settings</string>
 </resources>
