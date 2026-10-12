@@ -61,7 +61,7 @@ class SimpleCoilApp : Application() {
 
     /** Network services, NETMSG_* events and the network session state (R13/R14). */
     val networkGateway: NetworkSessionGateway by lazy {
-        NetworkSessionGateway(this).also { it.registerReceiver() }
+        NetworkSessionGateway(this, appScope).also { it.registerReceiver() }
     }
 
     /** Shot mode / recoil in the "SimpleCoil" preferences, same keys as the activity used. */

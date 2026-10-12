@@ -23,14 +23,17 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.os.IBinder
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.simplecoil.simplecoil.domain.session.SessionNetwork
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONException
 import org.json.JSONObject
 
@@ -80,7 +83,11 @@ sealed interface NetworkEvent {
  *
  * App-scoped; main thread unless noted.
  */
-class NetworkSessionGateway(private val context: Context) : SessionNetwork {
+class NetworkSessionGateway(
+    private val context: Context,
+    private val scope: CoroutineScope,
+    private val parseDispatcher: CoroutineDispatcher = Dispatchers.Default,
+) : SessionNetwork {
 
     private val _events = MutableSharedFlow<NetworkEvent>(extraBufferCapacity = 64)
 
@@ -100,8 +107,10 @@ class NetworkSessionGateway(private val context: Context) : SessionNetwork {
 
     override var useNetwork = false
     var isServer = false
-    @Volatile var score = 0
-    @Volatile var teamScore = 0
+    /** Main thread only. */
+    var score = 0
+    /** Main thread only. */
+    var teamScore = 0
 
     private var receiverRegistered = false
 
@@ -237,61 +246,31 @@ class NetworkSessionGateway(private val context: Context) : SessionNetwork {
     // Scoreboard (R14)
     // ---------------------------------------------------------------------------------------
 
+    /** Scoreboard rows (indexed by player id), the local player's points, and points per team. */
+    class ParsedPlayerData(val players: Array<PlayerDisplayData?>, val myPoints: Int?, val teamPoints: IntArray)
+
     /**
-     * Parses player data JSON on a background thread (as the activity did): updates the local
-     * player's score and the team score, publishes the host's score, then emits
+     * Parses player data JSON off the main thread, then on the main thread raises the local
+     * player's score to its points, publishes the host's score, sets the team score and emits
      * [NetworkEvent.PlayerData]. [eliminations] supplies the host player's eliminations.
+     *
+     * B7: the scores used to be written from the parsing thread while the main thread also wrote
+     * them, and the host score was published from that thread.
      */
     fun updatePlayerData(message: String?, eliminations: () -> Int) {
         if (message.isNullOrEmpty()) return
-        Thread {
-            val finalData = arrayOfNulls<PlayerDisplayData>(Globals.MAX_PLAYER_ID + 2)
-            var hasSemaphore = false
-            val teamPoints = IntArray(4)
-            try {
-                val json = JSONObject(message)
-                val players = json.getJSONArray(TcpServer.JSON_PLAYERDATA)
-                Globals.getInstance()
-                Globals.getmPlayerSettingsSemaphore()
-                hasSemaphore = true
-                for (x in 0 until players.length()) {
-                    val player = players.getJSONObject(x)
-                    val playerData = PlayerDisplayData()
-                    playerData.playerID = player.getInt(TcpServer.JSON_PLAYERID).toByte()
-                    playerData.playerName = player.getString(TcpServer.JSON_PLAYERNAME)
-                    playerData.points = player.getInt(TcpServer.JSON_PLAYERPOINTS)
-                    if (playerData.playerID == Globals.getInstance().mPlayerID) {
-                        score = maxOf(score, playerData.points)
-                        if (isServer) tcpServer?.setHostScore(score, eliminations())
-                    }
-                    if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
-                        val teamIdx = Globals.getInstance().calcNetworkTeam(playerData.playerID) - 1
-                        if (teamIdx in 0..3) teamPoints[teamIdx] += playerData.points
-                    }
-                    playerData.eliminated = player.getInt(TcpServer.JSON_PLAYERELIMINATED)
-                    val settings = Globals.getInstance().mPlayerSettings[playerData.playerID]
-                    if (settings == null) {
-                        playerData.overrideLives = false
-                        playerData.lives = 0
-                    } else {
-                        playerData.overrideLives = settings.overrideLives
-                        playerData.lives = settings.lives
-                    }
-                    finalData[playerData.playerID.toInt()] = playerData
-                }
-                Globals.getInstance().mPlayerSettingsSemaphore.release()
-                hasSemaphore = false
-            } catch (e: JSONException) {
-                Log.e(TAG, "Error parsing player data", e)
-                if (hasSemaphore) Globals.getInstance().mPlayerSettingsSemaphore.release()
-                return@Thread
+        scope.launch {
+            val parsed = withContext(parseDispatcher) { parsePlayerData(message) } ?: return@launch
+            parsed.myPoints?.let {
+                score = maxOf(score, it)
+                if (isServer) tcpServer?.setHostScore(score, eliminations())
             }
             if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
                 val myTeamIdx = Globals.getInstance().calcNetworkTeam(Globals.getInstance().mPlayerID) - 1
-                if (myTeamIdx in 0..3) teamScore = teamPoints[myTeamIdx]
+                if (myTeamIdx in 0..3) teamScore = parsed.teamPoints[myTeamIdx]
             }
-            Handler(Looper.getMainLooper()).post { emit(NetworkEvent.PlayerData(finalData)) }
-        }.start()
+            emit(NetworkEvent.PlayerData(parsed.players))
+        }
     }
 
     // ---------------------------------------------------------------------------------------
@@ -340,6 +319,56 @@ class NetworkSessionGateway(private val context: Context) : SessionNetwork {
 
     companion object {
         private const val TAG = "NetworkSession"
+
+        /**
+         * Parses the host's player data JSON. Reads player settings under Globals' player settings
+         * semaphore. Null when the JSON is malformed.
+         */
+        @JvmStatic
+        fun parsePlayerData(message: String): ParsedPlayerData? {
+            val finalData = arrayOfNulls<PlayerDisplayData>(Globals.MAX_PLAYER_ID + 2)
+            var hasSemaphore = false
+            val teamPoints = IntArray(4)
+            var myPoints: Int? = null
+            try {
+                val json = JSONObject(message)
+                val players = json.getJSONArray(TcpServer.JSON_PLAYERDATA)
+                Globals.getInstance()
+                Globals.getmPlayerSettingsSemaphore()
+                hasSemaphore = true
+                for (x in 0 until players.length()) {
+                    val player = players.getJSONObject(x)
+                    val playerData = PlayerDisplayData()
+                    playerData.playerID = player.getInt(TcpServer.JSON_PLAYERID).toByte()
+                    playerData.playerName = player.getString(TcpServer.JSON_PLAYERNAME)
+                    playerData.points = player.getInt(TcpServer.JSON_PLAYERPOINTS)
+                    if (playerData.playerID == Globals.getInstance().mPlayerID) {
+                        myPoints = maxOf(myPoints ?: playerData.points, playerData.points)
+                    }
+                    if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
+                        val teamIdx = Globals.getInstance().calcNetworkTeam(playerData.playerID) - 1
+                        if (teamIdx in 0..3) teamPoints[teamIdx] += playerData.points
+                    }
+                    playerData.eliminated = player.getInt(TcpServer.JSON_PLAYERELIMINATED)
+                    val settings = Globals.getInstance().mPlayerSettings[playerData.playerID]
+                    if (settings == null) {
+                        playerData.overrideLives = false
+                        playerData.lives = 0
+                    } else {
+                        playerData.overrideLives = settings.overrideLives
+                        playerData.lives = settings.lives
+                    }
+                    finalData[playerData.playerID.toInt()] = playerData
+                }
+                Globals.getInstance().mPlayerSettingsSemaphore.release()
+                hasSemaphore = false
+            } catch (e: JSONException) {
+                Log.e(TAG, "Error parsing player data", e)
+                if (hasSemaphore) Globals.getInstance().mPlayerSettingsSemaphore.release()
+                return null
+            }
+            return ParsedPlayerData(finalData, myPoints, teamPoints)
+        }
 
         /** TCP message carrying a NETMSG: prefix + version + "MESG" + [netMsg]. */
         @JvmStatic

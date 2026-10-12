@@ -18,7 +18,13 @@ package com.simplecoil.simplecoil
 
 import android.content.Context
 import android.content.Intent
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
 import android.content.ServiceConnection
@@ -34,6 +40,7 @@ import org.mockito.Mockito.`when`
  * The network session's wire strings are a compatibility surface (other phones and dedicated
  * servers run older builds), so they are pinned as literals here, like the BLE golden packets.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class NetworkSessionGatewayTest {
 
     @Test
@@ -50,7 +57,7 @@ class NetworkSessionGatewayTest {
     }
 
     private fun gateway(client: TcpClient? = mock(TcpClient::class.java), server: TcpServer? = mock(TcpServer::class.java)) =
-        NetworkSessionGateway(mock(Context::class.java)).also { it.attachForTest(null, client, server) }
+        NetworkSessionGateway(mock(Context::class.java), TestScope()).also { it.attachForTest(null, client, server) }
 
     @Test
     fun sessionSends_useTheSameStringsAndQueueOnlyEliminated() {
@@ -151,7 +158,7 @@ class NetworkSessionGatewayTest {
     fun bindServices_bindsEachServiceOnceAcrossResumes() {
         // B4: every resume used to bind all three services again.
         val context = mock(Context::class.java)
-        val g = NetworkSessionGateway(context)
+        val g = NetworkSessionGateway(context, TestScope())
         repeat(3) { g.bindServices() }
         verify(context, times(3)).bindService(any(Intent::class.java), any(ServiceConnection::class.java), anyInt())
         verify(context, times(9)).startService(any(Intent::class.java))
@@ -165,11 +172,68 @@ class NetworkSessionGatewayTest {
     @Test
     fun dedicatedServerHandOff_releasesAllThreeSoTheyRebindOnReturn() {
         val context = mock(Context::class.java)
-        val g = NetworkSessionGateway(context)
+        val g = NetworkSessionGateway(context, TestScope())
         g.bindServices()
         g.releaseForDedicatedServer()
         verify(context, times(3)).unbindService(any(ServiceConnection::class.java))
         g.bindServices()
         verify(context, times(6)).bindService(any(Intent::class.java), any(ServiceConnection::class.java), anyInt())
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Scoreboard (B7)
+    // ------------------------------------------------------------------------------------------
+
+    private val playerJson = """{"playerdata":[
+        {"playerID":1,"playername":"Me","points":4,"eliminated":1},
+        {"playerID":2,"playername":"Mate","points":3,"eliminated":0},
+        {"playerID":17,"playername":"Them","points":6,"eliminated":2}]}"""
+
+    @Test
+    fun parsePlayerData_buildsRowsMyPointsAndTeamPoints() {
+        Globals.getInstance().mPlayerID = 1
+        Globals.getInstance().mGameMode = Globals.GAME_MODE_2TEAMS
+        val parsed = NetworkSessionGateway.parsePlayerData(playerJson)
+        assertNotNull(parsed)
+        parsed!!
+        assertEquals("Me", parsed.players[1]!!.playerName)
+        assertEquals(6, parsed.players[17]!!.points)
+        assertEquals(4, parsed.myPoints)
+        val t1 = Globals.getInstance().calcNetworkTeam(1) - 1
+        val t17 = Globals.getInstance().calcNetworkTeam(17) - 1
+        assertEquals(if (t1 == t17) 13 else 7, parsed.teamPoints[t1])
+        assertNull(NetworkSessionGateway.parsePlayerData("not json"))
+        // The semaphore is released on both paths.
+        assertEquals(1, Globals.getInstance().mPlayerSettingsSemaphore.availablePermits())
+    }
+
+    @Test
+    fun updatePlayerData_parsesOffMainThenWritesScoresOnMain() {
+        Globals.getInstance().mPlayerID = 1
+        Globals.getInstance().mGameMode = Globals.GAME_MODE_2TEAMS
+        val scope = TestScope()
+        val parse = StandardTestDispatcher(scope.testScheduler)
+        val server = mock(TcpServer::class.java)
+        val g = NetworkSessionGateway(mock(Context::class.java), scope, parse)
+        g.attachForTest(null, null, server)
+        g.isServer = true
+        g.score = 2
+        val events = mutableListOf<NetworkEvent>()
+        scope.backgroundScope.launch(UnconfinedTestDispatcher(scope.testScheduler)) { g.events.collect { events += it } }
+
+        g.updatePlayerData(playerJson) { 5 }
+        assertEquals(2, g.score) // nothing written before parsing completes
+        scope.testScheduler.runCurrent()
+        assertEquals(4, g.score)
+        verify(server).setHostScore(4, 5)
+        assertEquals(1, events.filterIsInstance<NetworkEvent.PlayerData>().size)
+
+        g.updatePlayerData("""{"playerdata":[{"playerID":1,"playername":"Me","points":3,"eliminated":0}]}""") { 5 }
+        scope.testScheduler.runCurrent()
+        assertEquals(4, g.score) // never lowered
+        g.updatePlayerData("") { 5 }
+        g.updatePlayerData("garbage") { 5 }
+        scope.testScheduler.runCurrent()
+        assertEquals(2, events.filterIsInstance<NetworkEvent.PlayerData>().size)
     }
 }
