@@ -16,6 +16,7 @@
 
 package com.simplecoil.simplecoil;
 
+import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -482,6 +483,8 @@ public class TcpClient extends Service {
         }
     }
 
+    // sendBroadcast() is overridden above to make every broadcast explicit (setPackage), which lint can't see.
+    @SuppressLint("UnsafeImplicitIntentLaunch")
     private void parseGameInfo(String message) {
         try {
             JSONObject game = new JSONObject(message);
