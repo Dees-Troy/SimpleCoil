@@ -29,9 +29,6 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.fragment.app.Fragment;
-import androidx.fragment.app.FragmentManager;
-import androidx.fragment.app.FragmentTransaction;
 import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.LifecycleOwnerKt;
 import androidx.lifecycle.ViewModelProvider;
@@ -87,22 +84,15 @@ public class FullscreenActivity extends AppCompatActivity implements GameNavigat
     private DialogCoordinator dialogs;
     private BlePermissionController permissions;
 
-    private FragmentManager mFragmentMgr = null;
-    private Fragment mMapFragment = null;
-
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         binding = ActivityFullscreenBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        // Back keeps the session running: send the task to the background instead of finishing.
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                Fragment f = getSupportFragmentManager().findFragmentById(R.id.map_fragment);
-                if (f != null) {
-                    mFragmentMgr.popBackStack();
-                }
                 moveTaskToBack(true);
             }
         });
@@ -127,7 +117,6 @@ public class FullscreenActivity extends AppCompatActivity implements GameNavigat
         // The session runs app-scoped (D4); render it whenever this screen exists.
         FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.CREATED, vm.getSession(), renderer::render);
 
-        mFragmentMgr = getSupportFragmentManager();
         binding.reconnectWeaponButton.setOnClickListener(v -> vm.onReconnectPressed());
         binding.connectWeaponButton.setOnClickListener(v -> vm.onConnectPressed());
         binding.connectQrWeaponButton.setOnClickListener(v -> permissions.scanQr());
@@ -159,7 +148,6 @@ public class FullscreenActivity extends AppCompatActivity implements GameNavigat
         binding.useNetworkButton.setVisibility(View.VISIBLE);
         binding.playerDataButton.setOnClickListener(v -> vm.openScoreboard());
         vm.onViewsCreated();
-        loadFragment();
     }
 
     @Override
@@ -189,25 +177,6 @@ public class FullscreenActivity extends AppCompatActivity implements GameNavigat
     protected void onDestroy() {
         vm.onScreenDestroyed();
         super.onDestroy();
-    }
-
-    @Override
-    public void sendBroadcast(Intent intent) {
-        if (intent != null && intent.getPackage() == null) {
-            intent.setPackage(getPackageName());
-        }
-        super.sendBroadcast(intent);
-    }
-
-    private void loadFragment() {
-        if (mMapFragment == null) return;
-        mMapFragment = getSupportFragmentManager().findFragmentById(R.id.map_fragment);
-        if (mMapFragment != null)
-            return;
-        FragmentTransaction mFragmentTransc = mFragmentMgr.beginTransaction();
-        mFragmentTransc.add(binding.playLayout.getId(), mMapFragment);
-        //mFragmentTransc.addToBackStack(null);
-        mFragmentTransc.commit();
     }
 
     // ---------------------------------------------------------------------------------------
