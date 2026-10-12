@@ -303,6 +303,78 @@ class BleConnectionManagerTest {
         verify(service, never()).connect("AA:AA:AA:AA:AA:AA")
     }
 
+    // ----------------------------------------------------------------------------------------
+    // Telemetry watchdog (§1.6: 5 s tick; B2)
+    // ----------------------------------------------------------------------------------------
+
+    private fun gattConnected() {
+        blasterManager.onEvent(BluetoothLeService.ACTION_GATT_CONNECTED)
+        scope.testScheduler.runCurrent()
+    }
+
+    private fun telemetry() {
+        blasterManager.onTelemetry(RecoilProtocolFixtures.GOLDEN_IDLE)
+        scope.testScheduler.runCurrent()
+    }
+
+    @Test
+    fun watchdog_waitsForFirstTelemetry() {
+        gattConnected()
+        advance(60_000)
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun watchdog_firesOnFirstTickWithoutTelemetry() {
+        gattConnected()
+        advance(1_000)
+        telemetry() // communicating from here
+        advance(4_000) // tick at 5 s: packet seen, reset
+        assertTrue(events.isEmpty())
+        advance(4_999)
+        assertTrue(events.isEmpty())
+        advance(1) // tick at 10 s: nothing since 5 s
+        assertEquals(listOf<BleConnectionEvent>(BleConnectionEvent.WatchdogTimedOut), events)
+        assertEquals(BleConnectionState.Disconnected(BleConnectionState.Disconnected.Reason.WatchdogTimeout),
+            manager.connectionState.value)
+        advance(60_000)
+        assertEquals(1, events.size)
+    }
+
+    @Test
+    fun watchdog_keepsQuietWhileTelemetryFlows_evenWithNoUiCollecting() {
+        // B2: telemetry reaches the watchdog straight from BlasterManager, so a paused activity
+        // (no UI collector at all here) can't starve it into a false disconnect.
+        gattConnected()
+        repeat(60) {
+            telemetry()
+            advance(1_000)
+        }
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun watchdog_stopsWhenConnectionIsReset() {
+        gattConnected()
+        telemetry()
+        manager.reset()
+        advance(60_000)
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun watchdog_restartsOnReconnectWithoutStackingLoops() {
+        gattConnected()
+        telemetry()
+        advance(2_000)
+        gattConnected() // reconnect: one watchdog, re-armed, waiting for telemetry again
+        advance(60_000)
+        assertTrue(events.isEmpty())
+        telemetry()
+        advance(10_000)
+        assertEquals(listOf<BleConnectionEvent>(BleConnectionEvent.WatchdogTimedOut), events)
+    }
+
     @Test
     fun connectionState_followsDiscoveryTelemetryAndLinkLoss() {
         manager.startScan(adapter, "")

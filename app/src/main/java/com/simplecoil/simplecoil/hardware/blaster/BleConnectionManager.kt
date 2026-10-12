@@ -71,6 +71,9 @@ sealed interface BleConnectionEvent {
 
     /** The Bluetooth adapter was switched on. */
     data object AdapterTurnedOn : BleConnectionEvent
+
+    /** Connected and communicating, but no telemetry arrived for a whole watchdog interval. */
+    data object WatchdogTimedOut : BleConnectionEvent
 }
 
 /**
@@ -118,6 +121,12 @@ class BleConnectionManager(
     private var serviceConnection: ServiceConnection? = null
     private var service: BluetoothLeService? = null
     private var scanTimeout: Job? = null
+    private var watchdog: Job? = null
+
+    // Watchdog inputs, fed straight from BlasterManager so they keep flowing while the UI is
+    // paused (B2).
+    private var communicating = false
+    @Volatile private var telemetrySeen = false
     private var adapterReceiverRegistered = false
 
     init {
@@ -128,10 +137,17 @@ class BleConnectionManager(
 
     private fun onBlasterEvent(event: BlasterEvent) {
         when (event) {
-            is BlasterEvent.Connected -> isConnected = true
+            is BlasterEvent.Connected -> {
+                isConnected = true
+                startWatchdog()
+            }
             BlasterEvent.ServicesDiscovered -> _state.value = BleConnectionState.ServicesDiscovered(address)
-            is BlasterEvent.Telemetry -> if (_state.value !is BleConnectionState.Communicating) {
-                _state.value = BleConnectionState.Communicating(address, blasterManager.blasterType)
+            is BlasterEvent.Telemetry -> {
+                telemetrySeen = true
+                communicating = true
+                if (_state.value !is BleConnectionState.Communicating) {
+                    _state.value = BleConnectionState.Communicating(address, blasterManager.blasterType)
+                }
             }
             BlasterEvent.Disconnected -> _state.value = BleConnectionState.Disconnected(BleConnectionState.Disconnected.Reason.LinkLost)
             else -> Unit
@@ -218,6 +234,31 @@ class BleConnectionManager(
             if (intent.action != BluetoothAdapter.ACTION_STATE_CHANGED) return
             if (intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR) == BluetoothAdapter.STATE_ON) {
                 emit(BleConnectionEvent.AdapterTurnedOn)
+            }
+        }
+    }
+
+    /**
+     * Every [WATCHDOG_INTERVAL_MILLIS] while connected: once telemetry has started, a whole
+     * interval without a packet means the blaster dropped without a GATT disconnect. Stops when
+     * the connection is reset or a new scan starts.
+     */
+    private fun startWatchdog() {
+        communicating = false
+        watchdog?.cancel()
+        watchdog = scope.launch {
+            while (true) {
+                delay(WATCHDOG_INTERVAL_MILLIS)
+                if (!isConnected) return@launch
+                Log.d(TAG, "Connection test check: communicating=$communicating, telemetrySeen=$telemetrySeen")
+                if (!communicating) continue
+                if (!telemetrySeen) {
+                    Log.d(TAG, "Connection test reports disconnect!")
+                    _state.value = BleConnectionState.Disconnected(BleConnectionState.Disconnected.Reason.WatchdogTimeout)
+                    emit(BleConnectionEvent.WatchdogTimedOut)
+                    return@launch
+                }
+                telemetrySeen = false
             }
         }
     }
@@ -330,6 +371,9 @@ class BleConnectionManager(
 
     companion object {
         private const val TAG = "BleConnectionManager"
+
+        /** §1.6: telemetry watchdog tick. */
+        const val WATCHDOG_INTERVAL_MILLIS = 5_000L
 
         /** §1.6: give up scanning after this long without finding a blaster. */
         const val SCAN_TIMEOUT_MILLIS = 30_000L

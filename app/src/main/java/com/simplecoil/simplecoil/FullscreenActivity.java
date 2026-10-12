@@ -310,14 +310,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     @SuppressWarnings("unused") private static final byte GRENADE_PAIR_ID = GrenadeDecoder.GRENADE_PAIR_ID;
     @SuppressWarnings("unused") private static final byte GRENADE_DISARM = GrenadeDecoder.GRENADE_DISARM;
 
-    /* We run a continuous handler in the background while the tagger is connected to monitor the
-       connection status. Simply put, we set connectionTestHandler to false every time the handler
-       runs. Every time we receive telemetry data, we set connectionTestHandler back to true. When
-       the handler runs again, if connectionTestHandler is still false, then the tagger has
-       disconnected without us knowing. */
-    private Handler connectionTestHandler;
-    private static final int CONNECTION_TEST_INTERVAL_MILLISECONDS = 5000;
-    private volatile boolean mConnectionTest = false;
 
 
     private static final int HIT_VIBRATE_DURATION_MILLISECONDS = 250;
@@ -2105,6 +2097,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             handleDisconnect();
         } else if (event instanceof BleConnectionEvent.InitializeFailed) {
             finish();
+        } else if (event instanceof BleConnectionEvent.WatchdogTimedOut) {
+            handleDisconnect();
         }
     }
 
@@ -2322,7 +2316,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         if (event instanceof BlasterEvent.Connected) {
             // BleConnectionManager marks itself connected on the same event.
             mCommunicating = false; // When we receive the first packet, we'll switch layouts
-            startConnectionTest();
+            // BleConnectionManager runs the telemetry watchdog for this connection.
         } else if (event instanceof BlasterEvent.Disconnected) {
             handleDisconnect();
         } else if (event instanceof BlasterEvent.ServicesDiscovered) {
@@ -2364,30 +2358,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 Log.d(TAG, "Reload finished");
             }
         }
-    }
-
-    private void startConnectionTest() {
-        // This is a looping handler that checks to see if the tagger has disconnected
-        mCommunicating = false;
-        connectionTestHandler = new Handler(Looper.getMainLooper());
-        connectionTestHandler.postDelayed(new Runnable(){
-            public void run(){
-                if (!ble().isConnected())
-                    return;
-                Log.d(TAG, "Connection test check: mCommunicating=" + mCommunicating + ", mConnectionTest=" + mConnectionTest + ", mConnected=" + ble().isConnected());
-                if (!mCommunicating) {
-                    connectionTestHandler.postDelayed(this, CONNECTION_TEST_INTERVAL_MILLISECONDS);
-                    return;
-                }
-                if (!mConnectionTest) {
-                    Log.d(TAG, "Connection test reports disconnect!");
-                    handleDisconnect();
-                    return;
-                }
-                mConnectionTest = false;
-                connectionTestHandler.postDelayed(this, CONNECTION_TEST_INTERVAL_MILLISECONDS);
-            }
-        }, CONNECTION_TEST_INTERVAL_MILLISECONDS);
     }
 
     @SuppressWarnings("deprecation")
@@ -2457,7 +2427,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         byte reload_counter = telemetry.reloadCounter;
         byte thumb_counter = telemetry.thumbCounter;
         byte power_counter = telemetry.powerCounter;
-        mConnectionTest = true;
         if (!mCommunicating) {
             mCommunicating = true;
             mHasConnectedToBlaster = true;
