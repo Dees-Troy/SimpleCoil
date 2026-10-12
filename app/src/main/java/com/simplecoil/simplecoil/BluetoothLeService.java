@@ -41,6 +41,8 @@ import android.os.Looper;
 import android.util.Log;
 import androidx.core.app.NotificationCompat;
 
+import com.simplecoil.simplecoil.hardware.blaster.ProtocolTrace;
+
 import java.util.List;
 import java.util.UUID;
 
@@ -133,6 +135,7 @@ public class BluetoothLeService extends Service {
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             Log.d(TAG, "onConnectionStateChange status=" + status + ", newState=" + newState);
+            ProtocolTrace.event("connectionState status=" + status + " newState=" + newState);
             String intentAction;
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 intentAction = ACTION_GATT_CONNECTED;
@@ -145,6 +148,7 @@ public class BluetoothLeService extends Service {
                     @Override
                     public void run() {
                         if (mBluetoothGatt != null) {
+                            ProtocolTrace.event("discoverServices");
                             Log.i(TAG, "Attempting to start service discovery after delay:" +
                                     mBluetoothGatt.discoverServices());
                         }
@@ -167,6 +171,7 @@ public class BluetoothLeService extends Service {
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             Log.d(TAG, "onServicesDiscovered status=" + status);
+            ProtocolTrace.event("servicesDiscovered status=" + status);
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 broadcastUpdate(ACTION_GATT_SERVICES_DISCOVERED);
             } else {
@@ -208,6 +213,7 @@ public class BluetoothLeService extends Service {
             } else {
                 Log.d(TAG, "write failed");
             }
+            ProtocolTrace.event("writeFinished status=" + status);
             broadcastUpdate(CHARACTERISTIC_WRITE_FINISHED);
         }
 
@@ -233,6 +239,7 @@ public class BluetoothLeService extends Service {
             } else {
                 Log.d(TAG, "descriptor write failed");
             }
+            ProtocolTrace.event("descriptorWriteFinished status=" + status);
             broadcastUpdate(DESCRIPTOR_WRITE_FINISHED);
         }
     };
@@ -243,6 +250,7 @@ public class BluetoothLeService extends Service {
     }
 
     private void broadcastUpdate(final BluetoothGattCharacteristic characteristic, final byte[] value) {
+        ProtocolTrace.receive(characteristic.getUuid(), value);
         if (UUID_RECOIL_TELEMETRY.equals((characteristic.getUuid()))) {
             final Intent intent = new Intent(TELEMETRY_DATA_AVAILABLE);
             intent.putExtra(EXTRA_DATA, value);
@@ -369,6 +377,7 @@ public class BluetoothLeService extends Service {
             Log.w(TAG, "BluetoothAdapter/Gatt/Characteristic not initialized");
             return;
         }
+        ProtocolTrace.read(characteristic.getUuid());
         try {
             if (mBluetoothGatt.readCharacteristic(characteristic)) {
                 Log.d(TAG, "readCharacteristic success");
@@ -385,6 +394,7 @@ public class BluetoothLeService extends Service {
             Log.w(TAG, "BluetoothAdapter/Gatt/Characteristic not initialized");
             return;
         }
+        ProtocolTrace.write(characteristic.getUuid(), characteristic.getValue(), characteristic.getWriteType());
         try {
             if (mBluetoothGatt.writeCharacteristic(characteristic)) {
                 Log.d(TAG, "writeCharacteristic success");
@@ -401,6 +411,7 @@ public class BluetoothLeService extends Service {
             Log.w(TAG, "BluetoothAdapter/Gatt/Characteristic not initialized");
             return;
         }
+        ProtocolTrace.write(characteristic.getUuid(), value, writeType);
         try {
             boolean success;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -425,6 +436,7 @@ public class BluetoothLeService extends Service {
             Log.w(TAG, "BluetoothAdapter/Gatt/Descriptor not initialized");
             return;
         }
+        ProtocolTrace.descriptorWrite(descriptor.getUuid(), descriptor.getValue());
         try {
             if (mBluetoothGatt.writeDescriptor(descriptor)) {
                 Log.d(TAG, "writeDescriptor success");
