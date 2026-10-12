@@ -18,6 +18,7 @@ package com.simplecoil.simplecoil
 
 import android.app.Application
 import com.simplecoil.simplecoil.hardware.blaster.BlasterManager
+import com.simplecoil.simplecoil.hardware.blaster.BleDeviceRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -31,4 +32,6 @@ class SimpleCoilApp : Application() {
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     val blasterManager: BlasterManager by lazy { BlasterManager(appScope) }
+
+    val bleDeviceRepository: BleDeviceRepository by lazy { BleDeviceRepository(blasterManager) }
 }

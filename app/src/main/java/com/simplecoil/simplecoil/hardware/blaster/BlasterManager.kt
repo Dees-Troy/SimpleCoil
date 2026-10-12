@@ -21,6 +21,7 @@ import com.simplecoil.simplecoil.BluetoothLeService
 import com.simplecoil.simplecoil.GattAttributes
 import com.simplecoil.simplecoil.domain.session.BatteryLevelPolicy
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -43,6 +44,7 @@ class BlasterManager(private val scope: CoroutineScope) : GattEventSink {
     val events: SharedFlow<BlasterEvent> = _events.asSharedFlow()
 
     private var bluetoothLeService: BluetoothLeService? = null
+    private var serviceEvents: Job? = null
 
     /** Address reported with [BlasterEvent.Connected]. */
     var deviceAddress: String? = null
@@ -54,11 +56,9 @@ class BlasterManager(private val scope: CoroutineScope) : GattEventSink {
     private var commandId: Byte = 0x00
     private val weaponProfile: Byte = 0x00
 
-    /**
-     * Type reported by the ID characteristic. Settable because FullscreenActivity still consumes
-     * the GATT broadcasts itself and hands the type over.
-     */
+    /** Type reported by the ID characteristic. */
     var blasterType: Byte = GattProtocolHandler.BLASTER_TYPE_PISTOL
+        private set
 
     /** Last recoil setting requested (or toggled), remembered even while disconnected. */
     var isRecoilEnabled = true
@@ -78,10 +78,27 @@ class BlasterManager(private val scope: CoroutineScope) : GattEventSink {
 
     private val battery = BatteryLevelPolicy.Averager()
 
+    /**
+     * Attaches the bound service (or detaches, with null). The manager is the single consumer of
+     * the service's GATT events; call this before [BluetoothLeService.connect] so none are missed.
+     */
     fun setBluetoothLeService(service: BluetoothLeService?) {
+        serviceEvents?.cancel()
+        serviceEvents = null
         bluetoothLeService = service
         if (service != null) {
+            serviceEvents = scope.launch {
+                service.events.collect { onGattEvent(it) }
+            }
             discoverGattCharacteristics()
+        }
+    }
+
+    private fun onGattEvent(event: GattEvent) {
+        when (event) {
+            is GattEvent.Action -> onEvent(event.action)
+            is GattEvent.Telemetry -> onTelemetry(event.data)
+            is GattEvent.BlasterId -> onBlasterId(event.blasterType)
         }
     }
 

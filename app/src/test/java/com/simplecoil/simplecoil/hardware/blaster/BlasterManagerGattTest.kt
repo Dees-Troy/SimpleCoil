@@ -30,6 +30,7 @@ import com.simplecoil.simplecoil.hardware.blaster.RecoilProtocolFixtures.GOLDEN_
 import com.simplecoil.simplecoil.hardware.blaster.RecoilProtocolFixtures.telemetry
 import com.simplecoil.simplecoil.hardware.blaster.RecoilProtocolFixtures.toHex
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -70,6 +71,7 @@ class BlasterManagerGattTest {
     private lateinit var configChar: BluetoothGattCharacteristic
     private lateinit var idChar: BluetoothGattCharacteristic
     private val events = mutableListOf<String>()
+    private val serviceEvents = MutableSharedFlow<GattEvent>(extraBufferCapacity = 64)
 
     @Before
     fun setUp() {
@@ -78,6 +80,7 @@ class BlasterManagerGattTest {
             manager.events.collect { events += compact(it) }
         }
         service = mock(BluetoothLeService::class.java)
+        `when`(service.events).thenReturn(serviceEvents)
         telemetryChar = mock(BluetoothGattCharacteristic::class.java)
         commandChar = mock(BluetoothGattCharacteristic::class.java)
         configChar = mock(BluetoothGattCharacteristic::class.java)
@@ -360,14 +363,6 @@ class BlasterManagerGattTest {
     }
 
     @Test
-    fun blasterType_setByActivityChangesBurstRecoil() {
-        connect()
-        manager.blasterType = GattProtocolHandler.BLASTER_TYPE_RIFLE
-        manager.setShotMode(GameSettingsRepository.SHOT_MODE_BURST, GameSettingsRepository.FIRING_MODE_OUTDOOR_NO_CONE)
-        assertEquals("00 00 09 03 03 FF 00 FF FF 78 02 34 00 00 00 00 00 00 00 00", toHex(captureSingleWrite(configChar)))
-    }
-
-    @Test
     fun missingBlasterTypeDefaultsToPistol() {
         manager.onBlasterId(GattProtocolHandler.BLASTER_TYPE_RIFLE)
         manager.onBlasterId(null)
@@ -389,6 +384,34 @@ class BlasterManagerGattTest {
         manager.onEvent(BluetoothLeService.ACTION_GATT_DISCONNECTED)
         assertFalse(manager.isConnected)
         assertEquals(listOf("connected:AA:BB:CC:DD:EE:FF", "disconnected"), events)
+    }
+
+    // ----------------------------------------------------------------------------------------
+    // Consuming the service's in-process events (D8)
+    // ----------------------------------------------------------------------------------------
+
+    @Test
+    fun serviceEvents_areConsumedInOrderOnceAttached() {
+        connect()
+        advance(0)
+        serviceEvents.tryEmit(GattEvent.Action(BluetoothLeService.ACTION_GATT_CONNECTED))
+        serviceEvents.tryEmit(GattEvent.BlasterId(GattProtocolHandler.BLASTER_TYPE_RIFLE))
+        serviceEvents.tryEmit(GattEvent.Telemetry(GOLDEN_HIT_BY_PLAYER_2))
+        serviceEvents.tryEmit(GattEvent.Action(BluetoothLeService.CHARACTERISTIC_WRITE_FINISHED))
+        advance(0)
+        assertEquals(listOf("connected:null", "type:1", "telemetry", "playerId:1", "battery:15/1",
+            "hit:8/5/primary", "writeFinished"), events)
+    }
+
+    @Test
+    fun serviceEvents_stopWhenDetached() {
+        connect()
+        advance(0)
+        manager.setBluetoothLeService(null)
+        advance(0)
+        serviceEvents.tryEmit(GattEvent.Action(BluetoothLeService.ACTION_GATT_CONNECTED))
+        advance(0)
+        assertTrue(events.isEmpty())
     }
 
     @Test

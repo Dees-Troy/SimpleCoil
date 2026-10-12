@@ -38,6 +38,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
+import com.simplecoil.simplecoil.hardware.blaster.GattEvent
 import com.simplecoil.simplecoil.hardware.blaster.GattEventSink
 import com.simplecoil.simplecoil.hardware.blaster.GattIo
 import com.simplecoil.simplecoil.hardware.blaster.ProtocolTrace
@@ -46,6 +47,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -109,7 +113,15 @@ open class BluetoothLeService : Service() {
 
     // Non-null only after connect() succeeded, which requires an initialized adapter.
     private var gatt: GattIo? = null
-    private var eventSink: GattEventSink = BroadcastEventSink()
+    private val _events = MutableSharedFlow<GattEvent>(extraBufferCapacity = EVENT_BUFFER)
+
+    /**
+     * GATT events in callback order (D8: in-process, replacing the package broadcasts). Emitted
+     * from Binder threads; collectors choose their own dispatcher. Not replayed.
+     */
+    val events: SharedFlow<GattEvent> = _events.asSharedFlow()
+
+    private var eventSink: GattEventSink = FlowEventSink()
 
     /** Runs the protocol delays (§1.6) on the main thread, as the Handlers this replaced did. */
     private var scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -229,47 +241,37 @@ open class BluetoothLeService : Service() {
         }
     }
 
-    /** Delivers GATT events to the app as package-scoped broadcasts. */
-    private inner class BroadcastEventSink : GattEventSink {
-        override fun onEvent(action: String) {
-            sendBroadcast(Intent(action))
-        }
+    /** Delivers GATT events to [events]. */
+    private inner class FlowEventSink : GattEventSink {
+        override fun onEvent(action: String) = emit(GattEvent.Action(action))
 
-        override fun onTelemetry(data: ByteArray?) {
-            val intent = Intent(TELEMETRY_DATA_AVAILABLE)
-            intent.putExtra(EXTRA_DATA, data)
-            sendBroadcast(intent)
-        }
+        override fun onTelemetry(data: ByteArray?) = emit(GattEvent.Telemetry(data))
 
-        override fun onBlasterId(blasterType: Byte?) {
-            val intent = Intent(ID_DATA_AVAILABLE)
-            if (blasterType != null) {
-                intent.putExtra(EXTRA_DATA, blasterType)
+        override fun onBlasterId(blasterType: Byte?) = emit(GattEvent.BlasterId(blasterType))
+
+        private fun emit(event: GattEvent) {
+            if (!_events.tryEmit(event)) {
+                Log.w(TAG, "Event buffer full, dropped $event")
             }
-            sendBroadcast(intent)
         }
     }
 
     @VisibleForTesting
     internal fun getGattCallback(): BluetoothGattCallback = gattCallback
 
-    /** Test seam: replaces the connected GATT, the event transport and the delay scope. */
+    /**
+     * Test seam: replaces the connected GATT and the delay scope, and the event transport unless
+     * [eventSink] is null (then events go to [events] as in the app).
+     */
     @VisibleForTesting
-    internal fun attachForTest(gatt: GattIo?, eventSink: GattEventSink, scope: CoroutineScope) {
+    internal fun attachForTest(gatt: GattIo?, eventSink: GattEventSink?, scope: CoroutineScope) {
         this.gatt = gatt
-        this.eventSink = eventSink
+        if (eventSink != null) this.eventSink = eventSink
         this.scope = scope
     }
 
     inner class LocalBinder : Binder() {
         fun getService(): BluetoothLeService = this@BluetoothLeService
-    }
-
-    override fun sendBroadcast(intent: Intent?) {
-        if (intent != null && intent.getPackage() == null) {
-            intent.setPackage(packageName)
-        }
-        super.sendBroadcast(intent)
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
@@ -486,6 +488,9 @@ open class BluetoothLeService : Service() {
         private const val NOTIFICATION_ID = 1337
         private const val CHANNEL_ID = "BluetoothLeServiceChannel"
 
+        /** About 25 s of telemetry; a full buffer means a stalled collector. */
+        private const val EVENT_BUFFER = 256
+
         private const val STATE_DISCONNECTED = 0
         private const val STATE_CONNECTING = 1
         private const val STATE_CONNECTED = 2
@@ -503,7 +508,6 @@ open class BluetoothLeService : Service() {
         const val ID_DATA_AVAILABLE = "com.example.bluetooth.le.ID_DATA_AVAILABLE"
         const val CHARACTERISTIC_WRITE_FINISHED = "com.example.bluetooth.le.CHARACTERISTIC_WRITE_FINISHED"
         const val DESCRIPTOR_WRITE_FINISHED = "com.example.bluetooth.le.DESCRIPTOR_WRITE_FINISHED"
-        const val EXTRA_DATA = "com.example.bluetooth.le.EXTRA_DATA"
 
         @JvmField
         val UUID_RECOIL_TELEMETRY: UUID = UUID.fromString(GattAttributes.RECOIL_TELEMETRY_UUID)

@@ -22,7 +22,12 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import com.simplecoil.simplecoil.hardware.blaster.GattEventSink
 import com.simplecoil.simplecoil.hardware.blaster.GattIo
+import com.simplecoil.simplecoil.hardware.blaster.RecoilProtocolFixtures
+import com.simplecoil.simplecoil.hardware.blaster.GattEvent
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -54,6 +59,7 @@ import java.util.UUID
  * GATT calls go to a mocked GattIo, events to a recording GattEventSink and protocol delays to a
  * virtual-time TestScope, all injected through BluetoothLeService.attachForTest().
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class BluetoothLeServiceGattTest {
 
     /** One event delivered to the sink: the action plus its payload, if any. */
@@ -92,7 +98,7 @@ class BluetoothLeServiceGattTest {
         service = object : BluetoothLeService() {
             override fun startAsForeground(statusText: String) {
                 // Building the notification needs a real Context; record the call instead.
-                events += Event(START_FOREGROUND)
+                this@BluetoothLeServiceGattTest.events += Event(START_FOREGROUND)
             }
         }
         gatt = mock(GattIo::class.java)
@@ -328,6 +334,36 @@ class BluetoothLeServiceGattTest {
         val id = characteristic(GattAttributes.RECOIL_ID_UUID)
         service.readCharacteristic(id)
         verify(gatt).readCharacteristic(id)
+    }
+
+    // ----------------------------------------------------------------------------------------
+    // In-process event transport (D8)
+    // ----------------------------------------------------------------------------------------
+
+    @Test
+    fun events_arePublishedInCallbackOrderWithPayloads() {
+        val flowService = BluetoothLeService()
+        flowService.attachForTest(gatt, null, scope)
+        val received = mutableListOf<GattEvent>()
+        scope.backgroundScope.launch(UnconfinedTestDispatcher(scope.testScheduler)) {
+            flowService.events.collect { received += it }
+        }
+        val cb = flowService.getGattCallback()
+        val telemetry = RecoilProtocolFixtures.GOLDEN_IDLE.clone()
+        val id = ByteArray(20).also { it[10] = 0x01 }
+
+        cb.onServicesDiscovered(callbackGatt, GATT_SUCCESS)
+        cb.onCharacteristicRead(callbackGatt, characteristic(GattAttributes.RECOIL_ID_UUID), id, GATT_SUCCESS)
+        cb.onCharacteristicChanged(callbackGatt, characteristic(GattAttributes.RECOIL_TELEMETRY_UUID), telemetry)
+        cb.onCharacteristicWrite(callbackGatt, characteristic(GattAttributes.RECOIL_CONFIG_UUID), GATT_SUCCESS)
+        cb.onConnectionStateChange(callbackGatt, GATT_SUCCESS, STATE_DISCONNECTED)
+
+        assertEquals(5, received.size)
+        assertEquals(GattEvent.Action(BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED), received[0])
+        assertEquals(GattEvent.BlasterId(0x01), received[1])
+        assertArrayEquals(telemetry, (received[2] as GattEvent.Telemetry).data)
+        assertEquals(GattEvent.Action(BluetoothLeService.CHARACTERISTIC_WRITE_FINISHED), received[3])
+        assertEquals(GattEvent.Action(BluetoothLeService.ACTION_GATT_DISCONNECTED), received[4])
     }
 
     // ----------------------------------------------------------------------------------------
