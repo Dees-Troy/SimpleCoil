@@ -59,7 +59,13 @@ class BleConnectionManagerTest {
     private val events = mutableListOf<BleConnectionEvent>()
     private var permission = true
 
+    private var starts = 0
+
     private val binder = object : BleConnectionManager.ServiceBinder {
+        override fun start() {
+            starts++
+        }
+
         override fun bind(connection: ServiceConnection) {
             bound += connection
         }
@@ -264,6 +270,37 @@ class BleConnectionManagerTest {
         manager.reconnect(null)
         manager.reconnect("AA:BB:CC:DD:EE:FF")
         verify(service, org.mockito.Mockito.times(2)).connect("AA:BB:CC:DD:EE:FF")
+    }
+
+    @Test
+    fun rescanWhileBound_reusesTheBindingAndConnectsTheNewMatch() {
+        // B4: a reconnect after a lost link used to bind again on every scan match without
+        // unbinding, leaving one extra binding per reconnect.
+        manager.startScan(adapter, "")
+        manager.scanCallback.onScanResult(0, scanResult(device("SRG1", "AA:BB:CC:DD:EE:FF")))
+        onServiceConnected()
+        manager.startScan(adapter, "AA:BB:CC:DD:EE:FF")
+        manager.scanCallback.onScanResult(0, scanResult(device("SRG1", "AA:BB:CC:DD:EE:FF")))
+        assertEquals(1, bound.size)
+        assertEquals(2, starts)
+        verify(service, org.mockito.Mockito.times(2)).connect("AA:BB:CC:DD:EE:FF")
+        verify(service, org.mockito.Mockito.times(1)).initialize()
+        assertEquals(2, saved.size)
+
+        manager.reset()
+        assertEquals(bound, unbound)
+    }
+
+    @Test
+    fun matchWhileBindingIsPending_connectsLatestAddressOnBind() {
+        manager.startScan(adapter, "")
+        manager.scanCallback.onScanResult(0, scanResult(device("SRG1", "AA:AA:AA:AA:AA:AA")))
+        manager.startScan(adapter, "BB:BB:BB:BB:BB:BB")
+        manager.scanCallback.onScanResult(0, scanResult(device("SRG1", "BB:BB:BB:BB:BB:BB")))
+        assertEquals(1, bound.size)
+        onServiceConnected()
+        verify(service).connect("BB:BB:BB:BB:BB:BB")
+        verify(service, never()).connect("AA:AA:AA:AA:AA:AA")
     }
 
     @Test

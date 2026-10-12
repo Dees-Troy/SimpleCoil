@@ -90,6 +90,8 @@ class BleConnectionManager(
 ) {
     /** Starts/binds/unbinds BluetoothLeService. */
     interface ServiceBinder {
+        /** startForegroundService(): the service enters the foreground in onStartCommand. */
+        fun start()
         fun bind(connection: ServiceConnection)
         fun unbind(connection: ServiceConnection)
     }
@@ -266,7 +268,18 @@ class BleConnectionManager(
         return false
     }
 
+    /**
+     * Binds the service once; while that binding exists, later matches reuse it instead of
+     * stacking another ServiceConnection (B4).
+     */
     private fun bindService() {
+        serviceBinder.start()
+        if (serviceConnection != null) {
+            // Already bound (or binding). If the service is up, connect to the new match now;
+            // otherwise onServiceConnected will use the latest address.
+            service?.let { connect(it) }
+            return
+        }
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, binder: IBinder) {
                 val bound = (binder as BluetoothLeService.LocalBinder).getService()
@@ -277,10 +290,7 @@ class BleConnectionManager(
                 }
                 // Attach before connecting so BlasterManager sees every GATT event.
                 blasterManager.setBluetoothLeService(bound)
-                // Automatically connects to the device upon successful start-up initialization.
-                bound.connect(address)
-                saveDeviceAddress(address)
-                isConnected = true
+                connect(bound)
             }
 
             override fun onServiceDisconnected(name: ComponentName?) {
@@ -292,16 +302,25 @@ class BleConnectionManager(
         serviceBinder.bind(connection)
     }
 
+    private fun connect(bound: BluetoothLeService) {
+        // Automatically connects to the device upon successful start-up initialization.
+        bound.connect(address)
+        saveDeviceAddress(address)
+        isConnected = true
+    }
+
     private fun emit(event: BleConnectionEvent) {
         if (!_events.tryEmit(event)) Log.w(TAG, "Dropped $event")
     }
 
     /** Binds on the application context, starting the service in the foreground first. */
     class AndroidServiceBinder(private val context: Context) : ServiceBinder {
+        override fun start() {
+            ContextCompat.startForegroundService(context, Intent(context, BluetoothLeService::class.java))
+        }
+
         override fun bind(connection: ServiceConnection) {
-            val intent = Intent(context, BluetoothLeService::class.java)
-            ContextCompat.startForegroundService(context, intent)
-            context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
+            context.bindService(Intent(context, BluetoothLeService::class.java), connection, Context.BIND_AUTO_CREATE)
         }
 
         override fun unbind(connection: ServiceConnection) {
