@@ -60,7 +60,8 @@ data class SessionState(
     val clock: GameClock = GameClock.Stopped(null),
 )
 
-enum class SessionSound { BEEP, ELIMINATED, EMPTY, HIT, RELOAD, SHOT, SPAWN }
+/** Game sounds. SCORE is played by the network side, the rest by the session. */
+enum class SessionSound { BEEP, ELIMINATED, EMPTY, HIT, RELOAD, SCORE, SHOT, SPAWN }
 
 enum class SessionToast { GRENADE_PAIRED, OUT_OF_LIVES, RECOIL_FORCED_ENABLED, RECOIL_FORCED_DISABLED, GAME_TIME_EXPIRED }
 

@@ -28,7 +28,6 @@ import android.graphics.Color;
 import android.graphics.drawable.AnimationDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
-import android.media.MediaPlayer;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -36,9 +35,6 @@ import android.net.NetworkInfo;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
-import android.os.VibrationEffect;
-import android.os.Vibrator;
-import android.os.VibratorManager;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -56,6 +52,7 @@ import com.simplecoil.simplecoil.domain.session.SessionNetwork;
 import com.simplecoil.simplecoil.domain.session.SessionSound;
 import com.simplecoil.simplecoil.domain.session.SessionState;
 import com.simplecoil.simplecoil.domain.session.SpawnPhase;
+import com.simplecoil.simplecoil.hardware.audio.SoundEffectPlayer;
 import com.simplecoil.simplecoil.hardware.blaster.BlasterEvent;
 import com.simplecoil.simplecoil.hardware.blaster.BleConnectionEvent;
 import com.simplecoil.simplecoil.hardware.blaster.BleConnectionManager;
@@ -189,7 +186,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private TextView mRespawnShieldCountdownTV = null;
 
 
-    private Vibrator vibrator = null;
 
     private String mDeviceAddress = ""; // MAC address of the tagger
 
@@ -221,7 +217,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
 
 
-    private static final int HIT_VIBRATE_DURATION_MILLISECONDS = 250;
     private AnimationDrawable mHitAnimation = null;
     // If you change these durations you will also need to change the duration in the res/anim/fadeout XML files to match
     private static final int HIT_ANIMATION_DURATION_MILLISECONDS = 400;
@@ -609,16 +604,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         }
 
         showConnectLayout();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            VibratorManager vibratorManager = (VibratorManager) getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
-            if (vibratorManager != null) {
-                vibrator = vibratorManager.getDefaultVibrator();
-            }
-        } else {
-            @SuppressWarnings("deprecation")
-            Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-            vibrator = v;
-        }
         Globals.getInstance().mPlayerName = prefs().playerName("Player");
         if (Globals.getInstance().mPlayerName.isEmpty() ||
             Globals.getInstance().mPlayerName.equalsIgnoreCase("Player") ||
@@ -1780,7 +1765,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         if (connectStatusTV != null) connectStatusTV.setText(R.string.connect_status_not_connected);
         session().onBlasterReset();
         endGame();
-        playSound(R.raw.eliminated, getApplicationContext());
+        sounds().play(SessionSound.ELIMINATED);
     }
 
     private AlertDialog mBlasterDisconnectDialog = null;
@@ -1839,32 +1824,14 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         }
     }
 
-    @SuppressWarnings("deprecation")
-    private void vibrate() {
-        if (vibrator == null || !vibrator.hasVibrator()) {
-            return;
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            vibrator.vibrate(VibrationEffect.createOneShot(FullscreenActivity.HIT_VIBRATE_DURATION_MILLISECONDS, VibrationEffect.DEFAULT_AMPLITUDE));
-        } else {
-            vibrator.vibrate(FullscreenActivity.HIT_VIBRATE_DURATION_MILLISECONDS);
-        }
-    }
-
-    public void playSound(int resId, Context ctx) {
-        MediaPlayer mp = MediaPlayer.create(ctx, resId);
-        mp.start();
-        mp.setOnCompletionListener(MediaPlayer::release);
-        mp.setLooping(false);
+    private SoundEffectPlayer sounds() {
+        return ((SimpleCoilApp) getApplication()).getSoundEffects();
     }
 
 
     private void handleSessionEffect(SessionEffect effect) {
-        if (effect instanceof SessionEffect.Sound) {
-            playSound(soundResource(((SessionEffect.Sound) effect).getSound()), getApplicationContext());
-        } else if (effect instanceof SessionEffect.Vibrate) {
-            vibrate();
-        } else if (effect instanceof SessionEffect.Toast) {
+        // Sounds and vibration are played app-side by SessionFeedback.
+        if (effect instanceof SessionEffect.Toast) {
             switch (((SessionEffect.Toast) effect).getToast()) {
                 case GRENADE_PAIRED:
                     Toast.makeText(getApplicationContext(), getString(R.string.grenade_paired_toast), Toast.LENGTH_SHORT).show();
@@ -1897,17 +1864,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         }
     }
 
-    private static int soundResource(SessionSound sound) {
-        switch (sound) {
-            case BEEP: return R.raw.beep;
-            case ELIMINATED: return R.raw.eliminated;
-            case EMPTY: return R.raw.empty;
-            case HIT: return R.raw.hit;
-            case RELOAD: return R.raw.reload;
-            case SHOT: return R.raw.shootingshort;
-            default: return R.raw.spawn;
-        }
-    }
 
     /** Last session state drawn; each view is only touched when its value changes. */
     private SessionState mRenderedSession = null;
@@ -2114,7 +2070,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 mScoreIncreaseIV.setVisibility(View.GONE);
                 mScoreIncreasePlayerNameTV.setVisibility(View.GONE);
             }, ELIMINATED_ANIMATION_DURATION_MILLISECONDS);
-            playSound(R.raw.score, getApplicationContext());
+            sounds().play(SessionSound.SCORE);
             if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
                 net().setTeamScore(net().getTeamScore() + 1);
                 mTeamScoreTV.setText(String.valueOf(net().getTeamScore()));

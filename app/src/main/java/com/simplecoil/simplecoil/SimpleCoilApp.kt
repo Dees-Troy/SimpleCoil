@@ -24,6 +24,11 @@ import com.simplecoil.simplecoil.hardware.blaster.BleDeviceRepository
 import com.simplecoil.simplecoil.domain.session.BlasterSessionEngine
 import com.simplecoil.simplecoil.domain.session.GlobalsGameConfig
 import com.simplecoil.simplecoil.data.preferences.UserPreferencesRepository
+import com.simplecoil.simplecoil.hardware.audio.AudioHapticsManager
+import com.simplecoil.simplecoil.hardware.audio.AudioHapticsPlayer
+import com.simplecoil.simplecoil.hardware.audio.HapticsPlayer
+import com.simplecoil.simplecoil.hardware.audio.SessionFeedback
+import com.simplecoil.simplecoil.hardware.audio.SoundEffectPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -59,8 +64,18 @@ class SimpleCoilApp : Application() {
         ).also {
             it.network = networkGateway
             it.attach(bleDeviceRepository.events)
+            SessionFeedback(soundEffects, haptics).attach(it.effects, appScope)
         }
     }
+
+    private val audioHaptics: AudioHapticsPlayer by lazy {
+        AudioHapticsPlayer(AudioHapticsManager.getInstance().also { it.initialize(this) })
+    }
+
+    /** Game sounds (preloaded SoundPool). */
+    val soundEffects: SoundEffectPlayer get() = audioHaptics
+
+    val haptics: HapticsPlayer get() = audioHaptics
 
     /** Network services, NETMSG_* events and the network session state (R13/R14). */
     val networkGateway: NetworkSessionGateway by lazy {
