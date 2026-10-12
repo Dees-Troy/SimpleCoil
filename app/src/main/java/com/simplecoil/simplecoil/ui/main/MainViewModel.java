@@ -25,14 +25,13 @@ import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
 
+import com.simplecoil.simplecoil.SimpleCoilApp;
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.domain.engine.GameEngine;
 import com.simplecoil.simplecoil.hardware.audio.AudioHapticsManager;
-import com.simplecoil.simplecoil.hardware.blaster.BlasterEventListener;
 import com.simplecoil.simplecoil.hardware.blaster.BlasterManager;
-import com.simplecoil.simplecoil.hardware.blaster.GattProtocolHandler;
 import com.simplecoil.simplecoil.hardware.location.LocationUpdateListener;
 import com.simplecoil.simplecoil.hardware.location.MapLocationManager;
 import com.simplecoil.simplecoil.network.discovery.ServerDiscoveryManager;
@@ -46,7 +45,6 @@ import java.net.InetAddress;
 public class MainViewModel extends AndroidViewModel implements
         GameStateRepository.GameStateChangeListener,
         GameEngine.GameEngineListener,
-        BlasterEventListener,
         LocationUpdateListener,
         ServerDiscoveryManager.ServerDiscoveryListener {
 
@@ -88,7 +86,7 @@ public class MainViewModel extends AndroidViewModel implements
                 GameStateRepository.getInstance(),
                 PlayerRepository.getInstance(),
                 GameEngine.getInstance(),
-                BlasterManager.getInstance(),
+                ((SimpleCoilApp) application).getBlasterManager(),
                 AudioHapticsManager.getInstance(),
                 MapLocationManager.getInstance(),
                 new ServerDiscoveryManager(application)
@@ -139,7 +137,6 @@ public class MainViewModel extends AndroidViewModel implements
     private void registerListeners() {
         gameStateRepo.addListener(this);
         gameEngine.addListener(this);
-        blasterManager.setListener(this);
         audioHapticsManager.initialize(getApplication());
     }
 
@@ -168,14 +165,6 @@ public class MainViewModel extends AndroidViewModel implements
 
     public void processHit(int shooterPlayerId, int damageAmount) {
         gameEngine.processHitReceived(shooterPlayerId, damageAmount);
-    }
-
-    public void connectBlaster(String deviceAddress) {
-        blasterManager.connect(deviceAddress);
-    }
-
-    public void disconnectBlaster() {
-        blasterManager.disconnect();
     }
 
     public void startServerDiscovery() {
@@ -294,63 +283,6 @@ public class MainViewModel extends AndroidViewModel implements
     @Override
     public void onRespawnShieldEnded() {
         isShieldedLiveData.postValue(false);
-    }
-
-    // BlasterEventListener
-    @Override
-    public void onBlasterConnected(String deviceAddress) {
-        blasterConnectedLiveData.postValue(true);
-    }
-
-    @Override
-    public void onBlasterDisconnected() {
-        blasterConnectedLiveData.postValue(false);
-    }
-
-    @Override
-    public void onServicesDiscovered() {}
-
-    @Override
-    public void onBlasterTypeDiscovered(byte blasterType) {}
-
-    @Override
-    public void onCharacteristicWriteFinished() {}
-
-    @Override
-    public void onTelemetryReceived(GattProtocolHandler.TelemetryData telemetry) {}
-
-    @Override
-    public void onPlayerIdChanged(byte playerId) {
-        playerIdLiveData.postValue(playerId);
-        updatePlayerTeam();
-    }
-
-    @Override
-    public void onTriggerPulled(byte shotsRemaining) {
-        pullTrigger();
-    }
-
-    @Override
-    public void onReloadRequested() {
-        reload();
-    }
-
-    @Override
-    public void onShotModeChanged(int newMode) {}
-
-    @Override
-    public void onRecoilToggled(boolean enabled) {
-        recoilEnabledLiveData.postValue(enabled);
-    }
-
-    @Override
-    public void onBatteryLevelUpdated(long averageBatteryLevel, byte blasterType) {
-        batteryLevelLiveData.postValue(averageBatteryLevel);
-    }
-
-    @Override
-    public void onHitReceived(int shooterPlayerId, byte shotId, boolean isSecondaryHit) {
-        processHit(shooterPlayerId, settingsRepo.getDamage());
     }
 
     // LocationUpdateListener

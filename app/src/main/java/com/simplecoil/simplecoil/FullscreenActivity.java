@@ -216,6 +216,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private boolean mCommunicating = false; // Used to make sure that we start receiving telemetry data after initial connection
     private String mDeviceAddress = ""; // MAC address of the tagger
 
+    private BlasterManager blaster() {
+        return ((SimpleCoilApp) getApplication()).getBlasterManager();
+    }
+
     private void setDeviceAddress(String address) {
         mDeviceAddress = address != null ? address : "";
         Globals.getInstance().mDeviceAddress = mDeviceAddress;
@@ -352,7 +356,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 }
                 // Automatically connects to the device upon successful start-up initialization.
                 mBluetoothLeService.connect(mDeviceAddress);
-                BlasterManager.getInstance().setBluetoothLeService(mBluetoothLeService);
+                blaster().setBluetoothLeService(mBluetoothLeService);
                 SharedPreferences.Editor editor = sharedPreferences.edit();
                 editor.putString(PREF_DEVICE_ADDRESS, mDeviceAddress);
                 editor.apply();
@@ -362,7 +366,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             @Override
             public void onServiceDisconnected(ComponentName componentName) {
                 mBluetoothLeService = null;
-                BlasterManager.getInstance().setBluetoothLeService(null);
+                blaster().setBluetoothLeService(null);
             }
         };
         Intent gattServiceIntent = new Intent(getBaseContext(), BluetoothLeService.class);
@@ -1699,7 +1703,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         if (!TEST_NETWORK) {
             if (Globals.getInstance().mPlayerID >= 1 && Globals.getInstance().mPlayerID <= Globals.MAX_PLAYER_ID) {
                 Log.d(TAG, "setting player ID to " + Globals.getInstance().mPlayerID);
-                BlasterManager.getInstance().setTeam(Globals.getInstance().mPlayerID);
+                blaster().setTeam(Globals.getInstance().mPlayerID);
             }
         }
         if (sharedPreferences != null) {
@@ -1792,7 +1796,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mReloading = reloadStatus;
         mShotsRemainingTV.setVisibility(View.INVISIBLE);
         mReloadBar.setVisibility(View.VISIBLE);
-        BlasterManager.getInstance().startReload(Globals.getInstance().mPlayerID);
+        blaster().startReload(Globals.getInstance().mPlayerID);
     }
 
     /* Second stage of the reload commands which tells the tagger how many shots to load and allows
@@ -1804,7 +1808,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mEmptyTriggerCount = 0;
         Log.d(TAG, "Finishing reload");
         setShotsRemaining(Globals.getInstance().mFullReload);
-        BlasterManager.getInstance().finishReload(Globals.getInstance().mPlayerID, Globals.getInstance().mFullReload);
+        blaster().finishReload(Globals.getInstance().mPlayerID, Globals.getInstance().mFullReload);
     }
 
     private void setShotsRemaining(byte shotsRemaining) {
@@ -1957,7 +1961,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putInt(PREF_SHOT_MODE, mCurrentShotMode);
         editor.apply();
-        BlasterManager.getInstance().setShotMode(shotMode, Globals.getInstance().mCurrentFiringMode);
+        blaster().setShotMode(shotMode, Globals.getInstance().mCurrentFiringMode);
     }
 
     // Config 10 00 02 02 ff and 15 sets of 00 disables recoil
@@ -1972,7 +1976,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putBoolean(PREF_RECOIL_ENABLED, mRecoilEnabled);
         editor.apply();
-        BlasterManager.getInstance().setRecoil(enabled);
+        blaster().setRecoil(enabled);
     }
 
     private void applyCurrentRecoilSetting() {
@@ -2461,7 +2465,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 // Show all the supported services and characteristics on the user interface.
                 TextView connectStatusTV = findViewById(R.id.connect_status_tv);
                 if (connectStatusTV != null) connectStatusTV.setText(R.string.connect_status_communicating);
-                BlasterManager.getInstance().discoverGattCharacteristics();
+                blaster().discoverGattCharacteristics();
                 if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE)
                     playSound(R.raw.spawn, getApplicationContext());
                 else {
@@ -2476,7 +2480,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 }
             } else if (BluetoothLeService.ID_DATA_AVAILABLE.equals(action)) {
                 mBlasterType = intent.getByteExtra(BluetoothLeService.EXTRA_DATA, BLASTER_TYPE_PISTOL);
-                BlasterManager.getInstance().setBlasterType(mBlasterType);
+                blaster().setBlasterType(mBlasterType);
                 if (mBlasterType == BLASTER_TYPE_RIFLE) {
                     Toast.makeText(getApplicationContext(), getString(R.string.rifle_detected_toast, mDeviceAddress), Toast.LENGTH_LONG).show();
                 } else {
