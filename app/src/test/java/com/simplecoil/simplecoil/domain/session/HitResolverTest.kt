@@ -232,14 +232,25 @@ class HitResolverTest {
     }
 
     @Test
-    fun networkDoubleHit_slot2CostsDefaultPlusConfiguredDamage() {
-        // Characterization: slot 2 adds DAMAGE_PER_HIT and then the shooter's configured damage
-        // on top, where slot 1 replaces the default with the configured value.
+    fun networkDoubleHit_eachSlotCostsItsShootersConfiguredDamage() {
+        // Before the fix slot 2 added DAMAGE_PER_HIT and then the configured damage on top (-3 here).
         val lookups = FakeLookups(damage = mapOf(1.toByte() to -1, 3.toByte() to -1))
         val r = resolve(GOLDEN_DOUBLE_HIT, context(useNetwork = true), lookups)
-        assertEquals(-3, r.healthRemoved)
+        assertEquals(-2, r.healthRemoved)
         // Only one HIT message per 400 ms window.
         assertEquals(1, r.messages.size)
+    }
+
+    @Test
+    fun networkDoubleHit_slot2UsesConfiguredDamageOrDefault() {
+        val configured = resolve(GOLDEN_DOUBLE_HIT, context(useNetwork = true),
+            FakeLookups(damage = mapOf(1.toByte() to -2, 3.toByte() to -4)))
+        assertEquals(-6, configured.healthRemoved)
+        resolve(GOLDEN_IDLE)
+        // Player 3 has no settings: slot 2 falls back to DAMAGE_PER_HIT.
+        val fallback = resolve(GOLDEN_DOUBLE_HIT, context(useNetwork = true),
+            FakeLookups(damage = mapOf(1.toByte() to -2)))
+        assertEquals(-2 + Globals.DAMAGE_PER_HIT, fallback.healthRemoved)
     }
 
     /**

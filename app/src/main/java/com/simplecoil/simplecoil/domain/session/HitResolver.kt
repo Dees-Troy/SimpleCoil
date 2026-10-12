@@ -120,7 +120,8 @@ class HitResolver @JvmOverloads constructor(
                         if (hitBy2 == Globals.GRENADE_PLAYER_ID) {
                             hitById = grenadeShooter(shotIdByte2, hitById, lookups)
                         }
-                        lookups.damage(hitById)?.let { healthRemoved += it }
+                        // The shooter's configured damage replaces the default, as for slot 1
+                        lookups.damage(hitById)?.let { healthRemoved += it - Globals.DAMAGE_PER_HIT }
                         rateLimitedMessage(context.currentHealth + healthRemoved, hitById, messages)
                     }
                 }
