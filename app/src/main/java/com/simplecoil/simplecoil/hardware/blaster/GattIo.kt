@@ -16,6 +16,7 @@
 
 package com.simplecoil.simplecoil.hardware.blaster
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
@@ -47,7 +48,11 @@ interface GattIo {
     fun writeDescriptor(descriptor: BluetoothGattDescriptor): Boolean
 
     companion object {
-        /** Wraps a real BluetoothGatt. */
+        /**
+         * Wraps a real BluetoothGatt. The BLUETOOTH_CONNECT check happens before a connect is
+         * started (BlePermissionController, BleConnectionManager), not on each delegated call.
+         */
+        @SuppressLint("MissingPermission")
         @JvmStatic
         fun of(gatt: BluetoothGatt): GattIo = object : GattIo {
             override fun connect() = gatt.connect()
