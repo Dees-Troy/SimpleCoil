@@ -350,7 +350,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     @Override
     protected void onResume() {
         super.onResume();
-        ContextCompat.registerReceiver(this, mServerUpdateReceiver, makeServerUpdateIntentFilter(), ContextCompat.RECEIVER_EXPORTED);
+        ContextCompat.registerReceiver(this, mServerUpdateReceiver, makeServerUpdateIntentFilter(), ContextCompat.RECEIVER_NOT_EXPORTED);
         setupUDPServiceConnection();
         setupTcpServerServiceConnection();
     }
