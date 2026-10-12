@@ -127,13 +127,32 @@ class BlasterManagerGattTest {
         manager.setBluetoothLeService(service)
     }
 
+    // Mockito matchers return null, which Kotlin rejects for BluetoothLeService's non-null
+    // parameters; these register the matcher and hand Kotlin a value it accepts.
+    @Suppress("UNCHECKED_CAST")
+    private fun <T> anyOf(type: Class<T>): T {
+        any(type)
+        return null as T
+    }
+
+    private fun <T> eqOf(value: T): T {
+        eq(value)
+        return value
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun <T> capture(captor: ArgumentCaptor<T>): T {
+        captor.capture()
+        return null as T
+    }
+
     private fun verifyNoWrites() {
-        verify(service, never()).writeCharacteristic(any(BluetoothGattCharacteristic::class.java), any(ByteArray::class.java), anyInt())
+        verify(service, never()).writeCharacteristic(anyOf(BluetoothGattCharacteristic::class.java), anyOf(ByteArray::class.java), anyInt())
     }
 
     private fun captureWrites(expectedChar: BluetoothGattCharacteristic, count: Int): List<ByteArray> {
         val captor = ArgumentCaptor.forClass(ByteArray::class.java)
-        verify(service, times(count)).writeCharacteristic(eq(expectedChar), captor.capture(), eq(WRITE_TYPE_DEFAULT))
+        verify(service, times(count)).writeCharacteristic(eqOf(expectedChar), capture<ByteArray>(captor), eq(WRITE_TYPE_DEFAULT))
         return captor.allValues
     }
 
@@ -189,8 +208,8 @@ class BlasterManagerGattTest {
         val gattService = recoilService("0000180f-0000-1000-8000-00805f9b34fb")
         `when`(service.supportedGattServices).thenReturn(listOf(gattService))
         manager.setBluetoothLeService(service)
-        verify(service, never()).setCharacteristicNotification(any(BluetoothGattCharacteristic::class.java), anyBoolean())
-        verify(service, never()).readCharacteristic(any(BluetoothGattCharacteristic::class.java))
+        verify(service, never()).setCharacteristicNotification(anyOf(BluetoothGattCharacteristic::class.java), anyBoolean())
+        verify(service, never()).readCharacteristic(anyOf(BluetoothGattCharacteristic::class.java))
 
         manager.setTeam(1)
         verifyNoWrites()
