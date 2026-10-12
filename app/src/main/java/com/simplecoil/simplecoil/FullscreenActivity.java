@@ -60,7 +60,14 @@ import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
+import com.simplecoil.simplecoil.domain.session.BatteryLevelPolicy;
+import com.simplecoil.simplecoil.domain.session.GrenadeDecoder;
+import com.simplecoil.simplecoil.domain.session.HitResolver;
+import com.simplecoil.simplecoil.domain.session.RecoilPolicy;
+import com.simplecoil.simplecoil.domain.session.ShotModePolicy;
 import com.simplecoil.simplecoil.hardware.blaster.BlasterManager;
+import com.simplecoil.simplecoil.hardware.blaster.QrPairingPayload;
+import com.simplecoil.simplecoil.hardware.blaster.ScanMatcher;
 import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -104,10 +111,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.util.ArrayList;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Queue;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -229,27 +234,26 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private static boolean mHasLivesLimit = false;
     private static int mLives = 0;
 
-    private static class LastHitData {
-        int playerID;
-        byte shotID;
-    }
+    private final HitResolver mHitResolver = new HitResolver();
+    private final HitResolver.Lookups mHitLookups = new HitResolver.Lookups() {
+        @Override
+        public int networkTeam(byte playerId) {
+            return Globals.getInstance().calcNetworkTeam(playerId);
+        }
 
-    private final LastHitData mLastHitData1 = new LastHitData();
-    private final LastHitData mLastHitData2 = new LastHitData();
+        @Override
+        public int grenadePairing(int grenadeId) {
+            return PlayerRepository.getInstance().getGrenadePairing(grenadeId);
+        }
 
-    /* We calculate an average of the last 100 battery reports. Starting out with a single value
-       simplifies some of the code that will have to be run every time the tagger sends telemetry
-       data. */
-    private long mBatteryCount = 1;
-    private Queue<Byte> mBatteryQueue;
-    private long mBatteryTotal = 16;
-    // Brand new alkalines report 16, recently charged rechargables report 13ish
-    private static final long BATTERY_LEVEL_PISTOL_GREEN = 14;
-    private static final long BATTERY_LEVEL_PISTOL_BLUE = 12;
-    private static final long BATTERY_LEVEL_PISTOL_YELLOW = 10;
-    private static final long BATTERY_LEVEL_RIFLE_GREEN = 21;
-    private static final long BATTERY_LEVEL_RIFLE_BLUE = 18;
-    private static final long BATTERY_LEVEL_RIFLE_YELLOW = 15;
+        @Override
+        public Integer damage(byte playerId) {
+            Globals.PlayerSettings settings = Globals.getInstance().mPlayerSettings.get(playerId);
+            return settings != null ? settings.damage : null;
+        }
+    };
+
+    private final BatteryLevelPolicy.Averager mBatteryAverager = new BatteryLevelPolicy.Averager();
 
     private static final byte BLASTER_TYPE_PISTOL = (byte)2;
     private static final byte BLASTER_TYPE_RIFLE = (byte)1;
@@ -293,13 +297,13 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private int mNetworkTeam = 0;
     private boolean mIsServer = false;
     private long mLastShotFired = 0; // to reduce shots fired message spam
-    private long mLastHitMessage = 0; // to reduce hit/out message spam
 
-    // Grenade stuff
-    private static final byte GRENADE_DAMAGE = (byte) 0x01;
-    private static final byte GRENADE_NEW_PAIR = (byte) 0x0E;
-    private static final byte GRENADE_PAIR_ID = (byte) 0x0F;
-    private static final byte GRENADE_DISARM = (byte) 0x0D;
+    // Grenade stuff. Decoding lives in GrenadeDecoder; these aliases stay only for
+    // LegacyTelemetryDecoderConstantsTest until the constants leave the activity (D1, Phase 3).
+    @SuppressWarnings("unused") private static final byte GRENADE_DAMAGE = GrenadeDecoder.GRENADE_DAMAGE;
+    @SuppressWarnings("unused") private static final byte GRENADE_NEW_PAIR = GrenadeDecoder.GRENADE_NEW_PAIR;
+    @SuppressWarnings("unused") private static final byte GRENADE_PAIR_ID = GrenadeDecoder.GRENADE_PAIR_ID;
+    @SuppressWarnings("unused") private static final byte GRENADE_DISARM = GrenadeDecoder.GRENADE_DISARM;
 
     /* We run a continuous handler in the background while the tagger is connected to monitor the
        connection status. Simply put, we set connectionTestHandler to false every time the handler
@@ -1495,13 +1499,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void initBatteryQueue() {
-        if (mBatteryQueue == null)
-            mBatteryQueue = new LinkedList<>();
-        else
-            mBatteryQueue.clear();
-        mBatteryQueue.add((byte)16);
-        mBatteryCount = 1;
-        mBatteryTotal = 16;
+        mBatteryAverager.reset();
     }
 
     private void startGame() {
@@ -1978,14 +1976,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void applyCurrentRecoilSetting() {
-        int recoilMode = Globals.getInstance().mServerRecoilSetting;
-        if (recoilMode == Globals.RECOIL_SETTING_ENABLED) {
-            setRecoil(true);
-        } else if (recoilMode == Globals.RECOIL_SETTING_DISABLED) {
-            setRecoil(false);
-        } else {
-            setRecoil(mRecoilEnabled);
-        }
+        setRecoil(RecoilPolicy.effective(Globals.getInstance().mServerRecoilSetting, mRecoilEnabled));
     }
 
     @Override
@@ -2105,8 +2096,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 return false;
             }
             try {
-                if (device.getName() != null && !device.getName().isEmpty()) {
-                    if ((mDeviceAddress.isEmpty() && device.getName().startsWith("SRG1")) || mDeviceAddress.equals(device.getAddress())) {
+                String name = device.getName();
+                if (name != null && !name.isEmpty()) {
+                    if (ScanMatcher.matches(name, device.getAddress(), mDeviceAddress)) {
                         Log.d(TAG, "Connecting to " + device.getName() + " '" + device.getAddress() + "'");
                         TextView connectStatusTV = findViewById(R.id.connect_status_tv);
                         if (connectStatusTV != null) {
@@ -2225,29 +2217,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void processQrResult(String rawQr) {
-        if (rawQr == null || rawQr.trim().isEmpty()) {
-            Log.e(TAG, "Did not get any good QR result");
-            return;
-        }
-
-        rawQr = rawQr.trim();
-        String macAddress;
-        String playerName = "";
-
-        if (rawQr.length() > 17 && rawQr.charAt(17) == '-') {
-            macAddress = rawQr.substring(0, 17).trim();
-            playerName = rawQr.substring(18).trim();
-        } else {
-            int dashIndex = rawQr.indexOf('-');
-            if (dashIndex != -1) {
-                macAddress = rawQr.substring(0, dashIndex).trim();
-                playerName = rawQr.substring(dashIndex + 1).trim();
-            } else {
-                macAddress = rawQr;
-            }
-        }
-
-        if (!macAddress.isEmpty()) {
+        QrPairingPayload payload = QrPairingPayload.parse(rawQr);
+        if (payload != null) {
+            String macAddress = payload.getMacAddress();
+            String playerName = payload.getPlayerName();
             setDeviceAddress(macAddress);
             Log.d(TAG, "Got QR Code MAC: " + mDeviceAddress);
             if (!playerName.isEmpty()) {
@@ -2606,6 +2579,21 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
        18 00 Unused?
        19 00 Unused?
      */
+    private void applyGrenadePairing(int hitBy, byte shotIdByte) {
+        GrenadeDecoder.PairingAction action = GrenadeDecoder.pairingAction(hitBy, shotIdByte);
+        if (action == GrenadeDecoder.PairingAction.PAIR) {
+            // This is a grenade trying to pair
+            if (Globals.getInstance().mPairedGrenadeID == 0) {
+                Globals.getInstance().mPairedGrenadeID = (byte) GrenadeDecoder.grenadeId(shotIdByte);
+                if (mUseNetwork && mTcpClient.isDedicatedServer())
+                    mTcpClient.sendPlayerGrenade();
+                Toast.makeText(getApplicationContext(), getString(R.string.grenade_paired_toast), Toast.LENGTH_SHORT).show();
+            }
+        } else if (action == GrenadeDecoder.PairingAction.UNPAIR) {
+            Globals.getInstance().mPairedGrenadeID = 0;
+        }
+    }
+
     private void processTelemetryData(byte[] data) {
         if (data != null && data.length > 0) {
             byte player_id = data[RECOIL_OFFSET_TEAM];
@@ -2663,260 +2651,115 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             }
             if (thumb_counter != mLastThumbButtonCount) {
                 mLastThumbButtonCount = thumb_counter;
-                if (mCurrentShotMode == Globals.SHOT_MODE_SINGLE) {
-                    if (Globals.getInstance().mAllowBurst3ShotMode)
-                        setShotMode(Globals.SHOT_MODE_BURST);
-                    else if (Globals.getInstance().mAllowAutoShotMode)
-                        setShotMode(Globals.SHOT_MODE_FULL_AUTO);
-                    else
-                        setShotMode(Globals.SHOT_MODE_SINGLE);
-                } else if (mCurrentShotMode == Globals.SHOT_MODE_BURST) {
-                    if (Globals.getInstance().mAllowAutoShotMode)
-                        setShotMode(Globals.SHOT_MODE_FULL_AUTO);
-                    else if (Globals.getInstance().mAllowSingleShotMode)
-                        setShotMode(Globals.SHOT_MODE_SINGLE);
-                    else
-                        setShotMode(Globals.SHOT_MODE_BURST);
-                } else if (mCurrentShotMode == Globals.SHOT_MODE_FULL_AUTO) {
-                    if (Globals.getInstance().mAllowSingleShotMode)
-                        setShotMode(Globals.SHOT_MODE_SINGLE);
-                    else if (Globals.getInstance().mAllowBurst3ShotMode)
-                        setShotMode(Globals.SHOT_MODE_BURST);
-                    else
-                        setShotMode(Globals.SHOT_MODE_FULL_AUTO);
-                }
+                Integer nextShotMode = ShotModePolicy.nextOnThumb(mCurrentShotMode, Globals.getInstance().mAllowSingleShotMode,
+                        Globals.getInstance().mAllowBurst3ShotMode, Globals.getInstance().mAllowAutoShotMode);
+                if (nextShotMode != null)
+                    setShotMode(nextShotMode);
             }
             if (power_counter != mLastPowerButtonCount) {
                 mLastPowerButtonCount = power_counter;
-                int recoilMode = Globals.getInstance().mServerRecoilSetting;
-                if (recoilMode == Globals.RECOIL_SETTING_ENABLED) {
-                    setRecoil(true);
-                    Toast.makeText(getApplicationContext(), "Recoil is forced ENABLED by server", Toast.LENGTH_SHORT).show();
-                } else if (recoilMode == Globals.RECOIL_SETTING_DISABLED) {
-                    setRecoil(false);
-                    Toast.makeText(getApplicationContext(), "Recoil is forced DISABLED by server", Toast.LENGTH_SHORT).show();
+                RecoilPolicy.PowerButton recoil = RecoilPolicy.onPowerButton(Globals.getInstance().mServerRecoilSetting, mRecoilEnabled);
+                if (recoil.getForced()) {
+                    setRecoil(recoil.getEnabled());
+                    Toast.makeText(getApplicationContext(), recoil.getEnabled() ? "Recoil is forced ENABLED by server" : "Recoil is forced DISABLED by server", Toast.LENGTH_SHORT).show();
                 } else {
-                    mRecoilEnabled = !mRecoilEnabled;
+                    mRecoilEnabled = recoil.getEnabled();
                     setRecoil(mRecoilEnabled);
                 }
             }
             byte battery_level = data[RECOIL_OFFSET_BATTERY_LEVEL];
-            mBatteryQueue.add(battery_level);
-            mBatteryTotal += battery_level;
-            if (mBatteryCount >= 100) {
-                Byte peek = mBatteryQueue.peek();
-                if (peek != null) {
-                    mBatteryTotal -= (long)peek;
-                }
-                mBatteryQueue.remove();
-            } else {
-                mBatteryCount++;
-            }
-            long averageBattery = mBatteryTotal / mBatteryCount;
+            long averageBattery = mBatteryAverager.add(battery_level);
             if (mBatteryLevelIV != null) {
-                if (mBlasterType == BLASTER_TYPE_RIFLE) {
-                    if (averageBattery >= BATTERY_LEVEL_RIFLE_GREEN)
+                switch (BatteryLevelPolicy.level(averageBattery, mBlasterType)) {
+                    case FULL:
                         mBatteryLevelIV.setImageResource(R.drawable.ic_battery_full_green_24dp);
-                    else if (averageBattery >= BATTERY_LEVEL_RIFLE_BLUE)
+                        break;
+                    case HIGH:
                         mBatteryLevelIV.setImageResource(R.drawable.ic_battery_80_blue_24dp);
-                    else if (averageBattery >= BATTERY_LEVEL_RIFLE_YELLOW)
+                        break;
+                    case MEDIUM:
                         mBatteryLevelIV.setImageResource(R.drawable.ic_battery_50_yellow_24dp);
-                    else
-                        mBatteryLevelIV.setImageResource(R.drawable.ic_battery_alert_red_24dp);
-                } else {
-                    if (averageBattery >= BATTERY_LEVEL_PISTOL_GREEN)
-                        mBatteryLevelIV.setImageResource(R.drawable.ic_battery_full_green_24dp);
-                    else if (averageBattery >= BATTERY_LEVEL_PISTOL_BLUE)
-                        mBatteryLevelIV.setImageResource(R.drawable.ic_battery_80_blue_24dp);
-                    else if (averageBattery >= BATTERY_LEVEL_PISTOL_YELLOW)
-                        mBatteryLevelIV.setImageResource(R.drawable.ic_battery_50_yellow_24dp);
-                    else
+                        break;
+                    default:
                         mBatteryLevelIV.setImageResource(R.drawable.ic_battery_alert_red_24dp);
                 }
             }
             if (hit_by_player1 != 0) {
-                int healthRemoved = 0;
-                byte hit_by_id = 0;
-                // Only the right-most 3 bits make up the shot ID
-                byte shot_id1 = (byte)(data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0x07);
-                byte shot_id2 = (byte)(data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0x07);
-                if (hit_by_player1 == Globals.GRENADE_PLAYER_ID && (data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0x0F) != GRENADE_DAMAGE) {
-                    if ((data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0x0F) == GRENADE_PAIR_ID) {
-                        // This is a grenade trying to pair
-                        if (Globals.getInstance().mPairedGrenadeID == 0) {
-                            Globals.getInstance().mPairedGrenadeID = (byte)((data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0xF0) >> 4);
-                            if (mUseNetwork && mTcpClient.isDedicatedServer())
-                                mTcpClient.sendPlayerGrenade();
-                            Toast.makeText(getApplicationContext(), getString(R.string.grenade_paired_toast), Toast.LENGTH_SHORT).show();
-                        }
-                    } else if ((data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0x0F) == GRENADE_NEW_PAIR || (data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0x0F) == GRENADE_DISARM) {
-                        Globals.getInstance().mPairedGrenadeID = 0;
-                    }
-                }
-                if (hit_by_player2 == Globals.GRENADE_PLAYER_ID && (data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0x0F) != GRENADE_DAMAGE) {
-                    if ((data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0x0F) == GRENADE_PAIR_ID) {
-                        // This is a grenade trying to pair
-                        if (Globals.getInstance().mPairedGrenadeID == 0) {
-                            Globals.getInstance().mPairedGrenadeID = (byte)((data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0xF0) >> 4);
-                            if (mUseNetwork && mTcpClient.isDedicatedServer())
-                                mTcpClient.sendPlayerGrenade();
-                            Toast.makeText(getApplicationContext(), getString(R.string.grenade_paired_toast), Toast.LENGTH_SHORT).show();
-                        }
-                    } else if ((data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0x0F) == GRENADE_NEW_PAIR || (data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0x0F) == GRENADE_DISARM) {
-                        Globals.getInstance().mPairedGrenadeID = 0;
-                    }
-                }
-                if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE && !mIsShielded) {
-                    boolean filter = (mLastHitData1.playerID == hit_by_player1 && mLastHitData1.shotID == shot_id1) || (mLastHitData2.playerID == hit_by_player1 && mLastHitData2.shotID == shot_id1);
-                    //Log.e(TAG, "Hit by 1 is using same shot ID from a previous hit, filter!" + hit_by_player1 + " " + data[RECOIL_OFFSET_HIT_BY1_SHOTID]);
-                    if (!filter) {
-                        boolean isGrenade = (hit_by_player1 == Globals.GRENADE_PLAYER_ID && (data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0x0F) != GRENADE_DAMAGE);
-                        // Ignore non-damage events from grenades
-                        if (!isGrenade) {
-                            mHitsTaken++;
-                            String hitsTaken = "" + mHitsTaken;
-                            mHitsTakenTV.setText(hitsTaken);
-                            healthRemoved = Globals.DAMAGE_PER_HIT;
-                            if (mUseNetwork) {
-                                hit_by_id = (byte) (hit_by_player1 >> 2);
-                                //Log.d(TAG, "hit by 1 ID is " + hit_by_id);
-                                if ((hit_by_player1 != Globals.GRENADE_PLAYER_ID) && Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA && Globals.getInstance().calcNetworkTeam(hit_by_id) == mNetworkTeam) {
-                                    //Log.d(TAG, "friendly fire ignored");
-                                    healthRemoved = 0;
-                                } else {
-                                    if (hit_by_player1 == Globals.GRENADE_PLAYER_ID) {
-                                        int grenadeID = (data[RECOIL_OFFSET_HIT_BY1_SHOTID] & 0xF0) >> 4;
-                                        if (grenadeID != 0) {
-                                            int pairedPlayer = PlayerRepository.getInstance().getGrenadePairing(grenadeID);
-                                            if (pairedPlayer != PlayerRepository.INVALID_PLAYER_ID)
-                                                hit_by_id = (byte) pairedPlayer;
-                                        }
-                                    }
-                                    if (Globals.getInstance().mPlayerSettings.get(hit_by_id) != null)
-                                        healthRemoved = Objects.requireNonNull(Globals.getInstance().mPlayerSettings.get(hit_by_id)).damage;
-                                    if (mLastHitMessage < System.currentTimeMillis()) {
-                                        mLastHitMessage = System.currentTimeMillis() + HIT_ANIMATION_DURATION_MILLISECONDS;
-                                        if (mTcpClient != null) {
-                                            if (mHealth + healthRemoved > 0)
-                                                mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_HIT + hit_by_id);
-                                            else
-                                                mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_OUT + hit_by_id);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    filter = ((mLastHitData1.playerID == hit_by_player2 && mLastHitData1.shotID == shot_id2) || (mLastHitData2.playerID == hit_by_player2 && mLastHitData2.shotID == shot_id2));
-                    //Log.e(TAG, "Hit by 2 is using same shot ID from a previous hit, filter!");
-                     if (!filter && hit_by_player2 != 0 && mHealth + healthRemoved > 0) {
-                        boolean isGrenade = (hit_by_player2 == Globals.GRENADE_PLAYER_ID && (data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0x0F) != GRENADE_DAMAGE);
-                        // Ignore non-damage events from grenades
-                        if (!isGrenade) {
-                            healthRemoved += Globals.DAMAGE_PER_HIT;
-                            if (mUseNetwork) {
-                                hit_by_id = (byte) (hit_by_player1 >> 2);
-                                //Log.d(TAG, "hit by 2 ID is " + hit_by_id);
-                                if ((hit_by_player2 != Globals.GRENADE_PLAYER_ID) && Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA && Globals.getInstance().calcNetworkTeam(hit_by_id) == mNetworkTeam) {
-                                    //Log.d(TAG, "friendly fire ignored");
-                                    healthRemoved -= Globals.DAMAGE_PER_HIT;
-                                } else {
-                                    if (hit_by_player2 == Globals.GRENADE_PLAYER_ID) {
-                                        int grenadeID = (data[RECOIL_OFFSET_HIT_BY2_SHOTID] & 0xF0) >> 4;
-                                        if (grenadeID != 0) {
-                                            int pairedPlayer = PlayerRepository.getInstance().getGrenadePairing(grenadeID);
-                                            if (pairedPlayer != PlayerRepository.INVALID_PLAYER_ID)
-                                                hit_by_id = (byte) pairedPlayer;
-                                        }
-                                    }
-                                    if (Globals.getInstance().mPlayerSettings.get(hit_by_id) != null)
-                                        healthRemoved += Objects.requireNonNull(Globals.getInstance().mPlayerSettings.get(hit_by_id)).damage;
-                                    if (mLastHitMessage < System.currentTimeMillis()) {
-                                        mLastHitMessage = System.currentTimeMillis() + HIT_ANIMATION_DURATION_MILLISECONDS;
-                                        if (mTcpClient != null) {
-                                            if (mHealth + healthRemoved > 0)
-                                                mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_HIT + hit_by_id);
-                                            else
-                                                mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_OUT + hit_by_id);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if (hit_by_player1 != Globals.GRENADE_PLAYER_ID) {
-                        mLastHitData1.playerID = hit_by_player1;
-                        mLastHitData1.shotID = shot_id1;
-                    } else {
-                        mLastHitData1.playerID = Globals.INVALID_PLAYER_ID;
-                    }
-                    if (hit_by_player2 > 0 && hit_by_player2 != Globals.GRENADE_PLAYER_ID) {
-                        mLastHitData2.playerID = hit_by_player2;
-                        mLastHitData2.shotID = shot_id2;
-                    } else {
-                        mLastHitData2.playerID = Globals.INVALID_PLAYER_ID;
-                    }
-                    if (healthRemoved != 0) {
-                        if (Globals.getInstance().mGameState == Globals.GAME_STATE_RUNNING) {
-                            mHealth += healthRemoved;
-                            mHealthBar.setProgress(mHealth);
-                            if (mHealth > 0) {
-                                if (mHitIV != null && mHitAnimation == null) {
-                                    // Show the "you're being hit" animation
-                                    mHitIV.setVisibility(View.VISIBLE);
-                                    mHitIV.setBackgroundResource(R.drawable.hit_animation);
-                                    vibrate();
-                                    playSound(R.raw.hit, getApplicationContext());
-                                    Animation animationFadeOut = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadeout);
-                                    mHitIV.startAnimation(animationFadeOut);
-                                    mHitAnimation = (AnimationDrawable) mHitIV.getBackground();
-                                    mHitAnimation.start();
-                                    mEliminatedByTV.setVisibility(View.VISIBLE);
-                                    if (hit_by_id == 0) {
-                                        mEliminatedByTV.setText("");
-                                    } else {
-                                        mEliminatedByTV.setText(Globals.getInstance().getPlayerName(hit_by_id));
-                                    }
-                                    mEliminatedByTV.startAnimation(animationFadeOut);
-                                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                                        mHitIV.setVisibility(View.GONE);
-                                        mHitAnimation.stop();
-                                        mHitAnimation = null;
-                                        mEliminatedByTV.setVisibility(View.INVISIBLE);
-                                    }, HIT_ANIMATION_DURATION_MILLISECONDS);
-                                }
+                applyGrenadePairing(hit_by_player1, data[RECOIL_OFFSET_HIT_BY1_SHOTID]);
+                applyGrenadePairing(hit_by_player2, data[RECOIL_OFFSET_HIT_BY2_SHOTID]);
+            }
+            HitResolver.Result hit = mHitResolver.resolve(hit_by_player1, data[RECOIL_OFFSET_HIT_BY1_SHOTID],
+                    hit_by_player2, data[RECOIL_OFFSET_HIT_BY2_SHOTID],
+                    new HitResolver.Context(Globals.getInstance().mGameState != Globals.GAME_STATE_NONE, mIsShielded,
+                            mUseNetwork, Globals.getInstance().mGameMode == Globals.GAME_MODE_FFA, mNetworkTeam, mHealth),
+                    mHitLookups);
+            if (hit.getCountedHit()) {
+                mHitsTaken++;
+                String hitsTaken = "" + mHitsTaken;
+                mHitsTakenTV.setText(hitsTaken);
+            }
+            for (HitResolver.Message message : hit.getMessages()) {
+                if (mTcpClient != null)
+                    mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + (message.getOut() ? NetMsg.NETMSG_OUT : NetMsg.NETMSG_HIT) + message.getPlayerId());
+            }
+            int healthRemoved = hit.getHealthRemoved();
+            byte hit_by_id = hit.getHitById();
+            if (healthRemoved != 0) {
+                if (Globals.getInstance().mGameState == Globals.GAME_STATE_RUNNING) {
+                    mHealth += healthRemoved;
+                    mHealthBar.setProgress(mHealth);
+                    if (mHealth > 0) {
+                        if (mHitIV != null && mHitAnimation == null) {
+                            // Show the "you're being hit" animation
+                            mHitIV.setVisibility(View.VISIBLE);
+                            mHitIV.setBackgroundResource(R.drawable.hit_animation);
+                            vibrate();
+                            playSound(R.raw.hit, getApplicationContext());
+                            Animation animationFadeOut = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadeout);
+                            mHitIV.startAnimation(animationFadeOut);
+                            mHitAnimation = (AnimationDrawable) mHitIV.getBackground();
+                            mHitAnimation.start();
+                            mEliminatedByTV.setVisibility(View.VISIBLE);
+                            if (hit_by_id == 0) {
+                                mEliminatedByTV.setText("");
                             } else {
-                                vibrate();
-                                playSound(R.raw.eliminated, getApplicationContext());
-                                if (mHasLivesLimit)
-                                    mEliminationCount--;
-                                else
-                                    mEliminationCount++;
-                                String elimStr = "" + mEliminationCount;
-                                mEliminationCountTV.setText(elimStr);
-                                if (mIsServer && mTcpServer != null) {
-                                    mTcpServer.setHostScore(mScore, mEliminationCount);
-                                }
-                                String eliminatedBy = "";
-                                if (mUseNetwork)
-                                    eliminatedBy = Globals.getInstance().getPlayerName(hit_by_id);
-                                startSpawn(eliminatedBy);
-                                if (mUseNetwork) {
-                                    if (hit_by_id != Globals.getInstance().mPlayerID && Globals.getInstance().calcNetworkTeam(hit_by_id) != Globals.getInstance().calcNetworkTeam(Globals.getInstance().mPlayerID)) {
-                                        if (mTcpClient != null)
-                                            mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ELIMINATED + hit_by_id, true);
-                                    }
-                                }
-                                if (mHasLivesLimit && mEliminationCount <= 0) {
-                                    Toast.makeText(getApplicationContext(), getString(R.string.dialog_out_of_lives), Toast.LENGTH_LONG).show();
-                                }
+                                mEliminatedByTV.setText(Globals.getInstance().getPlayerName(hit_by_id));
                             }
+                            mEliminatedByTV.startAnimation(animationFadeOut);
+                            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                                mHitIV.setVisibility(View.GONE);
+                                mHitAnimation.stop();
+                                mHitAnimation = null;
+                                mEliminatedByTV.setVisibility(View.INVISIBLE);
+                            }, HIT_ANIMATION_DURATION_MILLISECONDS);
+                        }
+                    } else {
+                        vibrate();
+                        playSound(R.raw.eliminated, getApplicationContext());
+                        if (mHasLivesLimit)
+                            mEliminationCount--;
+                        else
+                            mEliminationCount++;
+                        String elimStr = "" + mEliminationCount;
+                        mEliminationCountTV.setText(elimStr);
+                        if (mIsServer && mTcpServer != null) {
+                            mTcpServer.setHostScore(mScore, mEliminationCount);
+                        }
+                        String eliminatedBy = "";
+                        if (mUseNetwork)
+                            eliminatedBy = Globals.getInstance().getPlayerName(hit_by_id);
+                        startSpawn(eliminatedBy);
+                        if (mUseNetwork) {
+                            if (hit_by_id != Globals.getInstance().mPlayerID && Globals.getInstance().calcNetworkTeam(hit_by_id) != Globals.getInstance().calcNetworkTeam(Globals.getInstance().mPlayerID)) {
+                                if (mTcpClient != null)
+                                    mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ELIMINATED + hit_by_id, true);
+                            }
+                        }
+                        if (mHasLivesLimit && mEliminationCount <= 0) {
+                            Toast.makeText(getApplicationContext(), getString(R.string.dialog_out_of_lives), Toast.LENGTH_LONG).show();
                         }
                     }
                 }
-            } else {
-                mLastHitData1.playerID = Globals.INVALID_PLAYER_ID;
-                mLastHitData2.playerID = Globals.INVALID_PLAYER_ID;
             }
             /* Since setting player ID is somewhat unreliable, we use this to make sure that we are
                displaying the actual ID that the tagger is currently using. */
@@ -3550,39 +3393,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         updateAdminButtonVisibility();
 
         applyCurrentRecoilSetting();
-        switch (mCurrentShotMode) {
-            case Globals.SHOT_MODE_SINGLE:
-                if (!Globals.getInstance().mAllowSingleShotMode) {
-                    if (Globals.getInstance().mAllowBurst3ShotMode)
-                        setShotMode(Globals.SHOT_MODE_BURST);
-                    else
-                        setShotMode(Globals.SHOT_MODE_FULL_AUTO);
-                }
-                break;
-            case Globals.SHOT_MODE_BURST:
-                if (!Globals.getInstance().mAllowBurst3ShotMode) {
-                    if (Globals.getInstance().mAllowAutoShotMode)
-                        setShotMode(Globals.SHOT_MODE_FULL_AUTO);
-                    else
-                        setShotMode(Globals.SHOT_MODE_SINGLE);
-                }
-                break;
-            case Globals.SHOT_MODE_FULL_AUTO:
-                if (!Globals.getInstance().mAllowAutoShotMode) {
-                    if (Globals.getInstance().mAllowSingleShotMode)
-                        setShotMode(Globals.SHOT_MODE_SINGLE);
-                    else
-                        setShotMode(Globals.SHOT_MODE_BURST);
-                }
-                break;
-            default:
-                if (Globals.getInstance().mAllowSingleShotMode)
-                    setShotMode(Globals.SHOT_MODE_SINGLE);
-                else if (Globals.getInstance().mAllowBurst3ShotMode)
-                    setShotMode(Globals.SHOT_MODE_BURST);
-                else
-                    setShotMode(Globals.SHOT_MODE_FULL_AUTO);
-        }
+        Integer allowedShotMode = ShotModePolicy.coerceToAllowed(mCurrentShotMode, Globals.getInstance().mAllowSingleShotMode,
+                Globals.getInstance().mAllowBurst3ShotMode, Globals.getInstance().mAllowAutoShotMode);
+        if (allowedShotMode != null)
+            setShotMode(allowedShotMode);
         getFiringMode();
     }
 }
