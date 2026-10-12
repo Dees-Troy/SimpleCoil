@@ -109,10 +109,25 @@ class HitResolverTest {
     }
 
     @Test
-    fun sameShotInBothSlotsOfOnePacket_countsTwice() {
-        // De-dup only compares against the previous packet's slots.
+    fun sameShotInBothSlotsOfOnePacket_countsOnce() {
+        // Before the fix de-dup only compared against the previous packet, so this cost two hits.
         val r = resolve(telemetry(RECOIL_OFFSET_HIT_BY1, 0x04, RECOIL_OFFSET_HIT_BY1_SHOTID, 0x3B,
-            RECOIL_OFFSET_HIT_BY2, 0x04, RECOIL_OFFSET_HIT_BY2_SHOTID, 0x3B))
+            RECOIL_OFFSET_HIT_BY2, 0x04, RECOIL_OFFSET_HIT_BY2_SHOTID, 0x73))
+        assertEquals(Globals.DAMAGE_PER_HIT, r.healthRemoved)
+    }
+
+    @Test
+    fun samePlayerDifferentShotsInOnePacket_countsTwice() {
+        val r = resolve(telemetry(RECOIL_OFFSET_HIT_BY1, 0x04, RECOIL_OFFSET_HIT_BY1_SHOTID, 0x3B,
+            RECOIL_OFFSET_HIT_BY2, 0x04, RECOIL_OFFSET_HIT_BY2_SHOTID, 0x3C))
+        assertEquals(2 * Globals.DAMAGE_PER_HIT, r.healthRemoved)
+    }
+
+    @Test
+    fun sameGrenadeInBothSlotsOfOnePacket_countsTwice() {
+        // Grenade damage is never de-duplicated.
+        val r = resolve(telemetry(RECOIL_OFFSET_HIT_BY1, 0xA7, RECOIL_OFFSET_HIT_BY1_SHOTID, 0x31,
+            RECOIL_OFFSET_HIT_BY2, 0xA7, RECOIL_OFFSET_HIT_BY2_SHOTID, 0x31))
         assertEquals(2 * Globals.DAMAGE_PER_HIT, r.healthRemoved)
     }
 

@@ -106,7 +106,9 @@ class HitResolver @JvmOverloads constructor(
                 }
             }
         }
-        filter = (lastPlayerId1 == hitBy2 && lastShotId1 == shotId2) || (lastPlayerId2 == hitBy2 && lastShotId2 == shotId2)
+        filter = (lastPlayerId1 == hitBy2 && lastShotId1 == shotId2) || (lastPlayerId2 == hitBy2 && lastShotId2 == shotId2) ||
+            // Slot 2 repeating slot 1's shot in the same packet. Grenades are exempt, as in the cross-packet de-dup.
+            (hitBy2 == hitBy1 && shotId2 == shotId1 && hitBy1 != Globals.GRENADE_PLAYER_ID)
         if (!filter && hitBy2 != 0 && context.currentHealth + healthRemoved > 0) {
             // Ignore non-damage events from grenades
             if (!GrenadeDecoder.isGrenadeControlEvent(hitBy2, shotIdByte2)) {
