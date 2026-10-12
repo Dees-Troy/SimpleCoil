@@ -180,14 +180,30 @@ class TelemetryParsingProtocolTest {
     }
 
     @Test
-    fun grenadePairPacket_parserOnlyExposesLow3BitsOfShotIdByte() {
-        // CHARACTERIZATION of current V2 behaviour: TelemetryData keeps only (byte & 0x07), so the
-        // grenade id (hi nibble = 9) and event code (lo nibble = 0x0F) are NOT recoverable from
-        // TelemetryData. Grenade pairing therefore still depends on raw bytes in
-        // FullscreenActivity. If you extend TelemetryData to carry the raw byte, update this test.
+    fun grenadePairPacket_rawShotIdByteCarriesGrenadeIdAndEvent() {
+        // shotId1 keeps only (byte & 0x07); the raw byte (D6) keeps the grenade id (hi nibble = 9)
+        // and event code (lo nibble = 0x0F) recoverable from TelemetryData.
         val t = parse(GOLDEN_GRENADE_PAIR)
         assertNum(167, t.hitByPlayer1)
         assertNum(7, t.shotId1) // 0x9F & 0x07
+        assertNum(0x9F.toByte(), t.rawShotIdByte1)
+        assertNum(9, grenadeId(t.rawShotIdByte1))
+        assertNum(GRENADE_PAIR_ID, grenadeEvent(t.rawShotIdByte1))
+        assertTrue(isGrenadeControlEvent(t.hitByPlayer1, t.rawShotIdByte1))
+    }
+
+    @Test
+    fun rawShotIdBytes_arePassedThroughAndAgreeWithReferenceDecoder_allValues() {
+        for (v in 0..255) {
+            val t = parse(telemetry(RECOIL_OFFSET_HIT_BY1_SHOTID, v, RECOIL_OFFSET_HIT_BY2_SHOTID, v xor 0xFF))
+            assertNum(v.toByte(), t.rawShotIdByte1)
+            assertNum((v xor 0xFF).toByte(), t.rawShotIdByte2)
+            // The masked shot id is derived from the raw byte.
+            assertNum(t.shotId1, RecoilProtocolFixtures.shotId(t.rawShotIdByte1))
+            assertNum(t.shotId2, RecoilProtocolFixtures.shotId(t.rawShotIdByte2))
+            assertNum(v shr 4, grenadeId(t.rawShotIdByte1))
+            assertNum(v and 0x0F, grenadeEvent(t.rawShotIdByte1))
+        }
     }
 
     // ----------------------------------------------------------------------------------------
@@ -400,5 +416,7 @@ class TelemetryParsingProtocolTest {
         assertNum(expected.hitByPlayer2, actual.hitByPlayer2)
         assertNum(expected.shotId2, actual.shotId2)
         assertNum(expected.status, actual.status)
+        assertNum(expected.rawShotIdByte1, actual.rawShotIdByte1)
+        assertNum(expected.rawShotIdByte2, actual.rawShotIdByte2)
     }
 }

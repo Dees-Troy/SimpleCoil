@@ -14,16 +14,17 @@
  * limitations under the License.
  */
 
-package com.simplecoil.simplecoil;
+package com.simplecoil.simplecoil
 
-public class GattAttributes {
+/** GATT UUIDs of the Recoil blaster. Burned into the blaster firmware; never change them. */
+object GattAttributes {
     // Generic
-    public static String CLIENT_CHARACTERISTIC_CONFIG = "00002902-0000-1000-8000-00805f9b34fb";
+    const val CLIENT_CHARACTERISTIC_CONFIG = "00002902-0000-1000-8000-00805f9b34fb"
 
     // RECOIL
-    public static String RECOIL_MAIN_SERVICE = "e6f59d10-8230-4a5c-b22f-c062b1d329e3";
-    public static String RECOIL_ID_UUID = "e6f59d11-8230-4a5c-b22f-c062b1d329e3";
-    public static String RECOIL_TELEMETRY_UUID = "e6f59d12-8230-4a5c-b22f-c062b1d329e3";
-    public static String RECOIL_COMMAND_UUID = "e6f59d13-8230-4a5c-b22f-c062b1d329e3";
-    public static String RECOIL_CONFIG_UUID = "e6f59d14-8230-4a5c-b22f-c062b1d329e3";
+    const val RECOIL_MAIN_SERVICE = "e6f59d10-8230-4a5c-b22f-c062b1d329e3"
+    const val RECOIL_ID_UUID = "e6f59d11-8230-4a5c-b22f-c062b1d329e3"
+    const val RECOIL_TELEMETRY_UUID = "e6f59d12-8230-4a5c-b22f-c062b1d329e3"
+    const val RECOIL_COMMAND_UUID = "e6f59d13-8230-4a5c-b22f-c062b1d329e3"
+    const val RECOIL_CONFIG_UUID = "e6f59d14-8230-4a5c-b22f-c062b1d329e3"
 }
