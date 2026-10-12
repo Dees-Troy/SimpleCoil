@@ -33,7 +33,7 @@
         <item name="colorPrimary">@color/colorPrimary</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
-        <item name="android:windowBackground">#080808</item>
+        <item name="android:windowBackground">@drawable/dialog_background</item>
         <item name="android:colorBackground">#080808</item>
         <item name="colorButtonNormal">@color/colorPrimary</item>
         <item name="colorControlActivated">@color/colorPrimary</item>
