@@ -612,8 +612,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             }
         });
 
-        // Delivered only while resumed, like the GATT broadcast receiver this replaces.
-        FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.RESUMED, blaster().getEvents(), this::handleBlasterEvent);
+        // Delivered for the activity's whole lifetime, including while backgrounded (D4): a reconnect
+        // that completes in the background must still dismiss the disconnect dialog, resync the
+        // reload state and re-send team/shot mode/recoil on its first packet.
+        FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.CREATED, blaster().getEvents(), this::handleBlasterEvent);
         // Scan results and the scan give-up arrive whenever they happen, as the scan callback and
         // CountDownTimer did; adapter-on only while resumed, as its receiver was.
         FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.CREATED, ble().getEvents(), this::handleConnectionEvent);
