@@ -2279,6 +2279,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         if (!getPackageManager().hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)) {
             Toast.makeText(this, R.string.ble_not_supported, Toast.LENGTH_SHORT).show();
             finish();
+            return;
         }
 
         // Request Bluetooth & Location permissions dynamically based on Android version
