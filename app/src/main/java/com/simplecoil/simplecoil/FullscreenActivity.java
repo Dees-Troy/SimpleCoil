@@ -401,8 +401,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mSelectedPlayerID = savedInstanceState.getByte("mSelectedPlayerID", (byte)0);
             mDeviceAddress = savedInstanceState.getString("mDeviceAddress", "");
             setDeviceAddress(mDeviceAddress);
-            net().setUseNetwork(savedInstanceState.getBoolean("net().getUseNetwork()", false));
-            net().setServer(savedInstanceState.getBoolean("net().isServer()", false));
+            net().setUseNetwork(savedInstanceState.getBoolean("mUseNetwork", false));
+            net().setServer(savedInstanceState.getBoolean("mIsServer", false));
             mNetworkMenuType = savedInstanceState.getInt("mNetworkMenuType", NETWORK_TYPE_ENABLED);
         } else {
             mSelectedPlayerID = (byte) prefs().selectedPlayerId();
@@ -721,7 +721,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void showAdminControlsMenu(View v) {
-        Log.d(TAG, "showAdminControlsMenu: current mGameState=" + Globals.getInstance().mGameState + ", net().isServer()=" + net().isServer());
+        Log.d(TAG, "showAdminControlsMenu: current mGameState=" + Globals.getInstance().mGameState + ", mIsServer=" + net().isServer());
         PopupMenu popup = new PopupMenu(new ContextThemeWrapper(FullscreenActivity.this, R.style.AppTheme_PopupOverlay), v);
         if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE) {
             popup.getMenu().add(0, 101, 10, R.string.start_game_button);
@@ -737,7 +737,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             Log.d(TAG, "showAdminControlsMenu onMenuItemClick: itemId=" + item.getItemId());
             switch (item.getItemId()) {
                 case 101:
-                    Log.d(TAG, "Server Controls: Start Game clicked. net().isServer()=" + net().isServer() + ", net().getTcpClient()=" + (net().getTcpClient() != null));
+                    Log.d(TAG, "Server Controls: Start Game clicked. mIsServer=" + net().isServer() + ", mTcpClient=" + (net().getTcpClient() != null));
                     if (net().isServer() && net().getTcpServer() != null) {
                         net().getTcpServer().startGame();
                     } else if (net().getTcpClient() != null) {
@@ -746,7 +746,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     }
                     return true;
                 case 102:
-                    Log.d(TAG, "Server Controls: End Game clicked. net().isServer()=" + net().isServer() + ", net().getTcpClient()=" + (net().getTcpClient() != null));
+                    Log.d(TAG, "Server Controls: End Game clicked. mIsServer=" + net().isServer() + ", mTcpClient=" + (net().getTcpClient() != null));
                     if (net().isServer() && net().getTcpServer() != null) {
                         net().getTcpServer().endGame();
                     } else if (net().getTcpClient() != null) {
@@ -780,7 +780,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void changeAdminGameMode(int mode) {
-        Log.d(TAG, "changeAdminGameMode: mode=" + mode + ", net().isServer()=" + net().isServer() + ", net().getTcpClient()=" + (net().getTcpClient() != null));
+        Log.d(TAG, "changeAdminGameMode: mode=" + mode + ", mIsServer=" + net().isServer() + ", mTcpClient=" + (net().getTcpClient() != null));
         if (net().isServer() && net().getTcpServer() != null) {
             Globals.getInstance().mGameMode = mode;
             net().getTcpServer().rebalanceAllPlayers(false);
@@ -1465,8 +1465,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         super.onSaveInstanceState(outState);
         outState.putByte("mSelectedPlayerID", mSelectedPlayerID);
         outState.putString("mDeviceAddress", mDeviceAddress);
-        outState.putBoolean("net().getUseNetwork()", net().getUseNetwork());
-        outState.putBoolean("net().isServer()", net().isServer());
+        outState.putBoolean("mUseNetwork", net().getUseNetwork());
+        outState.putBoolean("mIsServer", net().isServer());
         outState.putInt("mNetworkMenuType", mNetworkMenuType);
     }
 
@@ -2456,7 +2456,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         if (adminBtn != null) {
             boolean showAdmin = (net().isServer() || Globals.getInstance().mIsAdmin) && net().getUseNetwork() && mReady;
             adminBtn.setVisibility(showAdmin ? View.VISIBLE : View.GONE);
-            Log.d(TAG, "updateAdminButtonVisibility: net().isServer()=" + net().isServer() + ", mIsAdmin=" + Globals.getInstance().mIsAdmin + ", net().getUseNetwork()=" + net().getUseNetwork() + ", mReady=" + mReady + " -> show=" + showAdmin);
+            Log.d(TAG, "updateAdminButtonVisibility: mIsServer=" + net().isServer() + ", mIsAdmin=" + Globals.getInstance().mIsAdmin + ", mUseNetwork=" + net().getUseNetwork() + ", mReady=" + mReady + " -> show=" + showAdmin);
         }
     }
 
