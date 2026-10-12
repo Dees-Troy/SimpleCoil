@@ -18,7 +18,6 @@ package com.simplecoil.simplecoil.hardware.blaster;
 
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattService;
-import android.content.Intent;
 
 import com.simplecoil.simplecoil.BluetoothLeService;
 import com.simplecoil.simplecoil.GattAttributes;
@@ -28,8 +27,6 @@ import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -41,7 +38,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyByte;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -56,7 +52,8 @@ import static org.mockito.Mockito.when;
  * how telemetry notifications are turned into blaster events.
  *
  * Runs on the plain JVM: BluetoothLeService / BluetoothGattService / BluetoothGattCharacteristic
- * are Mockito mocks and incoming notifications are injected as mocked Intents.
+ * are Mockito mocks, GATT events are fed through the manager's GattEventSink input and protocol
+ * delays run on a virtual-time scheduler.
  */
 public class BlasterManagerGattTest {
 
@@ -70,14 +67,12 @@ public class BlasterManagerGattTest {
     private BluetoothGattCharacteristic configChar;
     private BluetoothGattCharacteristic idChar;
     private RecordingListener listener;
+    private FakeScheduler scheduler;
 
     @Before
-    public void setUp() throws Exception {
-        // BlasterManager is a singleton holding protocol state (command id, counters); start clean.
-        Field instance = BlasterManager.class.getDeclaredField("instance");
-        instance.setAccessible(true);
-        instance.set(null, null);
-        manager = BlasterManager.getInstance();
+    public void setUp() {
+        scheduler = new FakeScheduler();
+        manager = new BlasterManager(scheduler);
         listener = new RecordingListener();
         manager.setListener(listener);
 
@@ -117,24 +112,12 @@ public class BlasterManagerGattTest {
         return captor.getAllValues();
     }
 
-    private void deliver(Intent intent) throws Exception {
-        Method m = BlasterManager.class.getDeclaredMethod("handleGattIntent", Intent.class);
-        m.setAccessible(true);
-        m.invoke(manager, intent);
+    private void deliverTelemetry(byte[] data) {
+        manager.onTelemetry(data);
     }
 
-    private void deliverTelemetry(byte[] data) throws Exception {
-        Intent intent = mock(Intent.class);
-        when(intent.getAction()).thenReturn(BluetoothLeService.TELEMETRY_DATA_AVAILABLE);
-        when(intent.getByteArrayExtra(BluetoothLeService.EXTRA_DATA)).thenReturn(data);
-        deliver(intent);
-    }
-
-    private void deliverBlasterType(byte type) throws Exception {
-        Intent intent = mock(Intent.class);
-        when(intent.getAction()).thenReturn(BluetoothLeService.ID_DATA_AVAILABLE);
-        when(intent.getByteExtra(eq(BluetoothLeService.EXTRA_DATA), anyByte())).thenReturn(type);
-        deliver(intent);
+    private void deliverBlasterType(byte type) {
+        manager.onBlasterId(type);
     }
 
     // ----------------------------------------------------------------------------------------
@@ -146,8 +129,28 @@ public class BlasterManagerGattTest {
         connect();
         verify(service).setCharacteristicNotification(telemetryChar, true);
         verify(service).readCharacteristic(idChar);
-        // Discovery itself must not write to command/config (recoil write is deferred via Handler).
+        // Discovery itself must not write to command/config; the recoil write is deferred.
         verify(service, never()).writeCharacteristic(any(BluetoothGattCharacteristic.class), any(byte[].class), anyInt());
+    }
+
+    @Test
+    public void discovery_writesCurrentRecoilSettingAfterExactly500ms() {
+        manager.setRecoil(false); // dropped (not connected), but remembered
+        connect();
+        scheduler.advanceBy(499);
+        verify(service, never()).writeCharacteristic(any(BluetoothGattCharacteristic.class), any(byte[].class), anyInt());
+        scheduler.advanceBy(1);
+        assertEquals("10 00 02 02 FF 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",
+                toHex(captureSingleWrite(configChar)));
+    }
+
+    @Test
+    public void discovery_deferredRecoilWriteUsesSettingAtFireTime() {
+        connect();
+        manager.setRecoil(false);
+        scheduler.advanceBy(500);
+        List<byte[]> writes = captureWrites(configChar, 2);
+        assertEquals("10 00 02 02 FF 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00", toHex(writes.get(1)));
     }
 
     @Test
@@ -296,7 +299,7 @@ public class BlasterManagerGattTest {
     }
 
     @Test
-    public void blasterType_rifleReportedByIdCharacteristicChangesBurstRecoil() throws Exception {
+    public void blasterType_rifleReportedByIdCharacteristicChangesBurstRecoil() {
         connect();
         deliverBlasterType(GattProtocolHandler.BLASTER_TYPE_RIFLE);
         assertEquals(GattProtocolHandler.BLASTER_TYPE_RIFLE, manager.getBlasterType());
@@ -317,10 +320,8 @@ public class BlasterManagerGattTest {
     }
 
     @Test
-    public void characteristicWriteFinished_isForwarded() throws Exception {
-        Intent intent = mock(Intent.class);
-        when(intent.getAction()).thenReturn(BluetoothLeService.CHARACTERISTIC_WRITE_FINISHED);
-        deliver(intent);
+    public void characteristicWriteFinished_isForwarded() {
+        manager.onEvent(BluetoothLeService.CHARACTERISTIC_WRITE_FINISHED);
         assertEquals(Collections.singletonList("writeFinished"), listener.events);
     }
 
@@ -329,7 +330,7 @@ public class BlasterManagerGattTest {
     // ----------------------------------------------------------------------------------------
 
     @Test
-    public void telemetry_idleFirstPacketReportsPlayerIdAndBattery() throws Exception {
+    public void telemetry_idleFirstPacketReportsPlayerIdAndBattery() {
         deliverTelemetry(GOLDEN_IDLE);
         // CHARACTERIZATION: unlike master (which re-baselined counters on the first packet of a
         // connection), BlasterManager starts all "last" counters at 0, so only fields that differ
@@ -338,7 +339,7 @@ public class BlasterManagerGattTest {
     }
 
     @Test
-    public void telemetry_triggerCounterEdgeRaisesTriggerPulledOnce() throws Exception {
+    public void telemetry_triggerCounterEdgeRaisesTriggerPulledOnce() {
         deliverTelemetry(GOLDEN_IDLE);
         listener.events.clear();
         deliverTelemetry(GOLDEN_TRIGGER_PULLED);
@@ -348,7 +349,7 @@ public class BlasterManagerGattTest {
     }
 
     @Test
-    public void telemetry_reloadCounterEdgeRaisesReloadRequested() throws Exception {
+    public void telemetry_reloadCounterEdgeRaisesReloadRequested() {
         deliverTelemetry(GOLDEN_TRIGGER_PULLED);
         listener.events.clear();
         deliverTelemetry(GOLDEN_RELOAD_PRESSED);
@@ -357,7 +358,7 @@ public class BlasterManagerGattTest {
     }
 
     @Test
-    public void telemetry_thumbCounterEdgeRaisesShotModeChange() throws Exception {
+    public void telemetry_thumbCounterEdgeRaisesShotModeChange() {
         deliverTelemetry(GOLDEN_IDLE);
         listener.events.clear();
         byte[] p = GOLDEN_IDLE.clone();
@@ -368,7 +369,7 @@ public class BlasterManagerGattTest {
     }
 
     @Test
-    public void telemetry_powerCounterEdgeTogglesRecoilStateWithoutWritingToBlaster() throws Exception {
+    public void telemetry_powerCounterEdgeTogglesRecoilStateWithoutWritingToBlaster() {
         connect();
         deliverTelemetry(GOLDEN_IDLE);
         listener.events.clear();
@@ -388,7 +389,7 @@ public class BlasterManagerGattTest {
     }
 
     @Test
-    public void telemetry_counterWrapAroundIsStillAnEdge() throws Exception {
+    public void telemetry_counterWrapAroundIsStillAnEdge() {
         byte[] p = GOLDEN_IDLE.clone();
         p[GattProtocolHandler.RECOIL_OFFSET_RELOAD_TRIGGER_COUNTER] = 0x0F;
         deliverTelemetry(p);
@@ -399,14 +400,14 @@ public class BlasterManagerGattTest {
     }
 
     @Test
-    public void telemetry_singleHitReportedAsPrimary() throws Exception {
+    public void telemetry_singleHitReportedAsPrimary() {
         deliverTelemetry(GOLDEN_HIT_BY_PLAYER_2);
         assertEquals(1, listener.count("hit:8/5/primary"));
         assertEquals(0, listener.countPrefix("hit:0"));
     }
 
     @Test
-    public void telemetry_doubleHitReportsBothSlots() throws Exception {
+    public void telemetry_doubleHitReportsBothSlots() {
         deliverTelemetry(GOLDEN_DOUBLE_HIT);
         int primary = listener.events.indexOf("hit:4/3/primary");
         int secondary = listener.events.indexOf("hit:12/6/secondary");
@@ -415,13 +416,13 @@ public class BlasterManagerGattTest {
     }
 
     @Test
-    public void telemetry_grenadeHitReportsUnsignedId167() throws Exception {
+    public void telemetry_grenadeHitReportsUnsignedId167() {
         deliverTelemetry(GOLDEN_GRENADE_DAMAGE);
         assertEquals(1, listener.count("hit:167/1/primary"));
     }
 
     @Test
-    public void telemetry_hitsAreReportedOnEveryPacketWithoutDedup() throws Exception {
+    public void telemetry_hitsAreReportedOnEveryPacketWithoutDedup() {
         // CHARACTERIZATION: the blaster repeats the same hit in consecutive notifications.
         // BlasterManager forwards every one; de-duplication by (player, shot id) is the
         // consumer's job (FullscreenActivity mLastHitData1/2).
@@ -431,7 +432,7 @@ public class BlasterManagerGattTest {
     }
 
     @Test
-    public void telemetry_secondarySlotReportedEvenIfPrimaryEmpty() throws Exception {
+    public void telemetry_secondarySlotReportedEvenIfPrimaryEmpty() {
         // CHARACTERIZATION: master only looked at slot 2 when slot 1 was non-zero.
         deliverTelemetry(telemetry(
                 GattProtocolHandler.RECOIL_OFFSET_HIT_BY2, 0x10,
@@ -441,7 +442,7 @@ public class BlasterManagerGattTest {
     }
 
     @Test
-    public void telemetry_batteryIsRollingIntegerAverageOfLast100Samples() throws Exception {
+    public void telemetry_batteryIsRollingIntegerAverageOfLast100Samples() {
         byte[] p = GOLDEN_IDLE.clone();
         p[GattProtocolHandler.RECOIL_OFFSET_BATTERY_LEVEL] = 16;
         deliverTelemetry(p);
@@ -456,21 +457,21 @@ public class BlasterManagerGattTest {
     }
 
     @Test
-    public void telemetry_batteryReportCarriesBlasterType() throws Exception {
+    public void telemetry_batteryReportCarriesBlasterType() {
         deliverBlasterType(GattProtocolHandler.BLASTER_TYPE_RIFLE);
         deliverTelemetry(GOLDEN_IDLE);
         assertEquals("battery:16/1", listener.last("battery"));
     }
 
     @Test
-    public void telemetry_truncatedPacketIsIgnoredSafely() throws Exception {
+    public void telemetry_truncatedPacketIsIgnoredSafely() {
         deliverTelemetry(new byte[15]);
         deliverTelemetry(new byte[0]);
         assertTrue(listener.events.isEmpty());
     }
 
     @Test
-    public void telemetry_missingExtraFallsBackToCharacteristicValue() throws Exception {
+    public void telemetry_missingExtraFallsBackToCharacteristicValue() {
         connect();
         when(telemetryChar.getValue()).thenReturn(GOLDEN_HIT_BY_PLAYER_2);
         deliverTelemetry(null);
@@ -478,20 +479,23 @@ public class BlasterManagerGattTest {
     }
 
     @Test
-    public void telemetry_missingExtraAndNoCharacteristicIsIgnored() throws Exception {
+    public void telemetry_missingExtraAndNoCharacteristicIsIgnored() {
         deliverTelemetry(null);
         assertTrue(listener.events.isEmpty());
     }
 
     @Test
-    public void unknownOrNullIntentsAreIgnored() throws Exception {
-        deliver(null);
-        Intent noAction = mock(Intent.class);
-        deliver(noAction);
-        Intent other = mock(Intent.class);
-        when(other.getAction()).thenReturn("some.other.ACTION");
-        deliver(other);
+    public void unknownEventsAreIgnored() {
+        manager.onEvent("some.other.ACTION");
+        manager.onEvent(BluetoothLeService.DESCRIPTOR_WRITE_FINISHED);
         assertTrue(listener.events.isEmpty());
+    }
+
+    @Test
+    public void missingBlasterTypeDefaultsToPistol() {
+        manager.onBlasterId(GattProtocolHandler.BLASTER_TYPE_RIFLE);
+        manager.onBlasterId(null);
+        assertEquals(GattProtocolHandler.BLASTER_TYPE_PISTOL, manager.getBlasterType());
     }
 
     // ----------------------------------------------------------------------------------------

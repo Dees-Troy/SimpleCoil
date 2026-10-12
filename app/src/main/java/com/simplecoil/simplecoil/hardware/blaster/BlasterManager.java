@@ -24,11 +24,10 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
-import android.os.Handler;
 import android.os.IBinder;
-import android.os.Looper;
 import android.util.Log;
 
+import androidx.annotation.Nullable;
 import androidx.core.content.ContextCompat;
 
 import com.simplecoil.simplecoil.BluetoothLeService;
@@ -43,10 +42,12 @@ import java.util.UUID;
  * Manages Bluetooth LE blaster connections, GATT characteristic writes,
  * battery level tracking, telemetry parsing, and hardware event dispatching.
  */
-public class BlasterManager {
+public class BlasterManager implements GattEventSink {
     private static final String TAG = "BlasterManager";
 
     private static volatile BlasterManager instance;
+
+    private final DelayScheduler scheduler;
 
     private Context context;
     private BluetoothLeService bluetoothLeService;
@@ -106,13 +107,15 @@ public class BlasterManager {
         }
     };
 
-    private BlasterManager() {}
+    public BlasterManager(DelayScheduler scheduler) {
+        this.scheduler = scheduler;
+    }
 
     public static BlasterManager getInstance() {
         if (instance == null) {
             synchronized (BlasterManager.class) {
                 if (instance == null) {
-                    instance = new BlasterManager();
+                    instance = new BlasterManager(DelayScheduler.mainLooper());
                 }
             }
         }
@@ -235,6 +238,17 @@ public class BlasterManager {
         final String action = intent.getAction();
         if (action == null) return;
 
+        if (BluetoothLeService.TELEMETRY_DATA_AVAILABLE.equals(action)) {
+            onTelemetry(intent.getByteArrayExtra(BluetoothLeService.EXTRA_DATA));
+        } else if (BluetoothLeService.ID_DATA_AVAILABLE.equals(action)) {
+            onBlasterId(intent.getByteExtra(BluetoothLeService.EXTRA_DATA, GattProtocolHandler.BLASTER_TYPE_PISTOL));
+        } else {
+            onEvent(action);
+        }
+    }
+
+    @Override
+    public void onEvent(String action) {
         if (BluetoothLeService.ACTION_GATT_CONNECTED.equals(action)) {
             isConnected = true;
             if (listener != null) listener.onBlasterConnected(deviceAddress);
@@ -244,18 +258,23 @@ public class BlasterManager {
         } else if (BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED.equals(action)) {
             discoverGattCharacteristics();
             if (listener != null) listener.onServicesDiscovered();
-        } else if (BluetoothLeService.TELEMETRY_DATA_AVAILABLE.equals(action)) {
-            byte[] data = intent.getByteArrayExtra(BluetoothLeService.EXTRA_DATA);
-            byte[] telemetryData = (data != null) ? data : (telemetryCharacteristic != null ? telemetryCharacteristic.getValue() : null);
-            if (telemetryData != null) {
-                processTelemetryData(telemetryData);
-            }
-        } else if (BluetoothLeService.ID_DATA_AVAILABLE.equals(action)) {
-            blasterType = intent.getByteExtra(BluetoothLeService.EXTRA_DATA, GattProtocolHandler.BLASTER_TYPE_PISTOL);
-            if (listener != null) listener.onBlasterTypeDiscovered(blasterType);
         } else if (BluetoothLeService.CHARACTERISTIC_WRITE_FINISHED.equals(action)) {
             if (listener != null) listener.onCharacteristicWriteFinished();
         }
+    }
+
+    @Override
+    public void onTelemetry(@Nullable byte[] data) {
+        byte[] telemetryData = (data != null) ? data : (telemetryCharacteristic != null ? telemetryCharacteristic.getValue() : null);
+        if (telemetryData != null) {
+            processTelemetryData(telemetryData);
+        }
+    }
+
+    @Override
+    public void onBlasterId(@Nullable Byte type) {
+        blasterType = type != null ? type : GattProtocolHandler.BLASTER_TYPE_PISTOL;
+        if (listener != null) listener.onBlasterTypeDiscovered(blasterType);
     }
 
     public void discoverGattCharacteristics() {
@@ -275,7 +294,7 @@ public class BlasterManager {
                     bluetoothLeService.readCharacteristic(idCharacteristic);
                 }
 
-                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                scheduler.postDelayed(() -> {
                     setRecoil(recoilEnabled);
                 }, 500);
             }

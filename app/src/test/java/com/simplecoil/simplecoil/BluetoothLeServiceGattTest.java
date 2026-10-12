@@ -16,19 +16,20 @@
 
 package com.simplecoil.simplecoil;
 
-import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCallback;
 import android.bluetooth.BluetoothGattCharacteristic;
 import android.bluetooth.BluetoothGattDescriptor;
-import android.content.Intent;
+
+import com.simplecoil.simplecoil.hardware.blaster.FakeScheduler;
+import com.simplecoil.simplecoil.hardware.blaster.GattEventSink;
+import com.simplecoil.simplecoil.hardware.blaster.GattIo;
 
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
-import org.mockito.MockedConstruction;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -38,14 +39,12 @@ import java.util.UUID;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNull;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyByte;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -57,14 +56,15 @@ import static org.mockito.Mockito.when;
  *  - the CCCD descriptor write that turns on telemetry notifications
  *  - how characteristic writes are handed to BluetoothGatt
  *
- * BluetoothGatt / BluetoothAdapter / characteristics are Mockito mocks injected via reflection.
- * Outgoing Intents are intercepted with Mockito construction mocking.
+ * GATT calls go to a mocked GattIo, events to a recording GattEventSink and protocol delays to a
+ * virtual-time scheduler, all injected through BluetoothLeService.attachForTest().
  */
 public class BluetoothLeServiceGattTest {
 
     private static final int GATT_SUCCESS = 0;
     private static final int GATT_FAILURE = 0x101;
     private static final int STATE_DISCONNECTED = 0;
+    private static final int STATE_CONNECTED = 2;
     private static final int WRITE_TYPE_DEFAULT = 2;
 
     /** Real framework values of BluetoothGattDescriptor.ENABLE/DISABLE_NOTIFICATION_VALUE. */
@@ -72,31 +72,67 @@ public class BluetoothLeServiceGattTest {
     private static final byte[] DISABLE_NOTIFICATION = {0x00, 0x00};
 
     private BluetoothLeService service;
-    private BluetoothGatt gatt;
+    /** Passed to callbacks as the framework would; the service itself talks to {@link #gatt}. */
+    private final BluetoothGatt callbackGatt = mock(BluetoothGatt.class);
+    private GattIo gatt;
     private BluetoothGattCallback callback;
+    private FakeScheduler scheduler;
 
-    private MockedConstruction<Intent> intentConstruction;
-    /** Action string of every Intent constructed with new Intent(String), and the mock itself. */
+    /** One event delivered to the sink: the action plus its payload, if any. */
+    private static final class Event {
+        final String action;
+        final byte[] data;
+        final Byte blasterType;
+
+        Event(String action, byte[] data, Byte blasterType) {
+            this.action = action;
+            this.data = data;
+            this.blasterType = blasterType;
+        }
+    }
+
+    private final List<Event> events = new ArrayList<>();
+    /** Action of every delivered event, in order. */
     private final List<String> actions = new ArrayList<>();
-    private final List<Intent> actionIntents = new ArrayList<>();
+
+    private final GattEventSink sink = new GattEventSink() {
+        @Override
+        public void onEvent(String action) {
+            record(new Event(action, null, null));
+        }
+
+        @Override
+        public void onTelemetry(byte[] data) {
+            record(new Event(BluetoothLeService.TELEMETRY_DATA_AVAILABLE, data, null));
+        }
+
+        @Override
+        public void onBlasterId(Byte blasterType) {
+            record(new Event(BluetoothLeService.ID_DATA_AVAILABLE, null, blasterType));
+        }
+
+        private void record(Event e) {
+            events.add(e);
+            actions.add(e.action);
+        }
+    };
 
     private Object savedEnable;
     private Object savedDisable;
 
     @Before
     public void setUp() throws Exception {
-        service = new BluetoothLeService();
-        gatt = mock(BluetoothGatt.class);
-        setField(service, "mBluetoothAdapter", mock(BluetoothAdapter.class));
-        setField(service, "mBluetoothGatt", gatt);
-        callback = (BluetoothGattCallback) getField(service, "mGattCallback");
-
-        intentConstruction = mockConstruction(Intent.class, (mock, context) -> {
-            if (context.arguments().size() == 1 && context.arguments().get(0) instanceof String) {
-                actions.add((String) context.arguments().get(0));
-                actionIntents.add(mock);
+        service = new BluetoothLeService() {
+            @Override
+            public void startAsForeground(String statusText) {
+                // Building the notification needs a real Context; record the call instead.
+                actions.add("startForeground");
             }
-        });
+        };
+        gatt = mock(GattIo.class);
+        scheduler = new FakeScheduler();
+        service.attachForTest(gatt, sink, scheduler);
+        callback = service.getGattCallback();
 
         // The android.jar stubs leave these arrays null; install the real values so the CCCD
         // payload can be asserted.
@@ -108,7 +144,6 @@ public class BluetoothLeServiceGattTest {
 
     @After
     public void tearDown() throws Exception {
-        intentConstruction.close();
         StaticFieldWriter.set(BluetoothGattDescriptor.class, "ENABLE_NOTIFICATION_VALUE", savedEnable);
         StaticFieldWriter.set(BluetoothGattDescriptor.class, "DISABLE_NOTIFICATION_VALUE", savedDisable);
     }
@@ -119,11 +154,11 @@ public class BluetoothLeServiceGattTest {
         return c;
     }
 
-    /** Returns the Intent constructed for the given broadcast action. */
-    private Intent intentFor(String action) {
+    /** Returns the event delivered for the given action. */
+    private Event eventFor(String action) {
         int index = actions.indexOf(action);
-        assertTrue("expected broadcast " + action + " but got " + actions, index >= 0);
-        return actionIntents.get(index);
+        assertTrue("expected event " + action + " but got " + actions, index >= 0);
+        return events.get(index);
     }
 
     // ----------------------------------------------------------------------------------------
@@ -134,13 +169,10 @@ public class BluetoothLeServiceGattTest {
     public void telemetryNotification_isBroadcastWithFullPayload() {
         byte[] payload = new byte[20];
         for (int i = 0; i < payload.length; i++) payload[i] = (byte) (i * 13);
-        callback.onCharacteristicChanged(gatt, characteristic(GattAttributes.RECOIL_TELEMETRY_UUID), payload);
+        callback.onCharacteristicChanged(callbackGatt, characteristic(GattAttributes.RECOIL_TELEMETRY_UUID), payload);
 
         assertEquals(1, actions.size());
-        Intent intent = intentFor(BluetoothLeService.TELEMETRY_DATA_AVAILABLE);
-        ArgumentCaptor<byte[]> captor = ArgumentCaptor.forClass(byte[].class);
-        verify(intent).putExtra(eq(BluetoothLeService.EXTRA_DATA), captor.capture());
-        assertArrayEquals(payload, captor.getValue());
+        assertArrayEquals(payload, eventFor(BluetoothLeService.TELEMETRY_DATA_AVAILABLE).data);
     }
 
     @Test
@@ -149,12 +181,9 @@ public class BluetoothLeServiceGattTest {
         byte[] payload = {0x00, 0x05, 0x00, 0x11};
         BluetoothGattCharacteristic c = characteristic(GattAttributes.RECOIL_TELEMETRY_UUID);
         when(c.getValue()).thenReturn(payload);
-        callback.onCharacteristicChanged(gatt, c);
+        callback.onCharacteristicChanged(callbackGatt, c);
 
-        Intent intent = intentFor(BluetoothLeService.TELEMETRY_DATA_AVAILABLE);
-        ArgumentCaptor<byte[]> captor = ArgumentCaptor.forClass(byte[].class);
-        verify(intent).putExtra(eq(BluetoothLeService.EXTRA_DATA), captor.capture());
-        assertArrayEquals(payload, captor.getValue());
+        assertArrayEquals(payload, eventFor(BluetoothLeService.TELEMETRY_DATA_AVAILABLE).data);
     }
 
     @Test
@@ -164,10 +193,9 @@ public class BluetoothLeServiceGattTest {
         id[0] = 0x01;
         id[1] = 0x23;
         id[10] = 0x01; // rifle
-        callback.onCharacteristicRead(gatt, characteristic(GattAttributes.RECOIL_ID_UUID), id, GATT_SUCCESS);
+        callback.onCharacteristicRead(callbackGatt, characteristic(GattAttributes.RECOIL_ID_UUID), id, GATT_SUCCESS);
 
-        Intent intent = intentFor(BluetoothLeService.ID_DATA_AVAILABLE);
-        verify(intent).putExtra(BluetoothLeService.EXTRA_DATA, (byte) 0x01);
+        assertEquals(Byte.valueOf((byte) 0x01), eventFor(BluetoothLeService.ID_DATA_AVAILABLE).blasterType);
     }
 
     @Test
@@ -176,31 +204,29 @@ public class BluetoothLeServiceGattTest {
         id[10] = 0x02; // pistol
         BluetoothGattCharacteristic c = characteristic(GattAttributes.RECOIL_ID_UUID);
         when(c.getValue()).thenReturn(id);
-        callback.onCharacteristicRead(gatt, c, GATT_SUCCESS);
+        callback.onCharacteristicRead(callbackGatt, c, GATT_SUCCESS);
 
-        Intent intent = intentFor(BluetoothLeService.ID_DATA_AVAILABLE);
-        verify(intent).putExtra(BluetoothLeService.EXTRA_DATA, (byte) 0x02);
+        assertEquals(Byte.valueOf((byte) 0x02), eventFor(BluetoothLeService.ID_DATA_AVAILABLE).blasterType);
     }
 
     @Test
     public void idCharacteristicRead_shortPayloadBroadcastsWithoutType() {
         // <= 10 bytes: no type extra, so the receiver falls back to its pistol default.
-        callback.onCharacteristicRead(gatt, characteristic(GattAttributes.RECOIL_ID_UUID), new byte[10], GATT_SUCCESS);
+        callback.onCharacteristicRead(callbackGatt, characteristic(GattAttributes.RECOIL_ID_UUID), new byte[10], GATT_SUCCESS);
 
-        Intent intent = intentFor(BluetoothLeService.ID_DATA_AVAILABLE);
-        verify(intent, never()).putExtra(anyString(), anyByte());
+        assertNull(eventFor(BluetoothLeService.ID_DATA_AVAILABLE).blasterType);
     }
 
     @Test
     public void failedRead_isNotBroadcast() {
-        callback.onCharacteristicRead(gatt, characteristic(GattAttributes.RECOIL_ID_UUID), new byte[20], GATT_FAILURE);
+        callback.onCharacteristicRead(callbackGatt, characteristic(GattAttributes.RECOIL_ID_UUID), new byte[20], GATT_FAILURE);
         assertTrue(actions.isEmpty());
     }
 
     @Test
     public void notificationFromUnknownCharacteristic_isDropped() {
-        callback.onCharacteristicChanged(gatt, characteristic(GattAttributes.RECOIL_COMMAND_UUID), new byte[20]);
-        callback.onCharacteristicChanged(gatt, characteristic("00002a19-0000-1000-8000-00805f9b34fb"), new byte[1]);
+        callback.onCharacteristicChanged(callbackGatt, characteristic(GattAttributes.RECOIL_COMMAND_UUID), new byte[20]);
+        callback.onCharacteristicChanged(callbackGatt, characteristic("00002a19-0000-1000-8000-00805f9b34fb"), new byte[1]);
         assertTrue(actions.isEmpty());
     }
 
@@ -211,8 +237,8 @@ public class BluetoothLeServiceGattTest {
     @Test
     public void characteristicWrite_alwaysBroadcastsWriteFinished() {
         // Reload sequencing in the app is driven by this signal, so it fires on failure too.
-        callback.onCharacteristicWrite(gatt, characteristic(GattAttributes.RECOIL_COMMAND_UUID), GATT_SUCCESS);
-        callback.onCharacteristicWrite(gatt, characteristic(GattAttributes.RECOIL_CONFIG_UUID), GATT_FAILURE);
+        callback.onCharacteristicWrite(callbackGatt, characteristic(GattAttributes.RECOIL_COMMAND_UUID), GATT_SUCCESS);
+        callback.onCharacteristicWrite(callbackGatt, characteristic(GattAttributes.RECOIL_CONFIG_UUID), GATT_FAILURE);
         assertEquals(2, actions.size());
         assertEquals(BluetoothLeService.CHARACTERISTIC_WRITE_FINISHED, actions.get(0));
         assertEquals(BluetoothLeService.CHARACTERISTIC_WRITE_FINISHED, actions.get(1));
@@ -220,8 +246,8 @@ public class BluetoothLeServiceGattTest {
 
     @Test
     public void descriptorWrite_alwaysBroadcastsDescriptorWriteFinished() {
-        callback.onDescriptorWrite(gatt, mock(BluetoothGattDescriptor.class), GATT_SUCCESS);
-        callback.onDescriptorWrite(gatt, mock(BluetoothGattDescriptor.class), GATT_FAILURE);
+        callback.onDescriptorWrite(callbackGatt, mock(BluetoothGattDescriptor.class), GATT_SUCCESS);
+        callback.onDescriptorWrite(callbackGatt, mock(BluetoothGattDescriptor.class), GATT_FAILURE);
         assertEquals(2, actions.size());
         assertEquals(BluetoothLeService.DESCRIPTOR_WRITE_FINISHED, actions.get(0));
         assertEquals(BluetoothLeService.DESCRIPTOR_WRITE_FINISHED, actions.get(1));
@@ -229,16 +255,16 @@ public class BluetoothLeServiceGattTest {
 
     @Test
     public void servicesDiscovered_broadcastOnlyOnSuccess() {
-        callback.onServicesDiscovered(gatt, GATT_FAILURE);
+        callback.onServicesDiscovered(callbackGatt, GATT_FAILURE);
         assertTrue(actions.isEmpty());
-        callback.onServicesDiscovered(gatt, GATT_SUCCESS);
+        callback.onServicesDiscovered(callbackGatt, GATT_SUCCESS);
         assertEquals(1, actions.size());
         assertEquals(BluetoothLeService.ACTION_GATT_SERVICES_DISCOVERED, actions.get(0));
     }
 
     @Test
     public void disconnect_broadcastsGattDisconnected() {
-        callback.onConnectionStateChange(gatt, GATT_SUCCESS, STATE_DISCONNECTED);
+        callback.onConnectionStateChange(callbackGatt, GATT_SUCCESS, STATE_DISCONNECTED);
         assertEquals(1, actions.size());
         assertEquals(BluetoothLeService.ACTION_GATT_DISCONNECTED, actions.get(0));
     }
@@ -308,8 +334,8 @@ public class BluetoothLeServiceGattTest {
     }
 
     @Test
-    public void writeAndRead_areNoOpsWithoutGatt() throws Exception {
-        setField(service, "mBluetoothGatt", null);
+    public void writeAndRead_areNoOpsWithoutGatt() {
+        service.attachForTest(null, sink, scheduler);
         BluetoothGattCharacteristic command = characteristic(GattAttributes.RECOIL_COMMAND_UUID);
         service.writeCharacteristic(command, new byte[20], WRITE_TYPE_DEFAULT);
         service.readCharacteristic(command);
@@ -327,6 +353,62 @@ public class BluetoothLeServiceGattTest {
         verify(gatt, never()).readCharacteristic(any(BluetoothGattCharacteristic.class));
     }
 
+    // ----------------------------------------------------------------------------------------
+    // Protocol timing (REFACTOR_DESIGN.md §1.6)
+    // ----------------------------------------------------------------------------------------
+
+    @Test
+    public void connected_discoversServicesAfterExactly500ms() {
+        callback.onConnectionStateChange(callbackGatt, GATT_SUCCESS, STATE_CONNECTED);
+        assertEquals(java.util.Arrays.asList(BluetoothLeService.ACTION_GATT_CONNECTED, "startForeground"), actions);
+
+        scheduler.advanceBy(499);
+        verify(gatt, never()).discoverServices();
+        scheduler.advanceBy(1);
+        verify(gatt).discoverServices();
+    }
+
+    @Test
+    public void connected_thenClosedBefore500ms_doesNotDiscover() {
+        callback.onConnectionStateChange(callbackGatt, GATT_SUCCESS, STATE_CONNECTED);
+        service.close();
+        scheduler.advanceBy(500);
+        verify(gatt, never()).discoverServices();
+    }
+
+    @Test
+    public void missingCccd_isRetriedOnceAfterExactly300ms() {
+        BluetoothGattCharacteristic telemetry = characteristic(GattAttributes.RECOIL_TELEMETRY_UUID);
+        BluetoothGattDescriptor cccd = mock(BluetoothGattDescriptor.class);
+        UUID cccdUuid = UUID.fromString(GattAttributes.CLIENT_CHARACTERISTIC_CONFIG);
+        when(telemetry.getDescriptor(cccdUuid)).thenReturn(null, cccd);
+
+        service.setCharacteristicNotification(telemetry, true);
+        verify(gatt, never()).writeDescriptor(any(BluetoothGattDescriptor.class));
+
+        scheduler.advanceBy(299);
+        verify(gatt, never()).writeDescriptor(any(BluetoothGattDescriptor.class));
+        scheduler.advanceBy(1);
+        ArgumentCaptor<byte[]> value = ArgumentCaptor.forClass(byte[].class);
+        verify(cccd).setValue(value.capture());
+        verify(gatt).writeDescriptor(cccd);
+        assertArrayEquals(ENABLE_NOTIFICATION, value.getValue());
+        assertEquals(0, scheduler.pendingCount());
+    }
+
+    @Test
+    public void missingCccd_stillMissingAfterRetry_givesUp() {
+        BluetoothGattCharacteristic telemetry = characteristic(GattAttributes.RECOIL_TELEMETRY_UUID);
+        UUID cccdUuid = UUID.fromString(GattAttributes.CLIENT_CHARACTERISTIC_CONFIG);
+        when(telemetry.getDescriptor(cccdUuid)).thenReturn(null);
+
+        service.setCharacteristicNotification(telemetry, true);
+        scheduler.advanceBy(10_000);
+        verify(telemetry, times(2)).getDescriptor(cccdUuid);
+        verify(gatt, never()).writeDescriptor(any(BluetoothGattDescriptor.class));
+        assertEquals(0, scheduler.pendingCount());
+    }
+
     @Test
     public void readCharacteristic_delegatesToGatt() {
         BluetoothGattCharacteristic id = characteristic(GattAttributes.RECOIL_ID_UUID);
@@ -335,18 +417,6 @@ public class BluetoothLeServiceGattTest {
     }
 
     // ----------------------------------------------------------------------------------------
-
-    private static void setField(Object target, String name, Object value) throws Exception {
-        Field f = target.getClass().getDeclaredField(name);
-        f.setAccessible(true);
-        f.set(target, value);
-    }
-
-    private static Object getField(Object target, String name) throws Exception {
-        Field f = target.getClass().getDeclaredField(name);
-        f.setAccessible(true);
-        return f.get(target);
-    }
 
     /**
      * Writes a public static final reference field. Used only to replace the null placeholders
