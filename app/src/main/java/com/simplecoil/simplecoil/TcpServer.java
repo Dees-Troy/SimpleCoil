@@ -1388,6 +1388,96 @@ public class TcpServer extends Service {
     public void setHostScore(int points, int eliminated) {
         mHostPoints.set(points);
         mHostEliminated.set(eliminated);
+        checkLivesLimitEndGame();
+    }
+
+    public void checkLivesLimitEndGame() {
+        if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE) {
+            return;
+        }
+
+        boolean hasGlobalLifeLimit = (Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_LIVES) != 0
+                && Globals.getInstance().mLivesLimit > 0;
+
+        boolean hasOverrideLifeLimit = false;
+        Map<Byte, Globals.PlayerSettings> playerSettingsMap = Globals.getInstance().mPlayerSettings;
+        if (playerSettingsMap != null) {
+            for (Globals.PlayerSettings settings : playerSettingsMap.values()) {
+                if (settings != null && settings.overrideLives && settings.lives > 0) {
+                    hasOverrideLifeLimit = true;
+                    break;
+                }
+            }
+        }
+
+        if (!hasGlobalLifeLimit && !hasOverrideLifeLimit) {
+            return;
+        }
+
+        Set<Integer> livingTeams = new HashSet<>();
+
+        if (mClientData != null) {
+            try {
+                mClientDataSemaphore.acquire();
+                try {
+                    for (Map.Entry<Integer, ClientData> entry : mClientData.entrySet()) {
+                        ClientData client = entry.getValue();
+                        if (client != null && client.mPlayerID != 0) {
+                            byte playerId = client.mPlayerID;
+                            int totalLives = 0;
+                            Globals.PlayerSettings settings = (playerSettingsMap != null) ? playerSettingsMap.get(playerId) : null;
+                            if (settings != null && settings.overrideLives && settings.lives > 0) {
+                                totalLives = settings.lives;
+                            } else if (hasGlobalLifeLimit) {
+                                totalLives = Globals.getInstance().mLivesLimit;
+                            }
+
+                            if (totalLives > 0) {
+                                int remainingLives = totalLives - client.eliminated.get();
+                                if (remainingLives > 0) {
+                                    int team = Globals.getInstance().calcNetworkTeam(playerId);
+                                    livingTeams.add(team);
+                                }
+                            } else {
+                                int team = Globals.getInstance().calcNetworkTeam(playerId);
+                                livingTeams.add(team);
+                            }
+                        }
+                    }
+                } finally {
+                    mClientDataSemaphore.release();
+                }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        if (!mIsDedicated && Globals.getInstance().mPlayerID != 0) {
+            byte hostId = Globals.getInstance().mPlayerID;
+            int totalLives = 0;
+            Globals.PlayerSettings settings = (playerSettingsMap != null) ? playerSettingsMap.get(hostId) : null;
+            if (settings != null && settings.overrideLives && settings.lives > 0) {
+                totalLives = settings.lives;
+            } else if (hasGlobalLifeLimit) {
+                totalLives = Globals.getInstance().mLivesLimit;
+            }
+
+            if (totalLives > 0) {
+                int remainingLives = totalLives - mHostEliminated.get();
+                if (remainingLives > 0) {
+                    int team = Globals.getInstance().calcNetworkTeam(hostId);
+                    livingTeams.add(team);
+                }
+            } else {
+                int team = Globals.getInstance().calcNetworkTeam(hostId);
+                livingTeams.add(team);
+            }
+        }
+
+        if (livingTeams.size() <= 1) {
+            Log.d(TAG, "checkLivesLimitEndGame: ending game, living teams remaining: " + livingTeams.size());
+            endGame();
+        }
     }
 
     public ScoreData getScore(byte playerID) {
@@ -1584,6 +1674,7 @@ public class TcpServer extends Service {
                                                         endGame();
                                                 }
                                             }
+                                            checkLivesLimitEndGame();
                                         } else if (message.equals(NetMsg.NETMSG_SHOTFIRED)) {
                                             sendTCPMessageAll(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SHOTFIRED);
                                         } else if (message.startsWith(NetMsg.NETMSG_HIT)) {

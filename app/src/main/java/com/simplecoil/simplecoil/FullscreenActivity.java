@@ -1848,6 +1848,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mRespawnShieldTimer.cancel();
             mRespawnShieldTimer = null;
         }
+        if (mSpawnTimer != null) {
+            mSpawnTimer.cancel();
+            mSpawnTimer = null;
+        }
         mIsShielded = false;
         if (mRespawnShieldCountdownTV != null) {
             mRespawnShieldCountdownTV.setVisibility(View.GONE);
@@ -1858,6 +1862,13 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mEliminatedTV.setVisibility(View.VISIBLE);
         mEliminatedByTV.setText(eliminatedBy);
         mEliminatedByTV.setVisibility(View.VISIBLE);
+
+        if (mHasLivesLimit && mEliminationCount <= 0) {
+            mSpawnInTV.setText(R.string.dialog_out_of_lives);
+            mSpawnInTV.setVisibility(View.VISIBLE);
+            return;
+        }
+
         mSpawnInTV.setText(getResources().getString(R.string.spawn_in_label, Globals.getInstance().mRespawnTime));
         mSpawnInTV.setVisibility(View.VISIBLE);
         mSpawnTimer = new CountDownTimer(Globals.getInstance().mRespawnTime * 1000, 999) {
@@ -2894,14 +2905,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                                         if (mTcpClient != null)
                                             mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ELIMINATED + hit_by_id, true);
                                     }
-                                    if (mHasLivesLimit && mEliminationCount <= 0) {
-                                        Toast.makeText(getApplicationContext(), getString(R.string.dialog_out_of_lives), Toast.LENGTH_LONG).show();
-                                    }
-                                } else {
-                                    if (mHasLivesLimit && mEliminationCount <= 0) {
-                                        Toast.makeText(getApplicationContext(), getString(R.string.dialog_out_of_lives), Toast.LENGTH_LONG).show();
-                                        endGame(); // Sorry, you're out of the game
-                                    }
+                                }
+                                if (mHasLivesLimit && mEliminationCount <= 0) {
+                                    Toast.makeText(getApplicationContext(), getString(R.string.dialog_out_of_lives), Toast.LENGTH_LONG).show();
                                 }
                             }
                         }

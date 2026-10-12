@@ -70,7 +70,7 @@
     <string name="error_server_cancel">Server was canceled!</string>
     <string name="error_limit_too_high">Limit is too high!</string>
     <string name="dialog_game_time_expired">Time limit reached!</string>
-    <string name="dialog_out_of_lives">Out of lives!</string>
+    <string name="dialog_out_of_lives">Out of Lives!</string>
 
     <string name="end_game_dialog_title">End Game?</string>
     <string name="end_game_dialog_message">Are you sure you want to stop playing?</string>
