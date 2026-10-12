@@ -53,7 +53,15 @@ class SimpleCoilApp : Application() {
             preferences = SharedPreferencesSession(this),
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
             clock = SystemClock::elapsedRealtime,
-        ).also { it.attach(bleDeviceRepository.events) }
+        ).also {
+            it.network = networkGateway
+            it.attach(bleDeviceRepository.events)
+        }
+    }
+
+    /** Network services, NETMSG_* events and the network session state (R13/R14). */
+    val networkGateway: NetworkSessionGateway by lazy {
+        NetworkSessionGateway(this).also { it.registerReceiver() }
     }
 
     /** Shot mode / recoil in the "SimpleCoil" preferences, same keys as the activity used. */

@@ -20,12 +20,8 @@ import android.Manifest;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
-import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
-import android.content.ServiceConnection;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -40,7 +36,6 @@ import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
 import android.os.Build;
 import android.os.Handler;
-import android.os.IBinder;
 import android.os.Looper;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
@@ -107,9 +102,7 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import org.json.JSONArray;
 import org.json.JSONException;
-import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -223,11 +216,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
 
 
-    private boolean mUseNetwork = false;
-    private int mScore = 0;
-    private int mTeamScore = 0;
     private volatile boolean mReady = false;
-    private boolean mIsServer = false;
 
 
 
@@ -254,9 +243,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     public static final String PREF_DEVICE_ADDRESS = "DeviceAddress";
 
 
-    // Code to manage Service lifecycle.
-    private ServiceConnection mUDPServiceConnection = null;
-    private UDPListenerService mUDPListenerService = null;
     private boolean mAutoScanStarted = false;
     private int mNetworkMenuType = NETWORK_TYPE_ENABLED;
     private volatile boolean mIsScoreboardVisible = false;
@@ -270,16 +256,16 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             if (mLatestPlayerDisplayData != null) {
                 showOrUpdateScoreboardDialog(mLatestPlayerDisplayData);
             }
-            if (mUseNetwork) {
-                if (mIsServer && mTcpServer != null) {
-                    String json = mTcpServer.getPlayerDataJson();
+            if (net().getUseNetwork()) {
+                if (net().isServer() && net().getTcpServer() != null) {
+                    String json = net().getTcpServer().getPlayerDataJson();
                     if (json != null && !json.isEmpty()) {
                         displayPlayerData(json);
                     } else {
-                        mTcpServer.sendPlayerData(TcpServer.SEND_ALL);
+                        net().getTcpServer().sendPlayerData(TcpServer.SEND_ALL);
                     }
-                } else if (mTcpClient != null) {
-                    mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_PLAYERDATAREQUEST);
+                } else if (net().getTcpClient() != null) {
+                    net().getTcpClient().sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_PLAYERDATAREQUEST));
                 }
             }
         };
@@ -324,10 +310,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private void startServerSearchTimeout() {
         cancelServerSearchTimeout();
         mSearchTimeoutRunnable = () -> {
-            if (mUseNetwork && !mIsServer && mNetworkMenuType == NETWORK_TYPE_JOINING) {
+            if (net().getUseNetwork() && !net().isServer() && mNetworkMenuType == NETWORK_TYPE_JOINING) {
                 Log.d(TAG, "Server search cycle ended; re-triggering scan...");
-                if (mUDPListenerService != null) {
-                    mUDPListenerService.joinServer();
+                if (net().getUdp() != null) {
+                    net().getUdp().joinServer();
                 }
                 startServerSearchTimeout();
             }
@@ -344,15 +330,15 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
     private void stopServerSearch(boolean disableNetwork) {
         cancelServerSearchTimeout();
-        if (mUDPListenerService != null) {
-            mUDPListenerService.endScanning();
+        if (net().getUdp() != null) {
+            net().getUdp().endScanning();
         }
         mReady = false;
         setReady(disableNetwork);
         if (disableNetwork) {
             mAutoScanStarted = false;
             displayAllNetworkingOptions(false);
-            mUseNetwork = false;
+            net().setUseNetwork(false);
             mUseNetworkingButton.setText(R.string.use_network_button);
             if (Globals.getInstance().mPlayerID == 0) {
                 Globals.getInstance().mPlayerID = (mSelectedPlayerID != 0) ? mSelectedPlayerID : 1;
@@ -384,110 +370,25 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void autoStartServerScan() {
-        if (!mAutoScanStarted && mUDPListenerService != null && !mIsServer) {
+        if (!mAutoScanStarted && net().getUdp() != null && !net().isServer()) {
             if (isWifiDisconnected()) {
                 Log.d(TAG, "autoStartServerScan: Wi-Fi not connected, skipping auto-scan");
                 return;
             }
             mAutoScanStarted = true;
             Log.d(TAG, "autoStartServerScan: starting automatic server discovery on launch");
-            mUseNetwork = true;
+            net().setUseNetwork(true);
             Globals.getInstance().mPlayerID = mSelectedPlayerID;
             displayAllNetworkingOptions(true);
             setNetworkMenu(NETWORK_TYPE_JOINING);
             setTeam();
             startServerSearchTimeout();
-            mUDPListenerService.joinServer();
+            net().getUdp().joinServer();
         }
     }
 
-    private void startServiceSafely(Intent intent) {
-        try {
-            startService(intent);
-        } catch (Exception e) {
-            Log.w(TAG, "Could not start service directly: " + e.getMessage());
-        }
-    }
-
-    private void startForegroundServiceSafely(Intent intent) {
-        try {
-            ContextCompat.startForegroundService(getBaseContext(), intent);
-        } catch (Exception e) {
-            Log.w(TAG, "Could not start foreground service: " + e.getMessage());
-            try {
-                startService(intent);
-            } catch (Exception ex) {
-                Log.w(TAG, "Could not start service directly: " + ex.getMessage());
-            }
-        }
-    }
-
-    private void setupUDPServiceConnection() {
-        mUDPServiceConnection = new ServiceConnection() {
-
-            @Override
-            public void onServiceConnected(ComponentName componentName, IBinder service) {
-                mUDPListenerService = ((UDPListenerService.LocalBinder) service).getService();
-                if (session().isCommunicating()) {
-                    autoStartServerScan();
-                }
-            }
-
-            @Override
-            public void onServiceDisconnected(ComponentName componentName) {
-                mReady = false;
-                setReady(false);
-                mIsServer = false;
-                if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
-                    endGame();
-                mUDPListenerService = null;
-            }
-        };
-        Intent udpServiceIntent = new Intent(getBaseContext(), UDPListenerService.class);
-        startServiceSafely(udpServiceIntent);
-        bindService(udpServiceIntent, mUDPServiceConnection, BIND_AUTO_CREATE);
-    }
-
-    private TcpClient mTcpClient = null;
-    private ServiceConnection mTcpClientServiceConnection = null;
-
-    private TcpServer mTcpServer = null;
-    private ServiceConnection mTcpServerServiceConnection = null;
-
-    private void setupTcpClientServiceConnection() {
-        mTcpClientServiceConnection = new ServiceConnection() {
-
-            @Override
-            public void onServiceConnected(ComponentName componentName, IBinder service) {
-                mTcpClient = ((TcpClient.LocalBinder) service).getService();
-            }
-
-            @Override
-            public void onServiceDisconnected(ComponentName componentName) {
-                mTcpClient = null;
-            }
-        };
-        Intent serviceIntent = new Intent(getBaseContext(), TcpClient.class);
-        startForegroundServiceSafely(serviceIntent);
-        bindService(serviceIntent, mTcpClientServiceConnection, BIND_AUTO_CREATE);
-    }
-
-    private void setupTcpServerServiceConnection() {
-        mTcpServerServiceConnection = new ServiceConnection() {
-
-            @Override
-            public void onServiceConnected(ComponentName componentName, IBinder service) {
-                mTcpServer = ((TcpServer.LocalBinder) service).getService();
-            }
-
-            @Override
-            public void onServiceDisconnected(ComponentName componentName) {
-                mTcpServer = null;
-            }
-        };
-        Intent serviceIntent = new Intent(getBaseContext(), TcpServer.class);
-        startServiceSafely(serviceIntent);
-        bindService(serviceIntent, mTcpServerServiceConnection, BIND_AUTO_CREATE);
+    private NetworkSessionGateway net() {
+        return ((SimpleCoilApp) getApplication()).getNetworkGateway();
     }
 
     @Override
@@ -510,8 +411,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mSelectedPlayerID = savedInstanceState.getByte("mSelectedPlayerID", (byte)0);
             mDeviceAddress = savedInstanceState.getString("mDeviceAddress", "");
             setDeviceAddress(mDeviceAddress);
-            mUseNetwork = savedInstanceState.getBoolean("mUseNetwork", false);
-            mIsServer = savedInstanceState.getBoolean("mIsServer", false);
+            net().setUseNetwork(savedInstanceState.getBoolean("net().getUseNetwork()", false));
+            net().setServer(savedInstanceState.getBoolean("net().isServer()", false));
             mNetworkMenuType = savedInstanceState.getInt("mNetworkMenuType", NETWORK_TYPE_ENABLED);
         } else {
             mSelectedPlayerID = (byte) sharedPreferences.getInt(PREF_SELECTED_PLAYER_ID, 0);
@@ -542,9 +443,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.CREATED, ble().getEvents(), this::handleConnectionEvent);
         FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.RESUMED, ble().getEvents(), this::handleAdapterEvent);
         // The session runs app-scoped (D4); render it and play its effects whenever this screen exists.
-        session().setNetwork(mSessionNetwork);
         FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.CREATED, session().getState(), this::renderSession);
         FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.CREATED, session().getEffects(), this::handleSessionEffect);
+        FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.CREATED, net().getEvents(), this::handleNetworkServiceEvent);
+        FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.RESUMED, net().getEvents(), this::handleNetworkEvent);
 
         mFragmentMgr = getSupportFragmentManager();
         mEliminationCountTV = findViewById(R.id.eliminations_count_tv);
@@ -583,15 +485,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mDedicatedServerButton = findViewById(R.id.dedicated_server_button);
         if (mDedicatedServerButton != null) {
             mDedicatedServerButton.setOnClickListener((v -> {
-                if (mUDPServiceConnection != null)
-                    unbindService(mUDPServiceConnection);
-                if (mTcpClientServiceConnection != null)
-                    unbindService(mTcpClientServiceConnection);
-                if (mTcpServerServiceConnection != null)
-                    unbindService(mTcpServerServiceConnection);
-                mUDPListenerService = null;
-                mTcpClientServiceConnection = null;
-                mTcpServerServiceConnection = null;
+                net().releaseForDedicatedServer();
                 startActivity(new Intent(FullscreenActivity.this, DedicatedServerActivity.class));
             }));
         }
@@ -602,7 +496,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
                     return;
                 byte playerId = Globals.getInstance().mPlayerID;
-                if (mUseNetwork) {
+                if (net().getUseNetwork()) {
                     if (playerId > (byte)0)
                         playerId--;
                     else
@@ -625,7 +519,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
                     return;
                 byte playerId = Globals.getInstance().mPlayerID;
-                if (mUseNetwork) {
+                if (net().getUseNetwork()) {
                     if (playerId < Globals.MAX_PLAYER_ID)
                         playerId++;
                     else
@@ -648,18 +542,18 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     Globals.getInstance().mPlayerID = 1;
                     setTeam();
                 }
-                if (mUseNetwork && mNetworkMenuType == NETWORK_TYPE_JOINED) {
+                if (net().getUseNetwork() && mNetworkMenuType == NETWORK_TYPE_JOINED) {
                     if (Globals.getPlayerCount() <= 1) {
                         Toast.makeText(getApplicationContext(), getString(R.string.not_enough_players_toast), Toast.LENGTH_SHORT).show();
                         mNetworkPlayerCountTV.setText(R.string.network_player_1count);
                         return;
                     }
-                    if (mIsServer)
-                        mTcpServer.startGame();
+                    if (net().isServer())
+                        net().getTcpServer().startGame();
                     else
-                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_STARTGAME);
+                        net().getTcpClient().sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_STARTGAME));
                 } else {
-                    if (mUseNetwork) {
+                    if (net().getUseNetwork()) {
                         stopServerSearch(true);
                     }
                     startGame();
@@ -674,7 +568,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     return;
                 }
                 PlayerSettingsAlertDialog dialog = new PlayerSettingsAlertDialog(FullscreenActivity.this);
-                dialog.setLocal(mTcpClient);
+                dialog.setLocal(net().getTcpClient());
                 dialog.show();
             }));
         }
@@ -785,20 +679,20 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mUseNetworkingButton.setOnClickListener((v -> {
                 if (isWifiDisconnected()) {
                     Toast.makeText(getApplicationContext(), getString(R.string.error_no_wifi), Toast.LENGTH_SHORT).show();
-                    mUseNetwork = false;
+                    net().setUseNetwork(false);
                     return;
                 }
                 if (mNetworkPopup == null) {
                     mNetworkPopup = new PopupMenu(new ContextThemeWrapper(FullscreenActivity.this, R.style.AppTheme_PopupOverlay), v);
                     mNetworkPopup.setOnMenuItemClickListener(FullscreenActivity.this);
                 }
-                if (!mUseNetwork) {
-                    mUseNetwork = true;
+                if (!net().getUseNetwork()) {
+                    net().setUseNetwork(true);
                     displayAllNetworkingOptions(true);
                     Globals.getInstance().mPlayerID = mSelectedPlayerID;
                     setNetworkMenu(NETWORK_TYPE_JOINING);
-                    if (mUDPListenerService != null) {
-                        mUDPListenerService.joinServer();
+                    if (net().getUdp() != null) {
+                        net().getUdp().joinServer();
                     }
                 } else {
                     setNetworkMenu(mNetworkMenuType);
@@ -830,8 +724,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         Button shuffleTeamsButton = findViewById(R.id.shuffle_teams_button);
         if (shuffleTeamsButton != null) {
             shuffleTeamsButton.setOnClickListener(v -> {
-                if (mIsServer && mTcpServer != null) {
-                    mTcpServer.rebalanceAllPlayers(true);
+                if (net().isServer() && net().getTcpServer() != null) {
+                    net().getTcpServer().rebalanceAllPlayers(true);
                     Toast.makeText(getApplicationContext(), "Teams Sorted & Randomized!", Toast.LENGTH_SHORT).show();
                 }
             });
@@ -852,7 +746,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void showAdminControlsMenu(View v) {
-        Log.d(TAG, "showAdminControlsMenu: current mGameState=" + Globals.getInstance().mGameState + ", mIsServer=" + mIsServer);
+        Log.d(TAG, "showAdminControlsMenu: current mGameState=" + Globals.getInstance().mGameState + ", net().isServer()=" + net().isServer());
         PopupMenu popup = new PopupMenu(new ContextThemeWrapper(FullscreenActivity.this, R.style.AppTheme_PopupOverlay), v);
         if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE) {
             popup.getMenu().add(0, 101, 10, R.string.start_game_button);
@@ -868,20 +762,20 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             Log.d(TAG, "showAdminControlsMenu onMenuItemClick: itemId=" + item.getItemId());
             switch (item.getItemId()) {
                 case 101:
-                    Log.d(TAG, "Server Controls: Start Game clicked. mIsServer=" + mIsServer + ", mTcpClient=" + (mTcpClient != null));
-                    if (mIsServer && mTcpServer != null) {
-                        mTcpServer.startGame();
-                    } else if (mTcpClient != null) {
-                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_STARTGAME);
-                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ADMIN_STARTGAME);
+                    Log.d(TAG, "Server Controls: Start Game clicked. net().isServer()=" + net().isServer() + ", net().getTcpClient()=" + (net().getTcpClient() != null));
+                    if (net().isServer() && net().getTcpServer() != null) {
+                        net().getTcpServer().startGame();
+                    } else if (net().getTcpClient() != null) {
+                        net().getTcpClient().sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_STARTGAME));
+                        net().getTcpClient().sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_STARTGAME));
                     }
                     return true;
                 case 102:
-                    Log.d(TAG, "Server Controls: End Game clicked. mIsServer=" + mIsServer + ", mTcpClient=" + (mTcpClient != null));
-                    if (mIsServer && mTcpServer != null) {
-                        mTcpServer.endGame();
-                    } else if (mTcpClient != null) {
-                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ADMIN_ENDGAME);
+                    Log.d(TAG, "Server Controls: End Game clicked. net().isServer()=" + net().isServer() + ", net().getTcpClient()=" + (net().getTcpClient() != null));
+                    if (net().isServer() && net().getTcpServer() != null) {
+                        net().getTcpServer().endGame();
+                    } else if (net().getTcpClient() != null) {
+                        net().getTcpClient().sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_ENDGAME));
                     }
                     return true;
                 case 103:
@@ -898,10 +792,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     return true;
                 case 106:
                     Log.d(TAG, "Server Controls: Shuffle Teams clicked");
-                    if (mIsServer && mTcpServer != null) {
-                        mTcpServer.rebalanceAllPlayers(true);
-                    } else if (mTcpClient != null) {
-                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ADMIN_SORTTEAMS);
+                    if (net().isServer() && net().getTcpServer() != null) {
+                        net().getTcpServer().rebalanceAllPlayers(true);
+                    } else if (net().getTcpClient() != null) {
+                        net().getTcpClient().sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_SORTTEAMS));
                     }
                     return true;
             }
@@ -911,12 +805,12 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void changeAdminGameMode(int mode) {
-        Log.d(TAG, "changeAdminGameMode: mode=" + mode + ", mIsServer=" + mIsServer + ", mTcpClient=" + (mTcpClient != null));
-        if (mIsServer && mTcpServer != null) {
+        Log.d(TAG, "changeAdminGameMode: mode=" + mode + ", net().isServer()=" + net().isServer() + ", net().getTcpClient()=" + (net().getTcpClient() != null));
+        if (net().isServer() && net().getTcpServer() != null) {
             Globals.getInstance().mGameMode = mode;
-            mTcpServer.rebalanceAllPlayers(false);
-        } else if (mTcpClient != null) {
-            mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ADMIN_GAMEMODE + mode);
+            net().getTcpServer().rebalanceAllPlayers(false);
+        } else if (net().getTcpClient() != null) {
+            net().getTcpClient().sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_GAMEMODE + mode));
         }
     }
 
@@ -1009,7 +903,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             setReady();
             setNetworkMenu(NETWORK_TYPE_JOINING);
             startServerSearchTimeout();
-            mUDPListenerService.joinServer();
+            net().getUdp().joinServer();
             return true;
         } else if (id == R.id.join_ip_item) {
             if (mNetworkMenuType == NETWORK_TYPE_JOINED)
@@ -1078,8 +972,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             }
             return true;
         } else if (id == R.id.shuffle_teams_item) {
-            if (mIsServer && mTcpServer != null) {
-                mTcpServer.rebalanceAllPlayers(true);
+            if (net().isServer() && net().getTcpServer() != null) {
+                net().getTcpServer().rebalanceAllPlayers(true);
                 Toast.makeText(getApplicationContext(), "Teams Sorted & Randomized!", Toast.LENGTH_SHORT).show();
             }
             return true;
@@ -1087,24 +981,24 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             Globals.getInstance().mGameMode = Globals.GAME_MODE_2TEAMS;
             mGameModeTV.setText(R.string.game_mode_2teams);
             setTeam();
-            if (mIsServer && mTcpServer != null) {
-                mTcpServer.rebalanceAllPlayers(false);
+            if (net().isServer() && net().getTcpServer() != null) {
+                net().getTcpServer().rebalanceAllPlayers(false);
             }
             return true;
         } else if (id == R.id.game_mode_4teams_item) {
             Globals.getInstance().mGameMode = Globals.GAME_MODE_4TEAMS;
             mGameModeTV.setText(R.string.game_mode_4teams);
             setTeam();
-            if (mIsServer && mTcpServer != null) {
-                mTcpServer.rebalanceAllPlayers(false);
+            if (net().isServer() && net().getTcpServer() != null) {
+                net().getTcpServer().rebalanceAllPlayers(false);
             }
             return true;
         } else if (id == R.id.game_mode_ffa_item) {
             Globals.getInstance().mGameMode = Globals.GAME_MODE_FFA;
             mGameModeTV.setText(R.string.game_mode_ffa);
             setTeam();
-            if (mIsServer && mTcpServer != null) {
-                mTcpServer.rebalanceAllPlayers(false);
+            if (net().isServer() && net().getTcpServer() != null) {
+                net().getTcpServer().rebalanceAllPlayers(false);
             }
             return true;
         }
@@ -1112,7 +1006,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void requestSwitchTeam(int targetTeam) {
-        if (mTcpClient == null) {
+        if (net().getTcpClient() == null) {
             return;
         }
         if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
@@ -1120,10 +1014,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             return;
         }
         try {
-            JSONObject json = new JSONObject();
-            json.put(TcpServer.JSON_PLAYERID, (int) Globals.getInstance().mPlayerID);
-            json.put(TcpServer.JSON_REQUEST_TEAM_CHANGE, targetTeam);
-            mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + json);
+            net().getTcpClient().sendTCPMessage(NetworkSessionGateway.teamChangeRequest(Globals.getInstance().mPlayerID, targetTeam));
         } catch (JSONException e) {
             Log.e(TAG, "JSON Exception: " + e.getMessage());
         }
@@ -1197,11 +1088,11 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 .setCancelable(false)
                 .setPositiveButton(R.string.ok,
                         (dialog, id) -> {
-                            mIsServer = true; // This tricks the setReady function into not searching for a server
+                            net().setServer(true); // This tricks the setReady function into not searching for a server
                             mReady = true;
                             setReady();
-                            mIsServer = false;
-                            mUDPListenerService.joinServer(serverIPET.getText().toString());
+                            net().setServer(false);
+                            net().getUdp().joinServer(serverIPET.getText().toString());
                             setNetworkMenu(NETWORK_TYPE_JOINING);
                             dialog.dismiss();
                         })
@@ -1225,7 +1116,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         gameLimitLives.setChecked(false);
         final RadioButton gameLimitScore = view.findViewById(R.id.game_limit_score_radio);
         gameLimitScore.setChecked(false);
-        if (mUseNetwork)
+        if (net().getUseNetwork())
             gameLimitScore.setVisibility(View.VISIBLE);
         else
             gameLimitScore.setVisibility(View.GONE);
@@ -1328,7 +1219,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
     private void setReady(boolean sendPlayerLeft) {
         if (mReady) {
-            if (mUseNetwork) {
+            if (net().getUseNetwork()) {
                 mServerIPTV.setVisibility(View.VISIBLE);
                 mServerIPTV.setText(R.string.server_status_searching);
             }
@@ -1337,16 +1228,16 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             Globals.getInstance().mOnlyServerSettings = false;
             Globals.getInstance().mUseGPS = false;
             if (sendPlayerLeft) {
-                if (mTcpClient != null) {
-                    mTcpClient.leaveServer();
+                if (net().getTcpClient() != null) {
+                    net().getTcpClient().leaveServer();
                 }
             }
-            if (!mIsServer) {
-                if (mUDPListenerService != null) {
-                    mUDPListenerService.stopListen();
+            if (!net().isServer()) {
+                if (net().getUdp() != null) {
+                    net().getUdp().stopListen();
                 }
-                if (mTcpClient != null) {
-                    mTcpClient.stopTcpClient();
+                if (net().getTcpClient() != null) {
+                    net().getTcpClient().stopTcpClient();
                 }
             }
             mNetworkStatusIV.setVisibility(View.GONE);
@@ -1382,9 +1273,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         windowInsetsController.setSystemBarsBehavior(
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         );
-        mScore = 0;
+        net().setScore(0);
         mScoreTV.setText("0");
-        mTeamScore = 0;
+        net().setTeamScore(0);
         mTeamScoreTV.setText("0");
         mStartGameButton.setVisibility(View.GONE);
         mTeamMinusButton.setVisibility(View.INVISIBLE);
@@ -1396,15 +1287,15 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             shuffleTeamsBtn.setEnabled(false);
             shuffleTeamsBtn.setVisibility(View.GONE);
         }
-        if (mUseNetwork) {
+        if (net().getUseNetwork()) {
             displayInGameNetworkingOptions();
-            if (mIsServer) {
+            if (net().isServer()) {
                 mEndNetworkGameButton.setVisibility(View.VISIBLE);
             } else {
                 mEndNetworkGameButton.setVisibility(View.GONE);
             }
-            if (mUDPListenerService != null) {
-                mUDPListenerService.startGame();
+            if (net().getUdp() != null) {
+                net().getUdp().startGame();
             }
         } else {
             displayAllNetworkingOptions(false);
@@ -1423,14 +1314,14 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         builder.setMessage(R.string.end_game_dialog_message);
 
         builder.setPositiveButton(R.string.yes, (dialog, which) -> {
-            if (mUseNetwork) {
-                if (Globals.getInstance().mIsAdmin || mIsServer) {
-                    if (mTcpClient != null)
-                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ADMIN_ENDGAME);
-                    else if (mIsServer && mTcpServer != null)
-                        mTcpServer.endGame();
+            if (net().getUseNetwork()) {
+                if (Globals.getInstance().mIsAdmin || net().isServer()) {
+                    if (net().getTcpClient() != null)
+                        net().getTcpClient().sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_ENDGAME));
+                    else if (net().isServer() && net().getTcpServer() != null)
+                        net().getTcpServer().endGame();
                 } else {
-                    mTcpClient.leaveServer();
+                    net().getTcpClient().leaveServer();
                     endGame();
                 }
             } else {
@@ -1449,7 +1340,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void endGame() {
-        boolean wasInNetworkGame = mUseNetwork && Globals.getInstance().mGameState != Globals.GAME_STATE_NONE;
+        boolean wasInNetworkGame = net().getUseNetwork() && Globals.getInstance().mGameState != Globals.GAME_STATE_NONE;
         // Game state NONE, timers, spawn/shield/clock display, reload lock
         session().endGame();
         hideWeaponDisconnect();
@@ -1459,7 +1350,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         windowInsetsController.show(WindowInsetsCompat.Type.systemBars());
         mEndGameButton.setVisibility(View.GONE);
         mEndNetworkGameButton.setVisibility(View.GONE);
-        displayAllNetworkingOptions(mUseNetwork);
+        displayAllNetworkingOptions(net().getUseNetwork());
         mUseNetworkingButton.setVisibility(View.VISIBLE);
         mHitPlayerIV.setVisibility(View.GONE);
         mHitPlayerNameTV.setVisibility(View.GONE);
@@ -1468,7 +1359,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
         updatePreGameButtonVisibilities();
 
-        if (mReady && !mIsServer && mTcpClient != null && mTcpClient.isDedicatedServer()) {
+        if (mReady && !net().isServer() && net().getTcpClient() != null && net().getTcpClient().isDedicatedServer()) {
             setNetworkMenu(NETWORK_TYPE_JOINED);
             mPlayerDataButton.setVisibility(View.VISIBLE);
         } else {
@@ -1495,8 +1386,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mGameLimitButton.setVisibility(View.VISIBLE);
         }
 
-        boolean isConnectedClient = mUseNetwork && mNetworkMenuType == NETWORK_TYPE_JOINED && !mIsServer;
-        boolean isSearchingForServer = mUseNetwork && mNetworkMenuType == NETWORK_TYPE_JOINING && !mIsServer;
+        boolean isConnectedClient = net().getUseNetwork() && mNetworkMenuType == NETWORK_TYPE_JOINED && !net().isServer();
+        boolean isSearchingForServer = net().getUseNetwork() && mNetworkMenuType == NETWORK_TYPE_JOINING && !net().isServer();
         if (Globals.getInstance().mOnlyServerSettings || isConnectedClient) {
             mStartGameButton.setVisibility(View.GONE);
         } else {
@@ -1515,7 +1406,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         Button shuffleTeamsBtn = findViewById(R.id.shuffle_teams_button);
         if (shuffleTeamsBtn != null) {
             shuffleTeamsBtn.setEnabled(true);
-            shuffleTeamsBtn.setVisibility(mIsServer ? View.VISIBLE : View.GONE);
+            shuffleTeamsBtn.setVisibility(net().isServer() ? View.VISIBLE : View.GONE);
         }
 
         updateAdminButtonVisibility();
@@ -1546,7 +1437,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     private void displayCurrentTeam() {
-        if ((mUseNetwork || mSelectedPlayerID == 0) && Globals.getInstance().mPlayerID == 0) {
+        if ((net().getUseNetwork() || mSelectedPlayerID == 0) && Globals.getInstance().mPlayerID == 0) {
             mTeamLabelTV.setText(R.string.team_label);
             mTeamLabelTV.setBackground(null);
             mTeamLabelTV.setPadding(0, 0, 0, 0);
@@ -1555,7 +1446,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mTeamScoreLabelTV.setVisibility(View.INVISIBLE);
             mTeamScoreTV.setVisibility(View.INVISIBLE);
         } else {
-            if (!mUseNetwork && Globals.getInstance().mPlayerID == 0) {
+            if (!net().getUseNetwork() && Globals.getInstance().mPlayerID == 0) {
                 Globals.getInstance().mPlayerID = (mSelectedPlayerID != 0) ? mSelectedPlayerID : 1;
             }
             if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
@@ -1584,7 +1475,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     mTeamLabelTV.setTextColor(Color.WHITE);
                 }
 
-                if (mUseNetwork && mTcpClient != null && mTcpClient.isDedicatedServer()) {
+                if (net().getUseNetwork() && net().getTcpClient() != null && net().getTcpClient().isDedicatedServer()) {
                     String playerName = Globals.getInstance().mPlayerName;
                     if (playerName == null || playerName.isEmpty()) {
                         playerName = getString(R.string.network_team, player);
@@ -1595,7 +1486,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 } else {
                     mTeamTV.setText(getString(R.string.network_team, player));
                 }
-                if (mUseNetwork) {
+                if (net().getUseNetwork()) {
                     mTeamScoreLabelTV.setVisibility(View.VISIBLE);
                     mTeamScoreTV.setVisibility(View.VISIBLE);
                 } else {
@@ -1621,8 +1512,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         super.onSaveInstanceState(outState);
         outState.putByte("mSelectedPlayerID", mSelectedPlayerID);
         outState.putString("mDeviceAddress", mDeviceAddress);
-        outState.putBoolean("mUseNetwork", mUseNetwork);
-        outState.putBoolean("mIsServer", mIsServer);
+        outState.putBoolean("net().getUseNetwork()", net().getUseNetwork());
+        outState.putBoolean("net().isServer()", net().isServer());
         outState.putInt("mNetworkMenuType", mNetworkMenuType);
     }
 
@@ -1651,33 +1542,22 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         updatePlayerSettings();
 
         ble().reconnect(mDeviceAddress);
-        ContextCompat.registerReceiver(this, mUDPUpdateReceiver, makeUDPUpdateIntentFilter(), ContextCompat.RECEIVER_NOT_EXPORTED);
-        setupUDPServiceConnection();
-        setupTcpClientServiceConnection();
-        setupTcpServerServiceConnection();
-        if (mUseNetwork && mTcpClient != null) {
-            mTcpClient.sendPlayerInfo(true);
+        net().bindServices();
+        if (net().getUseNetwork() && net().getTcpClient() != null) {
+            net().getTcpClient().sendPlayerInfo(true);
         }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        unregisterReceiver(mUDPUpdateReceiver);
     }
 
     @Override
     protected void onDestroy() {
         dismissScoreboardDialog();
-        // The session outlives this screen; don't let it hold on to this activity's network.
-        session().setNetwork(null);
         ble().reset();
-        if (mUDPServiceConnection != null)
-            try {unbindService(mUDPServiceConnection);} catch (Exception e) {/* nothing */}
-        if (mTcpClientServiceConnection != null)
-            try {unbindService(mTcpClientServiceConnection);} catch (Exception e) {/* nothing */}
-        if (mTcpServerServiceConnection != null)
-            try {unbindService(mTcpServerServiceConnection);} catch (Exception e) {/* nothing */}
+        net().unbindServices();
         super.onDestroy();
     }
 
@@ -1798,8 +1678,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mPlayerNameTV.setText(name);
         }
         displayCurrentTeam();
-        if (mReady && mTcpClient != null) {
-            mTcpClient.sendPlayerNameChange();
+        if (mReady && net().getTcpClient() != null) {
+            net().getTcpClient().sendPlayerNameChange();
         } else {
             displayAllNetworkingOptions(true);
             setNetworkMenu(NETWORK_TYPE_ENABLED);
@@ -2016,58 +1896,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mp.setLooping(false);
     }
 
-    /* The session's network side, until NetworkSessionGateway owns it: the same TCP messages and
-       null checks as the inline code it replaces. */
-    private final SessionNetwork mSessionNetwork = new SessionNetwork() {
-        @Override
-        public boolean getUseNetwork() {
-            return mUseNetwork;
-        }
-
-        @Override
-        public void sendHit(byte playerId) {
-            if (mTcpClient != null)
-                mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_HIT + playerId);
-        }
-
-        @Override
-        public void sendOut(byte playerId) {
-            if (mTcpClient != null)
-                mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_OUT + playerId);
-        }
-
-        @Override
-        public void sendShotFired() {
-            if (mTcpClient != null)
-                mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_SHOTFIRED);
-        }
-
-        @Override
-        public void sendEliminated(byte playerId) {
-            if (mTcpClient != null)
-                mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ELIMINATED + playerId, true);
-        }
-
-        @Override
-        public void sendPlayerGrenade() {
-            if (mTcpClient.isDedicatedServer())
-                mTcpClient.sendPlayerGrenade();
-        }
-
-        @Override
-        public void setHostEliminations(int eliminations) {
-            if (mIsServer && mTcpServer != null) {
-                mTcpServer.setHostScore(mScore, eliminations);
-            }
-        }
-
-        @Override
-        public void serverEndGame() {
-            if (mIsServer && mTcpServer != null) {
-                mTcpServer.endGame();
-            }
-        }
-    };
 
     private void handleSessionEffect(SessionEffect effect) {
         if (effect instanceof SessionEffect.Sound) {
@@ -2245,279 +2073,241 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         }
     }
 
-    private final BroadcastReceiver mUDPUpdateReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-            if (NetMsg.NETMSG_SHOTFIRED.equals(action)) {
-                // Play a sound?
-                session().onRemoteShotFired(); // Keeps us from spamming shots fired messages
-                if (mShotsFiredIV != null && mShotsFiredIV.getVisibility() != View.VISIBLE) {
-                    // Show the "shots fired" image
-                    mShotsFiredIV.setVisibility(View.VISIBLE);
-                    Animation animationFadeOut = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadeout);
-                    mShotsFiredIV.startAnimation(animationFadeOut);
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> mShotsFiredIV.setVisibility(View.GONE), HIT_ANIMATION_DURATION_MILLISECONDS);
-                }
-            } else if (NetMsg.NETMSG_HIT.equals(action)) {
-                // Play a sound?
-                if (mHitPlayerIV != null && mHitPlayerAnimation == null) {
-                    // Show the "you hit a player" animation
-                    mHitPlayerIV.setVisibility(View.VISIBLE);
-                    mHitPlayerIV.setBackgroundResource(R.drawable.hit_other_player_animation);
-                    Animation animationFadeOut = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadeout);
-                    mHitPlayerIV.startAnimation(animationFadeOut);
-                    mHitPlayerAnimation = (AnimationDrawable) mHitPlayerIV.getBackground();
-                    mHitPlayerAnimation.start();
-                    mHitPlayerNameTV.setVisibility(View.VISIBLE);
-                    byte hitPlayerID = intent.getByteExtra(UDPListenerService.INTENT_PLAYERID, (byte)0);
-                    if (hitPlayerID == 0) {
-                        mHitPlayerNameTV.setText("");
-                    } else {
-                        mHitPlayerNameTV.setText(Globals.getInstance().getPlayerName(hitPlayerID));
-                    }
-                    mHitPlayerNameTV.startAnimation(animationFadeOut);
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        mHitPlayerIV.setVisibility(View.GONE);
-                        mHitPlayerAnimation.stop();
-                        mHitPlayerAnimation = null;
-                        mHitPlayerNameTV.setVisibility(View.GONE);
-                    }, HIT_ANIMATION_DURATION_MILLISECONDS);
-                }
-            } else if (NetMsg.NETMSG_OUT.equals(action)) {
-                // Play a sound?
-                if (mHitPlayerIV != null && mHitPlayerAnimation == null) {
-                    // Show the "you hit a player that's already out" animation
-                    mHitPlayerIV.setVisibility(View.VISIBLE);
-                    mHitPlayerIV.setBackgroundResource(R.drawable.hit_other_player_out_animation);
-                    Animation animationFadeOut = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadeout);
-                    mHitPlayerIV.startAnimation(animationFadeOut);
-                    mHitPlayerAnimation = (AnimationDrawable) mHitPlayerIV.getBackground();
-                    mHitPlayerAnimation.start();
-                    mHitPlayerNameTV.setVisibility(View.VISIBLE);
-                    byte hitPlayerID = intent.getByteExtra(UDPListenerService.INTENT_PLAYERID, (byte)0);
-                    if (hitPlayerID == 0) {
-                        mHitPlayerNameTV.setText("");
-                    } else {
-                        mHitPlayerNameTV.setText(Globals.getInstance().getPlayerName(hitPlayerID));
-                    }
-                    mHitPlayerNameTV.startAnimation(animationFadeOut);
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        mHitPlayerIV.setVisibility(View.GONE);
-                        mHitPlayerAnimation.stop();
-                        mHitPlayerAnimation = null;
-                        mHitPlayerNameTV.setVisibility(View.GONE);
-                    }, HIT_ANIMATION_DURATION_MILLISECONDS);
-                }
-            } else if (NetMsg.NETMSG_ELIMINATED.equals(action)) {
-                // Increase score
-                mScore++;
-                String score = Integer.valueOf(mScore).toString();
-                mScoreTV.setText(score);
-                if (mIsServer && mTcpServer != null) {
-                    mTcpServer.setHostScore(mScore, session().getEliminations());
-                }
-                mScoreIncreaseIV.setVisibility(View.VISIBLE);
-                Animation animationFadeOut = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.eliminatedfadeout);
-                mScoreIncreaseIV.startAnimation(animationFadeOut);
-                mScoreIncreasePlayerNameTV.setVisibility(View.VISIBLE);
-                byte hitPlayerID = intent.getByteExtra(UDPListenerService.INTENT_PLAYERID, (byte)0);
+    // Service lifecycle from the gateway, whenever it happens (as the ServiceConnections did).
+    private void handleNetworkServiceEvent(NetworkEvent event) {
+        if (event instanceof NetworkEvent.UdpServiceConnected) {
+            if (session().isCommunicating()) {
+                autoStartServerScan();
+            }
+        } else if (event instanceof NetworkEvent.UdpServiceDisconnected) {
+            mReady = false;
+            setReady(false);
+            net().setServer(false);
+            if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
+                endGame();
+        } else if (event instanceof NetworkEvent.PlayerData) {
+            // Scoreboard parsed off the main thread (scores already updated)
+            if (mScoreTV != null) mScoreTV.setText(String.valueOf(net().getScore()));
+            if (mTeamScoreTV != null) mTeamScoreTV.setText(String.valueOf(net().getTeamScore()));
+            updateScoreboardData(((NetworkEvent.PlayerData) event).getPlayers());
+        }
+    }
+
+    // NETMSG_* broadcasts, while resumed (as the receiver registered in onResume was).
+    private void handleNetworkEvent(NetworkEvent event) {
+        if (event instanceof NetworkEvent.ShotFired) {
+            // Play a sound?
+            session().onRemoteShotFired(); // Keeps us from spamming shots fired messages
+            if (mShotsFiredIV != null && mShotsFiredIV.getVisibility() != View.VISIBLE) {
+                // Show the "shots fired" image
+                mShotsFiredIV.setVisibility(View.VISIBLE);
+                Animation animationFadeOut = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadeout);
+                mShotsFiredIV.startAnimation(animationFadeOut);
+                new Handler(Looper.getMainLooper()).postDelayed(() -> mShotsFiredIV.setVisibility(View.GONE), HIT_ANIMATION_DURATION_MILLISECONDS);
+            }
+        } else if (event instanceof NetworkEvent.Hit || event instanceof NetworkEvent.Out) {
+            // Play a sound?
+            if (mHitPlayerIV != null && mHitPlayerAnimation == null) {
+                // Show the "you hit a player" / "you hit a player that's already out" animation
+                mHitPlayerIV.setVisibility(View.VISIBLE);
+                mHitPlayerIV.setBackgroundResource(event instanceof NetworkEvent.Hit ? R.drawable.hit_other_player_animation : R.drawable.hit_other_player_out_animation);
+                Animation animationFadeOut = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadeout);
+                mHitPlayerIV.startAnimation(animationFadeOut);
+                mHitPlayerAnimation = (AnimationDrawable) mHitPlayerIV.getBackground();
+                mHitPlayerAnimation.start();
+                mHitPlayerNameTV.setVisibility(View.VISIBLE);
+                byte hitPlayerID = event instanceof NetworkEvent.Hit ? ((NetworkEvent.Hit) event).getPlayerId() : ((NetworkEvent.Out) event).getPlayerId();
                 if (hitPlayerID == 0) {
-                    mScoreIncreasePlayerNameTV.setText("");
+                    mHitPlayerNameTV.setText("");
                 } else {
-                    mScoreIncreasePlayerNameTV.setText(Globals.getInstance().getPlayerName(hitPlayerID));
+                    mHitPlayerNameTV.setText(Globals.getInstance().getPlayerName(hitPlayerID));
                 }
-                mScoreIncreasePlayerNameTV.startAnimation(animationFadeOut);
+                mHitPlayerNameTV.startAnimation(animationFadeOut);
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    mScoreIncreaseIV.setVisibility(View.GONE);
-                    mScoreIncreasePlayerNameTV.setVisibility(View.GONE);
-                }, ELIMINATED_ANIMATION_DURATION_MILLISECONDS);
-                playSound(R.raw.score, getApplicationContext());
-                if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
-                    mTeamScore++;
-                    score = "" + mTeamScore;
-                    mTeamScoreTV.setText(score);
-                    if (mTcpClient != null) {
-                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_TEAMELIMINATED);
-                    }
+                    mHitPlayerIV.setVisibility(View.GONE);
+                    mHitPlayerAnimation.stop();
+                    mHitPlayerAnimation = null;
+                    mHitPlayerNameTV.setVisibility(View.GONE);
+                }, HIT_ANIMATION_DURATION_MILLISECONDS);
+            }
+        } else if (event instanceof NetworkEvent.Eliminated) {
+            // Increase score
+            net().setScore(net().getScore() + 1);
+            mScoreTV.setText(String.valueOf(net().getScore()));
+            if (net().isServer() && net().getTcpServer() != null) {
+                net().getTcpServer().setHostScore(net().getScore(), session().getEliminations());
+            }
+            mScoreIncreaseIV.setVisibility(View.VISIBLE);
+            Animation animationFadeOut = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.eliminatedfadeout);
+            mScoreIncreaseIV.startAnimation(animationFadeOut);
+            mScoreIncreasePlayerNameTV.setVisibility(View.VISIBLE);
+            byte hitPlayerID = ((NetworkEvent.Eliminated) event).getPlayerId();
+            if (hitPlayerID == 0) {
+                mScoreIncreasePlayerNameTV.setText("");
+            } else {
+                mScoreIncreasePlayerNameTV.setText(Globals.getInstance().getPlayerName(hitPlayerID));
+            }
+            mScoreIncreasePlayerNameTV.startAnimation(animationFadeOut);
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                mScoreIncreaseIV.setVisibility(View.GONE);
+                mScoreIncreasePlayerNameTV.setVisibility(View.GONE);
+            }, ELIMINATED_ANIMATION_DURATION_MILLISECONDS);
+            playSound(R.raw.score, getApplicationContext());
+            if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
+                net().setTeamScore(net().getTeamScore() + 1);
+                mTeamScoreTV.setText(String.valueOf(net().getTeamScore()));
+                if (net().getTcpClient() != null) {
+                    net().getTcpClient().sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_TEAMELIMINATED));
                 }
-                if (!mUseNetwork && (Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_SCORE) != 0) {
-                    int currentScore = (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) ? mTeamScore : mScore;
-                    if (currentScore >= Globals.getInstance().mScoreLimit) {
-                        endGame();
-                    }
-                }
-            } else if (NetMsg.NETMSG_TEAMELIMINATED.equals(action)) {
-                // Increase team score in team games
-                mTeamScore++;
-                String score = "" + mTeamScore;
-                mTeamScoreTV.setText(score);
-                if (!mUseNetwork && (Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_SCORE) != 0 && mTeamScore >= Globals.getInstance().mScoreLimit) {
+            }
+            if (!net().getUseNetwork() && (Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_SCORE) != 0) {
+                int currentScore = (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) ? net().getTeamScore() : net().getScore();
+                if (currentScore >= Globals.getInstance().mScoreLimit) {
                     endGame();
                 }
-            } else if (NetMsg.NETMSG_JOIN.equals(action) || NetMsg.NETMSG_LEAVE.equals(action)) {
+            }
+        } else if (event instanceof NetworkEvent.TeamEliminated) {
+            // Increase team score in team games
+            net().setTeamScore(net().getTeamScore() + 1);
+            mTeamScoreTV.setText(String.valueOf(net().getTeamScore()));
+            if (!net().getUseNetwork() && (Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_SCORE) != 0 && net().getTeamScore() >= Globals.getInstance().mScoreLimit) {
+                endGame();
+            }
+        } else if (event instanceof NetworkEvent.Join || event instanceof NetworkEvent.Leave) {
+            mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, Globals.getPlayerCount()));
+            mNetworkPlayerCountTV.setVisibility(View.VISIBLE);
+            if (Globals.getInstance().mGameMode == Globals.GAME_MODE_FFA && Globals.getInstance().mGameState != Globals.GAME_STATE_NONE && event instanceof NetworkEvent.Leave && Globals.getPlayerCount() <= 1)
+                endGame(); // Everyone else is out so game is over - this only works in FFA because we don't keep track of who and how many people are on each team
+        } else if (event instanceof NetworkEvent.ListPlayers) {
+            NetworkEvent.ListPlayers listPlayers = (NetworkEvent.ListPlayers) event;
+            if (mReady) {
+                net().getUdp().endScanning();
                 mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, Globals.getPlayerCount()));
                 mNetworkPlayerCountTV.setVisibility(View.VISIBLE);
-                if (Globals.getInstance().mGameMode == Globals.GAME_MODE_FFA && Globals.getInstance().mGameState != Globals.GAME_STATE_NONE && NetMsg.NETMSG_LEAVE.equals(action) && Globals.getPlayerCount() <= 1)
-                    endGame(); // Everyone else is out so game is over - this only works in FFA because we don't keep track of who and how many people are on each team
-            } else if (NetMsg.NETMSG_LISTPLAYERS.equals(action)) {
-                if (mReady) {
-                    mUDPListenerService.endScanning();
-                    mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, Globals.getPlayerCount()));
-                    mNetworkPlayerCountTV.setVisibility(View.VISIBLE);
-                    if (Globals.getInstance().mGameMode == Globals.GAME_MODE_2TEAMS) {
-                        mGameModeTV.setText(R.string.game_mode_2teams);
-                    } else if (Globals.getInstance().mGameMode == Globals.GAME_MODE_4TEAMS) {
-                        mGameModeTV.setText(R.string.game_mode_4teams);
-                    } else {
-                        mGameModeTV.setText(R.string.game_mode_ffa);
+                if (Globals.getInstance().mGameMode == Globals.GAME_MODE_2TEAMS) {
+                    mGameModeTV.setText(R.string.game_mode_2teams);
+                } else if (Globals.getInstance().mGameMode == Globals.GAME_MODE_4TEAMS) {
+                    mGameModeTV.setText(R.string.game_mode_4teams);
+                } else {
+                    mGameModeTV.setText(R.string.game_mode_ffa);
+                }
+                setTeam();
+                if (!net().isServer() && mReady && net().getUseNetwork() && Globals.getInstance().mGameState == Globals.GAME_STATE_NONE) {
+                    mReady = true;
+                    setReady();
+                    setGameLimit();
+                    setNetworkMenu(NETWORK_TYPE_JOINED);
+                    mStartGameButton.setVisibility(View.GONE);
+                    String ip = Globals.getInstance().mServerIP != null ? Globals.getInstance().mServerIP.toString() : "";
+                    if (ip.startsWith("/")) ip = ip.substring(1);
+                    mServerIPTV.setText(getString(R.string.server_status_connected_to, ip));
+                    mServerIPTV.setVisibility(View.VISIBLE);
+                    if (net().getTcpClient().isDedicatedServer()) {
+                        mPlayerDataButton.setVisibility(View.VISIBLE);
+                        mNetworkStatusIV.setVisibility(View.VISIBLE);
+                        mNetworkStatusIV.setImageResource(R.drawable.ic_network_connected_24dp);
                     }
-                    setTeam();
-                    if (!mIsServer && mReady && mUseNetwork && Globals.getInstance().mGameState == Globals.GAME_STATE_NONE) {
-                        mReady = true;
-                        setReady();
-                        setGameLimit();
-                        setNetworkMenu(NETWORK_TYPE_JOINED);
-                        mStartGameButton.setVisibility(View.GONE);
-                        String ip = Globals.getInstance().mServerIP != null ? Globals.getInstance().mServerIP.toString() : "";
-                        if (ip.startsWith("/")) ip = ip.substring(1);
-                        mServerIPTV.setText(getString(R.string.server_status_connected_to, ip));
-                        mServerIPTV.setVisibility(View.VISIBLE);
-                        if (mTcpClient.isDedicatedServer()) {
-                            mPlayerDataButton.setVisibility(View.VISIBLE);
-                            mNetworkStatusIV.setVisibility(View.VISIBLE);
-                            mNetworkStatusIV.setImageResource(R.drawable.ic_network_connected_24dp);
-                        }
+                }
+                GameUpdate update = listPlayers.getGameUpdate();
+                if (update != null) {
+                    net().setScore(update.getScore());
+                    mScoreTV.setText(String.valueOf(net().getScore()));
+                    if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
+                        net().setTeamScore(update.getTeamScore());
+                        mTeamScoreTV.setText(String.valueOf(net().getTeamScore()));
                     }
-                    if (intent.getBooleanExtra(NetMsg.INTENT_HASGAMEUPDATE, false)) {
-                        mScore = intent.getIntExtra(NetMsg.INTENT_SCORE, 0);
-                        String score = "" + mScore;
-                        mScoreTV.setText(score);
-                        int elims = intent.getIntExtra(NetMsg.INTENT_ELIMINATIONS, 0);
-                        if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
-                            mTeamScore = intent.getIntExtra(NetMsg.INTENT_TEAMSCORE, 0);
-                            score = "" + mTeamScore;
-                            mTeamScoreTV.setText(score);
-                        }
-                        long timeRemaining = intent.getLongExtra(NetMsg.INTENT_TIMEREMAINING, -1);
-                        // Eliminations (or lives left) and the game countdown follow the host
-                        session().syncFromServer(elims, timeRemaining);
-                    }
-                    if (intent.hasExtra(NetMsg.INTENT_GAMESTATE)) {
-                        int serverGameState = intent.getIntExtra(NetMsg.INTENT_GAMESTATE, Globals.GAME_STATE_ELIMINATED);
-                        if (serverGameState != Globals.GAME_STATE_ELIMINATED) {
-                            if (serverGameState == Globals.GAME_STATE_NONE && Globals.getInstance().mGameState != serverGameState) {
-                                endGame();
-                            } else if (serverGameState == Globals.GAME_STATE_RUNNING) {
-                                closeScoreboard();
-                                if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE) {
-                                    startGame();
-                                }
+                    // Eliminations (or lives left) and the game countdown follow the host
+                    session().syncFromServer(update.getEliminations(), update.getTimeRemaining());
+                }
+                if (listPlayers.getGameState() != null) {
+                    int serverGameState = listPlayers.getGameState();
+                    if (serverGameState != Globals.GAME_STATE_ELIMINATED) {
+                        if (serverGameState == Globals.GAME_STATE_NONE && Globals.getInstance().mGameState != serverGameState) {
+                            endGame();
+                        } else if (serverGameState == Globals.GAME_STATE_RUNNING) {
+                            closeScoreboard();
+                            if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE) {
+                                startGame();
                             }
                         }
                     }
-                    updatePreGameButtonVisibilities();
                 }
-            } else if (NetMsg.NETMSG_PLAYERDATAUPDATE.equals(action)) {
-                displayPlayerData(intent.getStringExtra(NetMsg.INTENT_PLAYERDATA));
-            } else if (NetMsg.NETMSG_STARTGAME.equals(action)) {
-                closeScoreboard();
-                if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE)
-                    startGame();
-            } else if (NetMsg.NETMSG_ENDGAME.equals(action)) {
-                if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
-                    endGame();
-            } else if (NetMsg.NETMSG_ERROR.equals(action)) {
-                String errorMessage = intent.getStringExtra(UDPListenerService.INTENT_MESSAGE);
-                if (errorMessage != null && !errorMessage.isEmpty()) {
-                    Toast.makeText(getApplicationContext(), errorMessage, Toast.LENGTH_SHORT).show();
-                } else {
-                    Log.d(TAG, "No error message given");
-                }
-            } else if (NetMsg.NETMSG_VERSIONERROR.equals(action)) {
-                Toast.makeText(getApplicationContext(), getString(R.string.error_udp_version), Toast.LENGTH_SHORT).show();
-                mReady = false;
-                setReady();
-            } else if (NetMsg.NETMSG_SAMETEAM.equals(action)) {
-                Toast.makeText(getApplicationContext(), getString(R.string.error_same_id), Toast.LENGTH_SHORT).show();
-                mReady = false;
-                setReady();
-            } else if (NetMsg.NETMSG_FAILEDTOJOIN.equals(action)) {
-                Log.d(TAG, "NETMSG_FAILEDTOJOIN received. mUseNetwork=" + mUseNetwork + ", mNetworkMenuType=" + mNetworkMenuType);
-                if (mUseNetwork && !mIsServer && mNetworkMenuType == NETWORK_TYPE_JOINING) {
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        if (mUseNetwork && !mIsServer && mNetworkMenuType == NETWORK_TYPE_JOINING && mUDPListenerService != null) {
-                            Log.d(TAG, "Auto-retrying server scan...");
-                            mUDPListenerService.joinServer();
-                        }
-                    }, 2000);
-                }
-            } else if (NetMsg.NETMSG_SERVERCANCEL.equals(action)) {
-                cancelServerSearchTimeout();
-                if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
-                    endGame();
-                } else {
-                    mReady = false;
-                    setReady(false);
-                }
-                mUseNetwork = true;
-                setNetworkMenu(NETWORK_TYPE_ENABLED);
-                displayAllNetworkingOptions(true);
-                Globals.getInstance().mPlayerID = mSelectedPlayerID;
-                setTeam();
-                Toast.makeText(getApplicationContext(), getString(R.string.kicked_by_server_toast), Toast.LENGTH_SHORT).show();
-            } else if (NetMsg.NETMSG_SERVERREPLY.equals(action)) {
-                cancelServerSearchTimeout();
-                if (intent.hasExtra(UDPListenerService.INTENT_PLAYERID)) {
-                    byte assignedID = intent.getByteExtra(UDPListenerService.INTENT_PLAYERID, (byte) 0);
-                    if (assignedID != 0) {
-                        Globals.getInstance().mPlayerID = assignedID;
-                        setTeam();
-                    }
-                }
-                mReady = true;
-                setReady();
-                mTcpClient.startTcpClient();
-                setNetworkMenu(NETWORK_TYPE_JOINED);
-            } else if (NetMsg.NETMSG_NETWORKCONNECTED.equals(action)) {
-                cancelServerSearchTimeout();
-                mNetworkStatusIV.setImageResource(R.drawable.ic_network_connected_24dp);
-                if (!mIsServer && mReady && mUseNetwork) {
-                    setNetworkMenu(NETWORK_TYPE_JOINED);
-                }
-            } else if (NetMsg.NETMSG_NETWORKDISCONNECTED.equals(action)) {
-                mNetworkStatusIV.setImageResource(R.drawable.ic_network_disconnected_24dp);
-            } else if (NetMsg.NETMSG_PLAYERSETTINGSUPDATE.equals(action)) {
-                updatePlayerSettings();
+                updatePreGameButtonVisibilities();
             }
+        } else if (event instanceof NetworkEvent.PlayerDataUpdate) {
+            displayPlayerData(((NetworkEvent.PlayerDataUpdate) event).getJson());
+        } else if (event instanceof NetworkEvent.StartGame) {
+            closeScoreboard();
+            if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE)
+                startGame();
+        } else if (event instanceof NetworkEvent.EndGame) {
+            if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
+                endGame();
+        } else if (event instanceof NetworkEvent.Error) {
+            String errorMessage = ((NetworkEvent.Error) event).getMessage();
+            if (errorMessage != null && !errorMessage.isEmpty()) {
+                Toast.makeText(getApplicationContext(), errorMessage, Toast.LENGTH_SHORT).show();
+            } else {
+                Log.d(TAG, "No error message given");
+            }
+        } else if (event instanceof NetworkEvent.VersionError) {
+            Toast.makeText(getApplicationContext(), getString(R.string.error_udp_version), Toast.LENGTH_SHORT).show();
+            mReady = false;
+            setReady();
+        } else if (event instanceof NetworkEvent.SameTeam) {
+            Toast.makeText(getApplicationContext(), getString(R.string.error_same_id), Toast.LENGTH_SHORT).show();
+            mReady = false;
+            setReady();
+        } else if (event instanceof NetworkEvent.FailedToJoin) {
+            Log.d(TAG, "NETMSG_FAILEDTOJOIN received. useNetwork=" + net().getUseNetwork() + ", mNetworkMenuType=" + mNetworkMenuType);
+            if (net().getUseNetwork() && !net().isServer() && mNetworkMenuType == NETWORK_TYPE_JOINING) {
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    if (net().getUseNetwork() && !net().isServer() && mNetworkMenuType == NETWORK_TYPE_JOINING && net().getUdp() != null) {
+                        Log.d(TAG, "Auto-retrying server scan...");
+                        net().getUdp().joinServer();
+                    }
+                }, 2000);
+            }
+        } else if (event instanceof NetworkEvent.ServerCancel) {
+            cancelServerSearchTimeout();
+            if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
+                endGame();
+            } else {
+                mReady = false;
+                setReady(false);
+            }
+            net().setUseNetwork(true);
+            setNetworkMenu(NETWORK_TYPE_ENABLED);
+            displayAllNetworkingOptions(true);
+            Globals.getInstance().mPlayerID = mSelectedPlayerID;
+            setTeam();
+            Toast.makeText(getApplicationContext(), getString(R.string.kicked_by_server_toast), Toast.LENGTH_SHORT).show();
+        } else if (event instanceof NetworkEvent.ServerReply) {
+            cancelServerSearchTimeout();
+            Byte assignedID = ((NetworkEvent.ServerReply) event).getAssignedPlayerId();
+            if (assignedID != null) {
+                if (assignedID != 0) {
+                    Globals.getInstance().mPlayerID = assignedID;
+                    setTeam();
+                }
+            }
+            mReady = true;
+            setReady();
+            net().getTcpClient().startTcpClient();
+            setNetworkMenu(NETWORK_TYPE_JOINED);
+        } else if (event instanceof NetworkEvent.NetworkConnected) {
+            cancelServerSearchTimeout();
+            mNetworkStatusIV.setImageResource(R.drawable.ic_network_connected_24dp);
+            if (!net().isServer() && mReady && net().getUseNetwork()) {
+                setNetworkMenu(NETWORK_TYPE_JOINED);
+            }
+        } else if (event instanceof NetworkEvent.NetworkDisconnected) {
+            mNetworkStatusIV.setImageResource(R.drawable.ic_network_disconnected_24dp);
+        } else if (event instanceof NetworkEvent.PlayerSettingsUpdate) {
+            updatePlayerSettings();
         }
-    };
-
-    private static IntentFilter makeUDPUpdateIntentFilter() {
-        final IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(NetMsg.NETMSG_SHOTFIRED);
-        intentFilter.addAction(NetMsg.NETMSG_HIT);
-        intentFilter.addAction(NetMsg.NETMSG_OUT);
-        intentFilter.addAction(NetMsg.NETMSG_ELIMINATED);
-        intentFilter.addAction(NetMsg.NETMSG_JOIN);
-        intentFilter.addAction(NetMsg.NETMSG_FAILEDTOJOIN);
-        intentFilter.addAction(NetMsg.NETMSG_LEAVE);
-        intentFilter.addAction(NetMsg.NETMSG_LISTPLAYERS);
-        intentFilter.addAction(NetMsg.NETMSG_PLAYERDATAUPDATE);
-        intentFilter.addAction(NetMsg.NETMSG_STARTGAME);
-        intentFilter.addAction(NetMsg.NETMSG_ENDGAME);
-        intentFilter.addAction(NetMsg.NETMSG_ERROR);
-        intentFilter.addAction(NetMsg.NETMSG_VERSIONERROR);
-        intentFilter.addAction(NetMsg.NETMSG_SAMETEAM);
-        intentFilter.addAction(NetMsg.NETMSG_SERVERCREATED);
-        intentFilter.addAction(NetMsg.NETMSG_SERVERCANCEL);
-        intentFilter.addAction(NetMsg.NETMSG_SERVERREPLY);
-        intentFilter.addAction(NetMsg.NETMSG_TEAMELIMINATED);
-        intentFilter.addAction(NetMsg.NETMSG_NETWORKCONNECTED);
-        intentFilter.addAction(NetMsg.NETMSG_NETWORKDISCONNECTED);
-        intentFilter.addAction(NetMsg.NETMSG_PLAYERSETTINGSUPDATE);
-        return intentFilter;
     }
+
 
     private void displayAllNetworkingOptions(boolean enabled) {
         int visibility = enabled ? View.VISIBLE : View.INVISIBLE;
@@ -2543,7 +2333,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mGameModeTV.setVisibility(View.VISIBLE);
         mScoreLabelTV.setVisibility(View.VISIBLE);
         mScoreTV.setVisibility(View.VISIBLE);
-        if (mIsServer) {
+        if (net().isServer()) {
             mEndNetworkGameButton.setVisibility(View.VISIBLE);
         } else {
             mEndNetworkGameButton.setVisibility(View.GONE);
@@ -2555,11 +2345,11 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     }
 
     public void kickPlayerFromAdmin(byte playerID) {
-        if (mIsServer && mTcpServer != null) {
-            mTcpServer.kickPlayer(playerID);
+        if (net().isServer() && net().getTcpServer() != null) {
+            net().getTcpServer().kickPlayer(playerID);
             Toast.makeText(this, "Player kicked", Toast.LENGTH_SHORT).show();
-        } else if (mTcpClient != null) {
-            mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ADMIN_KICK + playerID);
+        } else if (net().getTcpClient() != null) {
+            net().getTcpClient().sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_KICK + playerID));
             Toast.makeText(this, "Kick command sent", Toast.LENGTH_SHORT).show();
         }
     }
@@ -2570,7 +2360,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             return;
         }
 
-        if (!mIsServer && !Globals.getInstance().mIsAdmin) {
+        if (!net().isServer() && !Globals.getInstance().mIsAdmin) {
             Toast.makeText(this, "Only server admins can edit team ratios", Toast.LENGTH_SHORT).show();
             return;
         }
@@ -2657,88 +2447,22 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             }
 
             Globals.getInstance().setTeamSizes(newSizes);
-            if (mIsServer && mTcpServer != null) {
-                mTcpServer.rebalanceAllPlayers(false);
-            } else if (mTcpClient != null) {
+            if (net().isServer() && net().getTcpServer() != null) {
+                net().getTcpServer().rebalanceAllPlayers(false);
+            } else if (net().getTcpClient() != null) {
                 StringBuilder sb = new StringBuilder();
                 for (int i = 0; i < newSizes.length; i++) {
                     if (i > 0) sb.append(",");
                     sb.append(newSizes[i]);
                 }
-                mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ADMIN_TEAMSIZES + sb);
+                net().getTcpClient().sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_TEAMSIZES + sb));
             }
             alertDialog.dismiss();
         });
     }
 
     private void displayPlayerData(final String message) {
-        if (message == null || message.isEmpty())
-            return;
-        new Thread(() -> {
-            PlayerDisplayData[] finalData = new PlayerDisplayData[Globals.MAX_PLAYER_ID + 2];
-            for (int x = 1; x <= Globals.MAX_PLAYER_ID; x++)
-                finalData[x] = null;
-
-            boolean hasSemaphore = false;
-            int[] teamPoints = new int[4];
-            for (int i = 0; i < 4; i++)
-                teamPoints[i] = 0;
-            try {
-                JSONObject json = new JSONObject(message);
-                JSONArray players = json.getJSONArray(TcpServer.JSON_PLAYERDATA);
-                Globals.getInstance();
-                Globals.getmPlayerSettingsSemaphore();
-                hasSemaphore = true;
-                for (int x = 0; x < players.length(); x++) {
-                    JSONObject player = players.getJSONObject(x);
-                    PlayerDisplayData playerData = new PlayerDisplayData();
-                    playerData.playerID = (byte) player.getInt(TcpServer.JSON_PLAYERID);
-                    playerData.playerName = player.getString(TcpServer.JSON_PLAYERNAME);
-                    playerData.points = player.getInt(TcpServer.JSON_PLAYERPOINTS);
-                    if (playerData.playerID == Globals.getInstance().mPlayerID) {
-                        mScore = Math.max(mScore, playerData.points);
-                        if (mIsServer && mTcpServer != null) {
-                            mTcpServer.setHostScore(mScore, session().getEliminations());
-                        }
-                    }
-                    if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
-                        int teamIdx = Globals.getInstance().calcNetworkTeam(playerData.playerID) - 1;
-                        if (teamIdx >= 0 && teamIdx < 4) {
-                            teamPoints[teamIdx] += playerData.points;
-                        }
-                    }
-                    playerData.eliminated = player.getInt(TcpServer.JSON_PLAYERELIMINATED);
-                    if (Globals.getInstance().mPlayerSettings.get(playerData.playerID) == null) {
-                        playerData.overrideLives = false;
-                        playerData.lives = 0;
-                    } else {
-                        playerData.overrideLives = Objects.requireNonNull(Globals.getInstance().mPlayerSettings.get(playerData.playerID)).overrideLives;
-                        playerData.lives = Objects.requireNonNull(Globals.getInstance().mPlayerSettings.get(playerData.playerID)).lives;
-                    }
-                    finalData[playerData.playerID] = playerData;
-                }
-                Globals.getInstance().mPlayerSettingsSemaphore.release();
-                hasSemaphore = false;
-            } catch (JSONException e) {
-                Log.e(TAG, "Error parsing player data", e);
-                if (hasSemaphore)
-                    Globals.getInstance().mPlayerSettingsSemaphore.release();
-                return;
-            }
-            if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
-                int myTeamIdx = Globals.getInstance().calcNetworkTeam(Globals.getInstance().mPlayerID) - 1;
-                if (myTeamIdx >= 0 && myTeamIdx < 4) {
-                    mTeamScore = teamPoints[myTeamIdx];
-                }
-            }
-
-            runOnUiThread(() -> {
-                if (mScoreTV != null) mScoreTV.setText(String.valueOf(mScore));
-                if (mTeamScoreTV != null) mTeamScoreTV.setText(String.valueOf(mTeamScore));
-            });
-
-            updateScoreboardData(finalData);
-        }).start();
+        net().updatePlayerData(message, () -> session().getEliminations());
     }
 
     private void updateScoreboardData(final PlayerDisplayData[] playerDisplayData) {
@@ -2785,7 +2509,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         alertDialog.setView(view);
         ListView listView = view.findViewById(R.id.player_list);
         listView.setAdapter(mScoreboardAdapter);
-        if (mIsServer) {
+        if (net().isServer()) {
             listView.setOnItemClickListener((parent, view1, position, id) -> {
                 PlayerDisplayDataListAdapter.DisplayRow row = mScoreboardAdapter.getDisplayRow(position);
                 if (row != null && row.type == PlayerDisplayDataListAdapter.DisplayRow.TYPE_TEAM_HEADER && row.teamNumber > 0) {
@@ -2796,7 +2520,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 if (playerID <= 0)
                     return;
                 PlayerSettingsAlertDialog dialog = new PlayerSettingsAlertDialog(FullscreenActivity.this);
-                dialog.setServer(playerID, mTcpServer);
+                dialog.setServer(playerID, net().getTcpServer());
                 dialog.show();
             });
         }
@@ -2812,9 +2536,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private void updateAdminButtonVisibility() {
         Button adminBtn = findViewById(R.id.admin_controls_button);
         if (adminBtn != null) {
-            boolean showAdmin = (mIsServer || Globals.getInstance().mIsAdmin) && mUseNetwork && mReady;
+            boolean showAdmin = (net().isServer() || Globals.getInstance().mIsAdmin) && net().getUseNetwork() && mReady;
             adminBtn.setVisibility(showAdmin ? View.VISIBLE : View.GONE);
-            Log.d(TAG, "updateAdminButtonVisibility: mIsServer=" + mIsServer + ", mIsAdmin=" + Globals.getInstance().mIsAdmin + ", mUseNetwork=" + mUseNetwork + ", mReady=" + mReady + " -> show=" + showAdmin);
+            Log.d(TAG, "updateAdminButtonVisibility: net().isServer()=" + net().isServer() + ", mIsAdmin=" + Globals.getInstance().mIsAdmin + ", net().getUseNetwork()=" + net().getUseNetwork() + ", mReady=" + mReady + " -> show=" + showAdmin);
         }
     }
 
