@@ -89,7 +89,7 @@ class BleConnectionManager(
     private val scope: CoroutineScope,
     private val serviceBinder: ServiceBinder = AndroidServiceBinder(context),
     private val hasConnectPermission: () -> Boolean = { defaultHasConnectPermission(context) },
-    private val saveDeviceAddress: (String) -> Unit = { defaultSaveDeviceAddress(context, it) },
+    private val saveDeviceAddress: (String) -> Unit,
 ) {
     /** Starts/binds/unbinds BluetoothLeService. */
     interface ServiceBinder {
@@ -378,17 +378,8 @@ class BleConnectionManager(
         /** §1.6: give up scanning after this long without finding a blaster. */
         const val SCAN_TIMEOUT_MILLIS = 30_000L
 
-        private const val PREF_NAME = "SimpleCoil"
-        private const val PREF_DEVICE_ADDRESS = "DeviceAddress"
-
         private fun defaultHasConnectPermission(context: Context): Boolean =
             Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
                 ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
-
-        private fun defaultSaveDeviceAddress(context: Context, address: String) {
-            context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE).edit()
-                .putString(PREF_DEVICE_ADDRESS, address)
-                .apply()
-        }
     }
 }

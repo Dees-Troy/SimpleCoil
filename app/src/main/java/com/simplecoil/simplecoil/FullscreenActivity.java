@@ -22,7 +22,6 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -49,6 +48,7 @@ import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
+import com.simplecoil.simplecoil.data.preferences.UserPreferencesRepository;
 import com.simplecoil.simplecoil.domain.session.BlasterSessionEngine;
 import com.simplecoil.simplecoil.domain.session.GameClock;
 import com.simplecoil.simplecoil.domain.session.SessionEffect;
@@ -227,20 +227,17 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private static final int HIT_ANIMATION_DURATION_MILLISECONDS = 400;
     private static final int ELIMINATED_ANIMATION_DURATION_MILLISECONDS = 800;
 
-    private SharedPreferences sharedPreferences = null;
-    public static final String PREF_NAME = "SimpleCoil";
-    private static final String PREF_PLAYER_NAME = "PlayerName";
-    private static final String PREF_PLAYER_ID = "PlayerID";
-    private static final String PREF_SELECTED_PLAYER_ID = "SelectedPlayerID";
     private byte mSelectedPlayerID = 0;
-    private static final String PREF_FIRING_MODE = "FiringMode";
-    private static final String PREF_SHOT_MODE = "ShotMode";
-    private static final String PREF_RECOIL_ENABLED = "RecoilEnabled";
-    public static final String PREF_GAME_MODE = "GameMode";
-    public static final String PREF_LIMIT_TIME = "TimeLimit";
-    public static final String PREF_LIMIT_LIVES = "LivesLimit";
-    public static final String PREF_LIMIT_SCORE = "ScoreLimit";
-    public static final String PREF_DEVICE_ADDRESS = "DeviceAddress";
+    // Still read by DedicatedServerActivity.
+    public static final String PREF_NAME = UserPreferencesRepository.PREF_NAME;
+    public static final String PREF_GAME_MODE = UserPreferencesRepository.GAME_MODE;
+    public static final String PREF_LIMIT_TIME = UserPreferencesRepository.LIMIT_TIME;
+    public static final String PREF_LIMIT_LIVES = UserPreferencesRepository.LIMIT_LIVES;
+    public static final String PREF_LIMIT_SCORE = UserPreferencesRepository.LIMIT_SCORE;
+
+    private UserPreferencesRepository prefs() {
+        return ((SimpleCoilApp) getApplication()).getUserPreferences();
+    }
 
 
     private boolean mAutoScanStarted = false;
@@ -405,8 +402,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 moveTaskToBack(true);
             }
         });
-        sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-
         if (savedInstanceState != null) {
             mSelectedPlayerID = savedInstanceState.getByte("mSelectedPlayerID", (byte)0);
             mDeviceAddress = savedInstanceState.getString("mDeviceAddress", "");
@@ -415,9 +410,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             net().setServer(savedInstanceState.getBoolean("net().isServer()", false));
             mNetworkMenuType = savedInstanceState.getInt("mNetworkMenuType", NETWORK_TYPE_ENABLED);
         } else {
-            mSelectedPlayerID = (byte) sharedPreferences.getInt(PREF_SELECTED_PLAYER_ID, 0);
+            mSelectedPlayerID = (byte) prefs().selectedPlayerId();
             if (mSelectedPlayerID == 0) {
-                mSelectedPlayerID = (byte) sharedPreferences.getInt(PREF_PLAYER_ID, 0);
+                mSelectedPlayerID = (byte) prefs().playerId();
             }
         }
         Globals.getInstance().mPlayerID = mSelectedPlayerID;
@@ -453,9 +448,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mEliminationCountTV = findViewById(R.id.eliminations_count_tv);
         mReconnectButton = findViewById(R.id.reconnect_weapon_button);
         mReconnectButton.setOnClickListener((v -> {
-            if (sharedPreferences == null)
-                sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-            mDeviceAddress = sharedPreferences.getString(PREF_DEVICE_ADDRESS, "");
+            mDeviceAddress = prefs().deviceAddress();
             setDeviceAddress(mDeviceAddress);
             if (!mDeviceAddress.isEmpty())
                 connectWeapon();
@@ -626,37 +619,33 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
             vibrator = v;
         }
-        sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
-        Globals.getInstance().mPlayerName = sharedPreferences.getString(PREF_PLAYER_NAME, "Player");
+        Globals.getInstance().mPlayerName = prefs().playerName("Player");
         if (Globals.getInstance().mPlayerName.isEmpty() ||
             Globals.getInstance().mPlayerName.equalsIgnoreCase("Player") ||
             ProfanityFilter.containsProfanity(Globals.getInstance().mPlayerName)) {
 
             String randomName = NameGenerator.getRandomName();
             Globals.getInstance().mPlayerName = randomName;
-            SharedPreferences.Editor editor = sharedPreferences.edit();
-            editor.putString(PREF_PLAYER_NAME, randomName);
-            editor.apply();
+            prefs().savePlayerName(randomName);
         }
-        Globals.getInstance().mCurrentFiringMode = sharedPreferences.getInt(PREF_FIRING_MODE, Globals.FIRING_MODE_OUTDOOR_NO_CONE);
-        mSelectedPlayerID = (byte) sharedPreferences.getInt(PREF_SELECTED_PLAYER_ID, 0);
+        Globals.getInstance().mCurrentFiringMode = prefs().firingMode(Globals.FIRING_MODE_OUTDOOR_NO_CONE);
+        mSelectedPlayerID = (byte) prefs().selectedPlayerId();
         Globals.getInstance().mPlayerID = mSelectedPlayerID;
         getFiringMode();
-        session().restore(sharedPreferences.getInt(PREF_SHOT_MODE, Globals.SHOT_MODE_SINGLE),
-                sharedPreferences.getBoolean(PREF_RECOIL_ENABLED, true));
-        Globals.getInstance().mGameMode = sharedPreferences.getInt(PREF_GAME_MODE, Globals.GAME_MODE_2TEAMS);
+        session().restore(prefs().shotMode(Globals.SHOT_MODE_SINGLE), prefs().recoilEnabled());
+        Globals.getInstance().mGameMode = prefs().gameMode(Globals.GAME_MODE_2TEAMS);
         int gameLimit = Globals.GAME_LIMIT_NONE;
-        Globals.getInstance().mTimeLimit = sharedPreferences.getInt(PREF_LIMIT_TIME, 0);
+        Globals.getInstance().mTimeLimit = prefs().timeLimit();
         if (Globals.getInstance().mTimeLimit != 0)
             gameLimit += Globals.GAME_LIMIT_TIME;
-        Globals.getInstance().mLivesLimit = sharedPreferences.getInt(PREF_LIMIT_LIVES, 0);
+        Globals.getInstance().mLivesLimit = prefs().livesLimit();
         if (Globals.getInstance().mLivesLimit != 0)
             gameLimit += Globals.GAME_LIMIT_LIVES;
-        Globals.getInstance().mScoreLimit = sharedPreferences.getInt(PREF_LIMIT_SCORE, 0);
+        Globals.getInstance().mScoreLimit = prefs().scoreLimit();
         if (Globals.getInstance().mScoreLimit != 0)
             gameLimit += Globals.GAME_LIMIT_SCORE;
         Globals.getInstance().mGameLimit = gameLimit;
-        mDeviceAddress = sharedPreferences.getString(PREF_DEVICE_ADDRESS, "");
+        mDeviceAddress = prefs().deviceAddress();
         setDeviceAddress(mDeviceAddress);
         if (!mDeviceAddress.isEmpty()) {
             mReconnectButton.setVisibility(View.VISIBLE);
@@ -946,31 +935,19 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             Globals.getInstance().mCurrentFiringMode = Globals.FIRING_MODE_OUTDOOR_NO_CONE;
             mFiringModeButton.setText(R.string.firing_mode_outdoor_no_cone);
             session().setShotMode(session().getShotMode());
-            {
-                SharedPreferences.Editor editor = sharedPreferences.edit();
-                editor.putInt(PREF_FIRING_MODE, Globals.getInstance().mCurrentFiringMode);
-                editor.apply();
-            }
+            prefs().saveFiringMode(Globals.getInstance().mCurrentFiringMode);
             return true;
         } else if (id == R.id.firing_mode_outdoor_with_cone_item) {
             Globals.getInstance().mCurrentFiringMode = Globals.FIRING_MODE_OUTDOOR_WITH_CONE;
             mFiringModeButton.setText(R.string.firing_mode_outdoor_with_cone);
             session().setShotMode(session().getShotMode());
-            {
-                SharedPreferences.Editor editor = sharedPreferences.edit();
-                editor.putInt(PREF_FIRING_MODE, Globals.getInstance().mCurrentFiringMode);
-                editor.apply();
-            }
+            prefs().saveFiringMode(Globals.getInstance().mCurrentFiringMode);
             return true;
         } else if (id == R.id.firing_mode_indoor_no_cone_item) {
             Globals.getInstance().mCurrentFiringMode = Globals.FIRING_MODE_INDOOR_NO_CONE;
             mFiringModeButton.setText(R.string.firing_mode_indoor_no_cone);
             session().setShotMode(session().getShotMode());
-            {
-                SharedPreferences.Editor editor = sharedPreferences.edit();
-                editor.putInt(PREF_FIRING_MODE, Globals.getInstance().mCurrentFiringMode);
-                editor.apply();
-            }
+            prefs().saveFiringMode(Globals.getInstance().mCurrentFiringMode);
             return true;
         } else if (id == R.id.shuffle_teams_item) {
             if (net().isServer() && net().getTcpServer() != null) {
@@ -1209,11 +1186,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mScoreLabelTV.setText(R.string.score_label);
             mTeamScoreLabelTV.setText(R.string.team_score_label);
         }
-        SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putInt(PREF_LIMIT_TIME, Globals.getInstance().mTimeLimit);
-        editor.putInt(PREF_LIMIT_SCORE, Globals.getInstance().mScoreLimit);
-        editor.putInt(PREF_LIMIT_LIVES, Globals.getInstance().mLivesLimit);
-        editor.apply();
+        prefs().saveLimits(Globals.getInstance().mTimeLimit, Globals.getInstance().mScoreLimit, Globals.getInstance().mLivesLimit);
     }
 
     private void setReady() { setReady(true); }
@@ -1427,13 +1400,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
     /** Persists the player id / game mode and redisplays the team (the rest of setTeam()). */
     private void saveTeamAndDisplay() {
-        if (sharedPreferences != null) {
-            SharedPreferences.Editor editor = sharedPreferences.edit();
-            editor.putInt(PREF_PLAYER_ID, Globals.getInstance().mPlayerID);
-            editor.putInt(PREF_SELECTED_PLAYER_ID, Globals.getInstance().mPlayerID);
-            editor.putInt(PREF_GAME_MODE, Globals.getInstance().mGameMode);
-            editor.apply();
-        }
+        prefs().savePlayerIdAndGameMode(Globals.getInstance().mPlayerID, Globals.getInstance().mGameMode);
         displayCurrentTeam();
     }
 
@@ -1521,18 +1488,16 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     @Override
     protected void onResume() {
         super.onResume();
-        if (sharedPreferences == null)
-            sharedPreferences = getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
         if (mSelectedPlayerID == 0) {
-            mSelectedPlayerID = (byte) sharedPreferences.getInt(PREF_SELECTED_PLAYER_ID, 0);
+            mSelectedPlayerID = (byte) prefs().selectedPlayerId();
             if (mSelectedPlayerID == 0) {
-                mSelectedPlayerID = (byte) sharedPreferences.getInt(PREF_PLAYER_ID, 0);
+                mSelectedPlayerID = (byte) prefs().playerId();
             }
         }
         if (mSelectedPlayerID != 0 && Globals.getInstance().mPlayerID == 0) {
             Globals.getInstance().mPlayerID = mSelectedPlayerID;
         }
-        String savedName = sharedPreferences.getString(PREF_PLAYER_NAME, "");
+        String savedName = prefs().playerName("");
         if (!savedName.isEmpty()) {
             Globals.getInstance().mPlayerName = savedName;
         }
@@ -1670,11 +1635,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             name = NameGenerator.getRandomName();
         }
         Globals.getInstance().mPlayerName = name;
-        if (sharedPreferences != null) {
-            SharedPreferences.Editor editor = sharedPreferences.edit();
-            editor.putString(PREF_PLAYER_NAME, name);
-            editor.apply();
-        }
+        prefs().savePlayerName(name);
         if (mPlayerNameTV != null) {
             mPlayerNameTV.setText(name);
         }
