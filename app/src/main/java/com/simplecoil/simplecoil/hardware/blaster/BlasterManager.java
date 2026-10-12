@@ -177,6 +177,12 @@ public class BlasterManager {
 
     public boolean isConnected() { return isConnected; }
     public byte getBlasterType() { return blasterType; }
+
+    /**
+     * Blaster type reported by the ID characteristic. Used by FullscreenActivity, which consumes
+     * the GATT broadcasts itself, so that rifle burst mode gets its reduced recoil (0x78).
+     */
+    public void setBlasterType(byte blasterType) { this.blasterType = blasterType; }
     public boolean isRecoilEnabled() { return recoilEnabled; }
 
     public void setBluetoothLeService(BluetoothLeService service) {

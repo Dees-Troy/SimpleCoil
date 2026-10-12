@@ -2476,6 +2476,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 }
             } else if (BluetoothLeService.ID_DATA_AVAILABLE.equals(action)) {
                 mBlasterType = intent.getByteExtra(BluetoothLeService.EXTRA_DATA, BLASTER_TYPE_PISTOL);
+                BlasterManager.getInstance().setBlasterType(mBlasterType);
                 if (mBlasterType == BLASTER_TYPE_RIFLE) {
                     Toast.makeText(getApplicationContext(), getString(R.string.rifle_detected_toast, mDeviceAddress), Toast.LENGTH_LONG).show();
                 } else {

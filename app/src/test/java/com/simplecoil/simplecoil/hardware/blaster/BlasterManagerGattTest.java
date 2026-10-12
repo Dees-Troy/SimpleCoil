@@ -308,6 +308,15 @@ public class BlasterManagerGattTest {
     }
 
     @Test
+    public void blasterType_setByActivityChangesBurstRecoil() {
+        connect();
+        manager.setBlasterType(GattProtocolHandler.BLASTER_TYPE_RIFLE);
+        manager.setShotMode(GameSettingsRepository.SHOT_MODE_BURST, GameSettingsRepository.FIRING_MODE_OUTDOOR_NO_CONE);
+        assertEquals("00 00 09 03 03 FF 00 FF FF 78 02 34 00 00 00 00 00 00 00 00",
+                toHex(captureSingleWrite(configChar)));
+    }
+
+    @Test
     public void characteristicWriteFinished_isForwarded() throws Exception {
         Intent intent = mock(Intent.class);
         when(intent.getAction()).thenReturn(BluetoothLeService.CHARACTERISTIC_WRITE_FINISHED);
