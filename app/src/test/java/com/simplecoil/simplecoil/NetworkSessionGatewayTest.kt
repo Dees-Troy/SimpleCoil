@@ -21,7 +21,11 @@ import android.content.Intent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import android.content.ServiceConnection
+import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.anyInt
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.times
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
@@ -141,5 +145,31 @@ class NetworkSessionGatewayTest {
         for (action in actions) {
             assert(NetworkSessionGateway.toEvent(intent(action)) != null) { action }
         }
+    }
+
+    @Test
+    fun bindServices_bindsEachServiceOnceAcrossResumes() {
+        // B4: every resume used to bind all three services again.
+        val context = mock(Context::class.java)
+        val g = NetworkSessionGateway(context)
+        repeat(3) { g.bindServices() }
+        verify(context, times(3)).bindService(any(Intent::class.java), any(ServiceConnection::class.java), anyInt())
+        verify(context, times(9)).startService(any(Intent::class.java))
+
+        g.unbindServices()
+        verify(context, times(3)).unbindService(any(ServiceConnection::class.java))
+        g.bindServices() // a new screen binds again
+        verify(context, times(6)).bindService(any(Intent::class.java), any(ServiceConnection::class.java), anyInt())
+    }
+
+    @Test
+    fun dedicatedServerHandOff_releasesAllThreeSoTheyRebindOnReturn() {
+        val context = mock(Context::class.java)
+        val g = NetworkSessionGateway(context)
+        g.bindServices()
+        g.releaseForDedicatedServer()
+        verify(context, times(3)).unbindService(any(ServiceConnection::class.java))
+        g.bindServices()
+        verify(context, times(6)).bindService(any(Intent::class.java), any(ServiceConnection::class.java), anyInt())
     }
 }

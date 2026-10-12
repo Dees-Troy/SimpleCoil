@@ -109,11 +109,15 @@ class NetworkSessionGateway(private val context: Context) : SessionNetwork {
     // Service bindings
     // ---------------------------------------------------------------------------------------
 
-    /** Starts and binds the three network services (what the activity did on every resume). */
+    /**
+     * Starts the three network services and binds each one that isn't bound yet. The activity
+     * calls this on every resume; it used to bind again each time, leaving one more live
+     * ServiceConnection per resume (B4).
+     */
     fun bindServices() {
-        bindUdp()
-        bindTcpClient()
-        bindTcpServer()
+        if (udpConnection == null) bindUdp() else startServiceSafely(Intent(context, UDPListenerService::class.java))
+        if (tcpClientConnection == null) bindTcpClient() else startForegroundServiceSafely(Intent(context, TcpClient::class.java))
+        if (tcpServerConnection == null) bindTcpServer() else startServiceSafely(Intent(context, TcpServer::class.java))
     }
 
     private fun bindUdp() {
@@ -172,6 +176,7 @@ class NetworkSessionGateway(private val context: Context) : SessionNetwork {
         tcpClientConnection?.let { context.unbindService(it) }
         tcpServerConnection?.let { context.unbindService(it) }
         udp = null
+        udpConnection = null
         tcpClientConnection = null
         tcpServerConnection = null
     }
@@ -185,6 +190,9 @@ class NetworkSessionGateway(private val context: Context) : SessionNetwork {
                 // nothing
             }
         }
+        udpConnection = null
+        tcpClientConnection = null
+        tcpServerConnection = null
     }
 
     private fun startServiceSafely(intent: Intent) {
