@@ -53,7 +53,6 @@ import com.simplecoil.simplecoil.ui.game.WindowController;
 import com.simplecoil.simplecoil.ui.game.GameViewModel;
 import com.simplecoil.simplecoil.ui.game.GameViewModelFactory;
 import com.simplecoil.simplecoil.ui.game.SavedGameScreen;
-import com.simplecoil.simplecoil.ui.main.MainViewModel;
 
 
 /**
@@ -81,7 +80,6 @@ public class FullscreenActivity extends AppCompatActivity implements GameNavigat
     public static final String PREF_LIMIT_LIVES = UserPreferencesRepository.LIMIT_LIVES;
     public static final String PREF_LIMIT_SCORE = UserPreferencesRepository.LIMIT_SCORE;
 
-    protected MainViewModel mMainViewModel = null;
     private GameViewModel vm;
 
     private ActivityFullscreenBinding binding;
@@ -125,18 +123,6 @@ public class FullscreenActivity extends AppCompatActivity implements GameNavigat
                     savedInstanceState.getInt("mNetworkMenuType", GameViewModel.NETWORK_TYPE_ENABLED));
         }
         vm.onCreate(saved);
-
-        mMainViewModel = new ViewModelProvider(this).get(MainViewModel.class);
-        mMainViewModel.getHealthLiveData().observe(this, health -> {
-            if (health != null) {
-                binding.healthPb.setProgress(health);
-            }
-        });
-        mMainViewModel.getAmmoLiveData().observe(this, ammo -> {
-            if (ammo != null) {
-                binding.shotsRemainingTv.setText(String.valueOf(ammo));
-            }
-        });
 
         // The session runs app-scoped (D4); render it whenever this screen exists.
         FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.CREATED, vm.getSession(), renderer::render);
