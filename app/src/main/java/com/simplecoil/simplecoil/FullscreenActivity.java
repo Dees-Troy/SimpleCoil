@@ -56,7 +56,6 @@ import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.domain.session.BlasterSessionEngine;
 import com.simplecoil.simplecoil.domain.session.GameClock;
-import com.simplecoil.simplecoil.domain.session.GrenadeDecoder;
 import com.simplecoil.simplecoil.domain.session.SessionEffect;
 import com.simplecoil.simplecoil.domain.session.SessionNetwork;
 import com.simplecoil.simplecoil.domain.session.SessionSound;
@@ -223,16 +222,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     final private int REQUEST_CODE_CAMERA_PERMISSION = 1024;
 
 
-    public final static int RECOIL_OFFSET_RELOAD_TRIGGER_COUNTER = 3;
-    public final static int RECOIL_OFFSET_THUMB_COUNTER = 4;
-    public final static int RECOIL_OFFSET_POWER_COUNTER = 5;
-    public final static int RECOIL_OFFSET_BATTERY_LEVEL = 7;
-    public final static int RECOIL_OFFSET_HIT_BY1_SHOTID = 8;
-    public final static int RECOIL_OFFSET_HIT_BY1 = 9;
-    public final static int RECOIL_OFFSET_HIT_BY2_SHOTID = 11;
-    public final static int RECOIL_OFFSET_HIT_BY2 = 12;
-    public final static int RECOIL_OFFSET_TEAM = 1;
-    public final static int RECOIL_OFFSET_SHOTS_REMAINING = 14;
 
     private boolean mUseNetwork = false;
     private int mScore = 0;
@@ -240,12 +229,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private volatile boolean mReady = false;
     private boolean mIsServer = false;
 
-    // Grenade stuff. Decoding lives in GrenadeDecoder; these aliases stay only for
-    // LegacyTelemetryDecoderConstantsTest until the constants leave the activity (D1, Phase 3).
-    @SuppressWarnings("unused") private static final byte GRENADE_DAMAGE = GrenadeDecoder.GRENADE_DAMAGE;
-    @SuppressWarnings("unused") private static final byte GRENADE_NEW_PAIR = GrenadeDecoder.GRENADE_NEW_PAIR;
-    @SuppressWarnings("unused") private static final byte GRENADE_PAIR_ID = GrenadeDecoder.GRENADE_PAIR_ID;
-    @SuppressWarnings("unused") private static final byte GRENADE_DISARM = GrenadeDecoder.GRENADE_DISARM;
 
 
 
