@@ -114,6 +114,9 @@ class NetworkSessionGateway(
 
     private var receiverRegistered = false
 
+    /** DedicatedServerActivity owns the network; the play screen's broadcasts are not published. */
+    private var handedOff = false
+
     // ---------------------------------------------------------------------------------------
     // Service bindings
     // ---------------------------------------------------------------------------------------
@@ -124,6 +127,7 @@ class NetworkSessionGateway(
      * ServiceConnection per resume (B4).
      */
     fun bindServices() {
+        handedOff = false
         if (udpConnection == null) bindUdp() else startServiceSafely(Intent(context, UDPListenerService::class.java))
         if (tcpClientConnection == null) bindTcpClient() else startForegroundServiceSafely(Intent(context, TcpClient::class.java))
         if (tcpServerConnection == null) bindTcpServer() else startServiceSafely(Intent(context, TcpServer::class.java))
@@ -181,6 +185,7 @@ class NetworkSessionGateway(
 
     /** Hands the network over to DedicatedServerActivity (what its launch button did). */
     fun releaseForDedicatedServer() {
+        handedOff = true
         udpConnection?.let { context.unbindService(it) }
         tcpClientConnection?.let { context.unbindService(it) }
         tcpServerConnection?.let { context.unbindService(it) }
@@ -236,9 +241,10 @@ class NetworkSessionGateway(
         receiverRegistered = true
     }
 
-    private val receiver = object : BroadcastReceiver() {
+    @androidx.annotation.VisibleForTesting
+    internal val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
-            toEvent(intent)?.let { emit(it) }
+            if (!handedOff) toEvent(intent)?.let { emit(it) }
         }
     }
 

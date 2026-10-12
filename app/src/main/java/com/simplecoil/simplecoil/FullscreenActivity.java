@@ -446,7 +446,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.CREATED, session().getState(), this::renderSession);
         FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.CREATED, session().getEffects(), this::handleSessionEffect);
         FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.CREATED, net().getEvents(), this::handleNetworkServiceEvent);
-        FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.RESUMED, net().getEvents(), this::handleNetworkEvent);
+        // D4: game start/end, scores, player settings and team changes are handled in the background too.
+        FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.CREATED, net().getEvents(), this::handleNetworkEvent);
 
         mFragmentMgr = getSupportFragmentManager();
         mEliminationCountTV = findViewById(R.id.eliminations_count_tv);
@@ -2093,7 +2094,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         }
     }
 
-    // NETMSG_* broadcasts, while resumed (as the receiver registered in onResume was).
+    // NETMSG_* broadcasts, for the screen's whole lifetime (D4) except while the dedicated server runs.
     private void handleNetworkEvent(NetworkEvent event) {
         if (event instanceof NetworkEvent.ShotFired) {
             // Play a sound?

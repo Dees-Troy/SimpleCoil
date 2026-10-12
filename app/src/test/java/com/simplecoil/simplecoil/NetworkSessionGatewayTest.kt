@@ -236,4 +236,21 @@ class NetworkSessionGatewayTest {
         scope.testScheduler.runCurrent()
         assertEquals(2, events.filterIsInstance<NetworkEvent.PlayerData>().size)
     }
+
+    @Test
+    fun broadcastsAreNotPublishedWhileTheDedicatedServerOwnsTheNetwork() {
+        val scope = TestScope()
+        val context = mock(Context::class.java)
+        val g = NetworkSessionGateway(context, scope)
+        val events = mutableListOf<NetworkEvent>()
+        scope.backgroundScope.launch(UnconfinedTestDispatcher(scope.testScheduler)) { g.events.collect { events += it } }
+        val receiver = g.receiver
+
+        receiver.onReceive(context, intent(NetMsg.NETMSG_STARTGAME))
+        g.releaseForDedicatedServer()
+        receiver.onReceive(context, intent(NetMsg.NETMSG_STARTGAME))
+        g.bindServices()
+        receiver.onReceive(context, intent(NetMsg.NETMSG_ENDGAME))
+        assertEquals(listOf(NetworkEvent.StartGame, NetworkEvent.EndGame), events)
+    }
 }
