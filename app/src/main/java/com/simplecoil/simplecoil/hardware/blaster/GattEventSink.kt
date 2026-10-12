@@ -13,25 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.simplecoil.simplecoil.hardware.blaster;
+package com.simplecoil.simplecoil.hardware.blaster
 
-import androidx.annotation.Nullable;
-
-/**
- * Where BluetoothLeService reports GATT events. The app delivers them as package-scoped
- * broadcasts; tests record them.
- */
-public interface GattEventSink {
+/** Where BluetoothLeService reports GATT events. The app publishes them as [GattEvent]s; tests record them. */
+interface GattEventSink {
     /**
      * A payload-less event: one of BluetoothLeService's ACTION_GATT_CONNECTED,
      * ACTION_GATT_DISCONNECTED, ACTION_GATT_SERVICES_DISCOVERED, CHARACTERISTIC_WRITE_FINISHED or
      * DESCRIPTOR_WRITE_FINISHED.
      */
-    void onEvent(String action);
+    fun onEvent(action: String)
 
     /** TELEMETRY_DATA_AVAILABLE with the full notification payload. */
-    void onTelemetry(@Nullable byte[] data);
+    fun onTelemetry(data: ByteArray?)
 
     /** ID_DATA_AVAILABLE with byte 10 of the ID characteristic, or null when it is 10 bytes or shorter. */
-    void onBlasterId(@Nullable Byte blasterType);
+    fun onBlasterId(blasterType: Byte?)
 }

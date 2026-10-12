@@ -132,6 +132,14 @@ class BluetoothLeServiceGattTest {
         return event!!
     }
 
+    // Mockito's any() returns null, which Kotlin rejects for GattIo's non-null parameters; this
+    // registers the matcher and hands Kotlin a value it accepts.
+    @Suppress("UNCHECKED_CAST")
+    private fun <T> anyOf(type: Class<T>): T {
+        any(type)
+        return null as T
+    }
+
     private fun advance(millis: Long) {
         scope.testScheduler.advanceTimeBy(millis)
         scope.testScheduler.runCurrent()
@@ -283,7 +291,7 @@ class BluetoothLeServiceGattTest {
         service.setCharacteristicNotification(id, true)
         verify(gatt).setCharacteristicNotification(id, true)
         verify(id, never()).getDescriptor(any(UUID::class.java))
-        verify(gatt, never()).writeDescriptor(any(BluetoothGattDescriptor::class.java))
+        verify(gatt, never()).writeDescriptor(anyOf(BluetoothGattDescriptor::class.java))
     }
 
     // ----------------------------------------------------------------------------------------
@@ -325,8 +333,8 @@ class BluetoothLeServiceGattTest {
         service.writeCharacteristic(null)
         service.readCharacteristic(null)
         service.setCharacteristicNotification(null, true)
-        verify(gatt, never()).writeCharacteristic(any(BluetoothGattCharacteristic::class.java))
-        verify(gatt, never()).readCharacteristic(any(BluetoothGattCharacteristic::class.java))
+        verify(gatt, never()).writeCharacteristic(anyOf(BluetoothGattCharacteristic::class.java))
+        verify(gatt, never()).readCharacteristic(anyOf(BluetoothGattCharacteristic::class.java))
     }
 
     @Test
@@ -407,10 +415,10 @@ class BluetoothLeServiceGattTest {
         `when`(telemetry.getDescriptor(cccdUuid)).thenReturn(null, cccd)
 
         service.setCharacteristicNotification(telemetry, true)
-        verify(gatt, never()).writeDescriptor(any(BluetoothGattDescriptor::class.java))
+        verify(gatt, never()).writeDescriptor(anyOf(BluetoothGattDescriptor::class.java))
 
         advance(299)
-        verify(gatt, never()).writeDescriptor(any(BluetoothGattDescriptor::class.java))
+        verify(gatt, never()).writeDescriptor(anyOf(BluetoothGattDescriptor::class.java))
         advance(1)
         val value = ArgumentCaptor.forClass(ByteArray::class.java)
         verify(cccd).setValue(value.capture())
@@ -429,7 +437,7 @@ class BluetoothLeServiceGattTest {
         service.setCharacteristicNotification(telemetry, true)
         advance(10_000)
         verify(telemetry, times(2)).getDescriptor(cccdUuid)
-        verify(gatt, never()).writeDescriptor(any(BluetoothGattDescriptor::class.java))
+        verify(gatt, never()).writeDescriptor(anyOf(BluetoothGattDescriptor::class.java))
     }
 
     /**
