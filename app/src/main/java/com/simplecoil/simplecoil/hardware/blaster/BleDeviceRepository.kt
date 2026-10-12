@@ -16,6 +16,7 @@
 
 package com.simplecoil.simplecoil.hardware.blaster
 
+import com.simplecoil.simplecoil.domain.session.BlasterCommands
 import kotlinx.coroutines.flow.SharedFlow
 
 /**
@@ -23,20 +24,20 @@ import kotlinx.coroutines.flow.SharedFlow
  * are only ever built by [GattProtocolHandler] (via [BlasterManager]); this class adds nothing to
  * the wire.
  */
-class BleDeviceRepository(private val blasterManager: BlasterManager) {
+class BleDeviceRepository(private val blasterManager: BlasterManager) : BlasterCommands {
 
     /** Every BlasterManager event, in order (§2.1.3). */
     val events: SharedFlow<BlasterEvent> get() = blasterManager.events
 
     val blasterType: Byte get() = blasterManager.blasterType
 
-    fun setTeam(playerId: Byte) = blasterManager.setTeam(playerId)
+    override fun setTeam(playerId: Byte) = blasterManager.setTeam(playerId)
 
-    fun startReload(playerId: Byte) = blasterManager.startReload(playerId)
+    override fun startReload(playerId: Byte) = blasterManager.startReload(playerId)
 
-    fun finishReload(playerId: Byte, fullReloadCount: Byte) = blasterManager.finishReload(playerId, fullReloadCount)
+    override fun finishReload(playerId: Byte, fullReloadCount: Byte) = blasterManager.finishReload(playerId, fullReloadCount)
 
-    fun setShotMode(shotMode: Int, firingMode: Int) = blasterManager.setShotMode(shotMode, firingMode)
+    override fun setShotMode(shotMode: Int, firingMode: Int) = blasterManager.setShotMode(shotMode, firingMode)
 
-    fun setRecoil(enabled: Boolean) = blasterManager.setRecoil(enabled)
+    override fun setRecoil(enabled: Boolean) = blasterManager.setRecoil(enabled)
 }

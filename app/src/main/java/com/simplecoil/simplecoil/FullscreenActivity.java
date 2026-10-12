@@ -39,11 +39,9 @@ import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkInfo;
 import android.os.Build;
-import android.os.CountDownTimer;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
-import android.os.SystemClock;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
@@ -56,16 +54,18 @@ import androidx.core.view.WindowInsetsControllerCompat;
 
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
-import com.simplecoil.simplecoil.domain.session.BatteryLevelPolicy;
+import com.simplecoil.simplecoil.domain.session.BlasterSessionEngine;
+import com.simplecoil.simplecoil.domain.session.GameClock;
 import com.simplecoil.simplecoil.domain.session.GrenadeDecoder;
-import com.simplecoil.simplecoil.domain.session.HitResolver;
-import com.simplecoil.simplecoil.domain.session.RecoilPolicy;
-import com.simplecoil.simplecoil.domain.session.ShotModePolicy;
+import com.simplecoil.simplecoil.domain.session.SessionEffect;
+import com.simplecoil.simplecoil.domain.session.SessionNetwork;
+import com.simplecoil.simplecoil.domain.session.SessionSound;
+import com.simplecoil.simplecoil.domain.session.SessionState;
+import com.simplecoil.simplecoil.domain.session.SpawnPhase;
 import com.simplecoil.simplecoil.hardware.blaster.BlasterEvent;
 import com.simplecoil.simplecoil.hardware.blaster.BleConnectionEvent;
 import com.simplecoil.simplecoil.hardware.blaster.BleConnectionManager;
 import com.simplecoil.simplecoil.hardware.blaster.BleDeviceRepository;
-import com.simplecoil.simplecoil.hardware.blaster.GattProtocolHandler;
 import com.simplecoil.simplecoil.hardware.blaster.QrPairingPayload;
 import com.simplecoil.simplecoil.hardware.blaster.ScanMatcher;
 import androidx.activity.OnBackPressedCallback;
@@ -115,7 +115,6 @@ import org.json.JSONObject;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 /**
  * An example full-screen activity that shows and hides the system UI (i.e.
@@ -180,7 +179,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private ProgressBar mReloadBar = null;
     private ImageView mHitIV = null;
     private ImageView mBatteryLevelIV = null;
-    private AnimationDrawable mHitAnimation = null;
     private ImageView mHitPlayerIV = null;
     private AnimationDrawable mHitPlayerAnimation = null;
     private TextView mHitPlayerNameTV = null;
@@ -196,21 +194,11 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private FragmentManager mFragmentMgr = null;
     private Fragment mMapFragment = null;
 
-    private CountDownTimer mSpawnTimer = null;
-    private CountDownTimer mReloadTimer = null;
-    private CountDownTimer mGameCountdownTimer = null;
-    private CountDownTimer mRespawnShieldTimer = null;
     private TextView mRespawnShieldCountdownTV = null;
-    private volatile boolean mIsShielded = false;
-    private boolean mGameTimerRunning = false;
 
 
     private Vibrator vibrator = null;
 
-    private static final int MAX_EMPTY_TRIGGER_PULLS = 3; // automatically reloads if the trigger is pulled this many times while empty (for young players)
-
-    private boolean mHasConnectedToBlaster = false;
-    private boolean mCommunicating = false; // Used to make sure that we start receiving telemetry data after initial connection
     private String mDeviceAddress = ""; // MAC address of the tagger
 
     private BleDeviceRepository blaster() {
@@ -221,68 +209,19 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         return ((SimpleCoilApp) getApplication()).getBleConnectionManager();
     }
 
+    private BlasterSessionEngine session() {
+        return ((SimpleCoilApp) getApplication()).getSessionEngine();
+    }
+
     private void setDeviceAddress(String address) {
         mDeviceAddress = address != null ? address : "";
         Globals.getInstance().mDeviceAddress = mDeviceAddress;
     }
-    private static byte mLastTeam = 0;
-    private int mHitsTaken = 0; // total hits taken regardless of lives
-    private static int mHealth = Globals.MAX_HEALTH;
-    private byte mLastShotCount = 0;
-    private byte mLastTriggerCount = 0;
-    private byte mLastReloadButtonCount = 0;
-    private byte mLastPowerButtonCount = 0;
-    private byte mLastThumbButtonCount = 0;
-    private static int mEliminationCount = 0;
-    private static int mEmptyTriggerCount = 0;
-    private static boolean mStartGameTimer = true;
-    private static boolean mHasLivesLimit = false;
-    private static int mLives = 0;
-
-    private final HitResolver mHitResolver = new HitResolver();
-    private final HitResolver.Lookups mHitLookups = new HitResolver.Lookups() {
-        @Override
-        public int networkTeam(byte playerId) {
-            return Globals.getInstance().calcNetworkTeam(playerId);
-        }
-
-        @Override
-        public int grenadePairing(int grenadeId) {
-            return PlayerRepository.getInstance().getGrenadePairing(grenadeId);
-        }
-
-        @Override
-        public Integer damage(byte playerId) {
-            Globals.PlayerSettings settings = Globals.getInstance().mPlayerSettings.get(playerId);
-            return settings != null ? settings.damage : null;
-        }
-    };
-
-    private final BatteryLevelPolicy.Averager mBatteryAverager = new BatteryLevelPolicy.Averager();
-
-    private static final byte BLASTER_TYPE_PISTOL = (byte)2;
     private static final byte BLASTER_TYPE_RIFLE = (byte)1;
-    private static byte mBlasterType = BLASTER_TYPE_PISTOL;
 
     final private int REQUEST_CODE_LOCATION_PERMISSIONS = 1022;
     final private int REQUEST_CODE_CAMERA_PERMISSION = 1024;
 
-    /* Reloading is done in 2 stages. The first stage effectively tells the tagger that it can't
-       shoot anymore. We also use this state when the player is eliminated so they can't shoot while
-       out of the game. At the second stage, we tell the tagger how many shots it now has. With a
-       normal reload sequence, we wait until the tagger has received the first stage command, and
-       we automatically start a timer thread to finish the reload after the reload wait timer is up.
-       We don't want this timer to run/finish if the player is eliminated, hence the eliminated
-       state here. */
-    private static final int RELOADING_STATE_NONE = 0;
-    private static final int RELOADING_STATE_STARTED = 1;
-    private static final int RELOADING_STATE_FINISHING = 2;
-    private static final int RELOADING_STATE_ELIMINATED = 3;
-    private int mReloading = RELOADING_STATE_ELIMINATED;
-
-    private int mCurrentShotMode = Globals.SHOT_MODE_SINGLE;
-
-    private boolean mRecoilEnabled = true;
 
     public final static int RECOIL_OFFSET_RELOAD_TRIGGER_COUNTER = 3;
     public final static int RECOIL_OFFSET_THUMB_COUNTER = 4;
@@ -299,9 +238,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private int mScore = 0;
     private int mTeamScore = 0;
     private volatile boolean mReady = false;
-    private int mNetworkTeam = 0;
     private boolean mIsServer = false;
-    private long mLastShotFired = 0; // to reduce shots fired message spam
 
     // Grenade stuff. Decoding lives in GrenadeDecoder; these aliases stay only for
     // LegacyTelemetryDecoderConstantsTest until the constants leave the activity (D1, Phase 3).
@@ -313,6 +250,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
 
     private static final int HIT_VIBRATE_DURATION_MILLISECONDS = 250;
+    private AnimationDrawable mHitAnimation = null;
     // If you change these durations you will also need to change the duration in the res/anim/fadeout XML files to match
     private static final int HIT_ANIMATION_DURATION_MILLISECONDS = 400;
     private static final int ELIMINATED_ANIMATION_DURATION_MILLISECONDS = 800;
@@ -507,7 +445,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             @Override
             public void onServiceConnected(ComponentName componentName, IBinder service) {
                 mUDPListenerService = ((UDPListenerService.LocalBinder) service).getService();
-                if (mCommunicating) {
+                if (session().isCommunicating()) {
                     autoStartServerScan();
                 }
             }
@@ -620,6 +558,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         // CountDownTimer did; adapter-on only while resumed, as its receiver was.
         FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.CREATED, ble().getEvents(), this::handleConnectionEvent);
         FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.RESUMED, ble().getEvents(), this::handleAdapterEvent);
+        // The session runs app-scoped (D4); render it and play its effects whenever this screen exists.
+        session().setNetwork(mSessionNetwork);
+        FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.CREATED, session().getState(), this::renderSession);
+        FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.CREATED, session().getEffects(), this::handleSessionEffect);
 
         mFragmentMgr = getSupportFragmentManager();
         mEliminationCountTV = findViewById(R.id.eliminations_count_tv);
@@ -770,9 +712,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mShotModeTV = findViewById(R.id.shot_mode_tv);
         mHealthLabelTV = findViewById(R.id.health_label_tv);
         mHealthBar = findViewById(R.id.health_pb);
-        mHealth = Globals.getInstance().mFullHealth;
-        mHealthBar.setMax(mHealth);
-        mHealthBar.setProgress(mHealth);
+        mHealthBar.setMax(Globals.getInstance().mFullHealth);
+        mHealthBar.setProgress(Globals.getInstance().mFullHealth);
         mReloadBar = findViewById(R.id.reload_pb);
         mEliminatedTV = findViewById(R.id.eliminated_tv);
         mEliminatedByTV = findViewById(R.id.eliminated_by_tv);
@@ -797,7 +738,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         }
 
         showConnectLayout();
-        initBatteryQueue();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             VibratorManager vibratorManager = (VibratorManager) getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
             if (vibratorManager != null) {
@@ -824,8 +764,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mSelectedPlayerID = (byte) sharedPreferences.getInt(PREF_SELECTED_PLAYER_ID, 0);
         Globals.getInstance().mPlayerID = mSelectedPlayerID;
         getFiringMode();
-        mRecoilEnabled = sharedPreferences.getBoolean(PREF_RECOIL_ENABLED, true);
-        mCurrentShotMode = sharedPreferences.getInt(PREF_SHOT_MODE, Globals.SHOT_MODE_SINGLE);
+        session().restore(sharedPreferences.getInt(PREF_SHOT_MODE, Globals.SHOT_MODE_SINGLE),
+                sharedPreferences.getBoolean(PREF_RECOIL_ENABLED, true));
         Globals.getInstance().mGameMode = sharedPreferences.getInt(PREF_GAME_MODE, Globals.GAME_MODE_2TEAMS);
         int gameLimit = Globals.GAME_LIMIT_NONE;
         Globals.getInstance().mTimeLimit = sharedPreferences.getInt(PREF_LIMIT_TIME, 0);
@@ -1127,7 +1067,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         } else if (id == R.id.firing_mode_outdoor_no_cone_item) {
             Globals.getInstance().mCurrentFiringMode = Globals.FIRING_MODE_OUTDOOR_NO_CONE;
             mFiringModeButton.setText(R.string.firing_mode_outdoor_no_cone);
-            setShotMode(mCurrentShotMode);
+            session().setShotMode(session().getShotMode());
             {
                 SharedPreferences.Editor editor = sharedPreferences.edit();
                 editor.putInt(PREF_FIRING_MODE, Globals.getInstance().mCurrentFiringMode);
@@ -1137,7 +1077,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         } else if (id == R.id.firing_mode_outdoor_with_cone_item) {
             Globals.getInstance().mCurrentFiringMode = Globals.FIRING_MODE_OUTDOOR_WITH_CONE;
             mFiringModeButton.setText(R.string.firing_mode_outdoor_with_cone);
-            setShotMode(mCurrentShotMode);
+            session().setShotMode(session().getShotMode());
             {
                 SharedPreferences.Editor editor = sharedPreferences.edit();
                 editor.putInt(PREF_FIRING_MODE, Globals.getInstance().mCurrentFiringMode);
@@ -1147,7 +1087,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         } else if (id == R.id.firing_mode_indoor_no_cone_item) {
             Globals.getInstance().mCurrentFiringMode = Globals.FIRING_MODE_INDOOR_NO_CONE;
             mFiringModeButton.setText(R.string.firing_mode_indoor_no_cone);
-            setShotMode(mCurrentShotMode);
+            session().setShotMode(session().getShotMode());
             {
                 SharedPreferences.Editor editor = sharedPreferences.edit();
                 editor.putInt(PREF_FIRING_MODE, Globals.getInstance().mCurrentFiringMode);
@@ -1382,18 +1322,11 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             mGameCountDownTV.setVisibility(View.GONE);
             mGameTimer.setVisibility(View.VISIBLE);
         }
+        // Lives or eliminations, including a server override of the lives; the count itself is
+        // rendered from the session.
+        session().applyGameLimit();
         TextView eliminationLabel = findViewById(R.id.eliminations_count_label_tv);
-        if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_LIVES) != 0) {
-            eliminationLabel.setText(R.string.lives_count_label);
-            mEliminationCountTV.setText(String.valueOf(Globals.getInstance().mLivesLimit));
-            mHasLivesLimit = true;
-            mLives = Globals.getInstance().mLivesLimit;
-        } else {
-            eliminationLabel.setText(R.string.eliminations_count_label);
-            mEliminationCountTV.setText(String.valueOf(mEliminationCount));
-            mHasLivesLimit = false;
-            mLives = 0;
-        }
+        eliminationLabel.setText(session().getHasLivesLimitSet() ? R.string.lives_count_label : R.string.eliminations_count_label);
         if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_SCORE) != 0) {
             mScoreLabelTV.setText(getString(R.string.score_limit_label, Globals.getInstance().mScoreLimit));
             mTeamScoreLabelTV.setText(getString(R.string.team_score_limit_label, Globals.getInstance().mScoreLimit));
@@ -1406,19 +1339,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         editor.putInt(PREF_LIMIT_SCORE, Globals.getInstance().mScoreLimit);
         editor.putInt(PREF_LIMIT_LIVES, Globals.getInstance().mLivesLimit);
         editor.apply();
-        if (Globals.getInstance().mOverrideLives) {
-            if (Globals.getInstance().mOverrideLivesVal != 0) {
-                eliminationLabel.setText(R.string.lives_count_label);
-                mEliminationCountTV.setText(String.valueOf(Globals.getInstance().mOverrideLivesVal));
-                mHasLivesLimit = true;
-                mLives = Globals.getInstance().mOverrideLivesVal;
-            } else {
-                eliminationLabel.setText(R.string.eliminations_count_label);
-                mEliminationCountTV.setText(String.valueOf(mEliminationCount));
-                mHasLivesLimit = false;
-                mLives = 0;
-            }
-        }
     }
 
     private void setReady() { setReady(true); }
@@ -1470,10 +1390,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         }
     }
 
-    private void initBatteryQueue() {
-        mBatteryAverager.reset();
-    }
-
     private void startGame() {
         dismissScoreboardDialog();
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -1487,15 +1403,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mScoreTV.setText("0");
         mTeamScore = 0;
         mTeamScoreTV.setText("0");
-        if (mHasLivesLimit)
-            mEliminationCount = mLives;
-        else
-            mEliminationCount = 0;
-        mEliminationCountTV.setText(String.valueOf(mEliminationCount));
-        mHealth = Globals.getInstance().mFullHealth;
-        mHealthBar.setMax(mHealth);
-        mHealthBar.setProgress(mHealth);
-        mEliminatedTV.setText(R.string.starting_game_label);
         mStartGameButton.setVisibility(View.GONE);
         mTeamMinusButton.setVisibility(View.INVISIBLE);
         mTeamPlusButton.setVisibility(View.INVISIBLE);
@@ -1522,9 +1429,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         }
         mUseNetworkingButton.setVisibility(View.INVISIBLE);
         mFiringModeButton.setVisibility(View.INVISIBLE);
-        mStartGameTimer = true;
-        setShotMode(mCurrentShotMode); // make sure that the shot mode is correctly set at the start of each game
-        startSpawn("");
+        // Lives/eliminations, health, shot mode, first spawn
+        session().startGame();
     }
 
     private void confirmEndGame() {
@@ -1561,50 +1467,20 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
     private void endGame() {
         boolean wasInNetworkGame = mUseNetwork && Globals.getInstance().mGameState != Globals.GAME_STATE_NONE;
-        Globals.getInstance().mGameState = Globals.GAME_STATE_NONE;
+        // Game state NONE, timers, spawn/shield/clock display, reload lock
+        session().endGame();
         hideWeaponDisconnect();
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         WindowInsetsControllerCompat windowInsetsController =
                 WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
         windowInsetsController.show(WindowInsetsCompat.Type.systemBars());
-        if (mSpawnTimer != null) {
-            mSpawnTimer.cancel();
-            mSpawnTimer = null;
-        }
-        if (mRespawnShieldTimer != null) {
-            mRespawnShieldTimer.cancel();
-            mRespawnShieldTimer = null;
-        }
-        mIsShielded = false;
-        if (mRespawnShieldCountdownTV != null) {
-            mRespawnShieldCountdownTV.setVisibility(View.GONE);
-        }
-        if (mReloadTimer != null) {
-            mReloadTimer.cancel();
-            mReloadTimer = null;
-        }
-        mGameTimerRunning = false;
-        if (mGameCountdownTimer != null) {
-            mGameCountdownTimer.cancel();
-            mGameCountdownTimer = null;
-        }
-        if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_TIME) != 0 && mGameCountDownTV != null) {
-            @SuppressLint("DefaultLocale") String display = String.format("%02d:00", Globals.getInstance().mTimeLimit);
-            mGameCountDownTV.setText(display);
-        }
         mEndGameButton.setVisibility(View.GONE);
         mEndNetworkGameButton.setVisibility(View.GONE);
-        mHitIV.setVisibility(View.GONE);
-        mEliminatedTV.setVisibility(View.INVISIBLE);
-        mEliminatedByTV.setVisibility(View.INVISIBLE);
-        mSpawnInTV.setVisibility(View.GONE);
         displayAllNetworkingOptions(mUseNetwork);
         mUseNetworkingButton.setVisibility(View.VISIBLE);
         mHitPlayerIV.setVisibility(View.GONE);
         mHitPlayerNameTV.setVisibility(View.GONE);
         mShotsFiredIV.setVisibility(View.GONE);
-        startReload(RELOADING_STATE_ELIMINATED);
-        mGameTimer.stop();
         mUseNetworkingButton.setVisibility(View.VISIBLE);
 
         updatePreGameButtonVisibilities();
@@ -1669,11 +1545,13 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
        game each time to ensure that the player starts on the right team and with full ammo. */
     private void setTeam() {
         if (!TEST_NETWORK) {
-            if (Globals.getInstance().mPlayerID >= 1 && Globals.getInstance().mPlayerID <= Globals.MAX_PLAYER_ID) {
-                Log.d(TAG, "setting player ID to " + Globals.getInstance().mPlayerID);
-                blaster().setTeam(Globals.getInstance().mPlayerID);
-            }
+            session().sendTeamToBlaster();
         }
+        saveTeamAndDisplay();
+    }
+
+    /** Persists the player id / game mode and redisplays the team (the rest of setTeam()). */
+    private void saveTeamAndDisplay() {
         if (sharedPreferences != null) {
             SharedPreferences.Editor editor = sharedPreferences.edit();
             editor.putInt(PREF_PLAYER_ID, Globals.getInstance().mPlayerID);
@@ -1698,7 +1576,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 Globals.getInstance().mPlayerID = (mSelectedPlayerID != 0) ? mSelectedPlayerID : 1;
             }
             if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
-                mNetworkTeam = Globals.getInstance().calcNetworkTeam(Globals.getInstance().mPlayerID);
+                int mNetworkTeam = Globals.getInstance().calcNetworkTeam(Globals.getInstance().mPlayerID);
+                session().setNetworkTeam(mNetworkTeam);
                 int startID = Globals.getInstance().getTeamStartID(mNetworkTeam);
                 int player = Globals.getInstance().mPlayerID - startID + 1;
                 mTeamLabelTV.setText(getString(R.string.team_number_label, mNetworkTeam));
@@ -1753,203 +1632,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         }
     }
 
-    private void startReload() { startReload(RELOADING_STATE_STARTED); }
-
-    /* Initial reload command that tells the tagger not to shoot anymore (or maybe it just sets the
-       remaining shot counter to 0). It also sets the tagger in what I guess is status 0x03 instead
-       of the usual 0x02. The command format is F0 00 02 00 PLAYER_ID and then 0 filled to the end. */
-    private void startReload(int reloadStatus) {
-        if (mReloading != RELOADING_STATE_NONE)
-            return;
-        mReloading = reloadStatus;
-        mShotsRemainingTV.setVisibility(View.INVISIBLE);
-        mReloadBar.setVisibility(View.VISIBLE);
-        blaster().startReload(Globals.getInstance().mPlayerID);
-    }
-
-    /* Second stage of the reload commands which tells the tagger how many shots to load and allows
-       it to shoot again. Command format is 00 00 04 00 PLAYER_ID 00 SHOT_COUNT and then 0 filled. */
-    private void finishReload() {
-        if ((mReloading != RELOADING_STATE_STARTED && mReloading != RELOADING_STATE_ELIMINATED) || Globals.getInstance().mGameState != Globals.GAME_STATE_RUNNING)
-            return;
-        mReloading = RELOADING_STATE_FINISHING;
-        mEmptyTriggerCount = 0;
-        Log.d(TAG, "Finishing reload");
-        setShotsRemaining(Globals.getInstance().mFullReload);
-        blaster().finishReload(Globals.getInstance().mPlayerID, Globals.getInstance().mFullReload);
-    }
-
-    private void setShotsRemaining(byte shotsRemaining) {
-        String shotsRemainingStr = "" + shotsRemaining;
-        if (shotsRemaining == 0)
-            shotsRemainingStr = "0";
-        mShotsRemainingTV.setText(shotsRemainingStr);
-        mLastShotCount = shotsRemaining;
-    }
-
-    private void startRespawnShield(long shieldTimeInSeconds) {
-        if (mRespawnShieldTimer != null) {
-            mRespawnShieldTimer.cancel();
-            mRespawnShieldTimer = null;
-        }
-        mIsShielded = true;
-        mRespawnShieldCountdownTV.setText(getString(R.string.respawn_shield_label, shieldTimeInSeconds));
-        mRespawnShieldCountdownTV.setVisibility(View.VISIBLE);
-        mRespawnShieldTimer = new CountDownTimer(shieldTimeInSeconds * 1000, 999) {
-            @Override
-            public void onTick(long millisUntilFinished) {
-                long remainingSec = (millisUntilFinished / 1000) + 1;
-                mRespawnShieldCountdownTV.setText(getString(R.string.respawn_shield_label, remainingSec));
-            }
-
-            @Override
-            public void onFinish() {
-                mIsShielded = false;
-                mRespawnShieldCountdownTV.setVisibility(View.GONE);
-                mRespawnShieldTimer = null;
-            }
-        }.start();
-    }
-
-    private void startSpawn(String eliminatedBy) {
-        if (mReloadTimer != null)
-            mReloadTimer.cancel();
-        if (mRespawnShieldTimer != null) {
-            mRespawnShieldTimer.cancel();
-            mRespawnShieldTimer = null;
-        }
-        if (mSpawnTimer != null) {
-            mSpawnTimer.cancel();
-            mSpawnTimer = null;
-        }
-        mIsShielded = false;
-        if (mRespawnShieldCountdownTV != null) {
-            mRespawnShieldCountdownTV.setVisibility(View.GONE);
-        }
-        Globals.getInstance().mGameState = Globals.GAME_STATE_ELIMINATED;
-        startReload(RELOADING_STATE_ELIMINATED);
-        mHitIV.setVisibility(View.GONE);
-        mEliminatedTV.setVisibility(View.VISIBLE);
-        mEliminatedByTV.setText(eliminatedBy);
-        mEliminatedByTV.setVisibility(View.VISIBLE);
-
-        if (mHasLivesLimit && mEliminationCount <= 0) {
-            mSpawnInTV.setText(R.string.dialog_out_of_lives);
-            mSpawnInTV.setVisibility(View.VISIBLE);
-            return;
-        }
-
-        mSpawnInTV.setText(getResources().getString(R.string.spawn_in_label, Globals.getInstance().mRespawnTime));
-        mSpawnInTV.setVisibility(View.VISIBLE);
-        mSpawnTimer = new CountDownTimer(Globals.getInstance().mRespawnTime * 1000, 999) {
-
-            public void onTick(long millisUntilFinished) {
-                mSpawnInTV.setText(getResources().getString(R.string.spawn_in_label, (millisUntilFinished / 1000)));
-                playSound(R.raw.beep, getApplicationContext());
-            }
-
-            public void onFinish() {
-                Log.d(TAG, "spawned!");
-                mEliminatedTV.setVisibility(View.INVISIBLE);
-                mEliminatedTV.setText(R.string.eliminated_label);
-                mEliminatedByTV.setVisibility(View.INVISIBLE);
-                mSpawnInTV.setVisibility(View.GONE);
-                mHealth = Globals.getInstance().mFullHealth;
-                mHealthBar.setProgress(mHealth);
-                Globals.getInstance().mGameState = Globals.GAME_STATE_RUNNING;
-                playSound(R.raw.spawn, getApplicationContext());
-                finishReload();
-                if (mStartGameTimer) {
-                    mStartGameTimer = false;
-                    if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_TIME) != 0) {
-                        if (!mGameTimerRunning)
-                            startGameCountdown();
-                    } else {
-                        mGameTimer.setBase(SystemClock.elapsedRealtime());
-                        mGameTimer.start();
-                    }
-                } else {
-                    long shieldTime = Globals.getInstance().mRespawnShieldTime;
-                    if (shieldTime > 0) {
-                        startRespawnShield(shieldTime);
-                    }
-                }
-            }
-        }.start();
-    }
-
-    private void startGameCountdown() {
-        startGameCountdown(Globals.getInstance().mTimeLimit * 60L);
-    }
-
-    private void startGameCountdown(long timeInSeconds) {
-        mGameCountdownTimer = new CountDownTimer(timeInSeconds * 1000, 1000) {
-
-            public void onTick(long millisUntilFinished) {
-                @SuppressLint("DefaultLocale") String display = String.format("%02d:%02d",
-                        TimeUnit.MILLISECONDS.toMinutes(millisUntilFinished),
-                        TimeUnit.MILLISECONDS.toSeconds(millisUntilFinished) - TimeUnit.MINUTES.toSeconds(
-                                TimeUnit.MILLISECONDS.toMinutes(millisUntilFinished)));
-                mGameCountDownTV.setText(display);
-            }
-
-            public void onFinish() {
-                Log.d(TAG, "Game time ended!");
-                Toast.makeText(getApplicationContext(), getString(R.string.dialog_game_time_expired), Toast.LENGTH_SHORT).show();
-                playSound(R.raw.eliminated, getApplicationContext());
-                if (mUseNetwork) {
-                    if (mIsServer && mTcpServer != null) {
-                        mTcpServer.endGame();
-                    }
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
-                            endGame();
-                        }
-                    }, 3000);
-                } else {
-                    endGame();
-                }
-            }
-        }.start();
-    }
-
-    // Config 00 00 09 xx yy ff c8 ff ff 80 01 34 - xx is the number of shots and if you set yy to 01 for full auto for xx shots or 00 for single shot mode, increasing yy decreases RoF
-    // setting 03 03 for shots and RoF gives a good 3 shot burst, 03 01 is so fast that you feel 1 recoil for 3 shots
-    private void setShotMode(int shotMode) {
-        if (shotMode == Globals.SHOT_MODE_SINGLE) {
-            mCurrentShotMode = Globals.SHOT_MODE_SINGLE;
-            mShotModeTV.setText(R.string.shot_mode_single);
-        } else if (shotMode == Globals.SHOT_MODE_BURST) {
-            mCurrentShotMode = Globals.SHOT_MODE_BURST;
-            mShotModeTV.setText(R.string.shot_mode_burst3);
-        } else if (shotMode == Globals.SHOT_MODE_FULL_AUTO) {
-            mCurrentShotMode = Globals.SHOT_MODE_FULL_AUTO;
-            mShotModeTV.setText(R.string.shot_mode_auto);
-        }
-        SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putInt(PREF_SHOT_MODE, mCurrentShotMode);
-        editor.apply();
-        blaster().setShotMode(shotMode, Globals.getInstance().mCurrentFiringMode);
-    }
-
-    // Config 10 00 02 02 ff and 15 sets of 00 disables recoil
-    // Config 10 00 02 03 ff and 15 sets of 00 enables recoil
-    private void setRecoil(boolean enabled) {
-        if (enabled) {
-            if (mRecoilModeTV != null) mRecoilModeTV.setText(R.string.recoil_enabled);
-        } else {
-            if (mRecoilModeTV != null) mRecoilModeTV.setText(R.string.recoil_disabled);
-        }
-        mRecoilEnabled = enabled;
-        SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putBoolean(PREF_RECOIL_ENABLED, mRecoilEnabled);
-        editor.apply();
-        blaster().setRecoil(enabled);
-    }
-
-    private void applyCurrentRecoilSetting() {
-        setRecoil(RecoilPolicy.effective(Globals.getInstance().mServerRecoilSetting, mRecoilEnabled));
-    }
 
     @Override
     protected void onSaveInstanceState(@NonNull Bundle outState) {
@@ -2004,6 +1686,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     @Override
     protected void onDestroy() {
         dismissScoreboardDialog();
+        // The session outlives this screen; don't let it hold on to this activity's network.
+        session().setNetwork(null);
         ble().reset();
         if (mUDPServiceConnection != null)
             try {unbindService(mUDPServiceConnection);} catch (Exception e) {/* nothing */}
@@ -2252,10 +1936,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
 
     private void handleDisconnect() {
-        Log.d(TAG, "handleDisconnect called. mHasConnectedToBlaster=" + mHasConnectedToBlaster + ", mGameState=" + Globals.getInstance().mGameState);
+        Log.d(TAG, "handleDisconnect called. hasConnectedToBlaster=" + session().getHasConnectedToBlaster() + ", mGameState=" + Globals.getInstance().mGameState);
         ble().cancelScanTimeout();
         ble().clearScanning();
-        if (mHasConnectedToBlaster || Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
+        if (session().getHasConnectedToBlaster() || Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
             Log.e(TAG, "blaster disconnected, attempt to reconnect");
             connectWeapon();
             showWeaponDisconnect();
@@ -2269,9 +1953,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mQRConnectButton.setEnabled(true);
         TextView connectStatusTV = findViewById(R.id.connect_status_tv);
         if (connectStatusTV != null) connectStatusTV.setText(R.string.connect_status_not_connected);
-        mLastShotCount = 0;
+        session().onBlasterReset();
         endGame();
-        initBatteryQueue();
         playSound(R.raw.eliminated, getApplicationContext());
     }
 
@@ -2291,7 +1974,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 .setNegativeButton(R.string.blaster_disconnected_disconnect_quit,
                         (dialog, id) -> {
                             Log.d(TAG, "Disconnect & Quit clicked");
-                            mHasConnectedToBlaster = false;
+                            session().setHasConnectedToBlaster(false);
                             Globals.getInstance().mGameState = Globals.GAME_STATE_NONE;
                             ble().cancelScanTimeout();
                             ble().stopScan();
@@ -2309,55 +1992,24 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         if (mBlasterDisconnectDialog != null) {
             mBlasterDisconnectDialog.dismiss();
             mBlasterDisconnectDialog = null;
-            new Handler(Looper.getMainLooper()).postDelayed(this::applyCurrentRecoilSetting, 600);
+            session().onDisconnectDialogDismissed();
         }
     }
 
-    // Handles the blaster's GATT events, in order.
+    // Connection UI for the blaster's GATT events; BlasterSessionEngine handles the game side.
     private void handleBlasterEvent(BlasterEvent event) {
-        if (event instanceof BlasterEvent.Connected) {
-            // BleConnectionManager marks itself connected on the same event.
-            mCommunicating = false; // When we receive the first packet, we'll switch layouts
-            // BleConnectionManager runs the telemetry watchdog for this connection.
-        } else if (event instanceof BlasterEvent.Disconnected) {
+        if (event instanceof BlasterEvent.Disconnected) {
             handleDisconnect();
         } else if (event instanceof BlasterEvent.ServicesDiscovered) {
-            // BlasterManager has already discovered the characteristics.
             TextView connectStatusTV = findViewById(R.id.connect_status_tv);
             if (connectStatusTV != null) connectStatusTV.setText(R.string.connect_status_communicating);
-            if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE)
-                playSound(R.raw.spawn, getApplicationContext());
-            else {
-                if (Globals.getInstance().mGameState == Globals.GAME_STATE_RUNNING)
-                    startReload();
-            }
             hideWeaponDisconnect();
-        } else if (event instanceof BlasterEvent.Telemetry) {
-            processTelemetryData(((BlasterEvent.Telemetry) event).getData());
         } else if (event instanceof BlasterEvent.TypeDiscovered) {
-            mBlasterType = ((BlasterEvent.TypeDiscovered) event).getBlasterType();
-            if (mBlasterType == BLASTER_TYPE_RIFLE) {
+            if (((BlasterEvent.TypeDiscovered) event).getBlasterType() == BLASTER_TYPE_RIFLE) {
                 Toast.makeText(getApplicationContext(), getString(R.string.rifle_detected_toast, mDeviceAddress), Toast.LENGTH_LONG).show();
             } else {
                 // We'll automatically assume that this is a pistol
                 Toast.makeText(getApplicationContext(), getString(R.string.pistol_detected_toast, mDeviceAddress), Toast.LENGTH_LONG).show();
-            }
-        } else if (event instanceof BlasterEvent.WriteFinished) {
-            if (mReloading == RELOADING_STATE_STARTED) {
-                // Using a timer here so we can cancel it if the player is eliminated while waiting to reload
-                mReloadTimer = new CountDownTimer(Globals.getInstance().mReloadTime, Globals.getInstance().mReloadTime) {
-                    public void onTick(long millisUntilFinished) { /* do nothing */ }
-                    public void onFinish() {
-                        finishReload();
-                    }
-                }.start();
-            } else if (mReloading == RELOADING_STATE_FINISHING) {
-                mReloading = RELOADING_STATE_NONE;
-                mReloadBar.setVisibility(View.INVISIBLE);
-                mShotsRemainingTV.setVisibility(View.VISIBLE);
-                if (!Globals.getInstance().mReloadOnEmpty)
-                    playSound(R.raw.reload, getApplicationContext());
-                Log.d(TAG, "Reload finished");
             }
         }
     }
@@ -2381,115 +2033,146 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mp.setLooping(false);
     }
 
-    /* Telemetry data is 20 bytes of raw data in the following format:
-       00 seems to be part of a continuous counter, first byte always 0 and second byte counts 0 to F, increments with each packet sent
-       01 player ID, 01, 02, 03, etc. 00 when not set
-       02 first byte is the power button 0 unpressed and 1 for pressed, second is button presses, 01 for trigger, 02 for reload, 04 for back button, add them together for pressing multiple buttons, so 07 means all three buttons are being pressed
-       03 counters for the number of times a button has been pressed, the first byte is reload presses, second byte is trigger presses
-       04 again a button counter, first byte is unused, second byte is for back/thumb/voice button presses
-       05 first byte unused, second byte is a count of power button presses
-       06 seem to be part of a continuous counter or otherwise just random???
-       07 battery level - 10 is brand new alkalines, 0E for fully charged rechargeables with 0D showing up pretty quick, drops significantly when shooting
-       08 00 related to being hit by ID 1, usually around 3* so 3D or 3E but somewhat random
-       09 hit by player ID 1, player 1 seems to be 0x04 and player 2 is 0x08, 0x0C, 0x10, 0x14, 0x18
-       10 related to being hit by ID 1 but fairly random in the 6* and 7* range
-       11 related to being hit by ID 2, usually around 3* so 3D or 3E but somewhat random
-       12 hit by player ID 2, player 1 seems to be 0x04 and player 2 is 0x08, sometimes this is the same as ID 1 but sometimes different if being shot by 2 people at once
-       13 related to being hit by ID 2 but fairly random in the 6* and 7* range
-       14 how many shots you have left, starts out at 0x1e which would be 30 in decimal and decreases when you pull the trigger
-       15 usually 02 but I have seen 03 during reload wait... some kind of status?
-       16 starts as 02 but changes to 00 after player ID is set
-       17 00 Unused?
-       18 00 Unused?
-       19 00 Unused?
-     */
-    private void applyGrenadePairing(int hitBy, byte shotIdByte) {
-        GrenadeDecoder.PairingAction action = GrenadeDecoder.pairingAction(hitBy, shotIdByte);
-        if (action == GrenadeDecoder.PairingAction.PAIR) {
-            // This is a grenade trying to pair
-            if (Globals.getInstance().mPairedGrenadeID == 0) {
-                Globals.getInstance().mPairedGrenadeID = (byte) GrenadeDecoder.grenadeId(shotIdByte);
-                if (mUseNetwork && mTcpClient.isDedicatedServer())
-                    mTcpClient.sendPlayerGrenade();
-                Toast.makeText(getApplicationContext(), getString(R.string.grenade_paired_toast), Toast.LENGTH_SHORT).show();
-            }
-        } else if (action == GrenadeDecoder.PairingAction.UNPAIR) {
-            Globals.getInstance().mPairedGrenadeID = 0;
+    /* The session's network side, until NetworkSessionGateway owns it: the same TCP messages and
+       null checks as the inline code it replaces. */
+    private final SessionNetwork mSessionNetwork = new SessionNetwork() {
+        @Override
+        public boolean getUseNetwork() {
+            return mUseNetwork;
         }
-    }
 
-    private void processTelemetryData(GattProtocolHandler.TelemetryData telemetry) {
-        byte player_id = telemetry.playerId;
-        byte shotsRemaining = telemetry.shotsRemaining;
-        // Unsigned (0-255): hit-by ids above 127, e.g. grenades (167), are negative bytes on the wire.
-        int hit_by_player1 = telemetry.hitByPlayer1;
-        // Often, hit_by_player2 is the same player ID as player1
-        int hit_by_player2 = telemetry.hitByPlayer2;
-        byte trigger_counter = telemetry.triggerCounter;
-        byte reload_counter = telemetry.reloadCounter;
-        byte thumb_counter = telemetry.thumbCounter;
-        byte power_counter = telemetry.powerCounter;
-        if (!mCommunicating) {
-            mCommunicating = true;
-            mHasConnectedToBlaster = true;
+        @Override
+        public void sendHit(byte playerId) {
+            if (mTcpClient != null)
+                mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_HIT + playerId);
+        }
+
+        @Override
+        public void sendOut(byte playerId) {
+            if (mTcpClient != null)
+                mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_OUT + playerId);
+        }
+
+        @Override
+        public void sendShotFired() {
+            if (mTcpClient != null)
+                mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_SHOTFIRED);
+        }
+
+        @Override
+        public void sendEliminated(byte playerId) {
+            if (mTcpClient != null)
+                mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ELIMINATED + playerId, true);
+        }
+
+        @Override
+        public void sendPlayerGrenade() {
+            if (mTcpClient.isDedicatedServer())
+                mTcpClient.sendPlayerGrenade();
+        }
+
+        @Override
+        public void setHostEliminations(int eliminations) {
+            if (mIsServer && mTcpServer != null) {
+                mTcpServer.setHostScore(mScore, eliminations);
+            }
+        }
+
+        @Override
+        public void serverEndGame() {
+            if (mIsServer && mTcpServer != null) {
+                mTcpServer.endGame();
+            }
+        }
+    };
+
+    private void handleSessionEffect(SessionEffect effect) {
+        if (effect instanceof SessionEffect.Sound) {
+            playSound(soundResource(((SessionEffect.Sound) effect).getSound()), getApplicationContext());
+        } else if (effect instanceof SessionEffect.Vibrate) {
+            vibrate();
+        } else if (effect instanceof SessionEffect.Toast) {
+            switch (((SessionEffect.Toast) effect).getToast()) {
+                case GRENADE_PAIRED:
+                    Toast.makeText(getApplicationContext(), getString(R.string.grenade_paired_toast), Toast.LENGTH_SHORT).show();
+                    break;
+                case OUT_OF_LIVES:
+                    Toast.makeText(getApplicationContext(), getString(R.string.dialog_out_of_lives), Toast.LENGTH_LONG).show();
+                    break;
+                case RECOIL_FORCED_ENABLED:
+                    Toast.makeText(getApplicationContext(), "Recoil is forced ENABLED by server", Toast.LENGTH_SHORT).show();
+                    break;
+                case RECOIL_FORCED_DISABLED:
+                    Toast.makeText(getApplicationContext(), "Recoil is forced DISABLED by server", Toast.LENGTH_SHORT).show();
+                    break;
+                case GAME_TIME_EXPIRED:
+                    Toast.makeText(getApplicationContext(), getString(R.string.dialog_game_time_expired), Toast.LENGTH_SHORT).show();
+                    break;
+            }
+        } else if (effect instanceof SessionEffect.CommunicationStarted) {
             RelativeLayout connectLayout = findViewById(R.id.connect_layout);
             if (connectLayout != null) connectLayout.setVisibility(View.GONE);
             RelativeLayout playLayout = findViewById(R.id.play_layout);
             if (playLayout != null) playLayout.setVisibility(View.VISIBLE);
-            // Reset last counters when we start a new connection
-            mLastTriggerCount = trigger_counter;
-            mLastReloadButtonCount = reload_counter;
-            mLastThumbButtonCount = thumb_counter;
-            mLastPowerButtonCount = power_counter;
-            setShotMode(mCurrentShotMode);
-            new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                if (Globals.getInstance().mPlayerID != 0)
-                    setTeam();
-            }, 250);
-            new Handler(Looper.getMainLooper()).postDelayed(this::applyCurrentRecoilSetting, 500);
             autoStartServerScan();
+        } else if (effect instanceof SessionEffect.TeamSent) {
+            saveTeamAndDisplay();
+        } else if (effect instanceof SessionEffect.PlayerIdReported) {
+            displayCurrentTeam();
+        } else if (effect instanceof SessionEffect.EndGameRequested) {
+            endGame();
         }
-        if (trigger_counter != mLastTriggerCount) {
-            mLastTriggerCount = trigger_counter;
-            if (shotsRemaining == 0 || Globals.getInstance().mGameState != Globals.GAME_STATE_RUNNING) {
-                playSound(R.raw.empty, getApplicationContext());
-                mEmptyTriggerCount++;
-                if (mEmptyTriggerCount >= MAX_EMPTY_TRIGGER_PULLS && Globals.getInstance().mGameState == Globals.GAME_STATE_RUNNING)
-                    startReload(); // Auto reload after this many empty trigger pulls (for young players)
-            }
+    }
+
+    private static int soundResource(SessionSound sound) {
+        switch (sound) {
+            case BEEP: return R.raw.beep;
+            case ELIMINATED: return R.raw.eliminated;
+            case EMPTY: return R.raw.empty;
+            case HIT: return R.raw.hit;
+            case RELOAD: return R.raw.reload;
+            case SHOT: return R.raw.shootingshort;
+            default: return R.raw.spawn;
         }
-        /* Rather than monitor if a button is currently pressed, we monitor the counter. Usually
-           when the player presses a button, we see many packets showing that the button is
-           pressed. We don't want to toggle recoil or modes with every packet we receive so it
-           makes more sense to just monitor when the counter changes so we can toggle eactly
-           once each time that button is pressed. */
-        if (reload_counter != mLastReloadButtonCount) {
-            mLastReloadButtonCount = reload_counter;
-            if (shotsRemaining != Globals.getInstance().mFullReload)
-                startReload();
-        }
-        if (thumb_counter != mLastThumbButtonCount) {
-            mLastThumbButtonCount = thumb_counter;
-            Integer nextShotMode = ShotModePolicy.nextOnThumb(mCurrentShotMode, Globals.getInstance().mAllowSingleShotMode,
-                    Globals.getInstance().mAllowBurst3ShotMode, Globals.getInstance().mAllowAutoShotMode);
-            if (nextShotMode != null)
-                setShotMode(nextShotMode);
-        }
-        if (power_counter != mLastPowerButtonCount) {
-            mLastPowerButtonCount = power_counter;
-            RecoilPolicy.PowerButton recoil = RecoilPolicy.onPowerButton(Globals.getInstance().mServerRecoilSetting, mRecoilEnabled);
-            if (recoil.getForced()) {
-                setRecoil(recoil.getEnabled());
-                Toast.makeText(getApplicationContext(), recoil.getEnabled() ? "Recoil is forced ENABLED by server" : "Recoil is forced DISABLED by server", Toast.LENGTH_SHORT).show();
+    }
+
+    /** Last session state drawn; each view is only touched when its value changes. */
+    private SessionState mRenderedSession = null;
+
+    private void renderSession(SessionState s) {
+        SessionState p = mRenderedSession;
+        mRenderedSession = s;
+        if (p == null || p.getMaxHealth() != s.getMaxHealth())
+            mHealthBar.setMax(s.getMaxHealth());
+        if (p == null || p.getHealth() != s.getHealth())
+            mHealthBar.setProgress(s.getHealth());
+        if (p == null || p.getShotsRemaining() != s.getShotsRemaining())
+            mShotsRemainingTV.setText(String.valueOf(s.getShotsRemaining()));
+        if (s.getReloadBarShown() != null && (p == null || !s.getReloadBarShown().equals(p.getReloadBarShown()))) {
+            if (s.getReloadBarShown()) {
+                mShotsRemainingTV.setVisibility(View.INVISIBLE);
+                mReloadBar.setVisibility(View.VISIBLE);
             } else {
-                mRecoilEnabled = recoil.getEnabled();
-                setRecoil(mRecoilEnabled);
+                mReloadBar.setVisibility(View.INVISIBLE);
+                mShotsRemainingTV.setVisibility(View.VISIBLE);
             }
         }
-        byte battery_level = telemetry.batteryLevel;
-        long averageBattery = mBatteryAverager.add(battery_level);
-        if (mBatteryLevelIV != null) {
-            switch (BatteryLevelPolicy.level(averageBattery, mBlasterType)) {
+        if (p == null || p.getHitsTaken() != s.getHitsTaken())
+            mHitsTakenTV.setText(String.valueOf(s.getHitsTaken()));
+        if (p == null || p.getEliminationDisplay() != s.getEliminationDisplay())
+            mEliminationCountTV.setText(String.valueOf(s.getEliminationDisplay()));
+        if (p == null || p.getShotMode() != s.getShotMode()) {
+            if (s.getShotMode() == Globals.SHOT_MODE_SINGLE)
+                mShotModeTV.setText(R.string.shot_mode_single);
+            else if (s.getShotMode() == Globals.SHOT_MODE_BURST)
+                mShotModeTV.setText(R.string.shot_mode_burst3);
+            else if (s.getShotMode() == Globals.SHOT_MODE_FULL_AUTO)
+                mShotModeTV.setText(R.string.shot_mode_auto);
+        }
+        if ((p == null || p.getRecoilEnabled() != s.getRecoilEnabled()) && mRecoilModeTV != null)
+            mRecoilModeTV.setText(s.getRecoilEnabled() ? R.string.recoil_enabled : R.string.recoil_disabled);
+        if (s.getBattery() != null && (p == null || s.getBattery() != p.getBattery()) && mBatteryLevelIV != null) {
+            switch (s.getBattery()) {
                 case FULL:
                     mBatteryLevelIV.setImageResource(R.drawable.ic_battery_full_green_24dp);
                     break;
@@ -2503,111 +2186,80 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     mBatteryLevelIV.setImageResource(R.drawable.ic_battery_alert_red_24dp);
             }
         }
-        if (hit_by_player1 != 0) {
-            applyGrenadePairing(hit_by_player1, telemetry.rawShotIdByte1);
-            applyGrenadePairing(hit_by_player2, telemetry.rawShotIdByte2);
-        }
-        HitResolver.Result hit = mHitResolver.resolve(hit_by_player1, telemetry.rawShotIdByte1,
-                hit_by_player2, telemetry.rawShotIdByte2,
-                new HitResolver.Context(Globals.getInstance().mGameState != Globals.GAME_STATE_NONE, mIsShielded,
-                        mUseNetwork, Globals.getInstance().mGameMode == Globals.GAME_MODE_FFA, mNetworkTeam, mHealth),
-                mHitLookups);
-        if (hit.getCountedHit()) {
-            mHitsTaken++;
-            String hitsTaken = "" + mHitsTaken;
-            mHitsTakenTV.setText(hitsTaken);
-        }
-        for (HitResolver.Message message : hit.getMessages()) {
-            if (mTcpClient != null)
-                mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + (message.getOut() ? NetMsg.NETMSG_OUT : NetMsg.NETMSG_HIT) + message.getPlayerId());
-        }
-        int healthRemoved = hit.getHealthRemoved();
-        byte hit_by_id = hit.getHitById();
-        if (healthRemoved != 0) {
-            if (Globals.getInstance().mGameState == Globals.GAME_STATE_RUNNING) {
-                mHealth += healthRemoved;
-                mHealthBar.setProgress(mHealth);
-                if (mHealth > 0) {
-                    if (mHitIV != null && mHitAnimation == null) {
-                        // Show the "you're being hit" animation
-                        mHitIV.setVisibility(View.VISIBLE);
-                        mHitIV.setBackgroundResource(R.drawable.hit_animation);
-                        vibrate();
-                        playSound(R.raw.hit, getApplicationContext());
-                        Animation animationFadeOut = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadeout);
-                        mHitIV.startAnimation(animationFadeOut);
-                        mHitAnimation = (AnimationDrawable) mHitIV.getBackground();
-                        mHitAnimation.start();
-                        mEliminatedByTV.setVisibility(View.VISIBLE);
-                        if (hit_by_id == 0) {
-                            mEliminatedByTV.setText("");
-                        } else {
-                            mEliminatedByTV.setText(Globals.getInstance().getPlayerName(hit_by_id));
-                        }
-                        mEliminatedByTV.startAnimation(animationFadeOut);
-                        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                            mHitIV.setVisibility(View.GONE);
-                            mHitAnimation.stop();
-                            mHitAnimation = null;
-                            mEliminatedByTV.setVisibility(View.INVISIBLE);
-                        }, HIT_ANIMATION_DURATION_MILLISECONDS);
-                    }
-                } else {
-                    vibrate();
-                    playSound(R.raw.eliminated, getApplicationContext());
-                    if (mHasLivesLimit)
-                        mEliminationCount--;
-                    else
-                        mEliminationCount++;
-                    String elimStr = "" + mEliminationCount;
-                    mEliminationCountTV.setText(elimStr);
-                    if (mIsServer && mTcpServer != null) {
-                        mTcpServer.setHostScore(mScore, mEliminationCount);
-                    }
-                    String eliminatedBy = "";
-                    if (mUseNetwork)
-                        eliminatedBy = Globals.getInstance().getPlayerName(hit_by_id);
-                    startSpawn(eliminatedBy);
-                    if (mUseNetwork) {
-                        if (hit_by_id != Globals.getInstance().mPlayerID && Globals.getInstance().calcNetworkTeam(hit_by_id) != Globals.getInstance().calcNetworkTeam(Globals.getInstance().mPlayerID)) {
-                            if (mTcpClient != null)
-                                mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ELIMINATED + hit_by_id, true);
-                        }
-                    }
-                    if (mHasLivesLimit && mEliminationCount <= 0) {
-                        Toast.makeText(getApplicationContext(), getString(R.string.dialog_out_of_lives), Toast.LENGTH_LONG).show();
-                    }
-                }
+        if (p == null || !Objects.equals(p.getHitOverlay(), s.getHitOverlay()))
+            renderHitOverlay(s);
+        if (p == null || !p.getSpawn().equals(s.getSpawn()))
+            renderSpawn(s.getSpawn());
+        if (p == null || !Objects.equals(p.getShieldSeconds(), s.getShieldSeconds())) {
+            if (s.getShieldSeconds() == null) {
+                mRespawnShieldCountdownTV.setVisibility(View.GONE);
+            } else {
+                mRespawnShieldCountdownTV.setText(getString(R.string.respawn_shield_label, s.getShieldSeconds()));
+                mRespawnShieldCountdownTV.setVisibility(View.VISIBLE);
             }
         }
-        /* Since setting player ID is somewhat unreliable, we use this to make sure that we are
-           displaying the actual ID that the tagger is currently using. */
-        if (mLastTeam != player_id) {
-            Log.d(TAG, "Player ID changed to " + player_id);
-            mLastTeam = player_id;
-            if (player_id != 0) {
-                Globals.getInstance().mPlayerID = player_id;
-                displayCurrentTeam();
-            } else if (Globals.getInstance().mPlayerID != 0) {
-                setTeam();
+        if (p == null || !p.getClock().equals(s.getClock()))
+            renderClock(s.getClock());
+    }
+
+    private void renderHitOverlay(SessionState s) {
+        String name = s.getHitOverlay();
+        if (name != null) {
+            // Show the "you're being hit" animation
+            mHitIV.setVisibility(View.VISIBLE);
+            mHitIV.setBackgroundResource(R.drawable.hit_animation);
+            Animation animationFadeOut = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fadeout);
+            mHitIV.startAnimation(animationFadeOut);
+            mHitAnimation = (AnimationDrawable) mHitIV.getBackground();
+            mHitAnimation.start();
+            mEliminatedByTV.setVisibility(View.VISIBLE);
+            mEliminatedByTV.setText(name);
+            mEliminatedByTV.startAnimation(animationFadeOut);
+        } else {
+            mHitIV.setVisibility(View.GONE);
+            if (mHitAnimation != null) {
+                mHitAnimation.stop();
+                mHitAnimation = null;
             }
+            if (s.getSpawn() instanceof SpawnPhase.None)
+                mEliminatedByTV.setVisibility(View.INVISIBLE);
         }
-        /* We monitor the last shot count rather than trigger pulls here so we know when to
-           update the displayed shots remaining and play shooting sounds. pew! pew! */
-        if (mLastShotCount != shotsRemaining) {
-            setShotsRemaining(shotsRemaining);
-            if (shotsRemaining != Globals.getInstance().mFullReload && mReloading == RELOADING_STATE_NONE) {
-                playSound(R.raw.shootingshort, getApplicationContext());
-                if (mUseNetwork && mLastShotFired < System.currentTimeMillis()) {
-                    mLastShotFired = System.currentTimeMillis() + HIT_ANIMATION_DURATION_MILLISECONDS;
-                    if (mTcpClient != null)
-                        mTcpClient.sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_SHOTFIRED);
-                }
-                if (Globals.getInstance().mReloadOnEmpty && shotsRemaining == 0 && Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
-                    startReload();
-            }
+    }
+
+    private void renderSpawn(SpawnPhase spawn) {
+        if (spawn instanceof SpawnPhase.Spawning) {
+            SpawnPhase.Spawning spawning = (SpawnPhase.Spawning) spawn;
+            mEliminatedTV.setText(spawning.getStartingGame() ? R.string.starting_game_label : R.string.eliminated_label);
+            mEliminatedTV.setVisibility(View.VISIBLE);
+            mEliminatedByTV.setText(spawning.getEliminatedBy());
+            mEliminatedByTV.setVisibility(View.VISIBLE);
+            mSpawnInTV.setText(getResources().getString(R.string.spawn_in_label, spawning.getSeconds()));
+            mSpawnInTV.setVisibility(View.VISIBLE);
+        } else if (spawn instanceof SpawnPhase.OutOfLives) {
+            mEliminatedTV.setVisibility(View.VISIBLE);
+            mEliminatedByTV.setText(((SpawnPhase.OutOfLives) spawn).getEliminatedBy());
+            mEliminatedByTV.setVisibility(View.VISIBLE);
+            mSpawnInTV.setText(R.string.dialog_out_of_lives);
+            mSpawnInTV.setVisibility(View.VISIBLE);
+        } else {
+            mEliminatedTV.setVisibility(View.INVISIBLE);
+            mEliminatedByTV.setVisibility(View.INVISIBLE);
+            mSpawnInTV.setVisibility(View.GONE);
         }
-        // Raw packets: see ProtocolTrace (adb logcat -s SCProto:D)
+    }
+
+    private void renderClock(GameClock clock) {
+        if (clock instanceof GameClock.Chronometer) {
+            mGameTimer.setBase(((GameClock.Chronometer) clock).getBase());
+            mGameTimer.start();
+        } else if (clock instanceof GameClock.Countdown) {
+            mGameCountDownTV.setText(((GameClock.Countdown) clock).getText());
+        } else {
+            mGameTimer.stop();
+            String text = ((GameClock.Stopped) clock).getCountdownText();
+            if (text != null && mGameCountDownTV != null)
+                mGameCountDownTV.setText(text);
+        }
     }
 
     private final BroadcastReceiver mUDPUpdateReceiver = new BroadcastReceiver() {
@@ -2616,7 +2268,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             final String action = intent.getAction();
             if (NetMsg.NETMSG_SHOTFIRED.equals(action)) {
                 // Play a sound?
-                mLastShotFired = System.currentTimeMillis() + HIT_ANIMATION_DURATION_MILLISECONDS; // Keeps us from spamming shots fired messages
+                session().onRemoteShotFired(); // Keeps us from spamming shots fired messages
                 if (mShotsFiredIV != null && mShotsFiredIV.getVisibility() != View.VISIBLE) {
                     // Show the "shots fired" image
                     mShotsFiredIV.setVisibility(View.VISIBLE);
@@ -2680,7 +2332,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                 String score = Integer.valueOf(mScore).toString();
                 mScoreTV.setText(score);
                 if (mIsServer && mTcpServer != null) {
-                    mTcpServer.setHostScore(mScore, mEliminationCount);
+                    mTcpServer.setHostScore(mScore, session().getEliminations());
                 }
                 mScoreIncreaseIV.setVisibility(View.VISIBLE);
                 Animation animationFadeOut = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.eliminatedfadeout);
@@ -2759,29 +2411,14 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                         String score = "" + mScore;
                         mScoreTV.setText(score);
                         int elims = intent.getIntExtra(NetMsg.INTENT_ELIMINATIONS, 0);
-                        if (mHasLivesLimit) {
-                            mEliminationCount = mLives - elims;
-                        } else {
-                            mEliminationCount = elims;
-                        }
-                        mEliminationCountTV.setText(String.valueOf(mEliminationCount));
                         if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
                             mTeamScore = intent.getIntExtra(NetMsg.INTENT_TEAMSCORE, 0);
                             score = "" + mTeamScore;
                             mTeamScoreTV.setText(score);
                         }
                         long timeRemaining = intent.getLongExtra(NetMsg.INTENT_TIMEREMAINING, -1);
-                        if (timeRemaining > 0 && Globals.getInstance().mGameState == Globals.GAME_STATE_RUNNING) {
-                            if (mGameCountdownTimer != null)
-                                mGameCountdownTimer.cancel();
-                            startGameCountdown(timeRemaining);
-                            mGameTimerRunning = true;
-                        } else {
-                            if (mGameCountdownTimer != null) {
-                                mGameCountdownTimer.cancel();
-                                mGameCountdownTimer = null;
-                            }
-                        }
+                        // Eliminations (or lives left) and the game countdown follow the host
+                        session().syncFromServer(elims, timeRemaining);
                     }
                     if (intent.hasExtra(NetMsg.INTENT_GAMESTATE)) {
                         int serverGameState = intent.getIntExtra(NetMsg.INTENT_GAMESTATE, Globals.GAME_STATE_ELIMINATED);
@@ -3078,7 +2715,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                     if (playerData.playerID == Globals.getInstance().mPlayerID) {
                         mScore = Math.max(mScore, playerData.points);
                         if (mIsServer && mTcpServer != null) {
-                            mTcpServer.setHostScore(mScore, mEliminationCount);
+                            mTcpServer.setHostScore(mScore, session().getEliminations());
                         }
                     }
                     if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
@@ -3204,11 +2841,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         setGameLimit();
         updateAdminButtonVisibility();
 
-        applyCurrentRecoilSetting();
-        Integer allowedShotMode = ShotModePolicy.coerceToAllowed(mCurrentShotMode, Globals.getInstance().mAllowSingleShotMode,
-                Globals.getInstance().mAllowBurst3ShotMode, Globals.getInstance().mAllowAutoShotMode);
-        if (allowedShotMode != null)
-            setShotMode(allowedShotMode);
+        session().applyPlayerSettings();
         getFiringMode();
     }
 }

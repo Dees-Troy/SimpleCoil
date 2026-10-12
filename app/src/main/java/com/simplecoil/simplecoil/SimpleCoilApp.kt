@@ -17,9 +17,14 @@
 package com.simplecoil.simplecoil
 
 import android.app.Application
+import android.content.Context
+import android.os.SystemClock
 import com.simplecoil.simplecoil.hardware.blaster.BlasterManager
 import com.simplecoil.simplecoil.hardware.blaster.BleConnectionManager
 import com.simplecoil.simplecoil.hardware.blaster.BleDeviceRepository
+import com.simplecoil.simplecoil.domain.session.BlasterSessionEngine
+import com.simplecoil.simplecoil.domain.session.GlobalsGameConfig
+import com.simplecoil.simplecoil.domain.session.SessionPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -38,5 +43,23 @@ class SimpleCoilApp : Application() {
 
     val bleConnectionManager: BleConnectionManager by lazy {
         BleConnectionManager(this, blasterManager, appScope).also { it.registerAdapterStateReceiver() }
+    }
+
+    /** The blaster session (D4: app-scoped). Its timers post to the main thread like Handlers. */
+    val sessionEngine: BlasterSessionEngine by lazy {
+        BlasterSessionEngine(
+            blaster = bleDeviceRepository,
+            config = GlobalsGameConfig,
+            preferences = SharedPreferencesSession(this),
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
+            clock = SystemClock::elapsedRealtime,
+        ).also { it.attach(bleDeviceRepository.events) }
+    }
+
+    /** Shot mode / recoil in the "SimpleCoil" preferences, same keys as the activity used. */
+    private class SharedPreferencesSession(context: Context) : SessionPreferences {
+        private val prefs = context.getSharedPreferences("SimpleCoil", Context.MODE_PRIVATE)
+        override fun saveShotMode(shotMode: Int) = prefs.edit().putInt("ShotMode", shotMode).apply()
+        override fun saveRecoilEnabled(enabled: Boolean) = prefs.edit().putBoolean("RecoilEnabled", enabled).apply()
     }
 }
