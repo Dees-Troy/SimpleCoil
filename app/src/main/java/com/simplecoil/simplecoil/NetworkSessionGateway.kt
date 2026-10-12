@@ -279,6 +279,11 @@ class NetworkSessionGateway(
         }
     }
 
+    /** Server replied to a join: connect the TCP client (package-private in TcpClient). */
+    fun startTcpClient() {
+        tcpClient!!.startTcpClient()
+    }
+
     // ---------------------------------------------------------------------------------------
     // SessionNetwork (BlasterSessionEngine)
     // ---------------------------------------------------------------------------------------
@@ -319,7 +324,8 @@ class NetworkSessionGateway(
         this.tcpServer = tcpServer
     }
 
-    private fun emit(event: NetworkEvent) {
+    @androidx.annotation.VisibleForTesting
+    internal fun emit(event: NetworkEvent) {
         if (!_events.tryEmit(event)) Log.w(TAG, "Dropped $event")
     }
 
