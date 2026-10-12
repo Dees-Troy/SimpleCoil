@@ -243,16 +243,25 @@ class HitResolverTest {
     }
 
     /**
-     * B1 (known bug, REFACTOR_DESIGN.md §1.7): slot 2's shooter is computed from slot 1's hit-by
-     * byte. Slot 1 is player 1 (0x04, a teammate), slot 2 is player 3 (0x0C, an enemy). The
-     * enemy's hit should cost one hit and credit player 3; today the friendly-fire check runs
-     * against player 1, so it costs nothing and player 1 is credited.
+     * B1 (REFACTOR_DESIGN.md §1.7): slot 2's shooter comes from slot 2's hit-by byte. Slot 1 is
+     * player 1 (0x04, a teammate), slot 2 is player 3 (0x0C, an enemy). The teammate's hit is
+     * ignored and the enemy's costs one hit and is credited to player 3. Before the fix the slot-2
+     * friendly-fire check ran against player 1, so this cost nothing and credited player 1.
      */
     @Test
-    fun b1_slot2ShooterIsTakenFromSlot1() {
+    fun b1_slot2ShooterIsTakenFromSlot2() {
         val lookups = FakeLookups(teams = mapOf(1.toByte() to 7, 3.toByte() to 8))
         val r = resolve(GOLDEN_DOUBLE_HIT, context(useNetwork = true, myNetworkTeam = 7), lookups)
-        assertEquals(0, r.healthRemoved)
-        assertEquals(1.toByte(), r.hitById)
+        assertEquals(Globals.DAMAGE_PER_HIT, r.healthRemoved)
+        assertEquals(3.toByte(), r.hitById)
+        assertEquals(listOf(HitResolver.Message(out = false, playerId = 3)), r.messages)
+    }
+
+    @Test
+    fun b1_teammateInSlot2IsIgnoredEvenWhenSlot1IsAnEnemy() {
+        val lookups = FakeLookups(teams = mapOf(1.toByte() to 8, 3.toByte() to 7))
+        val r = resolve(GOLDEN_DOUBLE_HIT, context(useNetwork = true, myNetworkTeam = 7), lookups)
+        assertEquals(Globals.DAMAGE_PER_HIT, r.healthRemoved)
+        assertEquals(3.toByte(), r.hitById)
     }
 }

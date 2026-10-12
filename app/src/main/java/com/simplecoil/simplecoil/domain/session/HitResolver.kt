@@ -25,10 +25,6 @@ import com.simplecoil.simplecoil.Globals
  *
  * Extracted verbatim from FullscreenActivity.processTelemetryData(). Grenade pairing side effects
  * stay with the caller ([GrenadeDecoder.pairingAction]).
- *
- * Known bug B1 (REFACTOR_DESIGN.md §1.7), preserved here on purpose: on a network game the slot-2
- * shooter id is computed from the slot-1 hit-by byte, which mis-attributes double hits and runs
- * the slot-2 friendly-fire check against the wrong player.
  */
 class HitResolver @JvmOverloads constructor(
     private val clock: () -> Long = System::currentTimeMillis,
@@ -116,8 +112,7 @@ class HitResolver @JvmOverloads constructor(
             if (!GrenadeDecoder.isGrenadeControlEvent(hitBy2, shotIdByte2)) {
                 healthRemoved += Globals.DAMAGE_PER_HIT
                 if (context.useNetwork) {
-                    // B1: should be hitBy2
-                    hitById = (hitBy1 shr 2).toByte()
+                    hitById = (hitBy2 shr 2).toByte()
                     if (hitBy2 != Globals.GRENADE_PLAYER_ID && !context.freeForAll && lookups.networkTeam(hitById) == context.myNetworkTeam) {
                         // friendly fire ignored
                         healthRemoved -= Globals.DAMAGE_PER_HIT
