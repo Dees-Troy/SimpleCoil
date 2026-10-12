@@ -477,7 +477,8 @@ open class BluetoothLeService : Service() {
         }
     }
 
-    private fun notificationValue(enabled: Boolean): ByteArray =
+    // Nullable like the Java original: no implicit null check on the framework constants.
+    private fun notificationValue(enabled: Boolean): ByteArray? =
         if (enabled) BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE else BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
 
     open val supportedGattServices: List<BluetoothGattService>?
