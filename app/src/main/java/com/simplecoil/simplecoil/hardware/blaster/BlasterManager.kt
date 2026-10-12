@@ -21,6 +21,7 @@ import com.simplecoil.simplecoil.BluetoothLeService
 import com.simplecoil.simplecoil.GattAttributes
 import com.simplecoil.simplecoil.domain.session.BatteryLevelPolicy
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -87,7 +88,8 @@ class BlasterManager(private val scope: CoroutineScope) : GattEventSink {
         serviceEvents = null
         bluetoothLeService = service
         if (service != null) {
-            serviceEvents = scope.launch {
+            // Undispatched: subscribed before this returns, whatever the scope's dispatcher.
+            serviceEvents = scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 service.events.collect { onGattEvent(it) }
             }
             discoverGattCharacteristics()

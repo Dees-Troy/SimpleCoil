@@ -19,11 +19,7 @@ package com.simplecoil.simplecoil;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
-import android.bluetooth.le.BluetoothLeScanner;
-import android.bluetooth.le.ScanCallback;
-import android.bluetooth.le.ScanResult;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -66,7 +62,8 @@ import com.simplecoil.simplecoil.domain.session.HitResolver;
 import com.simplecoil.simplecoil.domain.session.RecoilPolicy;
 import com.simplecoil.simplecoil.domain.session.ShotModePolicy;
 import com.simplecoil.simplecoil.hardware.blaster.BlasterEvent;
-import com.simplecoil.simplecoil.hardware.blaster.BlasterManager;
+import com.simplecoil.simplecoil.hardware.blaster.BleConnectionEvent;
+import com.simplecoil.simplecoil.hardware.blaster.BleConnectionManager;
 import com.simplecoil.simplecoil.hardware.blaster.BleDeviceRepository;
 import com.simplecoil.simplecoil.hardware.blaster.GattProtocolHandler;
 import com.simplecoil.simplecoil.hardware.blaster.QrPairingPayload;
@@ -202,21 +199,16 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private CountDownTimer mSpawnTimer = null;
     private CountDownTimer mReloadTimer = null;
     private CountDownTimer mGameCountdownTimer = null;
-    private CountDownTimer mConnectFailTimer = null;
     private CountDownTimer mRespawnShieldTimer = null;
     private TextView mRespawnShieldCountdownTV = null;
     private volatile boolean mIsShielded = false;
     private boolean mGameTimerRunning = false;
 
-    private BluetoothLeScanner mBluetoothLeScanner;
-    private BluetoothLeService mBluetoothLeService;
 
     private Vibrator vibrator = null;
 
     private static final int MAX_EMPTY_TRIGGER_PULLS = 3; // automatically reloads if the trigger is pulled this many times while empty (for young players)
 
-    private boolean mScanning = false;
-    private volatile boolean mConnected = false;
     private boolean mHasConnectedToBlaster = false;
     private boolean mCommunicating = false; // Used to make sure that we start receiving telemetry data after initial connection
     private String mDeviceAddress = ""; // MAC address of the tagger
@@ -225,8 +217,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         return ((SimpleCoilApp) getApplication()).getBleDeviceRepository();
     }
 
-    private BlasterManager blasterManager() {
-        return ((SimpleCoilApp) getApplication()).getBlasterManager();
+    private BleConnectionManager ble() {
+        return ((SimpleCoilApp) getApplication()).getBleConnectionManager();
     }
 
     private void setDeviceAddress(String address) {
@@ -327,16 +319,11 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     private static final int CONNECTION_TEST_INTERVAL_MILLISECONDS = 5000;
     private volatile boolean mConnectionTest = false;
 
-    /* We run a single handler to check and see if we have connected to a weapon within 30 seconds */
-    private static final int CONNECTION_FAIL_TEST_INTERVAL_MILLISECONDS = 30000;
 
     private static final int HIT_VIBRATE_DURATION_MILLISECONDS = 250;
     // If you change these durations you will also need to change the duration in the res/anim/fadeout XML files to match
     private static final int HIT_ANIMATION_DURATION_MILLISECONDS = 400;
     private static final int ELIMINATED_ANIMATION_DURATION_MILLISECONDS = 800;
-
-    // Code to manage Service lifecycle.
-    private ServiceConnection mBLEServiceConnection = null;
 
     private SharedPreferences sharedPreferences = null;
     public static final String PREF_NAME = "SimpleCoil";
@@ -353,36 +340,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     public static final String PREF_LIMIT_SCORE = "ScoreLimit";
     public static final String PREF_DEVICE_ADDRESS = "DeviceAddress";
 
-    private void setupBLEServiceConnection() {
-        mBLEServiceConnection = new ServiceConnection() {
-
-            @Override
-            public void onServiceConnected(ComponentName componentName, IBinder service) {
-                mBluetoothLeService = ((BluetoothLeService.LocalBinder) service).getService();
-                if (!mBluetoothLeService.initialize()) {
-                    Log.e(TAG, "Unable to initialize Bluetooth");
-                    finish();
-                }
-                // Attach before connecting so BlasterManager sees every GATT event.
-                blasterManager().setBluetoothLeService(mBluetoothLeService);
-                // Automatically connects to the device upon successful start-up initialization.
-                mBluetoothLeService.connect(mDeviceAddress);
-                SharedPreferences.Editor editor = sharedPreferences.edit();
-                editor.putString(PREF_DEVICE_ADDRESS, mDeviceAddress);
-                editor.apply();
-                mConnected = true;
-            }
-
-            @Override
-            public void onServiceDisconnected(ComponentName componentName) {
-                mBluetoothLeService = null;
-                blasterManager().setBluetoothLeService(null);
-            }
-        };
-        Intent gattServiceIntent = new Intent(getBaseContext(), BluetoothLeService.class);
-        ContextCompat.startForegroundService(getBaseContext(), gattServiceIntent);
-        bindService(gattServiceIntent, mBLEServiceConnection, BIND_AUTO_CREATE);
-    }
 
     // Code to manage Service lifecycle.
     private ServiceConnection mUDPServiceConnection = null;
@@ -665,6 +622,10 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
 
         // Delivered only while resumed, like the GATT broadcast receiver this replaces.
         FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.RESUMED, blaster().getEvents(), this::handleBlasterEvent);
+        // Scan results and the scan give-up arrive whenever they happen, as the scan callback and
+        // CountDownTimer did; adapter-on only while resumed, as its receiver was.
+        FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.CREATED, ble().getEvents(), this::handleConnectionEvent);
+        FlowCollectors.collectWhileAtLeast(this, Lifecycle.State.RESUMED, ble().getEvents(), this::handleAdapterEvent);
 
         mFragmentMgr = getSupportFragmentManager();
         mEliminationCountTV = findViewById(R.id.eliminations_count_tv);
@@ -2030,12 +1991,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         displayCurrentTeam();
         updatePlayerSettings();
 
-        if (mBluetoothLeService != null && mDeviceAddress != null && !mDeviceAddress.isEmpty()) {
-            final boolean result = mBluetoothLeService.connect(mDeviceAddress);
-            Log.d(TAG, "Connect request result=" + result);
-        }
-        IntentFilter filter = new IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED);
-        ContextCompat.registerReceiver(this, mBluetoothReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
+        ble().reconnect(mDeviceAddress);
         ContextCompat.registerReceiver(this, mUDPUpdateReceiver, makeUDPUpdateIntentFilter(), ContextCompat.RECEIVER_NOT_EXPORTED);
         setupUDPServiceConnection();
         setupTcpClientServiceConnection();
@@ -2048,14 +2004,13 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     @Override
     protected void onPause() {
         super.onPause();
-        unregisterReceiver(mBluetoothReceiver);
         unregisterReceiver(mUDPUpdateReceiver);
     }
 
     @Override
     protected void onDestroy() {
         dismissScoreboardDialog();
-        resetBluetoothServices();
+        ble().reset();
         if (mUDPServiceConnection != null)
             try {unbindService(mUDPServiceConnection);} catch (Exception e) {/* nothing */}
         if (mTcpClientServiceConnection != null)
@@ -2085,54 +2040,6 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mFragmentTransc.commit();
     }
 
-    private final ScanCallback mLeScanCallback = new ScanCallback() {
-        @Override
-        public void onScanResult(int callbackType, ScanResult result) {
-            super.onScanResult(callbackType, result);
-            checkDeviceName(result.getDevice());
-        }
-
-        @Override
-        public void onBatchScanResults(List<ScanResult> results) {
-            super.onBatchScanResults(results);
-            for (ScanResult result : results) {
-                if (checkDeviceName(result.getDevice()))
-                    return;
-            }
-        }
-
-        @Override
-        public void onScanFailed(int errorCode) {
-            super.onScanFailed(errorCode);
-        }
-
-        private boolean checkDeviceName(BluetoothDevice device) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-                return false;
-            }
-            try {
-                String name = device.getName();
-                if (name != null && !name.isEmpty()) {
-                    if (ScanMatcher.matches(name, device.getAddress(), mDeviceAddress)) {
-                        Log.d(TAG, "Connecting to " + device.getName() + " '" + device.getAddress() + "'");
-                        TextView connectStatusTV = findViewById(R.id.connect_status_tv);
-                        if (connectStatusTV != null) {
-                            connectStatusTV.setText(R.string.connect_status_connecting);
-                        }
-                        mDeviceAddress = device.getAddress();
-                        setDeviceAddress(mDeviceAddress);
-                        mBluetoothLeScanner.stopScan(mLeScanCallback);
-                        mScanning = false;
-                        setupBLEServiceConnection();
-                        return true;
-                    }
-                }
-            } catch (SecurityException e) {
-                Log.e(TAG, "SecurityException in checkDeviceName: " + e.getMessage());
-            }
-            return false;
-        }
-    };
 
     private void startQRScan() {
         try {
@@ -2186,21 +2093,26 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         }
     }
 
-    private final BroadcastReceiver mBluetoothReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-            if (action == null)
-                return;
-
-            if (action.equals(BluetoothAdapter.ACTION_STATE_CHANGED)) {
-                final int state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE,
-                        BluetoothAdapter.ERROR);
-                if (state == BluetoothAdapter.STATE_ON)
-                    connectWeapon();
+    private void handleConnectionEvent(BleConnectionEvent event) {
+        if (event instanceof BleConnectionEvent.ScanMatched) {
+            TextView connectStatusTV = findViewById(R.id.connect_status_tv);
+            if (connectStatusTV != null) {
+                connectStatusTV.setText(R.string.connect_status_connecting);
             }
+            mDeviceAddress = ((BleConnectionEvent.ScanMatched) event).getAddress();
+            setDeviceAddress(mDeviceAddress);
+        } else if (event instanceof BleConnectionEvent.ScanTimedOut) {
+            handleDisconnect();
+        } else if (event instanceof BleConnectionEvent.InitializeFailed) {
+            finish();
         }
-    };
+    }
+
+    // Auto-reconnect when Bluetooth is turned on (only while resumed, as before).
+    private void handleAdapterEvent(BleConnectionEvent event) {
+        if (event instanceof BleConnectionEvent.AdapterTurnedOn)
+            connectWeapon();
+    }
 
     private void setPlayerName(String name) {
         if (name == null || name.trim().isEmpty()) {
@@ -2259,7 +2171,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             return;
         }
 
-        if (mScanning)
+        if (ble().isScanning())
             return;
 
         // Use this check to determine whether BLE is supported on the device.  Then you can
@@ -2326,14 +2238,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
             return;
         }
 
-        try {
-            mBluetoothLeScanner = bluetoothAdapter.getBluetoothLeScanner();
-            if (mBluetoothLeScanner != null) {
-                Log.d(TAG, "starting to scan");
-                mBluetoothLeScanner.startScan(mLeScanCallback);
-            }
-        } catch (SecurityException e) {
-            Log.e(TAG, "SecurityException starting BLE scan: " + e.getMessage());
+        // Scans and starts the 30 s give-up.
+        if (ble().startScan(bluetoothAdapter, mDeviceAddress) == BleConnectionManager.ScanStart.PERMISSION_DENIED) {
             Toast.makeText(this, R.string.error_location_permission_required, Toast.LENGTH_SHORT).show();
             return;
         }
@@ -2342,66 +2248,24 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         mReconnectButton.setEnabled(false);
         mDedicatedServerButton.setEnabled(false);
         mQRConnectButton.setEnabled(false);
-        mScanning = true;
         TextView connectStatusTV = findViewById(R.id.connect_status_tv);
         if (connectStatusTV != null) {
             connectStatusTV.setText(R.string.connect_status_scanning);
         }
-        startConnectFailTest();
     }
 
-    private void startConnectFailTest() {
-        // Auto disconnect and quit searching if we fail to find a blaster
-        mConnected = false;
-        if (mConnectFailTimer != null)
-            mConnectFailTimer.cancel();
-        mConnectFailTimer = new CountDownTimer(CONNECTION_FAIL_TEST_INTERVAL_MILLISECONDS, CONNECTION_FAIL_TEST_INTERVAL_MILLISECONDS) {
-
-            public void onTick(long millisUntilFinished) {
-                // Do nothing
-            }
-
-            public void onFinish() {
-                if (!mConnected) {
-                    Log.d(TAG, "Failed to find a weapon before timeout");
-                    mScanning = false;
-                    if (mBluetoothLeScanner != null) {
-                        try {
-                            mBluetoothLeScanner.stopScan(mLeScanCallback);
-                        } catch (SecurityException e) {
-                            Log.e(TAG, "SecurityException stopping BLE scan: " + e.getMessage());
-                        }
-                    }
-                    handleDisconnect();
-                }
-            }
-        }.start();
-    }
-
-    private void resetBluetoothServices() {
-        mConnected = false;
-        if (mBluetoothLeService != null) {
-            mBluetoothLeService.disconnect();
-            mBluetoothLeService.close();
-        }
-        if (mBLEServiceConnection != null)
-            unbindService(mBLEServiceConnection);
-        mBLEServiceConnection = null;
-        mBluetoothLeService = null;
-    }
 
     private void handleDisconnect() {
         Log.d(TAG, "handleDisconnect called. mHasConnectedToBlaster=" + mHasConnectedToBlaster + ", mGameState=" + Globals.getInstance().mGameState);
-        if (mConnectFailTimer != null)
-            mConnectFailTimer.cancel();
-        mScanning = false;
+        ble().cancelScanTimeout();
+        ble().clearScanning();
         if (mHasConnectedToBlaster || Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
             Log.e(TAG, "blaster disconnected, attempt to reconnect");
             connectWeapon();
             showWeaponDisconnect();
             return;
         }
-        resetBluetoothServices();
+        ble().reset();
         showConnectLayout();
         mConnectButton.setEnabled(true);
         mReconnectButton.setEnabled(true);
@@ -2433,16 +2297,8 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
                             Log.d(TAG, "Disconnect & Quit clicked");
                             mHasConnectedToBlaster = false;
                             Globals.getInstance().mGameState = Globals.GAME_STATE_NONE;
-                            if (mConnectFailTimer != null)
-                                mConnectFailTimer.cancel();
-                            if (mBluetoothLeScanner != null) {
-                                try {
-                                    mBluetoothLeScanner.stopScan(mLeScanCallback);
-                                } catch (SecurityException e) {
-                                    Log.e(TAG, "SecurityException stopping BLE scan: " + e.getMessage());
-                                }
-                            }
-                            mScanning = false;
+                            ble().cancelScanTimeout();
+                            ble().stopScan();
                             stopServerSearch(true);
                             endGame();
                             handleDisconnect();
@@ -2464,7 +2320,7 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
     // Handles the blaster's GATT events, in order.
     private void handleBlasterEvent(BlasterEvent event) {
         if (event instanceof BlasterEvent.Connected) {
-            mConnected = true;
+            // BleConnectionManager marks itself connected on the same event.
             mCommunicating = false; // When we receive the first packet, we'll switch layouts
             startConnectionTest();
         } else if (event instanceof BlasterEvent.Disconnected) {
@@ -2516,9 +2372,9 @@ public class FullscreenActivity extends AppCompatActivity implements PopupMenu.O
         connectionTestHandler = new Handler(Looper.getMainLooper());
         connectionTestHandler.postDelayed(new Runnable(){
             public void run(){
-                if (!mConnected)
+                if (!ble().isConnected())
                     return;
-                Log.d(TAG, "Connection test check: mCommunicating=" + mCommunicating + ", mConnectionTest=" + mConnectionTest + ", mConnected=" + mConnected);
+                Log.d(TAG, "Connection test check: mCommunicating=" + mCommunicating + ", mConnectionTest=" + mConnectionTest + ", mConnected=" + ble().isConnected());
                 if (!mCommunicating) {
                     connectionTestHandler.postDelayed(this, CONNECTION_TEST_INTERVAL_MILLISECONDS);
                     return;
