@@ -37,6 +37,7 @@ import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
+import org.mockito.Mockito.verifyNoInteractions
 import org.mockito.Mockito.`when`
 import java.lang.reflect.Field
 import java.util.UUID
@@ -342,6 +343,15 @@ class BluetoothLeServiceGattTest {
         verify(gatt, never()).discoverServices()
         advance(1)
         verify(gatt).discoverServices()
+    }
+
+    @Test
+    fun startCommand_entersForegroundBeforeAnyGattCall() {
+        // B5: startForegroundService() must be answered by startForeground() without waiting
+        // for the GATT connection.
+        service.onStartCommand(null, 0, 1)
+        assertEquals(listOf(START_FOREGROUND), actions)
+        verifyNoInteractions(gatt)
     }
 
     @Test

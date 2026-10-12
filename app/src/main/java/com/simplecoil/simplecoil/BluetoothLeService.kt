@@ -60,6 +60,16 @@ open class BluetoothLeService : Service() {
         createNotificationChannel()
     }
 
+    /**
+     * The app starts this service with startForegroundService() right before binding and
+     * connecting, so enter the foreground here rather than when GATT connects: a slow or failed
+     * connectGatt would otherwise miss the deadline (ForegroundServiceDidNotStartInTimeException).
+     */
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        startAsForeground("Connecting to Blaster")
+        return super.onStartCommand(intent, flags, startId)
+    }
+
     override fun onDestroy() {
         scope.cancel()
         super.onDestroy()
