@@ -233,7 +233,7 @@ public class MapFragment extends GlobeMapFragment {
         filter.addAction(NetMsg.NETMSG_LISTPLAYERS);
         filter.addAction(NetMsg.NETMSG_GPSSETTING);
         if (getActivity() != null) {
-            ContextCompat.registerReceiver(getActivity(), mGPSDataReceiver, filter, ContextCompat.RECEIVER_EXPORTED);
+            ContextCompat.registerReceiver(getActivity(), mGPSDataReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
         }
     }
 

@@ -96,7 +96,7 @@ public class TcpClient extends Service {
         super.onCreate();
         createNotificationChannel();
         startAsForeground("SimpleCoil Network Connected");
-        ContextCompat.registerReceiver(this, mGPSUpdateReceiver, new IntentFilter(NetMsg.NETMSG_GPSLOCUPDATE), ContextCompat.RECEIVER_EXPORTED);
+        ContextCompat.registerReceiver(this, mGPSUpdateReceiver, new IntentFilter(NetMsg.NETMSG_GPSLOCUPDATE), ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     private void createNotificationChannel() {

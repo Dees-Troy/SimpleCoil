@@ -142,7 +142,7 @@ public class BlasterManager {
         }
 
         IntentFilter filter = makeGattUpdateIntentFilter();
-        ContextCompat.registerReceiver(context, gattUpdateReceiver, filter, ContextCompat.RECEIVER_EXPORTED);
+        ContextCompat.registerReceiver(context, gattUpdateReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     public void disconnect() {
