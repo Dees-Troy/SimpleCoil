@@ -344,7 +344,11 @@ public class TcpClient extends Service {
         startAsForeground("SimpleCoil Network Connected");
         new Thread(new Runnable() {
             public void run() {
-                runTcpClient();
+                try {
+                    runTcpClient();
+                } catch (RuntimeException e) {
+                    Log.e(TAG, "Client thread failed", e);
+                }
             }
         }).start();
     }
@@ -408,7 +412,14 @@ public class TcpClient extends Service {
                     if (in.available() > 0) {
                         noReadCount = 0;
                         String message = in.readUTF();
-                        if (handleFrame(message)) {
+                        boolean ended = false;
+                        try {
+                            ended = handleFrame(message);
+                        } catch (RuntimeException e) {
+                            // Skip the frame and keep reading (N5)
+                            Log.e(TAG, "Error handling '" + message + "'", e);
+                        }
+                        if (ended) {
                             cancelled = true;
                             break;
                         }
@@ -432,6 +443,9 @@ public class TcpClient extends Service {
                 Log.d(TAG, "Server not running: " + e.getLocalizedMessage());
             } catch (IOException e) {
                 e.printStackTrace();
+            } catch (RuntimeException e) {
+                // Drop the connection; the reconnect policy decides what happens next (N5)
+                Log.e(TAG, "Reader failed, dropping the connection", e);
             } finally {
                 synchronized (mOutLock) {
                     try { if (out != null) out.close(); } catch (Exception e) { /* ignored */ }

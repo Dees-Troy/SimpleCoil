@@ -575,4 +575,30 @@ class TcpServerLoopbackTest {
         client.send(NetMsg.MESSAGE_PREFIX + "06" + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_LEAVE)
         awaitTrue { client.received.contains(NetMsg.NETMSG_VERSIONERROR) }
     }
+
+    @Test
+    fun hostileFrames_neverStopTheServerServingEveryone() {
+        // N5: bad JSON and commands from a connection that never joined are ignored; an exception
+        // while handling any frame would be logged, never thrown out of the read thread
+        val (a, _) = join("Alpha", "AA:00")
+        val (b, _) = join("Bravo", "BB:00")
+        val hostile = listOf(
+            "{",
+            "[]",
+            "{\"playerID\":-1,\"playername\":\"X\"}",
+            "{\"playerID\":999999,\"playername\":\"X\"}",
+            "{\"playerID\":\"x\",\"playername\":\"X\"}",
+            "{\"playerID\":1,\"playersettings\":\"x\"}",
+            "{\"playerID\":1,\"pairedgrenadeID\":999}",
+            "{\"playerID\":1,\"requestteamchange\":999}",
+            "{\"rmsg\":\"ELIMINATED\",\"seq\":1,\"gameid\":1}",
+        )
+        val c = connect()
+        hostile.forEach { c.send(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + it) }
+        hostile.forEach { a.send(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + it) }
+        listOf(NetMsg.NETMSG_HIT + "1", NetMsg.NETMSG_OUT + "1", NetMsg.NETMSG_TEAMELIMINATED, NetMsg.NETMSG_PLAYERDATAREQUEST,
+            NetMsg.NETMSG_ELIMINATED + "1", NetMsg.NETMSG_ELIMINATED, NetMsg.NETMSG_ELIMINATED + "x", NetMsg.NETMSG_LEAVE).forEach { c.mesg(it) }
+        b.mesg(NetMsg.NETMSG_SHOTFIRED)
+        b.awaitMesg(NetMsg.NETMSG_SHOTFIRED)
+    }
 }

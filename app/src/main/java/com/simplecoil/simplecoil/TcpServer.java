@@ -229,7 +229,7 @@ public class TcpServer extends Service {
     public void sendTCPMessageAll(final String message) {
         if (mRoster.isEmpty())
             return;
-        Thread sendThread = new Thread(new Runnable() {
+        Thread sendThread = containedThread(new Runnable() {
             public void run() {
                 for (Connection connection : mRoster.connections()) {
                     connection.send(message);
@@ -252,7 +252,7 @@ public class TcpServer extends Service {
     private void sendTCPMessageID(final String message, final byte playerID) {
         if (mRoster.isEmpty())
             return;
-        Thread sendThread = new Thread(new Runnable() {
+        Thread sendThread = containedThread(new Runnable() {
             public void run() {
                 PlayerRecord record = mRoster.record(playerID);
                 if (record != null)
@@ -265,7 +265,7 @@ public class TcpServer extends Service {
     private void sendTCPMessageTeam(final String message, final byte playerID, final boolean includePlayer) {
         if (mRoster.isEmpty())
             return;
-        Thread sendThread = new Thread(new Runnable() {
+        Thread sendThread = containedThread(new Runnable() {
             public void run() {
                 PlayerRecord player = mRoster.record(playerID);
                 if (player == null)
@@ -294,7 +294,7 @@ public class TcpServer extends Service {
             return false;
         syncGameState();
 
-        Thread sendThread = new Thread(new Runnable() {
+        Thread sendThread = containedThread(new Runnable() {
             public void run() {
                 // we want to make sure that we have sent the start game message to all clients before broadcasting that the game has started locally
                 String message = TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_STARTGAME;
@@ -319,7 +319,7 @@ public class TcpServer extends Service {
         if (!mRoster.endGame())
             return;
         syncGameState();
-        Thread sendThread = new Thread(new Runnable() {
+        Thread sendThread = containedThread(new Runnable() {
             public void run() {
                 sendPlayerData(SEND_ALL);
                 String message = TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ENDGAME;
@@ -350,7 +350,7 @@ public class TcpServer extends Service {
         Log.d(TAG, "Session reset: removed " + removed.size() + " disconnected players");
         syncGameState();
         mGPSIntervalCount.set(SEND_ALL_GPS_INTERVAL);
-        Thread sendThread = new Thread(new Runnable() {
+        Thread sendThread = containedThread(new Runnable() {
             public void run() {
                 sendPlayerData(SEND_ALL);
                 sendAllGameInfo(SEND_ALL);
@@ -382,7 +382,7 @@ public class TcpServer extends Service {
 
     public void switchPlayerTeam(final byte oldPlayerID, final byte newPlayerID) {
         Log.d(TAG, "switchPlayerTeam: moving player " + oldPlayerID + " to new ID " + newPlayerID);
-        Thread thread = new Thread(new Runnable() {
+        Thread thread = containedThread(new Runnable() {
             @Override
             public void run() {
                 PlayerRecord record = mRoster.movePlayer(oldPlayerID, newPlayerID);
@@ -398,7 +398,7 @@ public class TcpServer extends Service {
 
     public void kickPlayer(final byte playerID) {
         Log.d(TAG, "kickPlayer: kicking player " + playerID);
-        Thread thread = new Thread(new Runnable() {
+        Thread thread = containedThread(new Runnable() {
             @Override
             public void run() {
                 Connection connection = mRoster.kick(playerID);
@@ -422,7 +422,7 @@ public class TcpServer extends Service {
             return;
         }
         resetIfPostGame(); // the roster renumbers only in the lobby
-        Thread thread = new Thread(new Runnable() {
+        Thread thread = containedThread(new Runnable() {
             @Override
             public void run() {
                 GameRoster.Rebalance result = mRoster.rebalance(randomize);
@@ -514,7 +514,7 @@ public class TcpServer extends Service {
                 game.put(JSON_PLAYERGAMEUPDATE, playerGameUpdate);
                 final String idMessage = TCPMESSAGE_PREFIX + TCPPREFIX_JSON + game.toString();
 
-                Thread sendThread = new Thread(new Runnable() {
+                Thread sendThread = containedThread(new Runnable() {
                     public void run() {
                         for (Connection connection : mRoster.connections()) {
                             PlayerRecord player = connection.getPlayer();
@@ -757,7 +757,7 @@ public class TcpServer extends Service {
             Log.d(TAG, "Server already listening");
             return;
         }
-        new Thread(new Runnable() {
+        containedThread(new Runnable() {
             public void run() {
                 runTcpServer();
             }
@@ -783,10 +783,12 @@ public class TcpServer extends Service {
                     s = ss.accept();
                     Connection connection = mRoster.accept(s);
                     if (connection.getConnectionId() <= 1) {
-                        new Thread(new ClientThread()).start();
+                        containedThread(new ClientThread()).start();
                     }
                 } catch (SocketTimeoutException e) {
                     // do nothing
+                } catch (RuntimeException e) {
+                    Log.e(TAG, "Error accepting a client", e);
                 }
             }
             if (s != null)
@@ -891,10 +893,12 @@ public class TcpServer extends Service {
                 List<Connection> clients = mRoster.connections();
                 long startTime = System.currentTimeMillis();
                 for (Connection client : clients) {
+                    String raw = null;
                     try {
                         if (client.available() > 0) {
                             client.resetNoReadCount();
-                            String message = client.readUTF();
+                            raw = client.readUTF();
+                            String message = raw;
                             Frame frame = Frame.parse(message);
                             if (frame.kind != Frame.Kind.PONG) {
                                 Log.i(TAG, "received: '" + message + "' from " + client.getConnectionId());
@@ -1031,6 +1035,9 @@ public class TcpServer extends Service {
                         e.printStackTrace();
                         removeClient(client);
                         break;
+                    } catch (RuntimeException e) {
+                        // One bad frame must not stop the server reading everyone else's (N5)
+                        Log.e(TAG, "Error handling '" + raw + "' from " + client.getConnectionId(), e);
                     }
                 }
                 long sleepTime = TCP_DEDICATED_READ_WAIT_MS - (System.currentTimeMillis() - startTime);
@@ -1387,7 +1394,7 @@ public class TcpServer extends Service {
                 return;
             }
 
-            Thread switchThread = new Thread(new Runnable() {
+            Thread switchThread = containedThread(new Runnable() {
                 @Override
                 public void run() {
                     PlayerRecord moved;
@@ -1429,6 +1436,19 @@ public class TcpServer extends Service {
 
     GameRoster getRoster() {
         return mRoster;
+    }
+
+    /** A thread whose body can't crash the process: a RuntimeException is logged and ends it (N5). */
+    private static Thread containedThread(final Runnable body) {
+        return new Thread(new Runnable() {
+            public void run() {
+                try {
+                    body.run();
+                } catch (RuntimeException e) {
+                    Log.e(TAG, "Server thread failed", e);
+                }
+            }
+        });
     }
 
     private void sleep(long millis) {
