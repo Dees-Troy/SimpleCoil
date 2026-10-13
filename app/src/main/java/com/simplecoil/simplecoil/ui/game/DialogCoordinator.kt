@@ -29,10 +29,11 @@ import androidx.appcompat.widget.PopupMenu
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import com.simplecoil.simplecoil.Globals
 import com.simplecoil.simplecoil.PlayerDisplayData
 import com.simplecoil.simplecoil.R
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.domain.session.SessionToast
+import com.simplecoil.simplecoil.domain.team.TeamMode
 
 /**
  * Dialogs, toasts and popup menus of the play screen ([GameDialogs]), moved from
@@ -44,6 +45,7 @@ class DialogCoordinator(
     private val activity: AppCompatActivity,
     private val vm: GameViewModel,
     private val networkButton: View,
+    private val teamModeView: View,
 ) : GameDialogs, PopupMenu.OnMenuItemClickListener {
 
     private val fm get() = activity.supportFragmentManager
@@ -133,7 +135,7 @@ class DialogCoordinator(
             GameMessage.RATIOS_NOT_IN_FFA -> activityToast("Team ratios are not applicable in Free For All mode")
             GameMessage.RATIOS_MIN_ONE -> activityToast("Team limits must be at least 1 player slot")
             GameMessage.RATIOS_TOTAL ->
-                activityToast("Total player slots across all teams must equal " + Globals.MAX_PLAYER_ID + " (current sum: " + arg + ")", Toast.LENGTH_LONG)
+                activityToast("Total player slots across all teams must equal " + GameSettingsRepository.MAX_PLAYER_ID + " (current sum: " + arg + ")", Toast.LENGTH_LONG)
             GameMessage.KICK_SENT -> activityToast("Kick command sent")
         }
     }
@@ -166,7 +168,7 @@ class DialogCoordinator(
                 NetworkMenuEntry.Join -> menu.add(0, R.id.join_item, 20, R.string.join_button)
                 NetworkMenuEntry.JoinIp -> menu.add(0, R.id.join_ip_item, 30, R.string.join_ip_button)
                 is NetworkMenuEntry.PlayerName -> menu.add(0, R.id.player_name_item, 50, activity.getString(R.string.player_name_button, entry.name))
-                NetworkMenuEntry.GameMode -> menu.add(0, R.id.game_mode_item, 60, R.string.game_mode_toggle_button)
+                NetworkMenuEntry.ChooseTeamMode -> menu.add(0, R.id.team_mode_item, 60, R.string.team_mode_toggle_button)
                 is NetworkMenuEntry.SwitchTeam -> {
                     val itemId = switchTeamItemId(entry.team)
                     if (itemId != 0) {
@@ -194,9 +196,11 @@ class DialogCoordinator(
         networkPopup!!.show()
     }
 
-    override fun showGameModeMenu() {
-        val popup = popup(networkButton)
-        popup.menuInflater.inflate(R.menu.game_mode_menu, popup.menu)
+    override fun showTeamModeMenu() {
+        val popup = popup(teamModeView)
+        popup.menuInflater.inflate(R.menu.team_mode_menu, popup.menu)
+        // Shuffling only makes sense on a server, which this player isn't.
+        popup.menu.removeItem(R.id.sort_teams_item)
         popup.setOnMenuItemClickListener(this)
         popup.show()
     }
@@ -218,9 +222,9 @@ class DialogCoordinator(
             val title = when (action) {
                 AdminAction.START_GAME -> R.string.start_game_button
                 AdminAction.END_GAME -> R.string.end_game_button
-                AdminAction.TWO_TEAMS -> R.string.game_mode_2teams
-                AdminAction.FOUR_TEAMS -> R.string.game_mode_4teams
-                AdminAction.FREE_FOR_ALL -> R.string.game_mode_ffa
+                AdminAction.TWO_TEAMS -> R.string.team_mode_2teams
+                AdminAction.FOUR_TEAMS -> R.string.team_mode_4teams
+                AdminAction.FREE_FOR_ALL -> R.string.team_mode_ffa
                 AdminAction.SHUFFLE_TEAMS -> R.string.shuffle_teams_button
                 AdminAction.RESET_GAME -> R.string.reset_game_admin
             }
@@ -258,13 +262,13 @@ class DialogCoordinator(
             R.id.switch_team_2_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.SwitchTeam(2, 0))
             R.id.switch_team_3_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.SwitchTeam(3, 0))
             R.id.switch_team_4_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.SwitchTeam(4, 0))
-            R.id.game_mode_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.GameMode)
-            R.id.firing_mode_outdoor_no_cone_item -> vm.onFiringModeSelected(Globals.FIRING_MODE_OUTDOOR_NO_CONE)
-            R.id.firing_mode_outdoor_with_cone_item -> vm.onFiringModeSelected(Globals.FIRING_MODE_OUTDOOR_WITH_CONE)
-            R.id.firing_mode_indoor_no_cone_item -> vm.onFiringModeSelected(Globals.FIRING_MODE_INDOOR_NO_CONE)
-            R.id.game_mode_2teams_item -> vm.onGameModeSelected(Globals.GAME_MODE_2TEAMS)
-            R.id.game_mode_4teams_item -> vm.onGameModeSelected(Globals.GAME_MODE_4TEAMS)
-            R.id.game_mode_ffa_item -> vm.onGameModeSelected(Globals.GAME_MODE_FFA)
+            R.id.team_mode_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.ChooseTeamMode)
+            R.id.firing_mode_outdoor_no_cone_item -> vm.onFiringModeSelected(GameSettingsRepository.FIRING_MODE_OUTDOOR_NO_CONE)
+            R.id.firing_mode_outdoor_with_cone_item -> vm.onFiringModeSelected(GameSettingsRepository.FIRING_MODE_OUTDOOR_WITH_CONE)
+            R.id.firing_mode_indoor_no_cone_item -> vm.onFiringModeSelected(GameSettingsRepository.FIRING_MODE_INDOOR_NO_CONE)
+            R.id.team_mode_2teams_item -> vm.onTeamModeSelected(TeamMode.TWO_TEAMS)
+            R.id.team_mode_4teams_item -> vm.onTeamModeSelected(TeamMode.FOUR_TEAMS)
+            R.id.team_mode_ffa_item -> vm.onTeamModeSelected(TeamMode.FREE_FOR_ALL)
             R.id.sort_teams_item -> vm.onAdminAction(AdminAction.SHUFFLE_TEAMS)
             else -> return false
         }

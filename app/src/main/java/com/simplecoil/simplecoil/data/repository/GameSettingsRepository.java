@@ -16,7 +16,23 @@
 
 package com.simplecoil.simplecoil.data.repository;
 
+import com.simplecoil.simplecoil.domain.team.TeamLayout;
+import com.simplecoil.simplecoil.domain.team.TeamMode;
+
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+
+/**
+ * The single source of truth for game settings (STATE_CONSOLIDATION_DESIGN.md). Independent values
+ * are volatile; values that must change together (the team mode and team sizes) live in one
+ * immutable object that is swapped atomically.
+ */
 public class GameSettingsRepository {
+    /** Told after the team layout changes, on the thread that changed it. */
+    public interface TeamLayoutListener {
+        void onTeamLayoutChanged(TeamLayout layout);
+    }
+
     private static volatile GameSettingsRepository instance;
 
     // Constants
@@ -28,10 +44,6 @@ public class GameSettingsRepository {
     public static final long RELOAD_TIME_MILLISECONDS = 1500;
     public static final int MAX_HEALTH = 20;
     public static final int DAMAGE_PER_HIT = -1;
-
-    public static final int GAME_MODE_FFA = 1;
-    public static final int GAME_MODE_2TEAMS = 2;
-    public static final int GAME_MODE_4TEAMS = 4;
 
     public static final int GAME_LIMIT_NONE = 0;
     public static final int GAME_LIMIT_TIME = 1;
@@ -69,7 +81,6 @@ public class GameSettingsRepository {
     private volatile boolean allowJoinInProgress = true;
     private volatile boolean allowChooseTeams = true;
 
-    private volatile int gameMode = GAME_MODE_2TEAMS;
     private volatile int gameLimit = GAME_LIMIT_NONE;
     private volatile int timeLimit = 0;
     private volatile int scoreLimit = 0;
@@ -86,7 +97,8 @@ public class GameSettingsRepository {
     private volatile boolean onlyServerSettings = true;
     private volatile int serverRecoilSetting = RECOIL_SETTING_DEFAULT;
 
-    private volatile int[] teamSizes = new int[]{16, 16};
+    private final AtomicReference<TeamLayout> teamLayout = new AtomicReference<>(TeamLayout.DEFAULT);
+    private final CopyOnWriteArrayList<TeamLayoutListener> teamLayoutListeners = new CopyOnWriteArrayList<>();
 
     private GameSettingsRepository() {}
 
@@ -101,55 +113,61 @@ public class GameSettingsRepository {
         return instance;
     }
 
-    public synchronized void resetDefaultTeamSizes() {
-        if (gameMode == GAME_MODE_4TEAMS) {
-            teamSizes = new int[]{8, 8, 8, 8};
-        } else {
-            teamSizes = new int[]{16, 16};
-        }
+    // Team layout
+
+    /** One consistent snapshot of the team mode and sizes. Read it once per decision. */
+    public TeamLayout getTeamLayout() { return teamLayout.get(); }
+
+    public TeamMode getTeamMode() { return teamLayout.get().getMode(); }
+
+    /** Changing the mode resets the team sizes to that mode's defaults. */
+    public void setTeamMode(TeamMode mode) {
+        updateTeamLayout(current -> current.withMode(mode));
     }
 
-    public synchronized int[] getTeamSizes() {
-        int expectedTeams = (gameMode == GAME_MODE_4TEAMS) ? 4 : 2;
-        if (teamSizes == null || teamSizes.length != expectedTeams) {
-            resetDefaultTeamSizes();
-        } else {
-            int sum = 0;
-            for (int size : teamSizes) {
-                sum += size;
+    /** Sizes that don't fit the current mode fall back to its defaults (see TeamLayout.withSizes). */
+    public void setTeamSizes(int[] sizes) {
+        updateTeamLayout(current -> current.withSizes(sizes));
+    }
+
+    /**
+     * The mode and sizes from a server's game info, applied in one step. Null sizes keep the
+     * current sizes if the mode is unchanged, otherwise the new mode's defaults.
+     */
+    public void setTeamModeAndSizes(TeamMode mode, int[] sizes) {
+        updateTeamLayout(current -> current.withMode(mode).withSizes(sizes));
+    }
+
+    /** Back to the default sizes for the current mode. */
+    public void resetDefaultTeamSizes() {
+        updateTeamLayout(current -> TeamLayout.defaultFor(current.getMode()));
+    }
+
+    public void addTeamLayoutListener(TeamLayoutListener listener) {
+        if (listener != null) teamLayoutListeners.addIfAbsent(listener);
+    }
+
+    public void removeTeamLayoutListener(TeamLayoutListener listener) {
+        teamLayoutListeners.remove(listener);
+    }
+
+    /** java.util.function isn't available on API 23. */
+    private interface LayoutUpdate {
+        TeamLayout apply(TeamLayout current);
+    }
+
+    private void updateTeamLayout(LayoutUpdate update) {
+        TeamLayout before;
+        TeamLayout after;
+        do {
+            before = teamLayout.get();
+            after = update.apply(before);
+        } while (!teamLayout.compareAndSet(before, after));
+        if (!after.equals(before)) {
+            for (TeamLayoutListener listener : teamLayoutListeners) {
+                listener.onTeamLayoutChanged(after);
             }
-            if (sum != MAX_PLAYER_ID) {
-                resetDefaultTeamSizes();
-            }
         }
-        return teamSizes.clone();
-    }
-
-    public synchronized void setTeamSizes(int[] sizes) {
-        if (sizes != null) {
-            this.teamSizes = sizes.clone();
-        }
-    }
-
-    public synchronized int getTeamStartID(int team) {
-        int numTeams = (gameMode == GAME_MODE_4TEAMS) ? 4 : 2;
-        int[] sizes = getTeamSizes();
-        int startID = 1;
-        for (int t = 1; t < team && t <= numTeams; t++) {
-            startID += sizes[t - 1];
-        }
-        return startID;
-    }
-
-    public synchronized int getTeamEndID(int team) {
-        int numTeams = (gameMode == GAME_MODE_4TEAMS) ? 4 : 2;
-        if (team < 1 || team > numTeams) return MAX_PLAYER_ID;
-        int[] sizes = getTeamSizes();
-        int startID = 1;
-        for (int t = 1; t < team; t++) {
-            startID += sizes[t - 1];
-        }
-        return startID + sizes[team - 1] - 1;
     }
 
     // Getters and Setters
@@ -188,14 +206,6 @@ public class GameSettingsRepository {
 
     public boolean isAllowJoinInProgress() { return allowJoinInProgress; }
     public void setAllowJoinInProgress(boolean allowJoinInProgress) { this.allowJoinInProgress = allowJoinInProgress; }
-
-    public synchronized int getGameMode() { return gameMode; }
-    public synchronized void setGameMode(int gameMode) {
-        if (this.gameMode != gameMode) {
-            this.gameMode = gameMode;
-            resetDefaultTeamSizes();
-        }
-    }
 
     public synchronized int getGameLimit() { return gameLimit; }
     public synchronized void setGameLimit(int gameLimit) { this.gameLimit = gameLimit; }

@@ -18,6 +18,10 @@ package com.simplecoil.simplecoil
 
 import android.content.Context
 import android.content.Intent
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
+import com.simplecoil.simplecoil.data.repository.GameStateRepository
+import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.domain.team.TeamMode
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -114,13 +118,13 @@ class NetworkSessionGatewayTest {
         `when`(list.getIntExtra(NetMsg.INTENT_TEAMSCORE, 0)).thenReturn(9)
         `when`(list.getLongExtra(NetMsg.INTENT_TIMEREMAINING, -1)).thenReturn(120)
         `when`(list.hasExtra(NetMsg.INTENT_GAMESTATE)).thenReturn(true)
-        `when`(list.getIntExtra(NetMsg.INTENT_GAMESTATE, Globals.GAME_STATE_ELIMINATED)).thenReturn(Globals.GAME_STATE_RUNNING)
-        assertEquals(NetworkEvent.ListPlayers(GameUpdate(4, 2, 9, 120), Globals.GAME_STATE_RUNNING), NetworkSessionGateway.toEvent(list))
+        `when`(list.getIntExtra(NetMsg.INTENT_GAMESTATE, GameStateRepository.GAME_STATE_ELIMINATED)).thenReturn(GameStateRepository.GAME_STATE_RUNNING)
+        assertEquals(NetworkEvent.ListPlayers(GameUpdate(4, 2, 9, 120), GameStateRepository.GAME_STATE_RUNNING), NetworkSessionGateway.toEvent(list))
         `when`(list.hasExtra(NetMsg.INTENT_SESSIONPHASE)).thenReturn(true)
         `when`(list.getIntExtra(NetMsg.INTENT_SESSIONPHASE, 0)).thenReturn(2)
         `when`(list.hasExtra(NetMsg.INTENT_GAMEID)).thenReturn(true)
         `when`(list.getLongExtra(NetMsg.INTENT_GAMEID, 0)).thenReturn(418873301)
-        assertEquals(NetworkEvent.ListPlayers(GameUpdate(4, 2, 9, 120), Globals.GAME_STATE_RUNNING, 2, 418873301),
+        assertEquals(NetworkEvent.ListPlayers(GameUpdate(4, 2, 9, 120), GameStateRepository.GAME_STATE_RUNNING, 2, 418873301),
             NetworkSessionGateway.toEvent(list))
 
         val error = intent(NetMsg.NETMSG_ERROR)
@@ -181,8 +185,8 @@ class NetworkSessionGatewayTest {
 
     @Test
     fun parsePlayerData_buildsRowsMyPointsAndTeamPoints() {
-        Globals.getInstance().mPlayerID = 1
-        Globals.getInstance().mGameMode = Globals.GAME_MODE_2TEAMS
+        PlayerRepository.getInstance().playerID = 1
+        GameSettingsRepository.getInstance().teamMode = TeamMode.TWO_TEAMS
         val parsed = NetworkSessionGateway.parsePlayerData(playerJson)
         assertNotNull(parsed)
         parsed!!
@@ -191,18 +195,16 @@ class NetworkSessionGatewayTest {
         assertTrue(parsed.players[2]!!.isConnected) // absent means connected
         assertEquals(6, parsed.players[17]!!.points)
         assertEquals(4, parsed.myPoints)
-        val t1 = Globals.getInstance().calcNetworkTeam(1) - 1
-        val t17 = Globals.getInstance().calcNetworkTeam(17) - 1
+        val t1 = PlayerRepository.getInstance().calcNetworkTeam(1) - 1
+        val t17 = PlayerRepository.getInstance().calcNetworkTeam(17) - 1
         assertEquals(if (t1 == t17) 13 else 7, parsed.teamPoints[t1])
         assertNull(NetworkSessionGateway.parsePlayerData("not json"))
-        // The semaphore is released on both paths.
-        assertEquals(1, Globals.getInstance().mPlayerSettingsSemaphore.availablePermits())
     }
 
     @Test
     fun updatePlayerData_parsesOffMainThenWritesScoresOnMain() {
-        Globals.getInstance().mPlayerID = 1
-        Globals.getInstance().mGameMode = Globals.GAME_MODE_2TEAMS
+        PlayerRepository.getInstance().playerID = 1
+        GameSettingsRepository.getInstance().teamMode = TeamMode.TWO_TEAMS
         val scope = TestScope()
         val parse = StandardTestDispatcher(scope.testScheduler)
         val g = NetworkSessionGateway(mock(Context::class.java), scope, parse)

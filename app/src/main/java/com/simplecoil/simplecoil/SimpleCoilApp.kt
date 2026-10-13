@@ -18,17 +18,17 @@ package com.simplecoil.simplecoil
 
 import android.app.Application
 import android.os.SystemClock
-import com.simplecoil.simplecoil.hardware.blaster.BlasterManager
-import com.simplecoil.simplecoil.hardware.blaster.BleConnectionManager
-import com.simplecoil.simplecoil.hardware.blaster.BleDeviceRepository
-import com.simplecoil.simplecoil.domain.session.BlasterSessionEngine
-import com.simplecoil.simplecoil.domain.session.GlobalsGameConfig
 import com.simplecoil.simplecoil.data.preferences.UserPreferencesRepository
+import com.simplecoil.simplecoil.domain.session.BlasterSessionEngine
+import com.simplecoil.simplecoil.domain.session.RepositoryGameConfig
 import com.simplecoil.simplecoil.hardware.audio.AudioHapticsManager
 import com.simplecoil.simplecoil.hardware.audio.AudioHapticsPlayer
 import com.simplecoil.simplecoil.hardware.audio.HapticsPlayer
 import com.simplecoil.simplecoil.hardware.audio.SessionFeedback
 import com.simplecoil.simplecoil.hardware.audio.SoundEffectPlayer
+import com.simplecoil.simplecoil.hardware.blaster.BlasterManager
+import com.simplecoil.simplecoil.hardware.blaster.BleConnectionManager
+import com.simplecoil.simplecoil.hardware.blaster.BleDeviceRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -57,7 +57,7 @@ class SimpleCoilApp : Application() {
     val sessionEngine: BlasterSessionEngine by lazy {
         BlasterSessionEngine(
             blaster = bleDeviceRepository,
-            config = GlobalsGameConfig,
+            config = RepositoryGameConfig,
             preferences = userPreferences,
             scope = CoroutineScope(SupervisorJob() + Dispatchers.Main),
             clock = SystemClock::elapsedRealtime,

@@ -25,7 +25,6 @@ import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Bundle;
-import android.util.Log;
 
 import androidx.core.content.ContextCompat;
 
@@ -35,10 +34,11 @@ import com.mousebird.maply.MaplyBaseController;
 import com.mousebird.maply.MarkerInfo;
 import com.mousebird.maply.Point2d;
 import com.mousebird.maply.ScreenMarker;
-import com.simplecoil.simplecoil.Globals;
 import com.simplecoil.simplecoil.R;
+import com.simplecoil.simplecoil.data.model.GpsData;
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
+import com.simplecoil.simplecoil.domain.team.TeamLayout;
 
 import java.util.Map;
 
@@ -229,49 +229,61 @@ public class MapLocationManager {
         removePlayerMarker(mapControl, playerId, playerMarkers);
     }
 
-    public void insertPlayerMarkers(MapController mapControl, Context context, Map<Byte, Globals.GPSData> gpsDataMap, int currentPlayerId, ComponentObject[] playerMarkers) {
-        if (mapControl == null || context == null || gpsDataMap == null || playerMarkers == null) return;
+    /** Whether another player's marker may be shown: teammates always, everyone else only in GPS_ALL. */
+    public static boolean isVisible(TeamLayout layout, int gpsMode, byte myPlayerId, GpsData other) {
+        return isTeammate(layout, myPlayerId, other) || gpsMode == GameSettingsRepository.GPS_ALL;
+    }
+
+    public static boolean isTeammate(TeamLayout layout, byte myPlayerId, GpsData other) {
+        return !layout.getMode().isFreeForAll() && other.team == layout.teamOf(myPlayerId);
+    }
+
+    /** Draws every other player's last reported position, from PlayerRepository's GPS data. */
+    public void insertPlayerMarkers(MapController mapControl, Context context, ComponentObject[] playerMarkers) {
+        if (mapControl == null || context == null || playerMarkers == null) return;
 
         MarkerInfo markerInfo = new MarkerInfo();
         Point2d markerSize = new Point2d(72, 72);
 
         PlayerRepository playerRepo = PlayerRepository.getInstance();
         GameSettingsRepository settingsRepo = GameSettingsRepository.getInstance();
-
-        int currentTeam = -1;
-        if (settingsRepo.getGameMode() != GameSettingsRepository.GAME_MODE_FFA) {
-            currentTeam = playerRepo.calcNetworkTeam((byte) currentPlayerId);
-        }
+        TeamLayout layout = settingsRepo.getTeamLayout();
+        int gpsMode = settingsRepo.getGpsMode();
+        byte currentPlayerId = playerRepo.getPlayerID();
+        Map<Byte, GpsData> gpsDataMap = playerRepo.getGpsData();
 
         Bitmap teammateIcon = BitmapFactory.decodeResource(context.getResources(), R.drawable.ic_gps_teammate);
         Bitmap enemyIcon = BitmapFactory.decodeResource(context.getResources(), R.drawable.ic_gps_enemy);
 
-        for (int x = 0; x <= Globals.MAX_PLAYER_ID; x++) {
-            if (x == currentPlayerId) continue;
-            Byte pid = (byte) x;
-            if (gpsDataMap.containsKey(pid)) {
-                Globals.GPSData data = gpsDataMap.get(pid);
-                if (data != null) {
-                    boolean isTeammate = (currentTeam != -1 && data.team == currentTeam);
-                    boolean isAllowed = isTeammate || (settingsRepo.getGpsMode() == GameSettingsRepository.GPS_ALL);
-                    if (!isAllowed) {
-                        removePlayerMarker(mapControl, x, playerMarkers);
-                        data.hasUpdate = false;
-                    } else if (data.hasUpdate || (x >= 0 && x < playerMarkers.length && playerMarkers[x] == null)) {
-                        data.hasUpdate = false;
-                        removePlayerMarker(mapControl, x, playerMarkers);
+        // The repository's lock keeps a GPS report from landing between reading and clearing hasUpdate.
+        synchronized (playerRepo) {
+            for (int x = 0; x <= GameSettingsRepository.MAX_PLAYER_ID; x++) {
+                if (x == currentPlayerId) continue;
+                Byte pid = (byte) x;
+                if (gpsDataMap.containsKey(pid)) {
+                    GpsData data = gpsDataMap.get(pid);
+                    if (data != null) {
+                        boolean isTeammate = isTeammate(layout, currentPlayerId, data);
+                        boolean isAllowed = isVisible(layout, gpsMode, currentPlayerId, data);
+                        if (!isAllowed) {
+                            removePlayerMarker(mapControl, x, playerMarkers);
+                            data.hasUpdate = false;
+                        } else if (data.hasUpdate || (x >= 0 && x < playerMarkers.length && playerMarkers[x] == null)) {
+                            data.hasUpdate = false;
+                            removePlayerMarker(mapControl, x, playerMarkers);
 
-                        ScreenMarker playerMarker = new ScreenMarker();
-                        playerMarker.loc = Point2d.FromDegrees(data.longitude, data.latitude);
-                        playerMarker.size = markerSize;
-                        playerMarker.image = isTeammate ? teammateIcon : enemyIcon;
-                        if (x >= 0 && x < playerMarkers.length) {
-                            playerMarkers[x] = mapControl.addScreenMarker(playerMarker, markerInfo, MaplyBaseController.ThreadMode.ThreadCurrent);
+                            ScreenMarker playerMarker = new ScreenMarker();
+                            playerMarker.loc = Point2d.FromDegrees(data.longitude, data.latitude);
+                            playerMarker.size = markerSize;
+                            playerMarker.image = isTeammate ? teammateIcon : enemyIcon;
+                            if (x >= 0 && x < playerMarkers.length) {
+                                playerMarkers[x] = mapControl.addScreenMarker(playerMarker, markerInfo, MaplyBaseController.ThreadMode.ThreadCurrent);
+                            }
                         }
                     }
+                } else {
+                    removePlayerMarker(mapControl, x, playerMarkers);
                 }
-            } else {
-                removePlayerMarker(mapControl, x, playerMarkers);
             }
         }
     }

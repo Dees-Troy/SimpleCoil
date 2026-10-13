@@ -16,7 +16,7 @@
 
 package com.simplecoil.simplecoil.domain.session
 
-import com.simplecoil.simplecoil.Globals
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 
 /**
  * Recoil on/off decisions: the server setting forces a value, otherwise the player's own toggle
@@ -30,15 +30,15 @@ object RecoilPolicy {
 
     @JvmStatic
     fun effective(serverSetting: Int, localEnabled: Boolean): Boolean = when (serverSetting) {
-        Globals.RECOIL_SETTING_ENABLED -> true
-        Globals.RECOIL_SETTING_DISABLED -> false
+        GameSettingsRepository.RECOIL_SETTING_ENABLED -> true
+        GameSettingsRepository.RECOIL_SETTING_DISABLED -> false
         else -> localEnabled
     }
 
     @JvmStatic
     fun onPowerButton(serverSetting: Int, localEnabled: Boolean): PowerButton = when (serverSetting) {
-        Globals.RECOIL_SETTING_ENABLED -> PowerButton(enabled = true, forced = true)
-        Globals.RECOIL_SETTING_DISABLED -> PowerButton(enabled = false, forced = true)
+        GameSettingsRepository.RECOIL_SETTING_ENABLED -> PowerButton(enabled = true, forced = true)
+        GameSettingsRepository.RECOIL_SETTING_DISABLED -> PowerButton(enabled = false, forced = true)
         else -> PowerButton(enabled = !localEnabled, forced = false)
     }
 }

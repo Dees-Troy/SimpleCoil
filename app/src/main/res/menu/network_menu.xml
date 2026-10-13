@@ -14,8 +14,8 @@
         android:title="@string/switch_team_button" />
     <item android:id="@+id/switch_team_4_item"
         android:title="@string/switch_team_button" />
-    <item android:id="@+id/game_mode_item"
-        android:title="@string/game_mode_toggle_button" />
+    <item android:id="@+id/team_mode_item"
+        android:title="@string/team_mode_toggle_button" />
     <item android:id="@+id/please_wait_item"
         android:title="@string/please_wait" />
     <item android:id="@+id/leave_item"

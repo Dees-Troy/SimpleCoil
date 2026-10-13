@@ -16,9 +16,12 @@
 
 package com.simplecoil.simplecoil.domain.session
 
-import com.simplecoil.simplecoil.Globals
-import com.simplecoil.simplecoil.hardware.blaster.BlasterEvent
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
+import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.domain.session.SessionTestHarness.Packet
+import com.simplecoil.simplecoil.domain.team.TeamLayout
+import com.simplecoil.simplecoil.domain.team.TeamMode
+import com.simplecoil.simplecoil.hardware.blaster.BlasterEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -31,9 +34,9 @@ import org.junit.Test
 class BlasterSessionEngineTest {
 
     private val h = SessionTestHarness()
-    private val single = Globals.SHOT_MODE_SINGLE
-    private val burst = Globals.SHOT_MODE_BURST
-    private val auto = Globals.SHOT_MODE_FULL_AUTO
+    private val single = GameSettingsRepository.SHOT_MODE_SINGLE
+    private val burst = GameSettingsRepository.SHOT_MODE_BURST
+    private val auto = GameSettingsRepository.SHOT_MODE_FULL_AUTO
 
     // --------------------------------------------------------------------------------------
     // First packet of a connection (§1.6)
@@ -160,7 +163,7 @@ class BlasterSessionEngineTest {
         h.telemetry(Packet().power(1))
         assertEquals(listOf("recoil:false"), h.rec.ble)
         assertFalse(h.state.recoilEnabled)
-        h.config.serverRecoilSetting = Globals.RECOIL_SETTING_DISABLED
+        h.config.serverRecoilSetting = GameSettingsRepository.RECOIL_SETTING_DISABLED
         h.telemetry(Packet().power(2))
         assertEquals(listOf("recoil:false", "recoil:false"), h.rec.ble)
         assertEquals(listOf(SessionToast.RECOIL_FORCED_DISABLED), h.toasts())
@@ -262,7 +265,7 @@ class BlasterSessionEngineTest {
     fun startGame_spawnCountdownTicksLikeCountDownTimer() {
         h.connected()
         h.engine.startGame()
-        assertEquals(Globals.GAME_STATE_ELIMINATED, h.config.gameState)
+        assertEquals(GameStateRepository.GAME_STATE_ELIMINATED, h.config.gameState)
         assertEquals(listOf("shotMode:$single/0"), h.rec.ble) // reload is already locked: no stage-1 write
         assertEquals(SpawnPhase.Spawning(5, "", true), h.state.spawn)
 
@@ -276,7 +279,7 @@ class BlasterSessionEngineTest {
         assertEquals(listOf(5L, 4L, 3L, 2L, 1L, 0L), seconds)
         assertEquals(6, h.sounds().count { it == SessionSound.BEEP })
         assertEquals(SpawnPhase.None, h.state.spawn)
-        assertEquals(Globals.GAME_STATE_RUNNING, h.config.gameState)
+        assertEquals(GameStateRepository.GAME_STATE_RUNNING, h.config.gameState)
         assertEquals(SessionSound.SPAWN, h.sounds().last())
         assertEquals(listOf("shotMode:$single/0", "finishReload:5/30"), h.rec.ble)
         assertEquals(GameClock.Chronometer(5_000 + 1_000), h.state.clock)
@@ -304,7 +307,7 @@ class BlasterSessionEngineTest {
 
     @Test
     fun startGame_withTimeLimit_countsDownAndRequestsEnd() {
-        h.config.gameLimit = Globals.GAME_LIMIT_TIME
+        h.config.gameLimit = GameSettingsRepository.GAME_LIMIT_TIME
         h.config.timeLimitMinutes = 1
         h.connected()
         h.startedAndSpawned()
@@ -321,7 +324,7 @@ class BlasterSessionEngineTest {
     @Test
     fun networkTimeLimit_serverEndsGame_andLocalFallbackAfter3s() {
         h.rec.useNetwork = true
-        h.config.gameLimit = Globals.GAME_LIMIT_TIME
+        h.config.gameLimit = GameSettingsRepository.GAME_LIMIT_TIME
         h.config.timeLimitMinutes = 1
         h.connected()
         h.startedAndSpawned()
@@ -336,7 +339,7 @@ class BlasterSessionEngineTest {
     @Test
     fun networkTimeLimit_noFallbackWhenServerAlreadyEnded() {
         h.rec.useNetwork = true
-        h.config.gameLimit = Globals.GAME_LIMIT_TIME
+        h.config.gameLimit = GameSettingsRepository.GAME_LIMIT_TIME
         h.config.timeLimitMinutes = 1
         h.connected()
         h.startedAndSpawned()
@@ -348,13 +351,13 @@ class BlasterSessionEngineTest {
 
     @Test
     fun endGame_stopsTimersAndLocksTheBlaster() {
-        h.config.gameLimit = Globals.GAME_LIMIT_TIME
+        h.config.gameLimit = GameSettingsRepository.GAME_LIMIT_TIME
         h.config.timeLimitMinutes = 5
         h.connected()
         h.startedAndSpawned()
         h.advance(3_000)
         h.engine.endGame()
-        assertEquals(Globals.GAME_STATE_NONE, h.config.gameState)
+        assertEquals(GameStateRepository.GAME_STATE_NONE, h.config.gameState)
         assertEquals(listOf("startReload:5"), h.rec.ble)
         assertEquals(GameClock.Stopped("05:00"), h.state.clock)
         assertEquals(SpawnPhase.None, h.state.spawn)
@@ -369,7 +372,7 @@ class BlasterSessionEngineTest {
         h.advance(3_000)
         h.engine.endGame()
         h.advance(20_000)
-        assertEquals(Globals.GAME_STATE_NONE, h.config.gameState)
+        assertEquals(GameStateRepository.GAME_STATE_NONE, h.config.gameState)
         assertFalse(h.sounds().contains(SessionSound.SPAWN))
     }
 
@@ -394,14 +397,14 @@ class BlasterSessionEngineTest {
         h.connected()
         h.startedAndSpawned()
         h.telemetry(Packet().hit1(0x08, 0x3D))
-        assertEquals(Globals.MAX_HEALTH - 1, h.state.health)
+        assertEquals(GameSettingsRepository.MAX_HEALTH - 1, h.state.health)
         assertEquals("Bob", h.state.hitOverlay)
         assertEquals(listOf(SessionEffect.Vibrate, SessionEffect.Sound(SessionSound.HIT)), h.effects)
         assertEquals(listOf("HIT2"), h.rec.net)
 
         h.telemetry(Packet().noHit())
         h.telemetry(Packet().hit1(0x08, 0x3E))
-        assertEquals(Globals.MAX_HEALTH - 2, h.state.health)
+        assertEquals(GameSettingsRepository.MAX_HEALTH - 2, h.state.health)
         assertEquals(2, h.effects.size) // overlay still playing: no new sound/vibration
         h.advance(400)
         assertEquals(null, h.state.hitOverlay)
@@ -414,7 +417,7 @@ class BlasterSessionEngineTest {
         h.engine.startGame() // eliminated while spawning
         h.runCurrent()
         h.telemetry(Packet().hit1(0x08, 0x3D))
-        assertEquals(Globals.MAX_HEALTH, h.state.health)
+        assertEquals(GameSettingsRepository.MAX_HEALTH, h.state.health)
         assertEquals(1, h.state.hitsTaken)
     }
 
@@ -422,8 +425,6 @@ class BlasterSessionEngineTest {
     fun lastHit_eliminates_respawnsWithShield() {
         h.config.fullHealth = 1
         h.config.names[2] = "Bob"
-        h.config.teams[5] = 1
-        h.config.teams[2] = 2
         h.rec.useNetwork = true
         h.connected()
         h.startedAndSpawned()
@@ -431,13 +432,13 @@ class BlasterSessionEngineTest {
         h.telemetry(Packet().hit1(0x08, 0x3D))
         assertEquals(listOf(SessionEffect.Vibrate, SessionEffect.Sound(SessionSound.ELIMINATED)), h.effects.take(2))
         assertEquals(1, h.state.eliminationDisplay)
-        assertEquals(Globals.GAME_STATE_ELIMINATED, h.config.gameState)
+        assertEquals(GameStateRepository.GAME_STATE_ELIMINATED, h.config.gameState)
         assertEquals(SpawnPhase.Spawning(10, "Bob", false), h.state.spawn)
         assertEquals(listOf("startReload:5"), h.rec.ble)
         assertEquals(listOf("OUT2", "ELIMINATED2"), h.rec.net)
 
         h.advance(10_000)
-        assertEquals(Globals.GAME_STATE_RUNNING, h.config.gameState)
+        assertEquals(GameStateRepository.GAME_STATE_RUNNING, h.config.gameState)
         assertTrue(h.state.shieldSeconds != null)
         // Shielded: hits are ignored
         h.telemetry(Packet().hit1(0x08, 0x3B))
@@ -446,7 +447,7 @@ class BlasterSessionEngineTest {
         assertEquals(null, h.state.shieldSeconds)
         h.telemetry(Packet().noHit())
         h.telemetry(Packet().hit1(0x08, 0x3C))
-        assertEquals(Globals.GAME_STATE_ELIMINATED, h.config.gameState)
+        assertEquals(GameStateRepository.GAME_STATE_ELIMINATED, h.config.gameState)
     }
 
     @Test
@@ -468,11 +469,27 @@ class BlasterSessionEngineTest {
     }
 
     @Test
+    fun fourTeams_friendlyFireFollowsTheFourTeamLayout() {
+        h.rec.useNetwork = true
+        h.engine.networkTeam = 1 // players 1-8 with four teams
+        h.config.teamLayout = TeamLayout.defaultFor(TeamMode.FOUR_TEAMS)
+        h.connected()
+        h.startedAndSpawned()
+        // Player 9 is on team 2 with four teams (with two teams of 16 it would be a teammate).
+        h.telemetry(Packet().hit1(0x24, 0x3D))
+        assertEquals(GameSettingsRepository.MAX_HEALTH - 1, h.state.health)
+        // Player 2 is a teammate: the hit is counted but costs nothing.
+        h.telemetry(Packet().noHit())
+        h.telemetry(Packet().hit1(0x08, 0x3E))
+        assertEquals(GameSettingsRepository.MAX_HEALTH - 1, h.state.health)
+        assertEquals(2, h.state.hitsTaken)
+    }
+
+    @Test
     fun teammateElimination_isReportedToo_theServerDecidesTheScore() {
         h.config.fullHealth = 1
-        h.config.teams[5] = 1
-        h.config.teams[2] = 1
-        h.config.gameMode = Globals.GAME_MODE_FFA // no friendly fire, so the teammate's hit lands
+        h.engine.networkTeam = 1 // players 2 and 5 are both on team 1 in the default layout
+        h.config.teamLayout = TeamLayout.defaultFor(TeamMode.FREE_FOR_ALL) // no friendly fire, so the teammate's hit lands
         h.rec.useNetwork = true
         h.connected()
         h.startedAndSpawned()
@@ -483,7 +500,7 @@ class BlasterSessionEngineTest {
     @Test
     fun livesLimit_countsDownAndStopsRespawningAtZero() {
         h.config.fullHealth = 1
-        h.config.gameLimit = Globals.GAME_LIMIT_LIVES
+        h.config.gameLimit = GameSettingsRepository.GAME_LIMIT_LIVES
         h.config.livesLimit = 1
         h.engine.applyGameLimit()
         h.connected()
@@ -494,12 +511,12 @@ class BlasterSessionEngineTest {
         assertEquals(SpawnPhase.OutOfLives(""), h.state.spawn)
         assertTrue(h.toasts().contains(SessionToast.OUT_OF_LIVES))
         h.advance(60_000)
-        assertEquals(Globals.GAME_STATE_ELIMINATED, h.config.gameState)
+        assertEquals(GameStateRepository.GAME_STATE_ELIMINATED, h.config.gameState)
     }
 
     @Test
     fun serverLivesOverride_winsOverTheLocalLimit() {
-        h.config.gameLimit = Globals.GAME_LIMIT_LIVES
+        h.config.gameLimit = GameSettingsRepository.GAME_LIMIT_LIVES
         h.config.livesLimit = 5
         h.config.overrideLives = true
         h.config.overrideLivesValue = 2
@@ -577,7 +594,7 @@ class BlasterSessionEngineTest {
     fun playerSettings_coerceShotModeAndApplyServerRecoil() {
         h.engine.restore(burst, true)
         h.config.allowBurstShotMode = false
-        h.config.serverRecoilSetting = Globals.RECOIL_SETTING_DISABLED
+        h.config.serverRecoilSetting = GameSettingsRepository.RECOIL_SETTING_DISABLED
         h.engine.applyPlayerSettings()
         assertEquals(listOf("recoil:false", "shotMode:$auto/0"), h.rec.ble)
     }

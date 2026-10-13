@@ -78,7 +78,7 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
         })
         renderer = GameScreenRenderer(binding, WindowController(window), lifecycleScope)
         vm = ViewModelProvider(this, GameViewModelFactory(application as SimpleCoilApp))[GameViewModel::class.java]
-        dialogs = DialogCoordinator(this, vm, binding.useNetworkButton)
+        dialogs = DialogCoordinator(this, vm, binding.useNetworkButton, binding.teamModeButton)
         vm.screen = CompositeGameScreen(renderer, dialogs, this)
         permissions = BlePermissionController(this, vm, ::startQRScan)
         val saved = savedInstanceState?.let {
@@ -123,6 +123,7 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
 
         binding.useNetworkButton.setOnClickListener { vm.onNetworkButtonPressed() }
         binding.gameLimitButton.setOnClickListener { vm.onGameLimitPressed() }
+        binding.teamModeButton.setOnClickListener { vm.onTeamModePressed() }
         binding.adminControlsButton.setOnClickListener(dialogs::showAdminMenu)
         binding.useNetworkButton.visibility = View.VISIBLE
         binding.playerDataButton.setOnClickListener { vm.openScoreboard() }
@@ -206,7 +207,6 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
 
         // Still read by DedicatedServerActivity.
         const val PREF_NAME = UserPreferencesRepository.PREF_NAME
-        const val PREF_GAME_MODE = UserPreferencesRepository.GAME_MODE
         const val PREF_START_TIME = UserPreferencesRepository.START_TIME
         const val PREF_LIMIT_TIME = UserPreferencesRepository.LIMIT_TIME
         const val PREF_LIMIT_LIVES = UserPreferencesRepository.LIMIT_LIVES

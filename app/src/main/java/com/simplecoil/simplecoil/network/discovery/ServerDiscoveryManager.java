@@ -21,8 +21,8 @@ import android.net.DhcpInfo;
 import android.net.wifi.WifiManager;
 import android.util.Log;
 
-import com.simplecoil.simplecoil.Globals;
 import com.simplecoil.simplecoil.NetMsg;
+import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -233,7 +233,7 @@ public class ServerDiscoveryManager {
                     while (mIsClientDiscovering) {
                         try {
                             mClientSocket.receive(packet);
-                            InetAddress myIp = Globals.getIPAddress();
+                            InetAddress myIp = PlayerRepository.getIPAddress();
                             if (packet.getAddress().equals(myIp)) {
                                 continue; // Ignore self
                             }

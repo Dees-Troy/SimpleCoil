@@ -26,6 +26,7 @@ import androidx.lifecycle.MutableLiveData;
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
+import com.simplecoil.simplecoil.domain.team.TeamMode;
 import com.simplecoil.simplecoil.network.discovery.ServerDiscoveryManager;
 import com.simplecoil.simplecoil.network.server.SessionPhase;
 
@@ -45,7 +46,10 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
     private final MutableLiveData<Long> timeRemainingLiveData = new MutableLiveData<>();
     private final MutableLiveData<String> serverIpLiveData = new MutableLiveData<>();
     private final MutableLiveData<Integer> playerCountLiveData = new MutableLiveData<>();
-    private final MutableLiveData<Integer> gameModeLiveData = new MutableLiveData<>();
+    private final MutableLiveData<TeamMode> teamModeLiveData = new MutableLiveData<>();
+    /** Whoever changes the team layout (this screen or an admin's message), the button follows. */
+    private final GameSettingsRepository.TeamLayoutListener teamLayoutListener =
+            layout -> teamModeLiveData.postValue(layout.getMode());
     private final MutableLiveData<Integer> gameLimitLiveData = new MutableLiveData<>();
     private final MutableLiveData<Long> startingTimerLiveData = new MutableLiveData<>();
     private final MutableLiveData<Integer> gpsModeLiveData = new MutableLiveData<>();
@@ -79,6 +83,7 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
 
         initInitialState();
         this.gameStateRepo.addListener(this);
+        this.settingsRepo.addTeamLayoutListener(teamLayoutListener);
     }
 
     private void initInitialState() {
@@ -86,7 +91,7 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
         timeRemainingLiveData.postValue(gameStateRepo.getServerGameTimeRemaining());
         serverIpLiveData.postValue(PlayerRepository.getIPAddressStr());
         playerCountLiveData.postValue(playerRepo.getPlayerCount(true));
-        gameModeLiveData.postValue(settingsRepo.getGameMode());
+        teamModeLiveData.postValue(settingsRepo.getTeamMode());
         gameLimitLiveData.postValue(settingsRepo.getGameLimit());
         startingTimerLiveData.postValue(settingsRepo.getStartTime());
         gpsModeLiveData.postValue(settingsRepo.getGpsMode());
@@ -99,6 +104,7 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
     protected void onCleared() {
         super.onCleared();
         gameStateRepo.removeListener(this);
+        settingsRepo.removeTeamLayoutListener(teamLayoutListener);
         discoveryManager.stopBroadcastingBeacon();
     }
 
@@ -111,9 +117,9 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
         discoveryManager.stopBroadcastingBeacon();
     }
 
-    public void setGameMode(int gameMode) {
-        settingsRepo.setGameMode(gameMode);
-        gameModeLiveData.postValue(settingsRepo.getGameMode());
+    public void setTeamMode(TeamMode teamMode) {
+        settingsRepo.setTeamMode(teamMode);
+        teamModeLiveData.postValue(settingsRepo.getTeamMode());
     }
 
     public void setGpsMode(int gpsMode) {
@@ -186,7 +192,7 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
     public LiveData<Long> getTimeRemainingLiveData() { return timeRemainingLiveData; }
     public LiveData<String> getServerIpLiveData() { return serverIpLiveData; }
     public LiveData<Integer> getPlayerCountLiveData() { return playerCountLiveData; }
-    public LiveData<Integer> getGameModeLiveData() { return gameModeLiveData; }
+    public LiveData<TeamMode> getTeamModeLiveData() { return teamModeLiveData; }
     public LiveData<Integer> getGameLimitLiveData() { return gameLimitLiveData; }
     public LiveData<Long> getStartingTimerLiveData() { return startingTimerLiveData; }
     public LiveData<Integer> getGpsModeLiveData() { return gpsModeLiveData; }

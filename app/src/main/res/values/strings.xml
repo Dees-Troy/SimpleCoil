@@ -94,11 +94,11 @@
     <string name="cancel_server_button">Cancel Lobby</string>
     <string name="join_ip_button">Join IP&#8230;</string>
     <string name="player_name_button">Player Name: %1$s</string>
-    <string name="game_mode_toggle_button">Set Game Mode</string>
-    <string name="game_mode_label">Game Mode</string>
-    <string name="game_mode_ffa">Free For All</string>
-    <string name="game_mode_2teams">2 Teams</string>
-    <string name="game_mode_4teams">4 Teams</string>
+    <string name="team_mode_toggle_button">Set Team Mode</string>
+    <string name="team_mode_label">Team Mode</string>
+    <string name="team_mode_ffa">Free For All</string>
+    <string name="team_mode_2teams">2 Teams</string>
+    <string name="team_mode_4teams">4 Teams</string>
     <string name="scan_players_button">Search For Players</string>
     <string name="scan_started_toast">Player scan started!</string>
     <string name="network_player_1count">1 Player</string>

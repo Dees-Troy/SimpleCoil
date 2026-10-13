@@ -17,12 +17,15 @@
 package com.simplecoil.simplecoil
 
 import com.simplecoil.simplecoil.LoopbackClient.Companion.awaitTrue
+import com.simplecoil.simplecoil.data.model.PlayerSettings
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.domain.team.TeamMode
 import com.simplecoil.simplecoil.network.client.ClientOutbox
 import com.simplecoil.simplecoil.network.server.SessionPhase
 import org.junit.After
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -45,17 +48,15 @@ class TcpServerLoopbackTest {
 
     @Before
     fun setUp() {
-        val g = Globals.getInstance()
-        g.mGameState = Globals.GAME_STATE_NONE
-        g.mGameMode = Globals.GAME_MODE_2TEAMS
-        g.mGameLimit = Globals.GAME_LIMIT_NONE
-        g.mUseGPS = false
-        g.mPlayerID = 0
-        g.resetDefaultTeamSizes()
-        GameSettingsRepository.getInstance().setGameMode(GameSettingsRepository.GAME_MODE_2TEAMS)
+        GameStateRepository.getInstance().gameState = GameStateRepository.GAME_STATE_NONE
+        GameSettingsRepository.getInstance().teamMode = TeamMode.TWO_TEAMS
+        GameSettingsRepository.getInstance().gameLimit = GameSettingsRepository.GAME_LIMIT_NONE
+        GameSettingsRepository.getInstance().isUseGPS = false
+        PlayerRepository.getInstance().playerID = 0
+        GameSettingsRepository.getInstance().resetDefaultTeamSizes()
         GameSettingsRepository.getInstance().setAllowJoinInProgress(true)
         GameStateRepository.getInstance().setGameState(GameStateRepository.GAME_STATE_NONE)
-        PlayerRepository.getInstance().setPlayerIDDirect(0)
+        PlayerRepository.getInstance().setPlayerID(0)
         PlayerRepository.getInstance().clearAllPlayers()
         LoopbackClient.awaitPortFree()
         server = TcpServer()
@@ -69,7 +70,7 @@ class TcpServerLoopbackTest {
         server.stopTcpServer()
         LoopbackClient.awaitPortFree()
         Thread.sleep(200) // the client thread sees keepListening = false within one poll
-        Globals.getInstance().mGameState = Globals.GAME_STATE_NONE
+        GameStateRepository.getInstance().gameState = GameStateRepository.GAME_STATE_NONE
         PlayerRepository.getInstance().clearAllPlayers()
     }
 
@@ -87,9 +88,9 @@ class TcpServerLoopbackTest {
 
     /** What the operator's player settings dialog does for the admin switch. */
     private fun makeAdmin(id: Int) {
-        val settings = Globals.PlayerSettings()
+        val settings = PlayerSettings()
         settings.isAdmin = true
-        Globals.getInstance().mPlayerSettings[id.toByte()] = settings
+        PlayerRepository.getInstance().playerSettings[id.toByte()] = settings
     }
 
     private fun awaitDisconnected(id: Int) =
@@ -106,7 +107,7 @@ class TcpServerLoopbackTest {
         assertEquals(1, idA)
         assertEquals(17, idB) // the second player goes to team 2
         val info = b.awaitJson(TcpServer.JSON_PLAYERS)
-        assertEquals(Globals.GAME_STATE_NONE, info.getInt(TcpServer.JSON_GAMESTATE))
+        assertEquals(GameStateRepository.GAME_STATE_NONE, info.getInt(TcpServer.JSON_GAMESTATE))
         assertFalse(info.has("dedicatedserver")) // every server is dedicated (v07)
         assertEquals(SessionPhase.LOBBY.wireValue, info.getInt(TcpServer.JSON_SESSIONPHASE))
         assertFalse(info.has(TcpServer.JSON_GAMEID))
@@ -177,7 +178,7 @@ class TcpServerLoopbackTest {
         val (a, _, c) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00", "Charlie" to "CC:00")
         val (clientA, idA) = a
         val (clientC, idC) = c
-        assertEquals(Globals.getInstance().calcNetworkTeam(idA.toByte()), Globals.getInstance().calcNetworkTeam(idC.toByte()))
+        assertEquals(PlayerRepository.getInstance().calcNetworkTeam(idA.toByte()), PlayerRepository.getInstance().calcNetworkTeam(idC.toByte()))
         clientA.mesg(NetMsg.NETMSG_ELIMINATED + idC)
         clientA.mesg(NetMsg.NETMSG_PLAYERDATAREQUEST) // answered after the elimination was handled
         clientA.awaitJson(TcpServer.JSON_PLAYERDATA)
@@ -261,7 +262,7 @@ class TcpServerLoopbackTest {
         server.endGame()
         clientA.awaitMesg(NetMsg.NETMSG_ENDGAME)
         assertEquals(SessionPhase.POST_GAME, server.sessionPhase)
-        assertEquals(Globals.GAME_STATE_NONE, Globals.getInstance().mGameState)
+        assertEquals(GameStateRepository.GAME_STATE_NONE, GameStateRepository.getInstance().gameState)
         assertEquals(GameStateRepository.GAME_STATE_NONE, GameStateRepository.getInstance().gameState)
         assertTrue(server.roster.isCached("BB:00"))
         assertFalse(score(idB)!!.isConnected)
@@ -310,7 +311,7 @@ class TcpServerLoopbackTest {
         assertEquals(0, score(idA)!!.eliminated)
         assertFalse(server.roster.isCached("AA:00"))
         // The clients hear about it.
-        awaitTrue { clientA.lastJson(TcpServer.JSON_PLAYERS)?.getInt(TcpServer.JSON_GAMESTATE) == Globals.GAME_STATE_NONE }
+        awaitTrue { clientA.lastJson(TcpServer.JSON_PLAYERS)?.getInt(TcpServer.JSON_GAMESTATE) == GameStateRepository.GAME_STATE_NONE }
         assertTrue(server.startGame())
     }
 
@@ -325,13 +326,24 @@ class TcpServerLoopbackTest {
     }
 
     @Test
-    fun adminGameModeAfterAGame_resetsFirst() {
+    fun adminTeamModeAfterAGame_resetsFirst() {
         val (clientA, idA, idB) = endedGameWithBravoAway()
         makeAdmin(idA)
-        clientA.mesg(NetMsg.NETMSG_ADMIN_GAMEMODE + Globals.GAME_MODE_4TEAMS)
+        clientA.mesg(NetMsg.NETMSG_ADMIN_GAMEMODE + TeamMode.FOUR_TEAMS.wireValue)
         awaitTrue { server.sessionPhase == SessionPhase.LOBBY }
-        awaitTrue { Globals.getInstance().mGameMode == Globals.GAME_MODE_4TEAMS }
+        awaitTrue { GameSettingsRepository.getInstance().teamMode == TeamMode.FOUR_TEAMS }
         assertNull(score(idB))
+    }
+
+    @Test
+    fun adminTeamMode_unknownValue_isIgnored() {
+        val (a, idA) = join("Alpha", "AA:00")
+        makeAdmin(idA)
+        a.mesg(NetMsg.NETMSG_ADMIN_GAMEMODE + 3)
+        a.mesg(NetMsg.NETMSG_PLAYERDATAREQUEST) // processed after the mode change
+        a.awaitJson(TcpServer.JSON_PLAYERDATA)
+        assertEquals(TeamMode.TWO_TEAMS, GameSettingsRepository.getInstance().teamMode)
+        assertArrayEquals(intArrayOf(16, 16), GameSettingsRepository.getInstance().teamLayout.teamSizes())
     }
 
     // ------------------------------------------------------------------------------------------
@@ -345,12 +357,12 @@ class TcpServerLoopbackTest {
         a.mesg(NetMsg.NETMSG_STARTGAME)
         a.mesg(NetMsg.NETMSG_ADMIN_STARTGAME)
         a.mesg(NetMsg.NETMSG_ADMIN_KICK + idB)
-        a.mesg(NetMsg.NETMSG_ADMIN_GAMEMODE + Globals.GAME_MODE_FFA)
+        a.mesg(NetMsg.NETMSG_ADMIN_GAMEMODE + TeamMode.FREE_FOR_ALL.wireValue)
         a.mesg(NetMsg.NETMSG_PLAYERDATAREQUEST) // processed after the others
         a.awaitJson(TcpServer.JSON_PLAYERDATA)
         assertEquals(SessionPhase.LOBBY, server.sessionPhase)
         assertNotNull(score(idB))
-        assertEquals(Globals.GAME_MODE_2TEAMS, Globals.getInstance().mGameMode)
+        assertEquals(TeamMode.TWO_TEAMS, GameSettingsRepository.getInstance().teamMode)
 
         // A client can't make itself an admin through its player settings either.
         val settings = org.json.JSONObject()
@@ -368,8 +380,8 @@ class TcpServerLoopbackTest {
         settings.put(TcpServer.JSON_FIRING_MODE, 0)
         settings.put(TcpServer.JSON_IS_ADMIN, true)
         a.json(settings)
-        awaitTrue { Globals.getInstance().mPlayerSettings[idA.toByte()] != null }
-        assertFalse(Globals.getInstance().mPlayerSettings[idA.toByte()]!!.isAdmin)
+        awaitTrue { PlayerRepository.getInstance().playerSettings[idA.toByte()] != null }
+        assertFalse(PlayerRepository.getInstance().playerSettings[idA.toByte()]!!.isAdmin)
     }
 
     @Test

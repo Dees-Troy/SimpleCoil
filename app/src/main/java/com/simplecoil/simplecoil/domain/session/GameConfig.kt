@@ -16,12 +16,14 @@
 
 package com.simplecoil.simplecoil.domain.session
 
-import com.simplecoil.simplecoil.Globals
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
+import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.domain.team.TeamLayout
 
 /**
  * Game configuration and shared game state as the session engine sees it. The app reads and
- * writes [Globals], the activity's single source of truth, through [GlobalsGameConfig]; tests use
+ * writes the repositories, the single source of truth, through [RepositoryGameConfig]; tests use
  * a plain implementation.
  */
 interface GameConfig {
@@ -45,9 +47,10 @@ interface GameConfig {
     val allowAutoShotMode: Boolean
     val serverRecoilSetting: Int
     val firingMode: Int
-    val gameMode: Int
 
-    fun networkTeam(playerId: Byte): Int
+    /** The team mode and sizes; read once per decision so both come from the same snapshot. */
+    val teamLayout: TeamLayout
+
     fun playerName(playerId: Byte): String?
 
     /** Configured damage of a network player, or null when that player has no settings. */
@@ -55,39 +58,39 @@ interface GameConfig {
     fun grenadePairing(grenadeId: Int): Int
 }
 
-object GlobalsGameConfig : GameConfig {
-    private val g get() = Globals.getInstance()
+object RepositoryGameConfig : GameConfig {
+    private val settings get() = GameSettingsRepository.getInstance()
+    private val players get() = PlayerRepository.getInstance()
 
     override var gameState: Int
-        get() = g.mGameState
-        set(value) { g.mGameState = value }
+        get() = GameStateRepository.getInstance().gameState
+        set(value) { GameStateRepository.getInstance().gameState = value }
     override var playerId: Byte
-        get() = g.mPlayerID
-        set(value) { g.mPlayerID = value }
+        get() = players.playerID
+        set(value) { players.playerID = value }
     override var pairedGrenadeId: Byte
-        get() = g.mPairedGrenadeID
-        set(value) { g.mPairedGrenadeID = value }
-    override val fullHealth get() = g.mFullHealth
-    override val fullReload get() = g.mFullReload
-    override val reloadTimeMillis get() = g.mReloadTime
-    override val respawnTimeSeconds get() = g.mRespawnTime
-    override val respawnShieldTimeSeconds get() = g.mRespawnShieldTime
-    override val startCountdownSeconds get() = g.mStartTime
-    override val gameLimit get() = g.mGameLimit
-    override val timeLimitMinutes get() = g.mTimeLimit
-    override val livesLimit get() = g.mLivesLimit
-    override val overrideLives get() = g.mOverrideLives
-    override val overrideLivesValue get() = g.mOverrideLivesVal
-    override val reloadOnEmpty get() = g.mReloadOnEmpty
-    override val allowSingleShotMode get() = g.mAllowSingleShotMode
-    override val allowBurstShotMode get() = g.mAllowBurst3ShotMode
-    override val allowAutoShotMode get() = g.mAllowAutoShotMode
-    override val serverRecoilSetting get() = g.mServerRecoilSetting
-    override val firingMode get() = g.mCurrentFiringMode
-    override val gameMode get() = g.mGameMode
+        get() = players.pairedGrenadeID
+        set(value) { players.pairedGrenadeID = value }
+    override val fullHealth get() = settings.fullHealth
+    override val fullReload get() = settings.fullReload
+    override val reloadTimeMillis get() = settings.reloadTime
+    override val respawnTimeSeconds get() = settings.respawnTime
+    override val respawnShieldTimeSeconds get() = settings.respawnShieldTime
+    override val startCountdownSeconds get() = settings.startTime
+    override val gameLimit get() = settings.gameLimit
+    override val timeLimitMinutes get() = settings.timeLimit
+    override val livesLimit get() = settings.livesLimit
+    override val overrideLives get() = settings.isOverrideLives
+    override val overrideLivesValue get() = settings.overrideLivesVal
+    override val reloadOnEmpty get() = settings.isReloadOnEmpty
+    override val allowSingleShotMode get() = settings.isAllowSingleShotMode
+    override val allowBurstShotMode get() = settings.isAllowBurst3ShotMode
+    override val allowAutoShotMode get() = settings.isAllowAutoShotMode
+    override val serverRecoilSetting get() = settings.serverRecoilSetting
+    override val firingMode get() = settings.currentFiringMode
+    override val teamLayout: TeamLayout get() = settings.teamLayout
 
-    override fun networkTeam(playerId: Byte) = g.calcNetworkTeam(playerId)
-    override fun playerName(playerId: Byte): String? = g.getPlayerName(playerId)
-    override fun playerDamage(playerId: Byte): Int? = g.mPlayerSettings[playerId]?.damage
-    override fun grenadePairing(grenadeId: Int) = PlayerRepository.getInstance().getGrenadePairing(grenadeId)
+    override fun playerName(playerId: Byte): String? = players.getPlayerName(playerId)
+    override fun playerDamage(playerId: Byte): Int? = players.playerSettings[playerId]?.damage
+    override fun grenadePairing(grenadeId: Int) = players.getGrenadePairing(grenadeId)
 }

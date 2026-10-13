@@ -16,11 +16,11 @@
 
 package com.simplecoil.simplecoil.domain.session
 
-import com.simplecoil.simplecoil.Globals
+import com.simplecoil.simplecoil.data.repository.PlayerRepository
 
 /**
  * Decodes the grenade fields packed into a telemetry hit slot. When the hit-by byte is
- * [Globals.GRENADE_PLAYER_ID] (167), the shot-id byte carries the grenade id in its high nibble
+ * [PlayerRepository.GRENADE_PLAYER_ID] (167), the shot-id byte carries the grenade id in its high nibble
  * and the event type in its low nibble.
  *
  * Extracted verbatim from FullscreenActivity.processTelemetryData().
@@ -45,7 +45,7 @@ object GrenadeDecoder {
     /** A grenade slot that is not a damage event (pair, new-pair, disarm, ...). It must not cost health. */
     @JvmStatic
     fun isGrenadeControlEvent(hitBy: Int, shotIdByte: Byte): Boolean =
-        hitBy == Globals.GRENADE_PLAYER_ID && event(shotIdByte) != GRENADE_DAMAGE.toInt()
+        hitBy == PlayerRepository.GRENADE_PLAYER_ID && event(shotIdByte) != GRENADE_DAMAGE.toInt()
 
     @JvmStatic
     fun pairingAction(hitBy: Int, shotIdByte: Byte): PairingAction {

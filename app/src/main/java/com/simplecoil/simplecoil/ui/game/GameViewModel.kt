@@ -21,7 +21,6 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.simplecoil.simplecoil.GameUpdate
-import com.simplecoil.simplecoil.Globals
 import com.simplecoil.simplecoil.NameGenerator
 import com.simplecoil.simplecoil.NetMsg
 import com.simplecoil.simplecoil.NetworkEvent
@@ -31,10 +30,14 @@ import com.simplecoil.simplecoil.ProfanityFilter
 import com.simplecoil.simplecoil.TcpClient
 import com.simplecoil.simplecoil.data.preferences.UserPreferencesRepository
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
+import com.simplecoil.simplecoil.data.repository.GameStateRepository
+import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.domain.session.BlasterSessionEngine
 import com.simplecoil.simplecoil.domain.session.SessionEffect
 import com.simplecoil.simplecoil.domain.session.SessionSound
 import com.simplecoil.simplecoil.domain.session.SessionState
+import com.simplecoil.simplecoil.domain.team.TeamColors
+import com.simplecoil.simplecoil.domain.team.TeamMode
 import com.simplecoil.simplecoil.hardware.audio.SoundEffectPlayer
 import com.simplecoil.simplecoil.hardware.blaster.BlasterEvent
 import com.simplecoil.simplecoil.hardware.blaster.BleConnectionEvent
@@ -85,7 +88,9 @@ class GameViewModel(
     /** Session values for the play screen to render. */
     val session: StateFlow<SessionState> get() = engine.state
 
-    private val g get() = Globals.getInstance()
+    private val settingsRepo get() = GameSettingsRepository.getInstance()
+    private val gameStateRepo get() = GameStateRepository.getInstance()
+    private val playerRepo get() = PlayerRepository.getInstance()
 
     var selectedPlayerId: Byte = 0
         private set
@@ -140,36 +145,37 @@ class GameViewModel(
             selectedPlayerId = prefs.selectedPlayerId().toByte()
             if (selectedPlayerId.toInt() == 0) selectedPlayerId = prefs.playerId().toByte()
         }
-        g.mPlayerID = selectedPlayerId
+        playerRepo.playerID = selectedPlayerId
     }
 
     /** The rest of onCreate, once the views exist. */
     fun onViewsCreated() {
         showConnectLayout()
-        g.mPlayerName = prefs.playerName("Player")
-        if (g.mPlayerName.isEmpty() || g.mPlayerName.equals("Player", ignoreCase = true) ||
-            ProfanityFilter.containsProfanity(g.mPlayerName)) {
+        playerRepo.playerName = prefs.playerName("Player")
+        if (playerRepo.playerName.isEmpty() || playerRepo.playerName.equals("Player", ignoreCase = true) ||
+            ProfanityFilter.containsProfanity(playerRepo.playerName)) {
             val randomName = NameGenerator.getRandomName()
-            g.mPlayerName = randomName
+            playerRepo.playerName = randomName
             prefs.savePlayerName(randomName)
         }
-        g.mCurrentFiringMode = prefs.firingMode(Globals.FIRING_MODE_OUTDOOR_NO_CONE)
+        settingsRepo.currentFiringMode = prefs.firingMode(GameSettingsRepository.FIRING_MODE_OUTDOOR_NO_CONE)
         selectedPlayerId = prefs.selectedPlayerId().toByte()
-        g.mPlayerID = selectedPlayerId
-        screen?.showFiringMode(g.mCurrentFiringMode)
-        engine.restore(prefs.shotMode(Globals.SHOT_MODE_SINGLE), prefs.recoilEnabled())
-        g.mGameMode = prefs.gameMode(Globals.GAME_MODE_2TEAMS)
-        var gameLimit = Globals.GAME_LIMIT_NONE
-        g.mTimeLimit = prefs.timeLimit()
-        if (g.mTimeLimit != 0) gameLimit += Globals.GAME_LIMIT_TIME
-        g.mLivesLimit = prefs.livesLimit()
-        if (g.mLivesLimit != 0) gameLimit += Globals.GAME_LIMIT_LIVES
-        g.mScoreLimit = prefs.scoreLimit()
-        if (g.mScoreLimit != 0) gameLimit += Globals.GAME_LIMIT_SCORE
-        g.mGameLimit = gameLimit
+        playerRepo.playerID = selectedPlayerId
+        screen?.showFiringMode(settingsRepo.currentFiringMode)
+        engine.restore(prefs.shotMode(GameSettingsRepository.SHOT_MODE_SINGLE), prefs.recoilEnabled())
+        settingsRepo.setTeamMode(prefs.teamMode())
+        screen?.showTeamMode(settingsRepo.teamMode)
+        var gameLimit = GameSettingsRepository.GAME_LIMIT_NONE
+        settingsRepo.timeLimit = prefs.timeLimit()
+        if (settingsRepo.timeLimit != 0) gameLimit += GameSettingsRepository.GAME_LIMIT_TIME
+        settingsRepo.livesLimit = prefs.livesLimit()
+        if (settingsRepo.livesLimit != 0) gameLimit += GameSettingsRepository.GAME_LIMIT_LIVES
+        settingsRepo.scoreLimit = prefs.scoreLimit()
+        if (settingsRepo.scoreLimit != 0) gameLimit += GameSettingsRepository.GAME_LIMIT_SCORE
+        settingsRepo.gameLimit = gameLimit
         setDeviceAddress(prefs.deviceAddress())
         screen?.setReconnectVisible(deviceAddress.isNotEmpty())
-        screen?.showPlayerName(g.mPlayerName)
+        screen?.showPlayerName(playerRepo.playerName)
         screen?.showNetworkOptions(false, freeForAll())
         setGameLimit()
         updatePlayerSettings()
@@ -183,10 +189,10 @@ class GameViewModel(
             selectedPlayerId = prefs.selectedPlayerId().toByte()
             if (selectedPlayerId.toInt() == 0) selectedPlayerId = prefs.playerId().toByte()
         }
-        if (selectedPlayerId.toInt() != 0 && g.mPlayerID.toInt() == 0) g.mPlayerID = selectedPlayerId
+        if (selectedPlayerId.toInt() != 0 && playerRepo.playerID.toInt() == 0) playerRepo.playerID = selectedPlayerId
         val savedName = prefs.playerName("")
-        if (savedName.isNotEmpty()) g.mPlayerName = savedName
-        g.mPlayerName?.let { screen?.showPlayerName(it) }
+        if (savedName.isNotEmpty()) playerRepo.playerName = savedName
+        playerRepo.playerName?.let { screen?.showPlayerName(it) }
         displayCurrentTeam()
         updatePlayerSettings()
 
@@ -208,7 +214,7 @@ class GameViewModel(
 
     private fun setDeviceAddress(address: String?) {
         deviceAddress = address ?: ""
-        g.mDeviceAddress = deviceAddress
+        playerRepo.deviceAddress = deviceAddress
     }
 
     // ---------------------------------------------------------------------------------------
@@ -284,10 +290,10 @@ class GameViewModel(
     }
 
     private fun handleDisconnect() {
-        Log.d(TAG, "handleDisconnect called. hasConnectedToBlaster=" + engine.hasConnectedToBlaster + ", mGameState=" + g.mGameState)
+        Log.d(TAG, "handleDisconnect called. hasConnectedToBlaster=" + engine.hasConnectedToBlaster + ", mGameState=" + gameStateRepo.gameState)
         ble.cancelScanTimeout()
         ble.clearScanning()
-        if (engine.hasConnectedToBlaster || g.mGameState != Globals.GAME_STATE_NONE) {
+        if (engine.hasConnectedToBlaster || gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) {
             Log.e(TAG, "blaster disconnected, attempt to reconnect")
             screen?.requestConnect()
             showWeaponDisconnect()
@@ -324,7 +330,7 @@ class GameViewModel(
     fun onDisconnectQuit() {
         Log.d(TAG, "Disconnect & Quit clicked")
         engine.hasConnectedToBlaster = false
-        g.mGameState = Globals.GAME_STATE_NONE
+        gameStateRepo.gameState = GameStateRepository.GAME_STATE_NONE
         ble.cancelScanTimeout()
         ble.stopScan()
         stopServerSearch(true)
@@ -358,27 +364,27 @@ class GameViewModel(
     // ---------------------------------------------------------------------------------------
 
     fun onTeamMinusPressed() {
-        if (g.mGameState != Globals.GAME_STATE_NONE) return
-        var playerId = g.mPlayerID.toInt()
+        if (gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) return
+        var playerId = playerRepo.playerID.toInt()
         playerId = if (net.useNetwork) {
-            if (playerId > 0) playerId - 1 else Globals.MAX_PLAYER_ID.toInt()
+            if (playerId > 0) playerId - 1 else GameSettingsRepository.MAX_PLAYER_ID.toInt()
         } else {
-            if (playerId > 1) playerId - 1 else Globals.MAX_PLAYER_ID.toInt()
+            if (playerId > 1) playerId - 1 else GameSettingsRepository.MAX_PLAYER_ID.toInt()
         }
-        g.mPlayerID = playerId.toByte()
+        playerRepo.playerID = playerId.toByte()
         selectedPlayerId = playerId.toByte()
         setTeam()
     }
 
     fun onTeamPlusPressed() {
-        if (g.mGameState != Globals.GAME_STATE_NONE) return
-        var playerId = g.mPlayerID.toInt()
+        if (gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) return
+        var playerId = playerRepo.playerID.toInt()
         playerId = if (net.useNetwork) {
-            if (playerId < Globals.MAX_PLAYER_ID) playerId + 1 else 0x00
+            if (playerId < GameSettingsRepository.MAX_PLAYER_ID) playerId + 1 else 0x00
         } else {
-            if (playerId < Globals.MAX_PLAYER_ID) playerId + 1 else 0x01
+            if (playerId < GameSettingsRepository.MAX_PLAYER_ID) playerId + 1 else 0x01
         }
-        g.mPlayerID = playerId.toByte()
+        playerRepo.playerID = playerId.toByte()
         selectedPlayerId = playerId.toByte()
         setTeam()
     }
@@ -393,31 +399,32 @@ class GameViewModel(
         saveTeamAndDisplay()
     }
 
-    /** Persists the player id / game mode and redisplays the team (the rest of setTeam()). */
+    /** Persists the player id / team mode and redisplays the team (the rest of setTeam()). */
     private fun saveTeamAndDisplay() {
-        prefs.savePlayerIdAndGameMode(g.mPlayerID.toInt(), g.mGameMode)
+        prefs.savePlayerIdAndTeamMode(playerRepo.playerID.toInt(), settingsRepo.teamMode)
         displayCurrentTeam()
     }
 
     private fun displayCurrentTeam() {
-        if ((net.useNetwork || selectedPlayerId.toInt() == 0) && g.mPlayerID.toInt() == 0) {
+        if ((net.useNetwork || selectedPlayerId.toInt() == 0) && playerRepo.playerID.toInt() == 0) {
             screen?.showTeam(TeamDisplay.AutoSort)
             return
         }
-        if (!net.useNetwork && g.mPlayerID.toInt() == 0) {
-            g.mPlayerID = if (selectedPlayerId.toInt() != 0) selectedPlayerId else 1
+        if (!net.useNetwork && playerRepo.playerID.toInt() == 0) {
+            playerRepo.playerID = if (selectedPlayerId.toInt() != 0) selectedPlayerId else 1
         }
-        if (g.mGameMode != Globals.GAME_MODE_FFA) {
-            val networkTeam = g.calcNetworkTeam(g.mPlayerID)
+        val layout = settingsRepo.teamLayout
+        if (!layout.mode.isFreeForAll) {
+            val networkTeam = layout.teamOf(playerRepo.playerID)
             engine.networkTeam = networkTeam
-            val startID = g.getTeamStartID(networkTeam)
-            val player = g.mPlayerID - startID + 1
+            val startID = layout.teamStartId(networkTeam)
+            val player = playerRepo.playerID - startID + 1
             val dedicatedName = if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINED) {
-                g.mPlayerName?.takeIf { it.isNotEmpty() }?.let { "$it ($networkTeam-$player)" }
+                playerRepo.playerName?.takeIf { it.isNotEmpty() }?.let { "$it ($networkTeam-$player)" }
             } else null
-            screen?.showTeam(TeamDisplay.Team(networkTeam, player, Globals.getTeamColor(networkTeam), net.useNetwork, dedicatedName))
+            screen?.showTeam(TeamDisplay.Team(networkTeam, player, TeamColors.colorOf(networkTeam), net.useNetwork, dedicatedName))
         } else {
-            screen?.showTeam(TeamDisplay.FreeForAll(g.mPlayerID))
+            screen?.showTeam(TeamDisplay.FreeForAll(playerRepo.playerID))
         }
     }
 
@@ -430,7 +437,7 @@ class GameViewModel(
             if (ProfanityFilter.containsProfanity(trimmed)) screen?.showMessage(GameMessage.INAPPROPRIATE_NAME)
             trimmed = NameGenerator.getRandomName()
         }
-        g.mPlayerName = trimmed
+        playerRepo.playerName = trimmed
         prefs.savePlayerName(trimmed)
         screen?.showPlayerName(trimmed)
         displayCurrentTeam()
@@ -444,7 +451,7 @@ class GameViewModel(
     }
 
     fun onPlayerSettingsPressed() {
-        if (!g.mAllowPlayerSettings) {
+        if (!settingsRepo.isAllowPlayerSettings) {
             screen?.showMessage(GameMessage.PLAYER_SETTINGS_NOT_ALLOWED)
             return
         }
@@ -452,24 +459,31 @@ class GameViewModel(
     }
 
     fun onFiringModeSelected(firingMode: Int) {
-        g.mCurrentFiringMode = firingMode
+        settingsRepo.currentFiringMode = firingMode
         screen?.showFiringMode(firingMode)
         engine.setShotMode(engine.shotMode)
-        prefs.saveFiringMode(g.mCurrentFiringMode)
+        prefs.saveFiringMode(settingsRepo.currentFiringMode)
     }
 
-    fun onGameModeSelected(gameMode: Int) {
-        g.mGameMode = gameMode
-        screen?.showGameMode(gameMode)
+    /** The team mode button: a player not on a server picks 2 teams / 4 teams / FFA locally. */
+    fun onTeamModePressed() {
+        if (gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) return
+        if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINED) return
+        screen?.showTeamModeMenu()
+    }
+
+    fun onTeamModeSelected(mode: TeamMode) {
+        settingsRepo.setTeamMode(mode)
+        screen?.showTeamMode(mode)
         setTeam()
     }
 
     private fun updatePlayerSettings() {
-        screen?.showPlayerSettings(g.mFullHealth, g.mFullReload, g.mDamage * -1)
+        screen?.showPlayerSettings(settingsRepo.fullHealth, settingsRepo.fullReload, settingsRepo.damage * -1)
         setGameLimit()
         updateAdminButtonVisibility()
         engine.applyPlayerSettings()
-        screen?.showFiringMode(g.mCurrentFiringMode)
+        screen?.showFiringMode(settingsRepo.currentFiringMode)
     }
 
     // ---------------------------------------------------------------------------------------
@@ -493,36 +507,36 @@ class GameViewModel(
             screen?.showMessage(GameMessage.LIMIT_TOO_HIGH)
             return
         }
-        var gameLimit = g.mGameLimit
+        var gameLimit = settingsRepo.gameLimit
         when (kind) {
             LimitKind.TIME -> {
-                if ((gameLimit and Globals.GAME_LIMIT_TIME) == 0) gameLimit += Globals.GAME_LIMIT_TIME
-                else if (limit <= 0) gameLimit -= Globals.GAME_LIMIT_TIME
-                g.mTimeLimit = limit
+                if ((gameLimit and GameSettingsRepository.GAME_LIMIT_TIME) == 0) gameLimit += GameSettingsRepository.GAME_LIMIT_TIME
+                else if (limit <= 0) gameLimit -= GameSettingsRepository.GAME_LIMIT_TIME
+                settingsRepo.timeLimit = limit
             }
             LimitKind.LIVES -> {
-                if ((gameLimit and Globals.GAME_LIMIT_LIVES) == 0) gameLimit += Globals.GAME_LIMIT_LIVES
-                else if (limit <= 0) gameLimit -= Globals.GAME_LIMIT_LIVES
-                g.mLivesLimit = limit
+                if ((gameLimit and GameSettingsRepository.GAME_LIMIT_LIVES) == 0) gameLimit += GameSettingsRepository.GAME_LIMIT_LIVES
+                else if (limit <= 0) gameLimit -= GameSettingsRepository.GAME_LIMIT_LIVES
+                settingsRepo.livesLimit = limit
             }
             LimitKind.SCORE -> {
-                if ((gameLimit and Globals.GAME_LIMIT_SCORE) == 0) gameLimit += Globals.GAME_LIMIT_SCORE
-                else if (limit <= 0) gameLimit -= Globals.GAME_LIMIT_SCORE
-                g.mScoreLimit = limit
+                if ((gameLimit and GameSettingsRepository.GAME_LIMIT_SCORE) == 0) gameLimit += GameSettingsRepository.GAME_LIMIT_SCORE
+                else if (limit <= 0) gameLimit -= GameSettingsRepository.GAME_LIMIT_SCORE
+                settingsRepo.scoreLimit = limit
             }
         }
-        g.mGameLimit = gameLimit
+        settingsRepo.gameLimit = gameLimit
         setGameLimit()
     }
 
     private fun setGameLimit() {
-        val timeLimit = if ((g.mGameLimit and Globals.GAME_LIMIT_TIME) != 0) g.mTimeLimit else null
+        val timeLimit = if ((settingsRepo.gameLimit and GameSettingsRepository.GAME_LIMIT_TIME) != 0) settingsRepo.timeLimit else null
         // Lives or eliminations, including a server override of the lives (the count itself is
         // part of the session state).
         engine.applyGameLimit()
-        val scoreLimit = if ((g.mGameLimit and Globals.GAME_LIMIT_SCORE) != 0) g.mScoreLimit else null
+        val scoreLimit = if ((settingsRepo.gameLimit and GameSettingsRepository.GAME_LIMIT_SCORE) != 0) settingsRepo.scoreLimit else null
         screen?.showGameLimit(timeLimit, engine.hasLivesLimitSet, scoreLimit)
-        prefs.saveLimits(g.mTimeLimit, g.mScoreLimit, g.mLivesLimit)
+        prefs.saveLimits(settingsRepo.timeLimit, settingsRepo.scoreLimit, settingsRepo.livesLimit)
     }
 
     // ---------------------------------------------------------------------------------------
@@ -530,12 +544,12 @@ class GameViewModel(
     // ---------------------------------------------------------------------------------------
 
     fun onStartGamePressed() {
-        if (g.mPlayerID.toInt() == 0) {
-            g.mPlayerID = 1
+        if (playerRepo.playerID.toInt() == 0) {
+            playerRepo.playerID = 1
             setTeam()
         }
         if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINED) {
-            if (Globals.getPlayerCount() <= 1) {
+            if (playerRepo.getPlayerCount(false) <= 1) {
                 screen?.showMessage(GameMessage.NOT_ENOUGH_PLAYERS)
                 screen?.showOnlyOnePlayer()
                 return
@@ -551,7 +565,7 @@ class GameViewModel(
         closeScoreboard()
         net.score = 0
         net.teamScore = 0
-        screen?.showGameStarted(net.useNetwork, g.mIsAdmin, freeForAll())
+        screen?.showGameStarted(net.useNetwork, playerRepo.isAdmin, freeForAll())
         if (net.useNetwork) net.udp?.startGame()
         // Lives/eliminations, health, shot mode, first spawn
         engine.startGame()
@@ -563,7 +577,7 @@ class GameViewModel(
 
     fun onEndGameConfirmed() {
         if (net.useNetwork) {
-            if (g.mIsAdmin) {
+            if (playerRepo.isAdmin) {
                 net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_ENDGAME))
             } else {
                 net.tcpClient!!.leaveServer()
@@ -575,7 +589,7 @@ class GameViewModel(
     }
 
     private fun endGame() {
-        val wasInNetworkGame = net.useNetwork && g.mGameState != Globals.GAME_STATE_NONE
+        val wasInNetworkGame = net.useNetwork && gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE
         // Game state NONE, timers, spawn/shield/clock display, reload lock
         engine.endGame()
         hideWeaponDisconnect()
@@ -591,22 +605,23 @@ class GameViewModel(
     }
 
     private fun updatePreGameButtonVisibilities() {
-        if (g.mGameState != Globals.GAME_STATE_NONE) return
+        if (gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) return
         val connectedClient = net.useNetwork && networkMenuType == NETWORK_TYPE_JOINED
         val searching = net.useNetwork && networkMenuType == NETWORK_TYPE_JOINING
         screen?.showPreGameButtons(PreGameButtons(
             ready = ready,
-            startVisible = !(g.mOnlyServerSettings || connectedClient || serverPhase == SessionPhase.POST_GAME),
+            startVisible = !(settingsRepo.isOnlyServerSettings || connectedClient || serverPhase == SessionPhase.POST_GAME),
             startEnabled = !searching,
-            serverSettingsOnly = g.mOnlyServerSettings,
+            serverSettingsOnly = settingsRepo.isOnlyServerSettings,
+            teamModeSelectable = !connectedClient,
         ))
         updateAdminButtonVisibility()
     }
 
     private fun updateAdminButtonVisibility() {
-        val showAdmin = g.mIsAdmin && net.useNetwork && ready
+        val showAdmin = playerRepo.isAdmin && net.useNetwork && ready
         screen?.showAdminButton(showAdmin)
-        Log.d(TAG, "updateAdminButtonVisibility: mIsAdmin=" + g.mIsAdmin + ", mUseNetwork=" + net.useNetwork + ", mReady=" + ready + " -> show=" + showAdmin)
+        Log.d(TAG, "updateAdminButtonVisibility: mIsAdmin=" + playerRepo.isAdmin + ", mUseNetwork=" + net.useNetwork + ", mReady=" + ready + " -> show=" + showAdmin)
     }
 
     // ---------------------------------------------------------------------------------------
@@ -623,7 +638,7 @@ class GameViewModel(
         if (!net.useNetwork) {
             net.useNetwork = true
             screen?.showNetworkOptions(true, freeForAll())
-            g.mPlayerID = selectedPlayerId
+            playerRepo.playerID = selectedPlayerId
             setNetworkMenu(NETWORK_TYPE_JOINING)
             net.udp?.joinServer()
         } else {
@@ -638,20 +653,19 @@ class GameViewModel(
         NETWORK_TYPE_ENABLED -> buildList {
             add(NetworkMenuEntry.Join)
             add(NetworkMenuEntry.JoinIp)
-            add(NetworkMenuEntry.PlayerName(g.mPlayerName))
-            if (g.mGameState == Globals.GAME_STATE_NONE) add(NetworkMenuEntry.GameMode)
+            add(NetworkMenuEntry.PlayerName(playerRepo.playerName))
+            if (gameStateRepo.gameState == GameStateRepository.GAME_STATE_NONE) add(NetworkMenuEntry.ChooseTeamMode)
             add(NetworkMenuEntry.DisableNetwork)
         }
         NETWORK_TYPE_JOINING -> listOf(NetworkMenuEntry.JoinIp, NetworkMenuEntry.DisableNetwork)
         NETWORK_TYPE_JOINED -> buildList {
-            add(NetworkMenuEntry.PlayerName(g.mPlayerName))
-            if (GameSettingsRepository.getInstance().isAllowChooseTeams && g.mGameState == Globals.GAME_STATE_NONE) {
-                val gameMode = g.mGameMode
-                if (gameMode == Globals.GAME_MODE_2TEAMS || gameMode == Globals.GAME_MODE_4TEAMS) {
-                    val currentTeam = g.calcNetworkTeam(g.mPlayerID)
-                    val numTeams = if (gameMode == Globals.GAME_MODE_4TEAMS) 4 else 2
-                    for (t in 1..numTeams) {
-                        if (t != currentTeam) add(NetworkMenuEntry.SwitchTeam(t, Globals.getTeamColor(t)))
+            add(NetworkMenuEntry.PlayerName(playerRepo.playerName))
+            if (settingsRepo.isAllowChooseTeams && gameStateRepo.gameState == GameStateRepository.GAME_STATE_NONE) {
+                val layout = settingsRepo.teamLayout
+                if (!layout.mode.isFreeForAll) {
+                    val currentTeam = layout.teamOf(playerRepo.playerID)
+                    for (t in 1..layout.mode.teamCount) {
+                        if (t != currentTeam) add(NetworkMenuEntry.SwitchTeam(t, TeamColors.colorOf(t)))
                     }
                 }
             }
@@ -675,14 +689,14 @@ class GameViewModel(
                 if (networkMenuType == NETWORK_TYPE_JOINED) return
                 screen?.showServerIpDialog(serverIpSuggestion())
             }
-            is NetworkMenuEntry.PlayerName -> screen?.showPlayerNameDialog(g.mPlayerName)
+            is NetworkMenuEntry.PlayerName -> screen?.showPlayerNameDialog(playerRepo.playerName)
             is NetworkMenuEntry.SwitchTeam -> requestSwitchTeam(entry.team)
-            NetworkMenuEntry.GameMode -> screen?.showGameModeMenu()
+            NetworkMenuEntry.ChooseTeamMode -> screen?.showTeamModeMenu()
         }
     }
 
     private fun serverIpSuggestion(): String {
-        val ip = g.mServerIP?.toString() ?: Globals.getIPAddressStr()
+        val ip = gameStateRepo.serverIP?.toString() ?: PlayerRepository.getIPAddressStr()
         return if (ip.startsWith("/")) ip.substring(1) else ip
     }
 
@@ -695,12 +709,12 @@ class GameViewModel(
 
     private fun requestSwitchTeam(targetTeam: Int) {
         val client = net.tcpClient ?: return
-        if (g.mGameState != Globals.GAME_STATE_NONE) {
+        if (gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) {
             Log.w(TAG, "Cannot request team change while game is running")
             return
         }
         try {
-            client.sendTCPMessage(NetworkSessionGateway.teamChangeRequest(g.mPlayerID, targetTeam))
+            client.sendTCPMessage(NetworkSessionGateway.teamChangeRequest(playerRepo.playerID, targetTeam))
         } catch (e: JSONException) {
             Log.e(TAG, "JSON Exception: " + e.message)
         }
@@ -722,8 +736,8 @@ class GameViewModel(
             if (net.useNetwork) screen?.showServerSearching()
             screen?.setKeepScreenOn(true)
         } else {
-            g.mOnlyServerSettings = false
-            g.mUseGPS = false
+            settingsRepo.isOnlyServerSettings = false
+            settingsRepo.isUseGPS = false
             if (sendPlayerLeft) net.tcpClient?.leaveServer()
             net.udp?.stopListen()
             net.tcpClient?.stopTcpClient()
@@ -763,8 +777,8 @@ class GameViewModel(
             screen?.showNetworkOptions(false, freeForAll())
             net.useNetwork = false
             screen?.showNetworkButton(NetworkButton.USE_NETWORK)
-            if (g.mPlayerID.toInt() == 0) {
-                g.mPlayerID = if (selectedPlayerId.toInt() != 0) selectedPlayerId else 1
+            if (playerRepo.playerID.toInt() == 0) {
+                playerRepo.playerID = if (selectedPlayerId.toInt() != 0) selectedPlayerId else 1
             }
             setTeam()
         } else {
@@ -783,7 +797,7 @@ class GameViewModel(
             autoScanStarted = true
             Log.d(TAG, "autoStartServerScan: starting automatic server discovery on launch")
             net.useNetwork = true
-            g.mPlayerID = selectedPlayerId
+            playerRepo.playerID = selectedPlayerId
             screen?.showNetworkOptions(true, freeForAll())
             setNetworkMenu(NETWORK_TYPE_JOINING)
             setTeam()
@@ -818,22 +832,22 @@ class GameViewModel(
                 Log.d(TAG, "Server Controls: End Game clicked. mTcpClient=" + (client != null))
                 client?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_ENDGAME))
             }
-            AdminAction.TWO_TEAMS -> changeAdminGameMode(Globals.GAME_MODE_2TEAMS)
-            AdminAction.FOUR_TEAMS -> changeAdminGameMode(Globals.GAME_MODE_4TEAMS)
-            AdminAction.FREE_FOR_ALL -> changeAdminGameMode(Globals.GAME_MODE_FFA)
+            AdminAction.TWO_TEAMS -> changeAdminTeamMode(TeamMode.TWO_TEAMS)
+            AdminAction.FOUR_TEAMS -> changeAdminTeamMode(TeamMode.FOUR_TEAMS)
+            AdminAction.FREE_FOR_ALL -> changeAdminTeamMode(TeamMode.FREE_FOR_ALL)
             AdminAction.SHUFFLE_TEAMS -> client?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_SORTTEAMS))
             AdminAction.RESET_GAME -> screen?.confirmReset(latestPlayerData?.count { it != null && !it.isConnected } ?: 0)
         }
     }
 
-    /** The admin confirmed the reset. Game mode and sort after a game need no confirmation: the server resets first. */
+    /** The admin confirmed the reset. Team mode and sort after a game need no confirmation: the server resets first. */
     fun onResetConfirmed() {
         net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_RESET))
     }
 
-    private fun changeAdminGameMode(mode: Int) {
-        Log.d(TAG, "changeAdminGameMode: mode=" + mode + ", mTcpClient=" + (net.tcpClient != null))
-        net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_GAMEMODE + mode))
+    private fun changeAdminTeamMode(mode: TeamMode) {
+        Log.d(TAG, "changeAdminTeamMode: mode=" + mode + ", mTcpClient=" + (net.tcpClient != null))
+        net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_GAMEMODE + mode.wireValue))
     }
 
     fun onKickPlayer(playerId: Byte) {
@@ -843,20 +857,20 @@ class GameViewModel(
     }
 
     fun onTeamRatiosRequested() {
-        if (g.mGameState != Globals.GAME_STATE_NONE) {
+        if (gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) {
             screen?.showMessage(GameMessage.RATIOS_DURING_GAME)
             return
         }
-        if (!g.mIsAdmin) {
+        if (!playerRepo.isAdmin) {
             screen?.showMessage(GameMessage.RATIOS_ADMIN_ONLY)
             return
         }
-        val gameMode = g.mGameMode
-        if (gameMode == Globals.GAME_MODE_FFA) {
+        val layout = settingsRepo.teamLayout
+        if (layout.mode.isFreeForAll) {
             screen?.showMessage(GameMessage.RATIOS_NOT_IN_FFA)
             return
         }
-        screen?.showTeamRatioDialog(if (gameMode == Globals.GAME_MODE_4TEAMS) 4 else 2, g.teamSizes)
+        screen?.showTeamRatioDialog(layout.mode.teamCount, layout.teamSizes())
     }
 
     /** Team sizes entered in the ratio dialog. Returns true when accepted (close the dialog). */
@@ -873,11 +887,11 @@ class GameViewModel(
             newSizes[i] = value
             total += value
         }
-        if (total != Globals.MAX_PLAYER_ID.toInt()) {
+        if (total != GameSettingsRepository.MAX_PLAYER_ID.toInt()) {
             screen?.showMessage(GameMessage.RATIOS_TOTAL, total)
             return false
         }
-        g.setTeamSizes(newSizes)
+        settingsRepo.setTeamSizes(newSizes)
         net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_TEAMSIZES + newSizes.joinToString(",")))
         return true
     }
@@ -927,7 +941,7 @@ class GameViewModel(
             NetworkEvent.UdpServiceDisconnected -> {
                 ready = false
                 setReady(false)
-                if (g.mGameState != Globals.GAME_STATE_NONE) endGame()
+                if (gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) endGame()
             }
             is NetworkEvent.PlayerData -> {
                 // Scoreboard parsed off the main thread (scores already updated)
@@ -946,22 +960,22 @@ class GameViewModel(
                 // Increase team score in team games
                 net.teamScore = net.teamScore + 1
                 screen?.showTeamScore(net.teamScore)
-                if (!net.useNetwork && (g.mGameLimit and Globals.GAME_LIMIT_SCORE) != 0 && net.teamScore >= g.mScoreLimit) endGame()
+                if (!net.useNetwork && (settingsRepo.gameLimit and GameSettingsRepository.GAME_LIMIT_SCORE) != 0 && net.teamScore >= settingsRepo.scoreLimit) endGame()
             }
             NetworkEvent.Join, NetworkEvent.Leave -> {
-                screen?.showPlayerCount(Globals.getPlayerCount())
+                screen?.showPlayerCount(playerRepo.getPlayerCount(false))
                 // Everyone else is out so game is over - this only works in FFA because we don't
                 // keep track of who and how many people are on each team
-                if (g.mGameMode == Globals.GAME_MODE_FFA && g.mGameState != Globals.GAME_STATE_NONE &&
-                    event == NetworkEvent.Leave && Globals.getPlayerCount() <= 1) endGame()
+                if (settingsRepo.teamMode.isFreeForAll && gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE &&
+                    event == NetworkEvent.Leave && playerRepo.getPlayerCount(false) <= 1) endGame()
             }
             is NetworkEvent.ListPlayers -> onListPlayers(event)
             is NetworkEvent.PlayerDataUpdate -> displayPlayerData(event.json)
             NetworkEvent.StartGame -> {
                 closeScoreboard()
-                if (g.mGameState == Globals.GAME_STATE_NONE) startGame()
+                if (gameStateRepo.gameState == GameStateRepository.GAME_STATE_NONE) startGame()
             }
-            NetworkEvent.EndGame -> if (g.mGameState != Globals.GAME_STATE_NONE) endGame()
+            NetworkEvent.EndGame -> if (gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) endGame()
             is NetworkEvent.Error -> {
                 val message = event.message
                 if (!message.isNullOrEmpty()) screen?.showText(message) else Log.d(TAG, "No error message given")
@@ -991,7 +1005,7 @@ class GameViewModel(
             }
             NetworkEvent.ServerCancel -> {
                 cancelServerSearchTimeout()
-                if (g.mGameState != Globals.GAME_STATE_NONE) {
+                if (gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) {
                     endGame()
                 } else {
                     ready = false
@@ -1000,7 +1014,7 @@ class GameViewModel(
                 net.useNetwork = true
                 setNetworkMenu(NETWORK_TYPE_ENABLED)
                 screen?.showNetworkOptions(true, freeForAll())
-                g.mPlayerID = selectedPlayerId
+                playerRepo.playerID = selectedPlayerId
                 setTeam()
                 screen?.showMessage(GameMessage.KICKED_BY_SERVER)
             }
@@ -1008,7 +1022,7 @@ class GameViewModel(
                 cancelServerSearchTimeout()
                 val assigned = event.assignedPlayerId
                 if (assigned != null && assigned.toInt() != 0) {
-                    g.mPlayerID = assigned
+                    playerRepo.playerID = assigned
                     setTeam()
                 }
                 ready = true
@@ -1032,42 +1046,42 @@ class GameViewModel(
         screen?.showScore(net.score)
         screen?.showScoreIncrease(playerName(playerId))
         sounds.play(SessionSound.SCORE)
-        if (g.mGameMode != Globals.GAME_MODE_FFA) {
+        if (!settingsRepo.teamMode.isFreeForAll) {
             net.teamScore = net.teamScore + 1
             screen?.showTeamScore(net.teamScore)
             net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_TEAMELIMINATED))
         }
-        if (!net.useNetwork && (g.mGameLimit and Globals.GAME_LIMIT_SCORE) != 0) {
-            val currentScore = if (g.mGameMode != Globals.GAME_MODE_FFA) net.teamScore else net.score
-            if (currentScore >= g.mScoreLimit) endGame()
+        if (!net.useNetwork && (settingsRepo.gameLimit and GameSettingsRepository.GAME_LIMIT_SCORE) != 0) {
+            val currentScore = if (!settingsRepo.teamMode.isFreeForAll) net.teamScore else net.score
+            if (currentScore >= settingsRepo.scoreLimit) endGame()
         }
     }
 
     private fun onListPlayers(event: NetworkEvent.ListPlayers) {
         if (!ready) return
         net.udp!!.endScanning()
-        screen?.showPlayerCount(Globals.getPlayerCount())
-        screen?.showGameMode(g.mGameMode)
+        screen?.showPlayerCount(playerRepo.getPlayerCount(false))
+        screen?.showTeamMode(settingsRepo.teamMode)
         setTeam()
-        if (ready && net.useNetwork && g.mGameState == Globals.GAME_STATE_NONE) {
+        if (ready && net.useNetwork && gameStateRepo.gameState == GameStateRepository.GAME_STATE_NONE) {
             ready = true
             setReady()
             setGameLimit()
             setNetworkMenu(NETWORK_TYPE_JOINED)
             screen?.hideStartButton()
-            var ip = g.mServerIP?.toString() ?: ""
+            var ip = gameStateRepo.serverIP?.toString() ?: ""
             if (ip.startsWith("/")) ip = ip.substring(1)
             screen?.showConnectedToServer(ip)
         }
         event.sessionPhase?.let { onServerPhase(SessionPhase.fromWire(it)) }
         event.gameUpdate?.let { applyGameUpdate(it) }
         event.gameState?.let { serverGameState ->
-            if (serverGameState != Globals.GAME_STATE_ELIMINATED) {
-                if (serverGameState == Globals.GAME_STATE_NONE && g.mGameState != serverGameState) {
+            if (serverGameState != GameStateRepository.GAME_STATE_ELIMINATED) {
+                if (serverGameState == GameStateRepository.GAME_STATE_NONE && gameStateRepo.gameState != serverGameState) {
                     endGame()
-                } else if (serverGameState == Globals.GAME_STATE_RUNNING) {
+                } else if (serverGameState == GameStateRepository.GAME_STATE_RUNNING) {
                     closeScoreboard()
-                    if (g.mGameState == Globals.GAME_STATE_NONE) startGame()
+                    if (gameStateRepo.gameState == GameStateRepository.GAME_STATE_NONE) startGame()
                 }
             }
         }
@@ -1090,7 +1104,7 @@ class GameViewModel(
     private fun applyGameUpdate(update: GameUpdate) {
         net.score = update.score
         screen?.showScore(net.score)
-        if (g.mGameMode != Globals.GAME_MODE_FFA) {
+        if (!settingsRepo.teamMode.isFreeForAll) {
             net.teamScore = update.teamScore
             screen?.showTeamScore(net.teamScore)
         }
@@ -1098,9 +1112,9 @@ class GameViewModel(
         engine.syncFromServer(update.eliminations, update.timeRemaining)
     }
 
-    private fun playerName(playerId: Byte): String = if (playerId.toInt() == 0) "" else g.getPlayerName(playerId) ?: ""
+    private fun playerName(playerId: Byte): String = if (playerId.toInt() == 0) "" else playerRepo.getPlayerName(playerId) ?: ""
 
-    private fun freeForAll() = g.mGameMode == Globals.GAME_MODE_FFA
+    private fun freeForAll() = settingsRepo.teamMode.isFreeForAll
 
     companion object {
         private const val TAG = "scmain"

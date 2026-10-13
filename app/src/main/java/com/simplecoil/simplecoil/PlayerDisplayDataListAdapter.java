@@ -26,6 +26,12 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
+import com.simplecoil.simplecoil.data.repository.GameStateRepository;
+import com.simplecoil.simplecoil.data.repository.PlayerRepository;
+import com.simplecoil.simplecoil.domain.team.TeamColors;
+import com.simplecoil.simplecoil.domain.team.TeamLayout;
+
 import java.util.ArrayList;
 import java.util.Collections;
 
@@ -44,7 +50,7 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
     }
 
     private final Activity context;
-    private PlayerDisplayData[] data = new PlayerDisplayData[Globals.MAX_PLAYER_ID];
+    private PlayerDisplayData[] data = new PlayerDisplayData[GameSettingsRepository.MAX_PLAYER_ID];
     private boolean isClient;
     private ArrayList<DisplayRow> displayRows = new ArrayList<>();
 
@@ -77,7 +83,7 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
         if (p.overrideLives) {
             return p.lives != 0;
         }
-        return (Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_LIVES) != 0;
+        return (GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_LIVES) != 0;
     }
 
     private int getLivesRemaining(PlayerDisplayData p) {
@@ -86,8 +92,8 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
             if (p.lives != 0) {
                 return p.lives - p.eliminated;
             }
-        } else if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_LIVES) != 0) {
-            return Globals.getInstance().mLivesLimit - p.eliminated;
+        } else if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_LIVES) != 0) {
+            return GameSettingsRepository.getInstance().getLivesLimit() - p.eliminated;
         }
         return 0;
     }
@@ -137,16 +143,16 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
         colHeader.type = DisplayRow.TYPE_COLUMN_HEADER;
         displayRows.add(colHeader);
 
-        int gameMode = Globals.getInstance().mGameMode;
+        TeamLayout layout = GameSettingsRepository.getInstance().getTeamLayout();
 
-        if (gameMode == Globals.GAME_MODE_FFA) {
+        if (layout.getMode().isFreeForAll()) {
             DisplayRow teamHeader = new DisplayRow();
             teamHeader.type = DisplayRow.TYPE_TEAM_HEADER;
             teamHeader.teamNumber = 0;
             displayRows.add(teamHeader);
 
             ArrayList<PlayerDisplayData> playerList = new ArrayList<>();
-            for (int pId = 1; pId <= Globals.MAX_PLAYER_ID; pId++) {
+            for (int pId = 1; pId <= GameSettingsRepository.MAX_PLAYER_ID; pId++) {
                 if (data != null && pId < data.length && data[pId] != null) {
                     playerList.add(data[pId]);
                 }
@@ -163,15 +169,15 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
                 displayRows.add(pRow);
             }
         } else {
-            int numTeams = (gameMode == Globals.GAME_MODE_4TEAMS) ? 4 : 2;
+            int numTeams = layout.getMode().teamCount;
             ArrayList<TeamInfo> teams = new ArrayList<>();
 
             for (int t = 1; t <= numTeams; t++) {
                 TeamInfo teamInfo = new TeamInfo();
                 teamInfo.teamNumber = t;
 
-                int startID = Globals.getInstance().getTeamStartID(t);
-                int endID = Globals.getInstance().getTeamEndID(t);
+                int startID = layout.teamStartId(t);
+                int endID = layout.teamEndId(t);
                 if (data != null) {
                     for (int pId = startID; pId <= endID; pId++) {
                         if (pId < data.length && data[pId] != null) {
@@ -197,7 +203,7 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
 
                 // 2. Team lives remaining / eliminations
                 boolean livesLimit = t1.livesLimitSet || t2.livesLimitSet ||
-                        ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_LIVES) != 0);
+                        ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_LIVES) != 0);
                 if (livesLimit) {
                     if (t1.totalLivesRemaining != t2.totalLivesRemaining) {
                         return Integer.compare(t2.totalLivesRemaining, t1.totalLivesRemaining);
@@ -220,7 +226,7 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
 
                 Collections.sort(teamInfo.players, this::comparePlayers);
 
-                int startID = Globals.getInstance().getTeamStartID(teamInfo.teamNumber);
+                int startID = GameSettingsRepository.getInstance().getTeamLayout().teamStartId(teamInfo.teamNumber);
                 for (PlayerDisplayData p : teamInfo.players) {
                     DisplayRow pRow = new DisplayRow();
                     pRow.type = DisplayRow.TYPE_PLAYER;
@@ -245,7 +251,7 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
             if (row.type == DisplayRow.TYPE_PLAYER && data != null && row.playerID < data.length) {
                 return data[row.playerID];
             } else if (row.type == DisplayRow.TYPE_TEAM_TOTALS) {
-                int teamTotalsIndex = Globals.MAX_PLAYER_ID + 1;
+                int teamTotalsIndex = GameSettingsRepository.MAX_PLAYER_ID + 1;
                 if (data != null && data.length > teamTotalsIndex) {
                     return data[teamTotalsIndex];
                 }
@@ -284,26 +290,26 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
             TextView actionTV = headerView.findViewById(R.id.team_header_action_tv);
             View colorSq = headerView.findViewById(R.id.team_header_color_sq);
 
-            boolean isAdmin = Globals.getInstance().mIsAdmin;
+            boolean isAdmin = PlayerRepository.getInstance().isAdmin();
             boolean canEdit = (!isClient || isAdmin);
 
-            int gameMode = Globals.getInstance().mGameMode;
-            if (gameMode == Globals.GAME_MODE_FFA) {
+            TeamLayout layout = GameSettingsRepository.getInstance().getTeamLayout();
+            if (layout.getMode().isFreeForAll()) {
                 titleTV.setText("PLAYERS");
                 actionTV.setVisibility(View.GONE);
                 if (colorSq != null) {
                     colorSq.setVisibility(View.GONE);
                 }
             } else {
-                int[] sizes = Globals.getInstance().getTeamSizes();
+                int[] sizes = layout.teamSizes();
                 int capacity = 16;
                 if (sizes != null && (row.teamNumber - 1) < sizes.length) {
                     capacity = sizes[row.teamNumber - 1];
                 }
                 int teamScore = 0;
                 int playerCount = 0;
-                int startID = Globals.getInstance().getTeamStartID(row.teamNumber);
-                int endID = Globals.getInstance().getTeamEndID(row.teamNumber);
+                int startID = GameSettingsRepository.getInstance().getTeamLayout().teamStartId(row.teamNumber);
+                int endID = GameSettingsRepository.getInstance().getTeamLayout().teamEndId(row.teamNumber);
                 if (data != null) {
                     for (int pId = startID; pId <= endID; pId++) {
                         if (pId < data.length && data[pId] != null) {
@@ -314,7 +320,7 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
                 }
                 titleTV.setText(context.getString(R.string.player_list_team_header, row.teamNumber, playerCount, capacity, teamScore));
                 if (colorSq != null) {
-                    int teamColor = Globals.getTeamColor(row.teamNumber);
+                    int teamColor = TeamColors.colorOf(row.teamNumber);
                     if (teamColor != Color.TRANSPARENT) {
                         colorSq.setBackgroundColor(teamColor);
                         colorSq.setVisibility(View.VISIBLE);
@@ -334,7 +340,7 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
                 headerView.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
-                        if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
+                        if (GameStateRepository.getInstance().getGameState() != GameStateRepository.GAME_STATE_NONE) {
                             Toast.makeText(context, "Cannot edit team ratios while a game is in progress", Toast.LENGTH_SHORT).show();
                             return;
                         }
@@ -367,13 +373,13 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
             playerIDTV.setText(R.string.player_list_id_label);
             playerNameTV.setText(R.string.player_list_name_label);
             playerPointsTV.setText(R.string.player_list_points_label);
-            if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_LIVES) != 0)
+            if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_LIVES) != 0)
                 playerEliminatedTV.setText(R.string.game_limit_lives);
             else
                 playerEliminatedTV.setText(R.string.player_list_eliminated_label);
             return rowView;
         } else if (row.type == DisplayRow.TYPE_TEAM_TOTALS) {
-            int teamTotalsIndex = Globals.MAX_PLAYER_ID + 1;
+            int teamTotalsIndex = GameSettingsRepository.MAX_PLAYER_ID + 1;
             if (data != null && data.length > teamTotalsIndex && data[teamTotalsIndex] != null && data[teamTotalsIndex].playerName != null) {
                 playerIDTV.setText(data[teamTotalsIndex].playerName);
             } else {
@@ -400,18 +406,18 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
             return rowView;
         }
 
-        if (playerID == Globals.getInstance().mPlayerID) {
+        if (playerID == PlayerRepository.getInstance().getPlayerID()) {
             playerNameTV.setTextColor(Color.parseColor("#FF8C00"));
         } else {
             playerNameTV.setTextColor(Color.WHITE);
         }
 
-        switch (Globals.getInstance().mGameMode) {
-            case Globals.GAME_MODE_FFA:
+        switch (GameSettingsRepository.getInstance().getTeamMode()) {
+            case FREE_FOR_ALL:
                 playerIDTV.setText("" + playerID);
                 break;
-            case Globals.GAME_MODE_2TEAMS:
-            case Globals.GAME_MODE_4TEAMS:
+            case TWO_TEAMS:
+            case FOUR_TEAMS:
                 playerIDTV.setText(row.teamNumber + "-" + row.indexInTeam);
                 break;
         }
@@ -424,8 +430,8 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
             else
                 playerEliminatedTV.setText("" + data[playerID].eliminated);
         } else {
-            if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_LIVES) != 0)
-                playerEliminatedTV.setText("" + (Globals.getInstance().mLivesLimit - data[playerID].eliminated));
+            if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_LIVES) != 0)
+                playerEliminatedTV.setText("" + (GameSettingsRepository.getInstance().getLivesLimit() - data[playerID].eliminated));
             else
                 playerEliminatedTV.setText("" + data[playerID].eliminated);
         }
@@ -440,11 +446,11 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
         }
 
         ImageView kickPlayerIV = rowView.findViewById(R.id.kick_player_iv);
-        boolean isAdmin = Globals.getInstance().mIsAdmin;
+        boolean isAdmin = PlayerRepository.getInstance().isAdmin();
         boolean isServerAdmin = (!isClient || isAdmin);
 
         if (kickPlayerIV != null) {
-            if (isServerAdmin && playerID >= 1 && playerID <= Globals.MAX_PLAYER_ID && data[playerID] != null && playerID != Globals.getInstance().mPlayerID) {
+            if (isServerAdmin && playerID >= 1 && playerID <= GameSettingsRepository.MAX_PLAYER_ID && data[playerID] != null && playerID != PlayerRepository.getInstance().getPlayerID()) {
                 kickPlayerIV.setVisibility(View.VISIBLE);
                 final byte targetID = (byte) playerID;
                 kickPlayerIV.setOnClickListener(new View.OnClickListener() {

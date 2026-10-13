@@ -15,7 +15,7 @@
  */
 package com.simplecoil.simplecoil.domain.session
 
-import com.simplecoil.simplecoil.Globals
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -24,9 +24,9 @@ class RecoilPolicyTest {
     @Test
     fun effective_serverSettingOverridesLocal() {
         for (local in listOf(true, false)) {
-            assertEquals(true, RecoilPolicy.effective(Globals.RECOIL_SETTING_ENABLED, local))
-            assertEquals(false, RecoilPolicy.effective(Globals.RECOIL_SETTING_DISABLED, local))
-            assertEquals(local, RecoilPolicy.effective(Globals.RECOIL_SETTING_DEFAULT, local))
+            assertEquals(true, RecoilPolicy.effective(GameSettingsRepository.RECOIL_SETTING_ENABLED, local))
+            assertEquals(false, RecoilPolicy.effective(GameSettingsRepository.RECOIL_SETTING_DISABLED, local))
+            assertEquals(local, RecoilPolicy.effective(GameSettingsRepository.RECOIL_SETTING_DEFAULT, local))
             // Unknown server values behave like the default.
             assertEquals(local, RecoilPolicy.effective(99, local))
         }
@@ -36,11 +36,11 @@ class RecoilPolicyTest {
     fun powerButton_togglesUnlessForced() {
         for (local in listOf(true, false)) {
             assertEquals(RecoilPolicy.PowerButton(enabled = true, forced = true),
-                RecoilPolicy.onPowerButton(Globals.RECOIL_SETTING_ENABLED, local))
+                RecoilPolicy.onPowerButton(GameSettingsRepository.RECOIL_SETTING_ENABLED, local))
             assertEquals(RecoilPolicy.PowerButton(enabled = false, forced = true),
-                RecoilPolicy.onPowerButton(Globals.RECOIL_SETTING_DISABLED, local))
+                RecoilPolicy.onPowerButton(GameSettingsRepository.RECOIL_SETTING_DISABLED, local))
             assertEquals(RecoilPolicy.PowerButton(enabled = !local, forced = false),
-                RecoilPolicy.onPowerButton(Globals.RECOIL_SETTING_DEFAULT, local))
+                RecoilPolicy.onPowerButton(GameSettingsRepository.RECOIL_SETTING_DEFAULT, local))
         }
     }
 }

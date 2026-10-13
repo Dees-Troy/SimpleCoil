@@ -19,11 +19,12 @@ package com.simplecoil.simplecoil.data.repository;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
+import com.simplecoil.simplecoil.data.model.PlayerSettings;
+import com.simplecoil.simplecoil.domain.team.TeamMode;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
-import com.simplecoil.simplecoil.Globals;
 
 import java.net.InetAddress;
 import java.util.HashSet;
@@ -55,7 +56,7 @@ public class PlayerRepositoryTest {
 
     @Test
     public void testCalcNetworkTeam2Teams() {
-        settingsRepo.setGameMode(GameSettingsRepository.GAME_MODE_2TEAMS);
+        settingsRepo.setTeamMode(TeamMode.TWO_TEAMS);
 
         assertEquals(1, playerRepo.calcNetworkTeam((byte) 1));
         assertEquals(1, playerRepo.calcNetworkTeam((byte) 16));
@@ -65,7 +66,7 @@ public class PlayerRepositoryTest {
 
     @Test
     public void testCalcNetworkTeam4Teams() {
-        settingsRepo.setGameMode(GameSettingsRepository.GAME_MODE_4TEAMS);
+        settingsRepo.setTeamMode(TeamMode.FOUR_TEAMS);
 
         assertEquals(1, playerRepo.calcNetworkTeam((byte) 1));
         assertEquals(1, playerRepo.calcNetworkTeam((byte) 8));
@@ -79,7 +80,7 @@ public class PlayerRepositoryTest {
 
     @Test
     public void testCalcNetworkTeamFFA() {
-        settingsRepo.setGameMode(GameSettingsRepository.GAME_MODE_FFA);
+        settingsRepo.setTeamMode(TeamMode.FREE_FOR_ALL);
 
         assertEquals(5, playerRepo.calcNetworkTeam((byte) 5));
         assertEquals(12, playerRepo.calcNetworkTeam((byte) 12));
@@ -102,7 +103,7 @@ public class PlayerRepositoryTest {
     public void testAutoSortPlayerIDDedicatedServer() throws Exception {
         // On a dedicated server, host playerID is 0
         playerRepo.setPlayerID((byte) 0);
-        settingsRepo.setGameMode(GameSettingsRepository.GAME_MODE_2TEAMS);
+        settingsRepo.setTeamMode(TeamMode.TWO_TEAMS);
 
         // Player 1 joins -> should receive Team 1 ID (e.g. ID 1)
         byte player1ID = playerRepo.findAutoSortPlayerID();
@@ -123,7 +124,7 @@ public class PlayerRepositoryTest {
     @Test
     public void testAutoSortPlayerIDWithAdditionalOccupiedIDs() {
         playerRepo.setPlayerID((byte) 0);
-        settingsRepo.setGameMode(GameSettingsRepository.GAME_MODE_2TEAMS);
+        settingsRepo.setTeamMode(TeamMode.TWO_TEAMS);
 
         Set<Byte> additional = new HashSet<>();
         additional.add((byte) 1);
@@ -138,7 +139,7 @@ public class PlayerRepositoryTest {
     @Test
     public void testNoDuplicatePlayerIDsInSequence() throws Exception {
         playerRepo.setPlayerID((byte) 0);
-        settingsRepo.setGameMode(GameSettingsRepository.GAME_MODE_2TEAMS);
+        settingsRepo.setTeamMode(TeamMode.TWO_TEAMS);
 
         Set<Byte> assignedIDs = new HashSet<>();
         for (int i = 0; i < GameSettingsRepository.MAX_PLAYER_ID; i++) {
@@ -301,7 +302,7 @@ public class PlayerRepositoryTest {
         InetAddress ip2 = InetAddress.getByName("10.0.0.2");
         playerRepo.addOrUpdatePlayer((byte) 1, ip1, "One", "AA:01");
         playerRepo.addOrUpdatePlayer((byte) 2, ip2, "Two", "AA:02");
-        Globals.PlayerSettings settings = new Globals.PlayerSettings();
+        PlayerSettings settings = new PlayerSettings();
         playerRepo.getPlayerSettings().put((byte) 1, settings);
 
         Map<Byte, Byte> oldToNew = new java.util.HashMap<>();

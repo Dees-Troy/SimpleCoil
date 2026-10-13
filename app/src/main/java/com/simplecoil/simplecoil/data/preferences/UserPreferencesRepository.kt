@@ -19,6 +19,7 @@ package com.simplecoil.simplecoil.data.preferences
 import android.content.Context
 import android.content.SharedPreferences
 import com.simplecoil.simplecoil.domain.session.SessionPreferences
+import com.simplecoil.simplecoil.domain.team.TeamMode
 
 /**
  * The player's saved settings: SharedPreferences "SimpleCoil" with exactly the keys and types the
@@ -35,12 +36,12 @@ class UserPreferencesRepository(private val prefs: SharedPreferences) : SessionP
     fun playerId(): Int = prefs.getInt(PLAYER_ID, 0)
     fun selectedPlayerId(): Int = prefs.getInt(SELECTED_PLAYER_ID, 0)
 
-    /** The team buttons / server-assigned id: player id, selected id and game mode together. */
-    fun savePlayerIdAndGameMode(playerId: Int, gameMode: Int) =
+    /** The team buttons / server-assigned id: player id, selected id and team mode together. */
+    fun savePlayerIdAndTeamMode(playerId: Int, teamMode: TeamMode) =
         prefs.edit()
             .putInt(PLAYER_ID, playerId)
             .putInt(SELECTED_PLAYER_ID, playerId)
-            .putInt(GAME_MODE, gameMode)
+            .putInt(TEAM_MODE, teamMode.wireValue)
             .apply()
 
     fun firingMode(default: Int): Int = prefs.getInt(FIRING_MODE, default)
@@ -52,7 +53,9 @@ class UserPreferencesRepository(private val prefs: SharedPreferences) : SessionP
     fun recoilEnabled(): Boolean = prefs.getBoolean(RECOIL_ENABLED, true)
     override fun saveRecoilEnabled(enabled: Boolean) = prefs.edit().putBoolean(RECOIL_ENABLED, enabled).apply()
 
-    fun gameMode(default: Int): Int = prefs.getInt(GAME_MODE, default)
+    /** Shared by the player screen and the dedicated server. */
+    fun teamMode(): TeamMode = TeamMode.fromWireOrDefault(prefs.getInt(TEAM_MODE, TeamMode.DEFAULT.wireValue))
+    fun saveTeamMode(teamMode: TeamMode) = prefs.edit().putInt(TEAM_MODE, teamMode.wireValue).apply()
 
     fun timeLimit(): Int = prefs.getInt(LIMIT_TIME, 0)
     fun livesLimit(): Int = prefs.getInt(LIMIT_LIVES, 0)
@@ -75,7 +78,8 @@ class UserPreferencesRepository(private val prefs: SharedPreferences) : SessionP
         const val FIRING_MODE = "FiringMode"
         const val SHOT_MODE = "ShotMode"
         const val RECOIL_ENABLED = "RecoilEnabled"
-        const val GAME_MODE = "GameMode"
+        /** Stored under its old name so existing installs keep their setting. */
+        const val TEAM_MODE = "GameMode"
         const val START_TIME = "StartTime"
         const val LIMIT_TIME = "TimeLimit"
         const val LIMIT_LIVES = "LivesLimit"

@@ -16,9 +16,9 @@
 
 package com.simplecoil.simplecoil.network.server
 
-import com.simplecoil.simplecoil.Globals
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.domain.team.TeamMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -36,13 +36,11 @@ class GameRosterTest {
 
     @Before
     fun setUp() {
-        val g = Globals.getInstance()
-        g.mGameMode = Globals.GAME_MODE_2TEAMS
-        g.mPlayerID = 0
-        g.resetDefaultTeamSizes()
-        GameSettingsRepository.getInstance().setGameMode(GameSettingsRepository.GAME_MODE_2TEAMS)
+        GameSettingsRepository.getInstance().teamMode = TeamMode.TWO_TEAMS
+        PlayerRepository.getInstance().playerID = 0
+        GameSettingsRepository.getInstance().resetDefaultTeamSizes()
         GameSettingsRepository.getInstance().setAllowJoinInProgress(true)
-        repo.setPlayerIDDirect(0)
+        repo.setPlayerID(0)
         repo.clearAllPlayers()
         roster = GameRoster()
     }
@@ -261,7 +259,7 @@ class GameRosterTest {
 
     @Test
     fun rebalanceAfterAGame_runsOnTheResetRoster_likeTheSameRebalanceInTheLobby() {
-        // §3.1.1: game mode, team sizes and sort reset first; the rebalance then sees only the
+        // §3.1.1: team mode, team sizes and sort reset first; the rebalance then sees only the
         // connected players and the cache is empty.
         val (_, _) = join("Alpha", "AA")
         val (cb, _) = join("Bravo", "BB")
@@ -363,7 +361,7 @@ class GameRosterTest {
 
     @Test
     fun freeForAll_onlyAnOwnKillScoresNothing() {
-        Globals.getInstance().mGameMode = Globals.GAME_MODE_FFA
+        GameSettingsRepository.getInstance().teamMode = TeamMode.FREE_FOR_ALL
         val (ca, a) = join("Alpha", "AA")
         val (_, b) = join("Bravo", "BB")
         roster.startGame()
@@ -423,7 +421,7 @@ class GameRosterTest {
 
     @Test
     fun rebalance_freeForAll_numbersPlayersInOrder() {
-        Globals.getInstance().mGameMode = Globals.GAME_MODE_FFA
+        GameSettingsRepository.getInstance().teamMode = TeamMode.FREE_FOR_ALL
         join("Alpha", "AA", requestedId = 9)
         join("Bravo", "BB", requestedId = 12)
         val result = roster.rebalance(false)

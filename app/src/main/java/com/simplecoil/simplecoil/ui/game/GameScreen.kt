@@ -18,6 +18,7 @@ package com.simplecoil.simplecoil.ui.game
 
 import com.simplecoil.simplecoil.PlayerDisplayData
 import com.simplecoil.simplecoil.domain.session.SessionToast
+import com.simplecoil.simplecoil.domain.team.TeamMode
 
 /** Status line on the connect screen. */
 enum class ConnectStatus { SCANNING, CONNECTING, COMMUNICATING, NOT_CONNECTED }
@@ -40,7 +41,7 @@ sealed interface NetworkMenuEntry {
     data object Join : NetworkMenuEntry
     data object JoinIp : NetworkMenuEntry
     data class PlayerName(val name: String) : NetworkMenuEntry
-    data object GameMode : NetworkMenuEntry
+    data object ChooseTeamMode : NetworkMenuEntry
     data class SwitchTeam(val team: Int, val color: Int) : NetworkMenuEntry
     data object DisableNetwork : NetworkMenuEntry
 }
@@ -65,6 +66,8 @@ data class PreGameButtons(
     val startVisible: Boolean,
     val startEnabled: Boolean,
     val serverSettingsOnly: Boolean,
+    /** Not on a server, so this player chooses 2 teams / 4 teams / FFA. */
+    val teamModeSelectable: Boolean,
 )
 
 /**
@@ -97,7 +100,7 @@ interface GameView {
     fun showGameLimit(timeLimitMinutes: Int?, livesLabel: Boolean, scoreLimit: Int?)
     fun showPlayerSettings(fullHealth: Int, fullReload: Byte, damage: Int)
     fun showFiringMode(firingMode: Int)
-    fun showGameMode(gameMode: Int)
+    fun showTeamMode(mode: TeamMode)
     fun showTeam(team: TeamDisplay)
     fun showPlayerName(name: String)
     fun showPreGameButtons(buttons: PreGameButtons)
@@ -137,7 +140,7 @@ interface GameDialogs {
     fun rebuildNetworkMenu()
     fun prepareNetworkMenu()
     fun showNetworkMenu()
-    fun showGameModeMenu()
+    fun showTeamModeMenu()
     fun showServerIpDialog(suggestion: String)
     fun showPlayerNameDialog(current: String)
     fun showGameLimitDialog(allowScoreLimit: Boolean)

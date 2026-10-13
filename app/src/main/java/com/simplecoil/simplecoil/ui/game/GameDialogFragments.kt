@@ -25,12 +25,12 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.os.bundleOf
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.ViewModelProvider
-import com.simplecoil.simplecoil.Globals
 import com.simplecoil.simplecoil.PlayerDisplayData
 import com.simplecoil.simplecoil.PlayerDisplayDataListAdapter
 import com.simplecoil.simplecoil.PlayerSettingsAlertDialog
 import com.simplecoil.simplecoil.R
 import com.simplecoil.simplecoil.SimpleCoilApp
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.databinding.BlasterDisconnectedDialogBinding
 import com.simplecoil.simplecoil.databinding.GameLimitDialogBinding
 import com.simplecoil.simplecoil.databinding.PlayerDataDialogBinding
@@ -254,7 +254,7 @@ class ScoreboardDialog : GameDialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val activity = requireActivity()
         val binding = PlayerDataDialogBinding.inflate(activity.layoutInflater)
-        val players = vm.scoreboardPlayers ?: arrayOfNulls(Globals.MAX_PLAYER_ID + 2)
+        val players = vm.scoreboardPlayers ?: arrayOfNulls(GameSettingsRepository.MAX_PLAYER_ID + 2)
         val adapter = PlayerDisplayDataListAdapter(activity, players, true)
         this.adapter = adapter
         binding.playerList.adapter = adapter

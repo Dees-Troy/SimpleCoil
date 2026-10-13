@@ -23,6 +23,7 @@ import static org.junit.Assert.assertTrue;
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
+import com.simplecoil.simplecoil.domain.team.TeamMode;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -40,18 +41,19 @@ public class DedicatedServerViewModelTest {
         playerRepo = PlayerRepository.getInstance();
 
         settingsRepo.setStartTime(GameSettingsRepository.START_TIME_SECONDS);
-        settingsRepo.setGameMode(GameSettingsRepository.GAME_MODE_2TEAMS);
+        settingsRepo.setTeamMode(TeamMode.TWO_TEAMS);
         settingsRepo.setGameLimit(GameSettingsRepository.GAME_LIMIT_NONE);
         settingsRepo.setGpsMode(GameSettingsRepository.GPS_ALL);
+        settingsRepo.setOnlyServerSettings(true);
         gameStateRepo.setGameState(GameStateRepository.GAME_STATE_NONE);
     }
 
     @Test
-    public void testGameModeSettingsUpdate() {
-        assertEquals(GameSettingsRepository.GAME_MODE_2TEAMS, settingsRepo.getGameMode());
+    public void testTeamModeSettingsUpdate() {
+        assertEquals(TeamMode.TWO_TEAMS, settingsRepo.getTeamMode());
 
-        settingsRepo.setGameMode(GameSettingsRepository.GAME_MODE_4TEAMS);
-        assertEquals(GameSettingsRepository.GAME_MODE_4TEAMS, settingsRepo.getGameMode());
+        settingsRepo.setTeamMode(TeamMode.FOUR_TEAMS);
+        assertEquals(TeamMode.FOUR_TEAMS, settingsRepo.getTeamMode());
     }
 
     @Test

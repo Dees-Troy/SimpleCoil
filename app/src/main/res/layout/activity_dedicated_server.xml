@@ -66,13 +66,13 @@
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
         <Button
-            android:id="@+id/game_mode_toggle_button"
+            android:id="@+id/team_mode_toggle_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
             android:layout_below="@id/player_count_tv"
-            android:text="@string/game_mode_toggle_button" />
+            android:text="@string/team_mode_toggle_button" />
 
         <TextView
             android:id="@+id/game_limit_tv"
@@ -107,7 +107,7 @@
             android:id="@+id/game_status_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignBaseline="@id/game_mode_toggle_button"
+            android:layout_alignBaseline="@id/team_mode_toggle_button"
             android:layout_centerHorizontal="true"
             android:text="@string/dedicated_game_waiting"
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
@@ -118,7 +118,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
-            android:layout_below="@id/game_mode_toggle_button"
+            android:layout_below="@id/team_mode_toggle_button"
             android:text="@string/gps_mode_disabled" />
 
         <Button

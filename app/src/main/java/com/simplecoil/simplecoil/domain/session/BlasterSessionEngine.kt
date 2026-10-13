@@ -17,7 +17,9 @@
 package com.simplecoil.simplecoil.domain.session
 
 import android.util.Log
-import com.simplecoil.simplecoil.Globals
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
+import com.simplecoil.simplecoil.data.repository.GameStateRepository
+import com.simplecoil.simplecoil.domain.team.TeamLayout
 import com.simplecoil.simplecoil.hardware.blaster.BlasterEvent
 import com.simplecoil.simplecoil.hardware.blaster.GattProtocolHandler
 import kotlinx.coroutines.CoroutineScope
@@ -58,7 +60,7 @@ class BlasterSessionEngine(
     private val _state = MutableStateFlow(SessionState(
         health = config.fullHealth,
         maxHealth = config.fullHealth,
-        shotMode = Globals.SHOT_MODE_SINGLE,
+        shotMode = GameSettingsRepository.SHOT_MODE_SINGLE,
     ))
     val state: StateFlow<SessionState> = _state.asStateFlow()
 
@@ -100,7 +102,7 @@ class BlasterSessionEngine(
     private var hasLivesLimit = false
     private var lives = 0
     private var isShielded = false
-    private var currentShotMode = Globals.SHOT_MODE_SINGLE
+    private var currentShotMode = GameSettingsRepository.SHOT_MODE_SINGLE
     private var recoilEnabled = true
     private var blasterType: Byte = GattProtocolHandler.BLASTER_TYPE_PISTOL
 
@@ -121,8 +123,9 @@ class BlasterSessionEngine(
 
     private val hitResolver = HitResolver(wallClock)
     private val battery = BatteryLevelPolicy.Averager()
-    private val hitLookups = object : HitResolver.Lookups {
-        override fun networkTeam(playerId: Byte) = config.networkTeam(playerId)
+    /** Lookups for one packet, with every team answer taken from the same [layout]. */
+    private fun hitLookups(layout: TeamLayout) = object : HitResolver.Lookups {
+        override fun networkTeam(playerId: Byte) = layout.teamOf(playerId)
         override fun grenadePairing(grenadeId: Int) = config.grenadePairing(grenadeId)
         override fun damage(playerId: Byte) = config.playerDamage(playerId)
     }
@@ -138,9 +141,9 @@ class BlasterSessionEngine(
         when (event) {
             is BlasterEvent.Connected -> isCommunicating = false // switch layouts on the first packet
             BlasterEvent.ServicesDiscovered -> {
-                if (config.gameState == Globals.GAME_STATE_NONE) {
+                if (config.gameState == GameStateRepository.GAME_STATE_NONE) {
                     emit(SessionEffect.Sound(SessionSound.SPAWN))
-                } else if (config.gameState == Globals.GAME_STATE_RUNNING) {
+                } else if (config.gameState == GameStateRepository.GAME_STATE_RUNNING) {
                     startReload()
                 }
             }
@@ -167,7 +170,7 @@ class BlasterSessionEngine(
     // Config 00 00 09 xx yy ff c8 ff ff 80 01 34 - xx is the number of shots and if you set yy to 01 for full auto for xx shots or 00 for single shot mode, increasing yy decreases RoF
     // setting 03 03 for shots and RoF gives a good 3 shot burst, 03 01 is so fast that you feel 1 recoil for 3 shots
     fun setShotMode(shotMode: Int) {
-        if (shotMode == Globals.SHOT_MODE_SINGLE || shotMode == Globals.SHOT_MODE_BURST || shotMode == Globals.SHOT_MODE_FULL_AUTO) {
+        if (shotMode == GameSettingsRepository.SHOT_MODE_SINGLE || shotMode == GameSettingsRepository.SHOT_MODE_BURST || shotMode == GameSettingsRepository.SHOT_MODE_FULL_AUTO) {
             currentShotMode = shotMode
             _state.update { it.copy(shotMode = shotMode) }
         }
@@ -210,7 +213,7 @@ class BlasterSessionEngine(
      */
     fun sendTeamToBlaster() {
         val playerId = config.playerId
-        if (playerId >= 1 && playerId <= Globals.MAX_PLAYER_ID) {
+        if (playerId >= 1 && playerId <= GameSettingsRepository.MAX_PLAYER_ID) {
             Log.d(TAG, "setting player ID to $playerId")
             blaster.setTeam(playerId)
         }
@@ -223,7 +226,7 @@ class BlasterSessionEngine(
 
     /** Lives limit from the game limit (or a server override); updates the lives/eliminations display. */
     fun applyGameLimit() {
-        if ((config.gameLimit and Globals.GAME_LIMIT_LIVES) != 0) {
+        if ((config.gameLimit and GameSettingsRepository.GAME_LIMIT_LIVES) != 0) {
             hasLivesLimit = true
             lives = config.livesLimit
             setEliminationDisplay(config.livesLimit)
@@ -263,7 +266,7 @@ class BlasterSessionEngine(
     }
 
     fun endGame() {
-        config.gameState = Globals.GAME_STATE_NONE
+        config.gameState = GameStateRepository.GAME_STATE_NONE
         spawnTimer?.cancel()
         spawnTimer = null
         shieldTimer?.cancel()
@@ -275,7 +278,7 @@ class BlasterSessionEngine(
         gameCountdown?.cancel()
         gameCountdown = null
         clearHitOverlay()
-        val countdownText = if ((config.gameLimit and Globals.GAME_LIMIT_TIME) != 0) {
+        val countdownText = if ((config.gameLimit and GameSettingsRepository.GAME_LIMIT_TIME) != 0) {
             String.format("%02d:00", config.timeLimitMinutes)
         } else {
             (_state.value.clock as? GameClock.Stopped)?.countdownText
@@ -288,7 +291,7 @@ class BlasterSessionEngine(
     fun syncFromServer(eliminations: Int, timeRemaining: Long) {
         eliminationCount = if (hasLivesLimit) lives - eliminations else eliminations
         setEliminationDisplay(eliminationCount)
-        if (timeRemaining > 0 && config.gameState == Globals.GAME_STATE_RUNNING) {
+        if (timeRemaining > 0 && config.gameState == GameStateRepository.GAME_STATE_RUNNING) {
             gameCountdown?.cancel()
             startGameCountdown(timeRemaining)
             gameTimerRunning = true
@@ -330,7 +333,7 @@ class BlasterSessionEngine(
     }
 
     private fun finishReload() {
-        if ((reloading != RELOADING_STARTED && reloading != RELOADING_ELIMINATED) || config.gameState != Globals.GAME_STATE_RUNNING) return
+        if ((reloading != RELOADING_STARTED && reloading != RELOADING_ELIMINATED) || config.gameState != GameStateRepository.GAME_STATE_RUNNING) return
         reloading = RELOADING_FINISHING
         emptyTriggerCount = 0
         Log.d(TAG, "Finishing reload")
@@ -368,7 +371,7 @@ class BlasterSessionEngine(
         spawnTimer = null
         isShielded = false
         _state.update { it.copy(shieldSeconds = null) }
-        config.gameState = Globals.GAME_STATE_ELIMINATED
+        config.gameState = GameStateRepository.GAME_STATE_ELIMINATED
         startReload(RELOADING_ELIMINATED)
         clearHitOverlay()
 
@@ -392,12 +395,12 @@ class BlasterSessionEngine(
         startingGameLabel = false
         health = config.fullHealth
         _state.update { it.copy(spawn = SpawnPhase.None, health = health) }
-        config.gameState = Globals.GAME_STATE_RUNNING
+        config.gameState = GameStateRepository.GAME_STATE_RUNNING
         emit(SessionEffect.Sound(SessionSound.SPAWN))
         finishReload()
         if (startGameTimer) {
             startGameTimer = false
-            if ((config.gameLimit and Globals.GAME_LIMIT_TIME) != 0) {
+            if ((config.gameLimit and GameSettingsRepository.GAME_LIMIT_TIME) != 0) {
                 if (!gameTimerRunning) startGameCountdown(config.timeLimitMinutes * 60L)
             } else {
                 _state.update { it.copy(clock = GameClock.Chronometer(clock())) }
@@ -438,7 +441,7 @@ class BlasterSessionEngine(
                     // The server ends the game for everyone; end it locally if it doesn't.
                     scope.launch {
                         delay(NETWORK_END_GAME_FALLBACK_MILLIS)
-                        if (config.gameState != Globals.GAME_STATE_NONE) emit(SessionEffect.EndGameRequested)
+                        if (config.gameState != GameStateRepository.GAME_STATE_NONE) emit(SessionEffect.EndGameRequested)
                     }
                 } else {
                     emit(SessionEffect.EndGameRequested)
@@ -478,11 +481,11 @@ class BlasterSessionEngine(
         }
         if (telemetry.triggerCounter != lastTriggerCount) {
             lastTriggerCount = telemetry.triggerCounter
-            if (shotsRemaining.toInt() == 0 || config.gameState != Globals.GAME_STATE_RUNNING) {
+            if (shotsRemaining.toInt() == 0 || config.gameState != GameStateRepository.GAME_STATE_RUNNING) {
                 emit(SessionEffect.Sound(SessionSound.EMPTY))
                 emptyTriggerCount++
                 // Auto reload after this many empty trigger pulls (for young players)
-                if (emptyTriggerCount >= MAX_EMPTY_TRIGGER_PULLS && config.gameState == Globals.GAME_STATE_RUNNING) startReload()
+                if (emptyTriggerCount >= MAX_EMPTY_TRIGGER_PULLS && config.gameState == GameStateRepository.GAME_STATE_RUNNING) startReload()
             }
         }
         /* Rather than monitor if a button is currently pressed, we monitor the counter, so a
@@ -507,11 +510,12 @@ class BlasterSessionEngine(
             applyGrenadePairing(telemetry.hitByPlayer1, telemetry.rawShotIdByte1, useNetwork)
             applyGrenadePairing(telemetry.hitByPlayer2, telemetry.rawShotIdByte2, useNetwork)
         }
+        val layout = config.teamLayout
         val hit = hitResolver.resolve(telemetry.hitByPlayer1, telemetry.rawShotIdByte1,
             telemetry.hitByPlayer2, telemetry.rawShotIdByte2,
-            HitResolver.Context(config.gameState != Globals.GAME_STATE_NONE, isShielded, useNetwork,
-                config.gameMode == Globals.GAME_MODE_FFA, networkTeam, health),
-            hitLookups)
+            HitResolver.Context(config.gameState != GameStateRepository.GAME_STATE_NONE, isShielded, useNetwork,
+                layout.mode.isFreeForAll, networkTeam, health),
+            hitLookups(layout))
         if (hit.countedHit) {
             hitsTaken++
             _state.update { it.copy(hitsTaken = hitsTaken) }
@@ -519,7 +523,7 @@ class BlasterSessionEngine(
         for (message in hit.messages) {
             if (message.out) network?.sendOut(message.playerId) else network?.sendHit(message.playerId)
         }
-        if (hit.healthRemoved != 0 && config.gameState == Globals.GAME_STATE_RUNNING) {
+        if (hit.healthRemoved != 0 && config.gameState == GameStateRepository.GAME_STATE_RUNNING) {
             applyDamage(hit.healthRemoved, hit.hitById, useNetwork)
         }
 
@@ -547,7 +551,7 @@ class BlasterSessionEngine(
                     lastShotFired = wallClock() + HIT_ANIMATION_DURATION_MILLISECONDS
                     network?.sendShotFired()
                 }
-                if (config.reloadOnEmpty && shotsRemaining.toInt() == 0 && config.gameState != Globals.GAME_STATE_NONE) startReload()
+                if (config.reloadOnEmpty && shotsRemaining.toInt() == 0 && config.gameState != GameStateRepository.GAME_STATE_NONE) startReload()
             }
         }
     }

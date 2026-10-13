@@ -47,8 +47,8 @@ class TelemetryDecoderParityTest {
     @Test
     fun grenadePlayerId_is167EverywhereItIsDeclared() {
         assertEquals(167, PlayerRepository.GRENADE_PLAYER_ID)
-        assertEquals(167, Globals.GRENADE_PLAYER_ID)
-        assertEquals(16, Globals.MAX_GRENADE_IDS)
+        assertEquals(167, PlayerRepository.GRENADE_PLAYER_ID)
+        assertEquals(16, PlayerRepository.MAX_GRENADE_IDS)
     }
 
     @Test

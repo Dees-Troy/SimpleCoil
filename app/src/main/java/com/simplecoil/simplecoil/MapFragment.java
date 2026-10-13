@@ -22,12 +22,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
-import android.os.Build;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -39,32 +34,48 @@ import androidx.core.content.ContextCompat;
 import com.mousebird.maply.ComponentObject;
 import com.mousebird.maply.GlobeMapFragment;
 import com.mousebird.maply.MapController;
-import com.mousebird.maply.MaplyBaseController;
-import com.mousebird.maply.MarkerInfo;
-import com.mousebird.maply.Point2d;
 import com.mousebird.maply.Point3d;
 import com.mousebird.maply.QuadImageTileLayer;
 import com.mousebird.maply.RemoteTileInfo;
 import com.mousebird.maply.RemoteTileSource;
-import com.mousebird.maply.ScreenMarker;
 import com.mousebird.maply.SphericalMercatorCoordSystem;
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
+import com.simplecoil.simplecoil.data.repository.PlayerRepository;
+import com.simplecoil.simplecoil.hardware.location.LocationUpdateListener;
+import com.simplecoil.simplecoil.hardware.location.MapLocationManager;
 
 import java.io.File;
 
+/**
+ * The in-game map. Location tracking and marker drawing live in [MapLocationManager]; this
+ * fragment owns the map view, asks for the location permission and tells the network about our
+ * position.
+ */
 public class MapFragment extends GlobeMapFragment {
     private static final String TAG = "map";
+    private static final int LOCATION_PERMISSION_REQUEST = 1;
 
-    private Location currentBestLocation = null;
-    private LocationManager mLocationManager = null;
-    private static final double ZOOM_LEVEL = 0.00003;
-    private static final double PI180 = Math.PI / 180;
-
-    private static final int TWO_MINUTES = 1000 * 60 * 2;
-
-    private LocationListener mLocationListener = null;
+    private final MapLocationManager mLocation = MapLocationManager.getInstance();
+    private boolean mTracking = false;
+    private ComponentObject[] mPlayerMarkers = null;
 
     private static double mLongitude = 0;
     private static double mLatitude = 0;
+
+    private final LocationUpdateListener mLocationListener = new LocationUpdateListener() {
+        @Override
+        public void onLocationUpdated(Location location, double latitude, double longitude) {
+            Log.v(TAG, "Longitude: " + longitude + ", Latitude: " + latitude);
+            sendLocation(location);
+            insertYourMarker();
+        }
+
+        @Override
+        public void onPermissionRequired() {
+            mTracking = false;
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, LOCATION_PERMISSION_REQUEST);
+        }
+    };
 
     private void sendLocation(Location location) {
         if (location == null) return;
@@ -78,132 +89,6 @@ public class MapFragment extends GlobeMapFragment {
         intent.putExtra(NetMsg.INTENT_LATITUDE, mLatitude);
         intent.putExtra(NetMsg.INTENT_LONGITUDE, mLongitude);
         getActivity().sendBroadcast(intent);
-    }
-
-    /**
-     * @return the last know best location
-     */
-    private Location getLastBestLocation() {
-        if (getActivity() == null) return null;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            int hasLocationPermission = getActivity().checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION);
-            if (hasLocationPermission != PackageManager.PERMISSION_GRANTED) {
-                return null;
-            }
-        }
-        if (mLocationManager == null) {
-            mLocationManager = (LocationManager) getActivity().getSystemService(Context.LOCATION_SERVICE);
-        }
-        if (mLocationManager == null) return null;
-
-        Location locationGPS = mLocationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
-        Location locationNet = mLocationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
-
-        long GPSLocationTime = 0;
-        if (null != locationGPS) { GPSLocationTime = locationGPS.getTime(); }
-
-        long NetLocationTime = 0;
-
-        if (null != locationNet) {
-            NetLocationTime = locationNet.getTime();
-        }
-
-        if ( 0 < GPSLocationTime - NetLocationTime ) {
-            return locationGPS;
-        }
-        else {
-            return locationNet;
-        }
-    }
-
-    /*---------- Listener class to get coordinates ------------- */
-    private class MyLocationListener implements LocationListener {
-
-        @Override
-        public void onLocationChanged(Location loc) {
-            String longitude = "Longitude: " + loc.getLongitude();
-            Log.v(TAG, longitude);
-            String latitude = "Latitude: " + loc.getLatitude();
-            Log.v(TAG, latitude);
-            makeUseOfNewLocation(loc);
-
-            insertYourMarker();
-        }
-
-        @Override
-        public void onProviderDisabled(String provider) {}
-
-        @Override
-        public void onProviderEnabled(String provider) {}
-
-        @Override
-        public void onStatusChanged(String provider, int status, Bundle extras) {}
-    }
-
-    /**
-     * This method modify the last know good location according to the arguments.
-     *
-     * @param location The possible new location.
-     */
-    void makeUseOfNewLocation(Location location) {
-        if ( isBetterLocation(location, currentBestLocation) ) {
-            currentBestLocation = location;
-            sendLocation(location);
-        }
-    }
-
-    /** Determines whether one location reading is better than the current location fix
-     * @param location  The new location that you want to evaluate
-     * @param currentBestLocation  The current location fix, to which you want to compare the new one.
-     */
-    protected boolean isBetterLocation(Location location, Location currentBestLocation) {
-        if (currentBestLocation == null) {
-            // A new location is always better than no location
-            return true;
-        }
-
-        // Check whether the new location fix is newer or older
-        long timeDelta = location.getTime() - currentBestLocation.getTime();
-        boolean isSignificantlyNewer = timeDelta > TWO_MINUTES;
-        boolean isSignificantlyOlder = timeDelta < -TWO_MINUTES;
-        boolean isNewer = timeDelta > 0;
-
-        // If it's been more than two minutes since the current location, use the new location,
-        // because the user has likely moved.
-        if (isSignificantlyNewer) {
-            return true;
-            // If the new location is more than two minutes older, it must be worse.
-        } else if (isSignificantlyOlder) {
-            return false;
-        }
-
-        // Check whether the new location fix is more or less accurate
-        int accuracyDelta = (int) (location.getAccuracy() - currentBestLocation.getAccuracy());
-        boolean isLessAccurate = accuracyDelta > 0;
-        boolean isMoreAccurate = accuracyDelta < 0;
-        boolean isSignificantlyLessAccurate = accuracyDelta > 200;
-
-        // Check if the old and new location are from the same provider
-        boolean isFromSameProvider = isSameProvider(location.getProvider(),
-                currentBestLocation.getProvider());
-
-        // Determine location quality using a combination of timeliness and accuracy
-        if (isMoreAccurate) {
-            return true;
-        } else if (isNewer && !isLessAccurate) {
-            return true;
-        } else if (isNewer && !isSignificantlyLessAccurate && isFromSameProvider) {
-            return true;
-        }
-        return false;
-    }
-
-    /** Checks whether two providers are the same */
-    private boolean isSameProvider(String provider1, String provider2) {
-        if (provider1 == null) {
-            return provider2 == null;
-        }
-        return provider1.equals(provider2);
     }
 
     @Override
@@ -246,6 +131,16 @@ public class MapFragment extends GlobeMapFragment {
     }
 
     @Override
+    public void onDestroy() {
+        // The manager is process-wide; don't leave it reporting to a dead fragment.
+        if (mTracking) {
+            mLocation.stopLocationUpdates();
+            mTracking = false;
+        }
+        super.onDestroy();
+    }
+
+    @Override
     protected MapDisplayType chooseDisplayType() {
         return MapDisplayType.Map;
     }
@@ -259,59 +154,47 @@ public class MapFragment extends GlobeMapFragment {
 
             if (action.equals(NetMsg.NETMSG_GPSDATAUPDATE)) {
                 if (intent.getBooleanExtra(NetMsg.INTENT_FULLUPDATE, false)) {
-                    for (int x = 0; x <= Globals.MAX_PLAYER_ID; x++) {
-                        if (x != Globals.getInstance().mPlayerID)
-                            removePlayerMarker(x);
+                    byte me = PlayerRepository.getInstance().getPlayerID();
+                    for (int x = 0; x <= GameSettingsRepository.MAX_PLAYER_ID; x++) {
+                        if (x != me)
+                            mLocation.removePlayerMarker(mapControl, x, mPlayerMarkers);
                     }
                 }
                 insertPlayerMarkers();
             } else if (action.equals(NetMsg.NETMSG_LISTPLAYERS) || action.equals(NetMsg.NETMSG_GPSSETTING)) {
-                enableGPS(Globals.getInstance().mUseGPS);
+                enableGPS(GameSettingsRepository.getInstance().isUseGPS());
             }
         }
     };
 
     public void enableGPS(boolean enabled) {
         if (getActivity() == null) return;
-        if (mLocationManager == null) {
-            mLocationManager = (LocationManager) getActivity().getSystemService(Context.LOCATION_SERVICE);
-        }
         if (enabled) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                int hasLocationPermission = getActivity().checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION);
-                if (hasLocationPermission != PackageManager.PERMISSION_GRANTED) {
-                    requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
-                    return;
-                }
-            }
-            if (mLocationListener == null) {
+            if (!mTracking) {
+                mTracking = true;
                 mLongitude = 0;
                 mLatitude = 0;
-                mLocationListener = new MyLocationListener();
-                if (mLocationManager != null) {
-                    mLocationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 500, 1, mLocationListener);
-                }
-                currentBestLocation = getLastBestLocation();
-                sendLocation(currentBestLocation);
+                mLocation.startLocationUpdates(getActivity(), mLocationListener);
+                if (!mTracking) return; // waiting for the permission
             }
             insertYourMarker();
             insertPlayerMarkers();
         } else {
-            removeAllPlayerMarkers();
+            mLocation.removeAllPlayerMarkers(mapControl, mPlayerMarkers);
             removeYourMarker();
-            if (mLocationManager != null && mLocationListener != null) {
-                mLocationManager.removeUpdates(mLocationListener);
+            if (mTracking) {
+                mLocation.stopLocationUpdates();
+                mTracking = false;
             }
-            mLocationListener = null;
         }
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == 1) {
+        if (requestCode == LOCATION_PERMISSION_REQUEST) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                enableGPS(Globals.getInstance().mUseGPS);
+                enableGPS(GameSettingsRepository.getInstance().isUseGPS());
             }
         }
     }
@@ -340,107 +223,34 @@ public class MapFragment extends GlobeMapFragment {
         //mapControl.setAllowRotateGesture(true); // need to figure out a rose compass or something so you can tell which way you have rotated
         mapControl.gestureDelegate = this;
 
-        mLocationManager = (LocationManager) getActivity().getSystemService(Context.LOCATION_SERVICE);
-        mPlayerMarkers = new ComponentObject[Globals.MAX_PLAYER_ID + 1];
-        for (int x = 0; x <= Globals.MAX_PLAYER_ID; x++)
-            mPlayerMarkers[x] = null;
+        mPlayerMarkers = new ComponentObject[GameSettingsRepository.MAX_PLAYER_ID + 1];
     }
 
     @Override
     public void mapDidStopMoving(MapController mapControl,
                                  Point3d[] corners,
                                  boolean userMotion) {
-        if (userMotion && currentBestLocation != null)
-            mapControl.setPositionGeo(currentBestLocation.getLongitude() * PI180, currentBestLocation.getLatitude() * PI180, ZOOM_LEVEL);
+        Location best = mLocation.getCurrentBestLocation();
+        if (userMotion && best != null)
+            mapControl.setPositionGeo(best.getLongitude() * MapLocationManager.PI180, best.getLatitude() * MapLocationManager.PI180, MapLocationManager.ZOOM_LEVEL);
     }
 
-    private ComponentObject[] mPlayerMarkers = null;
-
     private void insertYourMarker() {
-        if (mapControl == null || getActivity() == null || mPlayerMarkers == null) return;
-        removeYourMarker();
-
-        if (currentBestLocation == null) return;
-        MarkerInfo markerInfo = new MarkerInfo();
-        Bitmap icon = BitmapFactory.decodeResource(getActivity().getResources(), R.drawable.ic_gps_you);
-        Point2d markerSize = new Point2d(72, 72);
-
-        ScreenMarker you = new ScreenMarker();
-        you.loc = Point2d.FromDegrees(currentBestLocation.getLongitude(), currentBestLocation.getLatitude()); // Longitude, Latitude
-        you.image = icon;
-        you.size = markerSize;
-
-        int playerId = Globals.getInstance().mPlayerID;
-        if (playerId >= 0 && playerId < mPlayerMarkers.length) {
-            mPlayerMarkers[playerId] = mapControl.addScreenMarker(you, markerInfo, MaplyBaseController.ThreadMode.ThreadCurrent);
+        if (getActivity() == null) return;
+        Location best = mLocation.getCurrentBestLocation();
+        if (best == null) {
+            removeYourMarker();
+            return;
         }
-        mapControl.setPositionGeo(currentBestLocation.getLongitude() * PI180, currentBestLocation.getLatitude() * PI180, ZOOM_LEVEL);
-
-        mapControl.currentMapZoom(Point2d.FromDegrees(currentBestLocation.getLongitude(), currentBestLocation.getLatitude()));
-        mapControl.setZoomLimits(ZOOM_LEVEL, ZOOM_LEVEL);
+        mLocation.insertYourMarker(mapControl, getActivity(), best, PlayerRepository.getInstance().getPlayerID(), mPlayerMarkers);
     }
 
     private void removeYourMarker() {
-        if (mapControl == null || mPlayerMarkers == null) return;
-        int playerId = Globals.getInstance().mPlayerID;
-        if (playerId >= 0 && playerId < mPlayerMarkers.length && mPlayerMarkers[playerId] != null) {
-            mapControl.removeObject(mPlayerMarkers[playerId], MaplyBaseController.ThreadMode.ThreadCurrent);
-            mPlayerMarkers[playerId] = null;
-        }
+        mLocation.removeYourMarker(mapControl, PlayerRepository.getInstance().getPlayerID(), mPlayerMarkers);
     }
 
     private void insertPlayerMarkers() {
-        if (mapControl == null || getActivity() == null || mPlayerMarkers == null) return;
-        MarkerInfo markerInfo = new MarkerInfo();
-        Point2d markerSize = new Point2d(72, 72);
-        // Add other players to the map
-        int currentTeam = -1;
-        if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA)
-            currentTeam = Globals.getInstance().calcNetworkTeam(Globals.getInstance().mPlayerID);
-        Bitmap teammate = BitmapFactory.decodeResource(getActivity().getResources(), R.drawable.ic_gps_teammate);
-        Bitmap enemy = BitmapFactory.decodeResource(getActivity().getResources(), R.drawable.ic_gps_enemy);
-        Globals.getmGPSDataSemaphore();
-        for (int x = 0; x <= Globals.MAX_PLAYER_ID; x++) {
-            if (x == Globals.getInstance().mPlayerID) continue;
-            Byte pid = (byte) x;
-            if (Globals.getInstance().mGPSData.containsKey(pid)) {
-                Globals.GPSData data = Globals.getInstance().mGPSData.get(pid);
-                if (data != null) {
-                    boolean isTeammate = (currentTeam != -1 && data.team == currentTeam);
-                    boolean isAllowed = isTeammate || (Globals.getInstance().mGPSMode == Globals.GPS_ALL);
-                    if (!isAllowed) {
-                        removePlayerMarker(x);
-                        data.hasUpdate = false;
-                    } else if (data.hasUpdate || mPlayerMarkers[x] == null) {
-                        data.hasUpdate = false;
-                        removePlayerMarker(x);
-
-                        ScreenMarker player = new ScreenMarker();
-                        player.loc = Point2d.FromDegrees(data.longitude, data.latitude);
-                        player.size = markerSize;
-                        player.image = isTeammate ? teammate : enemy;
-                        if (x >= 0 && x < mPlayerMarkers.length) {
-                            mPlayerMarkers[x] = mapControl.addScreenMarker(player, markerInfo, MaplyBaseController.ThreadMode.ThreadCurrent);
-                        }
-                    }
-                }
-            } else {
-                removePlayerMarker(x);
-            }
-        }
-        Globals.getInstance().mGPSDataSemaphore.release();
-    }
-
-    private void removePlayerMarker(int playerID) {
-        if (mapControl == null || mPlayerMarkers == null) return;
-        if (playerID >= 0 && playerID < mPlayerMarkers.length && mPlayerMarkers[playerID] != null) {
-            mapControl.removeObject(mPlayerMarkers[playerID], MaplyBaseController.ThreadMode.ThreadCurrent);
-            mPlayerMarkers[playerID] = null;
-        }
-    }
-
-    private void removeAllPlayerMarkers() {
-        for (int x = 0; x <= Globals.MAX_PLAYER_ID; x++)
-            removePlayerMarker(x);
+        if (getActivity() == null) return;
+        mLocation.insertPlayerMarkers(mapControl, getActivity(), mPlayerMarkers);
     }
 }

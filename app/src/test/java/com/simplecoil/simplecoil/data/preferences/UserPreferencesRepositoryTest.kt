@@ -17,6 +17,7 @@
 package com.simplecoil.simplecoil.data.preferences
 
 import android.content.SharedPreferences
+import com.simplecoil.simplecoil.domain.team.TeamMode
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -60,7 +61,7 @@ class UserPreferencesRepositoryTest {
         repo.firingMode(0)
         repo.shotMode(2)
         repo.recoilEnabled()
-        repo.gameMode(2)
+        repo.teamMode()
         repo.timeLimit()
         repo.livesLimit()
         repo.scoreLimit()
@@ -81,7 +82,7 @@ class UserPreferencesRepositoryTest {
     @Test
     fun writes_useTheHistoricKeysAndTypes() {
         repo.savePlayerName("Bob")
-        repo.savePlayerIdAndGameMode(5, 4)
+        repo.savePlayerIdAndTeamMode(5, TeamMode.FOUR_TEAMS)
         repo.saveFiringMode(1)
         repo.saveShotMode(4)
         repo.saveRecoilEnabled(false)

@@ -22,6 +22,8 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
 
+import com.simplecoil.simplecoil.data.repository.GameStateRepository;
+import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.network.discovery.ServerDiscoveryManager;
 
 import java.net.InetAddress;
@@ -56,9 +58,9 @@ public class UDPListenerService extends Service {
         if (mDiscoveryManager != null) {
             mDiscoveryManager.startBroadcastingBeacon("SimpleCoil Dedicated Server");
         }
-        InetAddress myIp = Globals.getIPAddress();
+        InetAddress myIp = PlayerRepository.getIPAddress();
         if (myIp != null) {
-            Globals.getInstance().mServerIP = myIp;
+            GameStateRepository.getInstance().setServerIP(myIp);
         }
         Intent intent = new Intent(NetMsg.NETMSG_SERVERCREATED);
         sendBroadcast(intent);
@@ -88,7 +90,7 @@ public class UDPListenerService extends Service {
             public void run() {
                 try {
                     InetAddress ipAddr = InetAddress.getByName(ipStr);
-                    Globals.getInstance().mServerIP = ipAddr;
+                    GameStateRepository.getInstance().setServerIP(ipAddr);
                     Intent intent = new Intent(NetMsg.NETMSG_SERVERREPLY);
                     sendBroadcast(intent);
                 } catch (UnknownHostException e) {
@@ -113,7 +115,7 @@ public class UDPListenerService extends Service {
             @Override
             public void onServerDiscovered(String serverIP, String serverName) {
                 try {
-                    Globals.getInstance().mServerIP = InetAddress.getByName(serverIP);
+                    GameStateRepository.getInstance().setServerIP(InetAddress.getByName(serverIP));
                     mDiscoveryManager.stopDiscovery();
                     Intent intent = new Intent(NetMsg.NETMSG_SERVERREPLY);
                     sendBroadcast(intent);

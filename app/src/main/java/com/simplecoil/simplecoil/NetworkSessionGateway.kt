@@ -25,6 +25,9 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
+import com.simplecoil.simplecoil.data.repository.GameStateRepository
+import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.domain.session.SessionNetwork
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -239,8 +242,9 @@ class NetworkSessionGateway(
         scope.launch {
             val parsed = withContext(parseDispatcher) { parsePlayerData(message) } ?: return@launch
             parsed.myPoints?.let { score = maxOf(score, it) }
-            if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
-                val myTeamIdx = Globals.getInstance().calcNetworkTeam(Globals.getInstance().mPlayerID) - 1
+            val layout = GameSettingsRepository.getInstance().teamLayout
+            if (!layout.mode.isFreeForAll) {
+                val myTeamIdx = layout.teamOf(PlayerRepository.getInstance().playerID) - 1
                 if (myTeamIdx in 0..3) teamScore = parsed.teamPoints[myTeamIdx]
             }
             emit(NetworkEvent.PlayerData(parsed.players))
@@ -291,51 +295,48 @@ class NetworkSessionGateway(
         private const val TAG = "NetworkSession"
 
         /**
-         * Parses the server's player data JSON. Reads player settings under Globals' player settings
-         * semaphore. Null when the JSON is malformed.
+         * Parses the server's player data JSON. Reads player settings under PlayerRepository's lock,
+         * so a settings update can't land halfway through a player. Null when the JSON is malformed.
          */
         @JvmStatic
         fun parsePlayerData(message: String): ParsedPlayerData? {
-            val finalData = arrayOfNulls<PlayerDisplayData>(Globals.MAX_PLAYER_ID + 2)
-            var hasSemaphore = false
+            val finalData = arrayOfNulls<PlayerDisplayData>(GameSettingsRepository.MAX_PLAYER_ID + 2)
             val teamPoints = IntArray(4)
             var myPoints: Int? = null
             try {
                 val json = JSONObject(message)
                 val players = json.getJSONArray(TcpServer.JSON_PLAYERDATA)
-                Globals.getInstance()
-                Globals.getmPlayerSettingsSemaphore()
-                hasSemaphore = true
-                for (x in 0 until players.length()) {
-                    val player = players.getJSONObject(x)
-                    val playerData = PlayerDisplayData()
-                    playerData.playerID = player.getInt(TcpServer.JSON_PLAYERID).toByte()
-                    playerData.playerName = player.getString(TcpServer.JSON_PLAYERNAME)
-                    playerData.points = player.getInt(TcpServer.JSON_PLAYERPOINTS)
-                    if (playerData.playerID == Globals.getInstance().mPlayerID) {
-                        myPoints = maxOf(myPoints ?: playerData.points, playerData.points)
+                val repo = PlayerRepository.getInstance()
+                val layout = GameSettingsRepository.getInstance().teamLayout
+                synchronized(repo) {
+                    for (x in 0 until players.length()) {
+                        val player = players.getJSONObject(x)
+                        val playerData = PlayerDisplayData()
+                        playerData.playerID = player.getInt(TcpServer.JSON_PLAYERID).toByte()
+                        playerData.playerName = player.getString(TcpServer.JSON_PLAYERNAME)
+                        playerData.points = player.getInt(TcpServer.JSON_PLAYERPOINTS)
+                        if (playerData.playerID == repo.playerID) {
+                            myPoints = maxOf(myPoints ?: playerData.points, playerData.points)
+                        }
+                        if (!layout.mode.isFreeForAll) {
+                            val teamIdx = layout.teamOf(playerData.playerID) - 1
+                            if (teamIdx in 0..3) teamPoints[teamIdx] += playerData.points
+                        }
+                        playerData.eliminated = player.getInt(TcpServer.JSON_PLAYERELIMINATED)
+                        playerData.isConnected = player.optBoolean(TcpServer.JSON_CONNECTED, true)
+                        val settings = repo.playerSettings[playerData.playerID]
+                        if (settings == null) {
+                            playerData.overrideLives = false
+                            playerData.lives = 0
+                        } else {
+                            playerData.overrideLives = settings.overrideLives
+                            playerData.lives = settings.lives
+                        }
+                        finalData[playerData.playerID.toInt()] = playerData
                     }
-                    if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
-                        val teamIdx = Globals.getInstance().calcNetworkTeam(playerData.playerID) - 1
-                        if (teamIdx in 0..3) teamPoints[teamIdx] += playerData.points
-                    }
-                    playerData.eliminated = player.getInt(TcpServer.JSON_PLAYERELIMINATED)
-                    playerData.isConnected = player.optBoolean(TcpServer.JSON_CONNECTED, true)
-                    val settings = Globals.getInstance().mPlayerSettings[playerData.playerID]
-                    if (settings == null) {
-                        playerData.overrideLives = false
-                        playerData.lives = 0
-                    } else {
-                        playerData.overrideLives = settings.overrideLives
-                        playerData.lives = settings.lives
-                    }
-                    finalData[playerData.playerID.toInt()] = playerData
                 }
-                Globals.getInstance().mPlayerSettingsSemaphore.release()
-                hasSemaphore = false
             } catch (e: JSONException) {
                 Log.e(TAG, "Error parsing player data", e)
-                if (hasSemaphore) Globals.getInstance().mPlayerSettingsSemaphore.release()
                 return null
             }
             return ParsedPlayerData(finalData, myPoints, teamPoints)
@@ -379,7 +380,7 @@ class NetworkSessionGateway(
                     )
                 } else null,
                 gameState = if (intent.hasExtra(NetMsg.INTENT_GAMESTATE)) {
-                    intent.getIntExtra(NetMsg.INTENT_GAMESTATE, Globals.GAME_STATE_ELIMINATED)
+                    intent.getIntExtra(NetMsg.INTENT_GAMESTATE, GameStateRepository.GAME_STATE_ELIMINATED)
                 } else null,
                 sessionPhase = if (intent.hasExtra(NetMsg.INTENT_SESSIONPHASE)) intent.getIntExtra(NetMsg.INTENT_SESSIONPHASE, 0) else null,
                 gameId = if (intent.hasExtra(NetMsg.INTENT_GAMEID)) intent.getLongExtra(NetMsg.INTENT_GAMEID, 0) else null,

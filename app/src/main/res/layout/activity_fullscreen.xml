@@ -390,7 +390,7 @@
             android:layout_height="wrap_content"
             android:layout_centerHorizontal="true"
             android:layout_marginBottom="10dp"
-            android:layout_alignParentBottom="true"
+            android:layout_above="@+id/team_mode_label_tv"
             android:visibility="gone"
             android:text="@string/end_game_button" />
 
@@ -452,23 +452,40 @@
             android:text="@string/shuffle_teams_button" />
 
         <TextView
-            android:id="@+id/game_mode_label_tv"
+            android:id="@+id/team_mode_label_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_above="@id/game_mode_tv"
+            android:layout_above="@+id/team_mode_container"
             android:layout_centerHorizontal="true"
-            android:text="@string/game_mode_label"
+            android:text="@string/team_mode_label"
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
-        <TextView
-            android:id="@+id/game_mode_tv"
+        <!-- Server-less clients pick the mode with the button before a game; otherwise it's a label. -->
+        <FrameLayout
+            android:id="@+id/team_mode_container"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentBottom="true"
             android:layout_marginBottom="10dp"
-            android:layout_centerHorizontal="true"
-            android:text="@string/game_mode_2teams"
-            android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
+            android:layout_centerHorizontal="true">
+
+            <TextView
+                android:id="@+id/team_mode_tv"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:visibility="gone"
+                android:text="@string/team_mode_2teams"
+                android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
+
+            <Button
+                android:id="@+id/team_mode_button"
+                style="@style/Widget.AppCompat.Button.Colored"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="@string/team_mode_2teams" />
+        </FrameLayout>
 
         <Button
             android:id="@+id/game_limit_button"
@@ -531,7 +548,7 @@
             android:layout_height="wrap_content"
             android:layout_centerHorizontal="true"
             android:layout_marginBottom="10dp"
-            android:layout_above="@id/game_mode_label_tv"
+            android:layout_above="@id/team_mode_label_tv"
             android:visibility="gone"
             android:text="@string/end_game_button" />
 

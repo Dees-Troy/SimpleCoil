@@ -15,9 +15,9 @@
  */
 package com.simplecoil.simplecoil.domain.session
 
-import com.simplecoil.simplecoil.Globals.SHOT_MODE_BURST as B
-import com.simplecoil.simplecoil.Globals.SHOT_MODE_FULL_AUTO as A
-import com.simplecoil.simplecoil.Globals.SHOT_MODE_SINGLE as S
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository.SHOT_MODE_BURST as B
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository.SHOT_MODE_FULL_AUTO as A
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository.SHOT_MODE_SINGLE as S
 import org.junit.Assert.assertEquals
 import org.junit.Test
 

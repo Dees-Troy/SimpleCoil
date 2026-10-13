@@ -16,6 +16,7 @@
 
 package com.simplecoil.simplecoil
 
+import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -57,10 +58,10 @@ class TcpClientWriterTest {
     @Test
     fun eliminationsWhileDisconnected_rideInsideTheHello() {
         // D3: queued eliminations used to race the hello; now they are part of it.
-        Globals.getInstance().mPlayerID = 7
-        Globals.getInstance().mPlayerName = "Rook"
-        Globals.getInstance().mDeviceAddress = "AA:BB"
-        Globals.getInstance().mPairedGrenadeID = 0
+        PlayerRepository.getInstance().playerID = 7
+        PlayerRepository.getInstance().playerName = "Rook"
+        PlayerRepository.getInstance().deviceAddress = "AA:BB"
+        PlayerRepository.getInstance().pairedGrenadeID = 0
         val client = TcpClient()
         client.sendReliable(NetMsg.NETMSG_ELIMINATED + 3) // no connection: only in the outbox
         client.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_HIT + 3)) // no connection: dropped

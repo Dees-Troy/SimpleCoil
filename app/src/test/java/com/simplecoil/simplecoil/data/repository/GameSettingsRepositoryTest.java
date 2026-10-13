@@ -21,6 +21,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
+import com.simplecoil.simplecoil.domain.team.TeamLayout;
+import com.simplecoil.simplecoil.domain.team.TeamMode;
+
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -30,6 +33,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class GameSettingsRepositoryTest {
 
     private GameSettingsRepository repository;
@@ -37,7 +43,7 @@ public class GameSettingsRepositoryTest {
     @Before
     public void setUp() {
         repository = GameSettingsRepository.getInstance();
-        repository.setGameMode(GameSettingsRepository.GAME_MODE_2TEAMS);
+        repository.setTeamMode(TeamMode.TWO_TEAMS);
         repository.resetDefaultTeamSizes();
         repository.setFullHealth(GameSettingsRepository.MAX_HEALTH);
         repository.setFullReload(GameSettingsRepository.RELOAD_COUNT);
@@ -55,52 +61,90 @@ public class GameSettingsRepositoryTest {
         assertEquals(GameSettingsRepository.RELOAD_COUNT, repository.getFullReload());
         assertEquals(GameSettingsRepository.RESPAWN_SHIELD_TIME_SECONDS, repository.getRespawnShieldTime());
         assertEquals(GameSettingsRepository.START_TIME_SECONDS, repository.getStartTime());
-        assertEquals(GameSettingsRepository.GAME_MODE_2TEAMS, repository.getGameMode());
+        assertEquals(TeamMode.TWO_TEAMS, repository.getTeamMode());
         assertEquals(GameSettingsRepository.GAME_LIMIT_NONE, repository.getGameLimit());
     }
 
     @Test
     public void testTeamSizeCalculation2Teams() {
-        repository.setGameMode(GameSettingsRepository.GAME_MODE_2TEAMS);
-        int[] teamSizes = repository.getTeamSizes();
-        assertEquals(2, teamSizes.length);
-        assertArrayEquals(new int[]{16, 16}, teamSizes);
-        assertEquals(1, repository.getTeamStartID(1));
-        assertEquals(16, repository.getTeamEndID(1));
-        assertEquals(17, repository.getTeamStartID(2));
-        assertEquals(32, repository.getTeamEndID(2));
+        repository.setTeamMode(TeamMode.TWO_TEAMS);
+        TeamLayout layout = repository.getTeamLayout();
+        assertArrayEquals(new int[]{16, 16}, layout.teamSizes());
+        assertEquals(1, layout.teamStartId(1));
+        assertEquals(16, layout.teamEndId(1));
+        assertEquals(17, layout.teamStartId(2));
+        assertEquals(32, layout.teamEndId(2));
     }
 
     @Test
     public void testTeamSizeCalculation4Teams() {
-        repository.setGameMode(GameSettingsRepository.GAME_MODE_4TEAMS);
-        int[] teamSizes = repository.getTeamSizes();
-        assertEquals(4, teamSizes.length);
-        assertArrayEquals(new int[]{8, 8, 8, 8}, teamSizes);
-        assertEquals(1, repository.getTeamStartID(1));
-        assertEquals(8, repository.getTeamEndID(1));
-        assertEquals(9, repository.getTeamStartID(2));
-        assertEquals(16, repository.getTeamEndID(2));
-        assertEquals(17, repository.getTeamStartID(3));
-        assertEquals(24, repository.getTeamEndID(3));
-        assertEquals(25, repository.getTeamStartID(4));
-        assertEquals(32, repository.getTeamEndID(4));
+        repository.setTeamMode(TeamMode.FOUR_TEAMS);
+        TeamLayout layout = repository.getTeamLayout();
+        assertArrayEquals(new int[]{8, 8, 8, 8}, layout.teamSizes());
+        assertEquals(1, layout.teamStartId(1));
+        assertEquals(8, layout.teamEndId(1));
+        assertEquals(9, layout.teamStartId(2));
+        assertEquals(16, layout.teamEndId(2));
+        assertEquals(17, layout.teamStartId(3));
+        assertEquals(24, layout.teamEndId(3));
+        assertEquals(25, layout.teamStartId(4));
+        assertEquals(32, layout.teamEndId(4));
     }
 
     @Test
     public void testCustomTeamSizes() {
-        repository.setGameMode(GameSettingsRepository.GAME_MODE_2TEAMS);
+        repository.setTeamMode(TeamMode.TWO_TEAMS);
         repository.setTeamSizes(new int[]{20, 12});
-        assertArrayEquals(new int[]{20, 12}, repository.getTeamSizes());
+        assertArrayEquals(new int[]{20, 12}, repository.getTeamLayout().teamSizes());
 
-        // Calling setGameMode with the same game mode should preserve custom team sizes
-        repository.setGameMode(GameSettingsRepository.GAME_MODE_2TEAMS);
-        assertArrayEquals(new int[]{20, 12}, repository.getTeamSizes());
+        // Setting the same team mode again keeps custom team sizes
+        repository.setTeamMode(TeamMode.TWO_TEAMS);
+        TeamLayout layout = repository.getTeamLayout();
+        assertArrayEquals(new int[]{20, 12}, layout.teamSizes());
 
-        assertEquals(1, repository.getTeamStartID(1));
-        assertEquals(20, repository.getTeamEndID(1));
-        assertEquals(21, repository.getTeamStartID(2));
-        assertEquals(32, repository.getTeamEndID(2));
+        assertEquals(1, layout.teamStartId(1));
+        assertEquals(20, layout.teamEndId(1));
+        assertEquals(21, layout.teamStartId(2));
+        assertEquals(32, layout.teamEndId(2));
+
+        // A different mode starts from its defaults
+        repository.setTeamMode(TeamMode.FOUR_TEAMS);
+        assertArrayEquals(new int[]{8, 8, 8, 8}, repository.getTeamLayout().teamSizes());
+    }
+
+    @Test
+    public void testInvalidTeamSizesFallBackToDefaults() {
+        repository.setTeamMode(TeamMode.FOUR_TEAMS);
+        repository.setTeamSizes(new int[]{16, 16}); // two sizes for four teams
+        assertArrayEquals(new int[]{8, 8, 8, 8}, repository.getTeamLayout().teamSizes());
+        repository.setTeamSizes(new int[]{10, 10, 10, 10}); // doesn't add up to MAX_PLAYER_ID
+        assertArrayEquals(new int[]{8, 8, 8, 8}, repository.getTeamLayout().teamSizes());
+    }
+
+    @Test
+    public void testServerGameInfoAppliesModeAndSizesTogether() {
+        repository.setTeamModeAndSizes(TeamMode.FOUR_TEAMS, new int[]{5, 9, 9, 9});
+        TeamLayout layout = repository.getTeamLayout();
+        assertEquals(TeamMode.FOUR_TEAMS, layout.getMode());
+        assertArrayEquals(new int[]{5, 9, 9, 9}, layout.teamSizes());
+        assertEquals(2, layout.teamOf((byte) 6));
+    }
+
+    @Test
+    public void testListenersHearOnlyRealChanges() {
+        List<TeamLayout> heard = new ArrayList<>();
+        GameSettingsRepository.TeamLayoutListener listener = heard::add;
+        repository.addTeamLayoutListener(listener);
+        try {
+            repository.setTeamMode(TeamMode.TWO_TEAMS); // unchanged
+            repository.setTeamMode(TeamMode.FREE_FOR_ALL);
+            repository.setTeamSizes(new int[]{20, 12});
+        } finally {
+            repository.removeTeamLayoutListener(listener);
+        }
+        assertEquals(2, heard.size());
+        assertEquals(TeamMode.FREE_FOR_ALL, heard.get(0).getMode());
+        assertArrayEquals(new int[]{20, 12}, heard.get(1).teamSizes());
     }
 
     @Test
@@ -118,8 +162,9 @@ public class GameSettingsRepositoryTest {
         assertTrue(repository.isReloadOnEmpty());
     }
 
+    /** Writers flip the mode and sizes while readers check that every snapshot is self-consistent. */
     @Test
-    public void testConcurrentGameModeAndTeamIdAccess() throws InterruptedException {
+    public void testConcurrentTeamLayoutSnapshotsAreConsistent() throws InterruptedException {
         int numThreads = 10;
         int iterations = 1000;
         ExecutorService executor = Executors.newFixedThreadPool(numThreads);
@@ -131,15 +176,19 @@ public class GameSettingsRepositoryTest {
                 try {
                     for (int j = 0; j < iterations; j++) {
                         if (threadId % 2 == 0) {
-                            int mode = (j % 2 == 0) ? GameSettingsRepository.GAME_MODE_4TEAMS
-                                                    : GameSettingsRepository.GAME_MODE_2TEAMS;
-                            repository.setGameMode(mode);
+                            repository.setTeamMode((j % 2 == 0) ? TeamMode.FOUR_TEAMS : TeamMode.TWO_TEAMS);
+                            if (j % 3 == 0) repository.setTeamSizes(new int[]{20, 12});
                         } else {
-                            int team = (j % 4) + 1;
-                            int startId = repository.getTeamStartID(team);
-                            int endId = repository.getTeamEndID(team);
-                            assertTrue(startId >= 1);
-                            assertTrue(endId <= GameSettingsRepository.MAX_PLAYER_ID);
+                            TeamLayout layout = repository.getTeamLayout();
+                            int[] sizes = layout.teamSizes();
+                            int expectedTeams = layout.getMode() == TeamMode.FOUR_TEAMS ? 4 : 2;
+                            if (sizes.length != expectedTeams) throw new AssertionError("mixed layout " + layout);
+                            for (int team = 1; team <= expectedTeams; team++) {
+                                int startId = layout.teamStartId(team);
+                                int endId = layout.teamEndId(team);
+                                if (layout.teamOf((byte) startId) != team || layout.teamOf((byte) endId) != team)
+                                    throw new AssertionError("team " + team + " ids disagree in " + layout);
+                            }
                         }
                     }
                 } catch (Throwable t) {
@@ -150,7 +199,7 @@ public class GameSettingsRepositoryTest {
 
         executor.shutdown();
         assertTrue("Executor did not terminate in time", executor.awaitTermination(10, TimeUnit.SECONDS));
-        Assert.assertFalse("Concurrent access threw an exception", hasError.get());
+        Assert.assertFalse("A reader saw an inconsistent team layout", hasError.get());
     }
 
     @Test

@@ -16,7 +16,9 @@
 
 package com.simplecoil.simplecoil.data.repository;
 
-import com.simplecoil.simplecoil.Globals;
+import com.simplecoil.simplecoil.data.model.GpsData;
+import com.simplecoil.simplecoil.data.model.PlayerSettings;
+import com.simplecoil.simplecoil.domain.team.TeamLayout;
 
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -36,15 +38,18 @@ public class PlayerRepository {
     public static final int GRENADE_PLAYER_ID = 167;
     public static final int MAX_GRENADE_IDS = 16;
 
+    // This phone's own player. The dedicated server shares the process but is not a player, so the
+    // server-side lookups below (auto-sort, open ids, name checks, purge) never consult these.
     private volatile byte playerID = 0;
     private volatile String playerName = "";
     private volatile boolean isAdmin = false;
+    private volatile String deviceAddress = "";
 
     private final Map<InetAddress, Byte> ipTeamMap = new ConcurrentHashMap<>();
     private final Map<Byte, InetAddress> teamIPMap = new ConcurrentHashMap<>();
     private final Map<Byte, String> teamPlayerNameMap = new ConcurrentHashMap<>();
-    private final Map<Byte, Globals.GPSData> gpsData = new ConcurrentHashMap<>();
-    private final Map<Byte, Globals.PlayerSettings> playerSettings = new ConcurrentHashMap<>();
+    private final Map<Byte, GpsData> gpsData = new ConcurrentHashMap<>();
+    private final Map<Byte, PlayerSettings> playerSettings = new ConcurrentHashMap<>();
     private final Map<String, Byte> macPlayerMap = new ConcurrentHashMap<>();
     private final Map<Byte, String> playerMacMap = new ConcurrentHashMap<>();
 
@@ -67,21 +72,17 @@ public class PlayerRepository {
     }
 
     public byte getPlayerID() { return playerID; }
-    public void setPlayerID(byte playerID) {
-        this.playerID = playerID;
-        Globals.updatePlayerIDFromRepo(playerID);
-    }
-    public void setPlayerIDDirect(byte playerID) {
-        this.playerID = playerID;
-    }
+    public void setPlayerID(byte playerID) { this.playerID = playerID; }
 
     public String getPlayerName() { return playerName; }
     public void setPlayerName(String playerName) {
         this.playerName = playerName != null ? playerName : "";
-        Globals.updatePlayerNameFromRepo(this.playerName);
     }
-    public void setPlayerNameDirect(String playerName) {
-        this.playerName = playerName != null ? playerName : "";
+
+    /** The paired blaster's Bluetooth address, sent to the server so it can recognise a rejoin. */
+    public String getDeviceAddress() { return deviceAddress; }
+    public void setDeviceAddress(String deviceAddress) {
+        this.deviceAddress = deviceAddress != null ? deviceAddress : "";
     }
 
     public boolean isAdmin() { return isAdmin; }
@@ -93,17 +94,13 @@ public class PlayerRepository {
     public Map<InetAddress, Byte> getIpTeamMap() { return ipTeamMap; }
     public Map<Byte, InetAddress> getTeamIPMap() { return teamIPMap; }
     public Map<Byte, String> getTeamPlayerNameMap() { return teamPlayerNameMap; }
-    public Map<Byte, Globals.GPSData> getGpsData() { return gpsData; }
-    public Map<Byte, Globals.PlayerSettings> getPlayerSettings() { return playerSettings; }
+    public Map<Byte, GpsData> getGpsData() { return gpsData; }
+    public Map<Byte, PlayerSettings> getPlayerSettings() { return playerSettings; }
     public Map<String, Byte> getMacPlayerMap() { return macPlayerMap; }
     public Map<Byte, String> getPlayerMacMap() { return playerMacMap; }
 
     public synchronized int[] getGrenadePairings() {
         return grenadePairings.clone();
-    }
-
-    public synchronized int[] getGrenadePairingsInternal() {
-        return grenadePairings;
     }
 
     public synchronized int getGrenadePairing(int index) {
@@ -117,6 +114,11 @@ public class PlayerRepository {
         if (index >= 0 && index < MAX_GRENADE_IDS) {
             grenadePairings[index] = value;
         }
+    }
+
+    /** Pairs [grenadeId] with [playerId]; ignores ids outside the grenade range. */
+    public synchronized void pairGrenade(int grenadeId, int playerId) {
+        setGrenadePairing(grenadeId, playerId);
     }
 
     public synchronized void clearGrenadePairings() {
@@ -170,9 +172,6 @@ public class PlayerRepository {
                 return false;
             }
         }
-        if (excludePlayerId != playerID && trimmed.equalsIgnoreCase(playerName)) {
-            return false;
-        }
         return true;
     }
 
@@ -204,7 +203,6 @@ public class PlayerRepository {
 
     public synchronized void purgeDisconnectedPlayers(Set<Byte> activePlayerIds) {
         Set<Byte> activeIds = activePlayerIds != null ? activePlayerIds : Collections.emptySet();
-        byte hostId = playerID;
 
         Set<Byte> knownIds = new HashSet<>();
         knownIds.addAll(teamIPMap.keySet());
@@ -212,7 +210,7 @@ public class PlayerRepository {
         knownIds.addAll(playerMacMap.keySet());
 
         for (byte id : knownIds) {
-            if (id != 0 && id != hostId && !activeIds.contains(id)) {
+            if (id != 0 && !activeIds.contains(id)) {
                 removePlayer(id, false);
             }
         }
@@ -221,8 +219,8 @@ public class PlayerRepository {
     public synchronized void reassignPlayer(byte oldPlayerId, byte newPlayerId) {
         InetAddress ip = teamIPMap.remove(oldPlayerId);
         String name = teamPlayerNameMap.remove(oldPlayerId);
-        Globals.PlayerSettings settings = playerSettings.remove(oldPlayerId);
-        Globals.GPSData gps = gpsData.remove(oldPlayerId);
+        PlayerSettings settings = playerSettings.remove(oldPlayerId);
+        GpsData gps = gpsData.remove(oldPlayerId);
         String mac = playerMacMap.remove(oldPlayerId);
 
         if (ip != null) {
@@ -252,8 +250,8 @@ public class PlayerRepository {
         Map<Byte, InetAddress> newTeamIPMap = new HashMap<>();
         Map<InetAddress, Byte> newIPTeamMap = new HashMap<>();
         Map<Byte, String> newNameMap = new HashMap<>();
-        Map<Byte, Globals.PlayerSettings> newSettingsMap = new HashMap<>();
-        Map<Byte, Globals.GPSData> newGPSMap = new HashMap<>();
+        Map<Byte, PlayerSettings> newSettingsMap = new HashMap<>();
+        Map<Byte, GpsData> newGPSMap = new HashMap<>();
         Map<Byte, String> newPlayerMacMap = new HashMap<>();
         Map<String, Byte> newMacPlayerMap = new HashMap<>();
         for (Map.Entry<Byte, Byte> entry : oldToNew.entrySet()) {
@@ -266,9 +264,9 @@ public class PlayerRepository {
             }
             String name = teamPlayerNameMap.get(oldId);
             if (name != null && !name.isEmpty()) newNameMap.put(newId, name);
-            Globals.PlayerSettings settings = playerSettings.get(oldId);
+            PlayerSettings settings = playerSettings.get(oldId);
             if (settings != null) newSettingsMap.put(newId, settings);
-            Globals.GPSData gps = gpsData.get(oldId);
+            GpsData gps = gpsData.get(oldId);
             if (gps != null) newGPSMap.put(newId, gps);
             String mac = playerMacMap.get(oldId);
             if (mac != null && !mac.isEmpty()) {
@@ -283,8 +281,8 @@ public class PlayerRepository {
             Map<Byte, InetAddress> newTeamIPMap,
             Map<InetAddress, Byte> newIPTeamMap,
             Map<Byte, String> newNameMap,
-            Map<Byte, Globals.PlayerSettings> newSettingsMap,
-            Map<Byte, Globals.GPSData> newGPSMap,
+            Map<Byte, PlayerSettings> newSettingsMap,
+            Map<Byte, GpsData> newGPSMap,
             Map<Byte, String> newPlayerMacMap,
             Map<String, Byte> newMacPlayerMap) {
         teamIPMap.clear();
@@ -333,28 +331,9 @@ public class PlayerRepository {
         playerMacMap.clear();
     }
 
-    public synchronized int calcNetworkTeam(byte id) {
-        if (id < 1 || id > GameSettingsRepository.MAX_PLAYER_ID) {
-            return INVALID_PLAYER_ID;
-        }
-        GameSettingsRepository settings = GameSettingsRepository.getInstance();
-        int gameMode = settings.getGameMode();
-        if (gameMode == GameSettingsRepository.GAME_MODE_FFA) {
-            return id;
-        }
-        int numTeams = (gameMode == GameSettingsRepository.GAME_MODE_4TEAMS) ? 4 : 2;
-        int[] sizes = settings.getTeamSizes();
-        if (sizes == null || sizes.length < numTeams) {
-            return numTeams;
-        }
-        int currentCumulative = 0;
-        for (int t = 0; t < numTeams; t++) {
-            currentCumulative += sizes[t];
-            if (id <= currentCumulative) {
-                return t + 1;
-            }
-        }
-        return numTeams;
+    /** The team [id] is on under the current team layout (see TeamLayout.teamOf). */
+    public int calcNetworkTeam(byte id) {
+        return GameSettingsRepository.getInstance().getTeamLayout().teamOf(id);
     }
 
     public synchronized byte findAutoSortPlayerID() {
@@ -362,14 +341,10 @@ public class PlayerRepository {
     }
 
     public synchronized byte findAutoSortPlayerID(Set<Byte> additionalOccupiedIDs) {
-        GameSettingsRepository settings = GameSettingsRepository.getInstance();
-        int gameMode = settings.getGameMode();
+        TeamLayout layout = GameSettingsRepository.getInstance().getTeamLayout();
         int maxPlayers = GameSettingsRepository.MAX_PLAYER_ID;
 
         boolean[] occupied = new boolean[maxPlayers + 1];
-        if (playerID != 0 && playerID <= maxPlayers) {
-            occupied[playerID] = true;
-        }
         for (byte id : teamIPMap.keySet()) {
             if (id >= 1 && id <= maxPlayers) {
                 occupied[id] = true;
@@ -383,20 +358,20 @@ public class PlayerRepository {
             }
         }
 
-        if (gameMode == GameSettingsRepository.GAME_MODE_FFA) {
+        if (layout.getMode().isFreeForAll()) {
             for (byte i = 1; i <= maxPlayers; i++) {
                 if (!occupied[i]) {
                     return i;
                 }
             }
         } else {
-            int numTeams = (gameMode == GameSettingsRepository.GAME_MODE_4TEAMS) ? 4 : 2;
-            int[] teamSizes = settings.getTeamSizes();
+            int numTeams = layout.getMode().teamCount;
+            int[] teamSizes = layout.teamSizes();
             int[] teamCounts = new int[numTeams + 1];
 
             for (byte i = 1; i <= maxPlayers; i++) {
                 if (occupied[i]) {
-                    int team = calcNetworkTeam(i);
+                    int team = layout.teamOf(i);
                     if (team >= 1 && team <= numTeams) {
                         teamCounts[team]++;
                     }
@@ -417,8 +392,8 @@ public class PlayerRepository {
             }
 
             if (bestTeam != -1) {
-                int startID = settings.getTeamStartID(bestTeam);
-                int endID = settings.getTeamEndID(bestTeam);
+                int startID = layout.teamStartId(bestTeam);
+                int endID = layout.teamEndId(bestTeam);
                 for (int i = startID; i <= endID; i++) {
                     byte testID = (byte) i;
                     if (!occupied[testID]) {
@@ -441,18 +416,14 @@ public class PlayerRepository {
     }
 
     public synchronized byte findOpenPlayerIDOnTeam(int targetTeam, Set<Byte> additionalOccupiedIDs) {
-        GameSettingsRepository settings = GameSettingsRepository.getInstance();
-        int gameMode = settings.getGameMode();
-        int numTeams = (gameMode == GameSettingsRepository.GAME_MODE_4TEAMS) ? 4 : 2;
+        TeamLayout layout = GameSettingsRepository.getInstance().getTeamLayout();
+        int numTeams = layout.getMode().isFreeForAll() ? 2 : layout.getMode().teamCount;
         if (targetTeam < 1 || targetTeam > numTeams) {
             return 0;
         }
 
         int maxPlayers = GameSettingsRepository.MAX_PLAYER_ID;
         boolean[] occupied = new boolean[maxPlayers + 1];
-        if (playerID != 0 && playerID <= maxPlayers) {
-            occupied[playerID] = true;
-        }
         for (byte id : teamIPMap.keySet()) {
             if (id >= 1 && id <= maxPlayers) {
                 occupied[id] = true;
@@ -466,8 +437,8 @@ public class PlayerRepository {
             }
         }
 
-        int startID = settings.getTeamStartID(targetTeam);
-        int endID = settings.getTeamEndID(targetTeam);
+        int startID = layout.teamStartId(targetTeam);
+        int endID = layout.teamEndId(targetTeam);
 
         for (int i = startID; i <= endID; i++) {
             byte testID = (byte) i;

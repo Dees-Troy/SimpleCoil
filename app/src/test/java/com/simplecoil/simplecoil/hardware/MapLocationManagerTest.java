@@ -16,6 +16,10 @@
 
 package com.simplecoil.simplecoil.hardware;
 
+import com.simplecoil.simplecoil.data.model.GpsData;
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
+import com.simplecoil.simplecoil.domain.team.TeamLayout;
+import com.simplecoil.simplecoil.domain.team.TeamMode;
 import com.simplecoil.simplecoil.hardware.location.MapLocationManager;
 
 import org.junit.Before;
@@ -59,5 +63,36 @@ public class MapLocationManagerTest {
         long now = System.currentTimeMillis();
 
         assertTrue(locationManager.isBetterLocation(now + 100, 5.0f, "gps", now, 20.0f, "gps"));
+    }
+
+    private static GpsData playerOnTeam(int team) {
+        GpsData data = new GpsData();
+        data.team = team;
+        return data;
+    }
+
+    @Test
+    public void testTeammatesOnlyHidesEnemies() {
+        TeamLayout layout = TeamLayout.defaultFor(TeamMode.TWO_TEAMS);
+        byte me = 3; // team 1
+        assertTrue(MapLocationManager.isVisible(layout, GameSettingsRepository.GPS_TEAMMATE, me, playerOnTeam(1)));
+        assertFalse(MapLocationManager.isVisible(layout, GameSettingsRepository.GPS_TEAMMATE, me, playerOnTeam(2)));
+        assertTrue(MapLocationManager.isVisible(layout, GameSettingsRepository.GPS_ALL, me, playerOnTeam(2)));
+    }
+
+    @Test
+    public void testFreeForAllHasNoTeammates() {
+        TeamLayout ffa = TeamLayout.defaultFor(TeamMode.FREE_FOR_ALL);
+        byte me = 3;
+        assertFalse(MapLocationManager.isVisible(ffa, GameSettingsRepository.GPS_TEAMMATE, me, playerOnTeam(3)));
+        assertTrue(MapLocationManager.isVisible(ffa, GameSettingsRepository.GPS_ALL, me, playerOnTeam(3)));
+    }
+
+    @Test
+    public void testFourTeamsUsesTheFourTeamLayout() {
+        TeamLayout four = TeamLayout.defaultFor(TeamMode.FOUR_TEAMS);
+        byte me = 9; // team 2 with four teams, team 1 with two
+        assertTrue(MapLocationManager.isVisible(four, GameSettingsRepository.GPS_TEAMMATE, me, playerOnTeam(2)));
+        assertFalse(MapLocationManager.isVisible(four, GameSettingsRepository.GPS_TEAMMATE, me, playerOnTeam(1)));
     }
 }

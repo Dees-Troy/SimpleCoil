@@ -16,7 +16,10 @@
 
 package com.simplecoil.simplecoil.domain.session
 
-import com.simplecoil.simplecoil.Globals
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
+import com.simplecoil.simplecoil.data.repository.GameStateRepository
+import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.domain.team.TeamLayout
 import com.simplecoil.simplecoil.hardware.blaster.BlasterEvent
 import com.simplecoil.simplecoil.hardware.blaster.GattProtocolHandler
 import com.simplecoil.simplecoil.hardware.blaster.RecoilProtocolFixtures
@@ -27,16 +30,16 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 
 /** Mutable GameConfig with the app's defaults. */
 class FakeGameConfig : GameConfig {
-    override var gameState = Globals.GAME_STATE_NONE
+    override var gameState = GameStateRepository.GAME_STATE_NONE
     override var playerId: Byte = 5
     override var pairedGrenadeId: Byte = 0
-    override var fullHealth = Globals.MAX_HEALTH
-    override var fullReload = Globals.RELOAD_COUNT
-    override var reloadTimeMillis = Globals.RELOAD_TIME_MILLISECONDS
-    override var respawnTimeSeconds = Globals.RESPAWN_TIME_SECONDS
-    override var respawnShieldTimeSeconds = Globals.RESPAWN_SHIELD_TIME_SECONDS
-    override var startCountdownSeconds = Globals.START_TIME_SECONDS
-    override var gameLimit = Globals.GAME_LIMIT_NONE
+    override var fullHealth = GameSettingsRepository.MAX_HEALTH
+    override var fullReload = GameSettingsRepository.RELOAD_COUNT
+    override var reloadTimeMillis = GameSettingsRepository.RELOAD_TIME_MILLISECONDS
+    override var respawnTimeSeconds = GameSettingsRepository.RESPAWN_TIME_SECONDS
+    override var respawnShieldTimeSeconds = GameSettingsRepository.RESPAWN_SHIELD_TIME_SECONDS
+    override var startCountdownSeconds = GameSettingsRepository.START_TIME_SECONDS
+    override var gameLimit = GameSettingsRepository.GAME_LIMIT_NONE
     override var timeLimitMinutes = 0
     override var livesLimit = 0
     override var overrideLives = false
@@ -45,17 +48,15 @@ class FakeGameConfig : GameConfig {
     override var allowSingleShotMode = true
     override var allowBurstShotMode = true
     override var allowAutoShotMode = true
-    override var serverRecoilSetting = Globals.RECOIL_SETTING_DEFAULT
-    override var firingMode = Globals.FIRING_MODE_OUTDOOR_NO_CONE
-    override var gameMode = Globals.GAME_MODE_2TEAMS
-    var teams = mutableMapOf<Byte, Int>()
+    override var serverRecoilSetting = GameSettingsRepository.RECOIL_SETTING_DEFAULT
+    override var firingMode = GameSettingsRepository.FIRING_MODE_OUTDOOR_NO_CONE
+    override var teamLayout = TeamLayout.DEFAULT
     var names = mutableMapOf<Byte, String>()
     var damage = mutableMapOf<Byte, Int>()
 
-    override fun networkTeam(playerId: Byte) = teams[playerId] ?: (100 + playerId)
     override fun playerName(playerId: Byte) = names[playerId]
     override fun playerDamage(playerId: Byte) = damage[playerId]
-    override fun grenadePairing(grenadeId: Int) = Globals.INVALID_PLAYER_ID
+    override fun grenadePairing(grenadeId: Int) = PlayerRepository.INVALID_PLAYER_ID
 }
 
 /** Records blaster commands, network sends and persisted settings as compact strings. */

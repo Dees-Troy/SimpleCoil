@@ -17,6 +17,8 @@
 package com.simplecoil.simplecoil
 
 import android.app.Activity
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
+import com.simplecoil.simplecoil.domain.team.TeamMode
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -29,15 +31,15 @@ class PlayerDisplayDataListAdapterTest {
     @Before
     fun setUp() {
         mockActivity = Mockito.mock(Activity::class.java)
-        Globals.getInstance().mGameMode = Globals.GAME_MODE_FFA
-        Globals.getInstance().mGameLimit = 0
-        Globals.getInstance().mLivesLimit = 0
+        GameSettingsRepository.getInstance().teamMode = TeamMode.FREE_FOR_ALL
+        GameSettingsRepository.getInstance().gameLimit = 0
+        GameSettingsRepository.getInstance().livesLimit = 0
     }
 
     @Test
     fun testFfaSortingByScore() {
-        Globals.getInstance().mGameMode = Globals.GAME_MODE_FFA
-        val data = arrayOfNulls<PlayerDisplayData>(Globals.MAX_PLAYER_ID + 2)
+        GameSettingsRepository.getInstance().teamMode = TeamMode.FREE_FOR_ALL
+        val data = arrayOfNulls<PlayerDisplayData>(GameSettingsRepository.MAX_PLAYER_ID + 2)
 
         data[1] = PlayerDisplayData().apply {
             playerID = 1
@@ -73,9 +75,9 @@ class PlayerDisplayDataListAdapterTest {
 
     @Test
     fun testFfaSortingByLeastEliminationsWhenNoLivesLimit() {
-        Globals.getInstance().mGameMode = Globals.GAME_MODE_FFA
-        Globals.getInstance().mGameLimit = 0
-        val data = arrayOfNulls<PlayerDisplayData>(Globals.MAX_PLAYER_ID + 2)
+        GameSettingsRepository.getInstance().teamMode = TeamMode.FREE_FOR_ALL
+        GameSettingsRepository.getInstance().gameLimit = 0
+        val data = arrayOfNulls<PlayerDisplayData>(GameSettingsRepository.MAX_PLAYER_ID + 2)
 
         data[1] = PlayerDisplayData().apply {
             playerID = 1
@@ -106,10 +108,10 @@ class PlayerDisplayDataListAdapterTest {
 
     @Test
     fun testFfaSortingByMostLivesRemainingWhenLivesLimitSet() {
-        Globals.getInstance().mGameMode = Globals.GAME_MODE_FFA
-        Globals.getInstance().mGameLimit = Globals.GAME_LIMIT_LIVES
-        Globals.getInstance().mLivesLimit = 10
-        val data = arrayOfNulls<PlayerDisplayData>(Globals.MAX_PLAYER_ID + 2)
+        GameSettingsRepository.getInstance().teamMode = TeamMode.FREE_FOR_ALL
+        GameSettingsRepository.getInstance().gameLimit = GameSettingsRepository.GAME_LIMIT_LIVES
+        GameSettingsRepository.getInstance().livesLimit = 10
+        val data = arrayOfNulls<PlayerDisplayData>(GameSettingsRepository.MAX_PLAYER_ID + 2)
 
         data[1] = PlayerDisplayData().apply {
             playerID = 1
@@ -140,8 +142,8 @@ class PlayerDisplayDataListAdapterTest {
 
     @Test
     fun testFfaSortingByNameCaseInsensitive() {
-        Globals.getInstance().mGameMode = Globals.GAME_MODE_FFA
-        val data = arrayOfNulls<PlayerDisplayData>(Globals.MAX_PLAYER_ID + 2)
+        GameSettingsRepository.getInstance().teamMode = TeamMode.FREE_FOR_ALL
+        val data = arrayOfNulls<PlayerDisplayData>(GameSettingsRepository.MAX_PLAYER_ID + 2)
 
         data[1] = PlayerDisplayData().apply {
             playerID = 1
@@ -172,8 +174,8 @@ class PlayerDisplayDataListAdapterTest {
 
     @Test
     fun testTeamModeTeamSortingByScoreAndPlayersUnderTeam() {
-        Globals.getInstance().mGameMode = Globals.GAME_MODE_2TEAMS
-        val data = arrayOfNulls<PlayerDisplayData>(Globals.MAX_PLAYER_ID + 2)
+        GameSettingsRepository.getInstance().teamMode = TeamMode.TWO_TEAMS
+        val data = arrayOfNulls<PlayerDisplayData>(GameSettingsRepository.MAX_PLAYER_ID + 2)
 
         // Team 1 (IDs 1-16)
         data[1] = PlayerDisplayData().apply {

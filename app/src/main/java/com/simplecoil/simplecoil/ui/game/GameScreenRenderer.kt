@@ -22,13 +22,14 @@ import android.graphics.drawable.AnimationDrawable
 import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.view.animation.AnimationUtils
-import com.simplecoil.simplecoil.Globals
 import com.simplecoil.simplecoil.R
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.databinding.ActivityFullscreenBinding
 import com.simplecoil.simplecoil.domain.session.BatteryLevelPolicy
 import com.simplecoil.simplecoil.domain.session.GameClock
 import com.simplecoil.simplecoil.domain.session.SessionState
 import com.simplecoil.simplecoil.domain.session.SpawnPhase
+import com.simplecoil.simplecoil.domain.team.TeamMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -99,6 +100,7 @@ class GameScreenRenderer(
         b.playerSettingsButton.visibility = View.GONE
         b.shuffleTeamsButton.isEnabled = false
         b.shuffleTeamsButton.visibility = View.GONE
+        showTeamModeSelectable(false)
         if (useNetwork) {
             displayInGameNetworkingOptions(isAdmin, freeForAll)
         } else {
@@ -155,18 +157,26 @@ class GameScreenRenderer(
 
     override fun showFiringMode(firingMode: Int) {
         when (firingMode) {
-            Globals.FIRING_MODE_OUTDOOR_NO_CONE -> b.firingModeButton.setText(R.string.firing_mode_outdoor_no_cone)
-            Globals.FIRING_MODE_OUTDOOR_WITH_CONE -> b.firingModeButton.setText(R.string.firing_mode_outdoor_with_cone)
-            Globals.FIRING_MODE_INDOOR_NO_CONE -> b.firingModeButton.setText(R.string.firing_mode_indoor_no_cone)
+            GameSettingsRepository.FIRING_MODE_OUTDOOR_NO_CONE -> b.firingModeButton.setText(R.string.firing_mode_outdoor_no_cone)
+            GameSettingsRepository.FIRING_MODE_OUTDOOR_WITH_CONE -> b.firingModeButton.setText(R.string.firing_mode_outdoor_with_cone)
+            GameSettingsRepository.FIRING_MODE_INDOOR_NO_CONE -> b.firingModeButton.setText(R.string.firing_mode_indoor_no_cone)
         }
     }
 
-    override fun showGameMode(gameMode: Int) {
-        b.gameModeTv.setText(when (gameMode) {
-            Globals.GAME_MODE_2TEAMS -> R.string.game_mode_2teams
-            Globals.GAME_MODE_4TEAMS -> R.string.game_mode_4teams
-            else -> R.string.game_mode_ffa
-        })
+    override fun showTeamMode(mode: TeamMode) {
+        val text = when (mode) {
+            TeamMode.TWO_TEAMS -> R.string.team_mode_2teams
+            TeamMode.FOUR_TEAMS -> R.string.team_mode_4teams
+            TeamMode.FREE_FOR_ALL -> R.string.team_mode_ffa
+        }
+        b.teamModeTv.setText(text)
+        b.teamModeButton.setText(text)
+    }
+
+    /** The team mode is a button for a server-less client before the game, otherwise a label. */
+    private fun showTeamModeSelectable(selectable: Boolean) {
+        b.teamModeButton.visibility = if (selectable) View.VISIBLE else View.GONE
+        b.teamModeTv.visibility = if (selectable) View.GONE else View.VISIBLE
     }
 
     override fun showTeam(team: TeamDisplay) {
@@ -224,6 +234,7 @@ class GameScreenRenderer(
         b.firingModeButton.visibility = playerSettingsVisibility
         b.playerSettingsButton.visibility = playerSettingsVisibility
         b.shuffleTeamsButton.visibility = View.GONE
+        showTeamModeSelectable(buttons.teamModeSelectable)
     }
 
     override fun showAdminButton(visible: Boolean) {
@@ -236,8 +247,8 @@ class GameScreenRenderer(
 
     private fun displayAllNetworkingOptions(enabled: Boolean, freeForAll: Boolean) {
         val visibility = if (enabled) View.VISIBLE else View.INVISIBLE
-        b.gameModeLabelTv.visibility = visibility
-        b.gameModeTv.visibility = visibility
+        // The team mode stays visible offline too; showTeamModeSelectable picks button or label.
+        b.teamModeLabelTv.visibility = View.VISIBLE
         b.scoreLabelTv.visibility = visibility
         b.scoreTv.visibility = visibility
         b.playerNameLabelTv.visibility = visibility
@@ -250,8 +261,7 @@ class GameScreenRenderer(
     private fun displayInGameNetworkingOptions(isAdmin: Boolean, freeForAll: Boolean) {
         displayAllNetworkingOptions(false, freeForAll)
         b.playerCountTv.visibility = View.VISIBLE
-        b.gameModeLabelTv.visibility = View.VISIBLE
-        b.gameModeTv.visibility = View.VISIBLE
+        b.teamModeLabelTv.visibility = View.VISIBLE
         b.scoreLabelTv.visibility = View.VISIBLE
         b.scoreTv.visibility = View.VISIBLE
         b.endNetworkGameButton.visibility = if (isAdmin) View.VISIBLE else View.GONE
@@ -393,9 +403,9 @@ class GameScreenRenderer(
         if (p == null || p.eliminationDisplay != s.eliminationDisplay) b.eliminationsCountTv.text = s.eliminationDisplay.toString()
         if (p == null || p.shotMode != s.shotMode) {
             when (s.shotMode) {
-                Globals.SHOT_MODE_SINGLE -> b.shotModeTv.setText(R.string.shot_mode_single)
-                Globals.SHOT_MODE_BURST -> b.shotModeTv.setText(R.string.shot_mode_burst3)
-                Globals.SHOT_MODE_FULL_AUTO -> b.shotModeTv.setText(R.string.shot_mode_auto)
+                GameSettingsRepository.SHOT_MODE_SINGLE -> b.shotModeTv.setText(R.string.shot_mode_single)
+                GameSettingsRepository.SHOT_MODE_BURST -> b.shotModeTv.setText(R.string.shot_mode_burst3)
+                GameSettingsRepository.SHOT_MODE_FULL_AUTO -> b.shotModeTv.setText(R.string.shot_mode_auto)
             }
         }
         if (p == null || p.recoilEnabled != s.recoilEnabled) {

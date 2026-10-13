@@ -15,7 +15,8 @@
  */
 package com.simplecoil.simplecoil.domain.session
 
-import com.simplecoil.simplecoil.Globals
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
+import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.hardware.blaster.GattProtocolHandler.RECOIL_OFFSET_HIT_BY1
 import com.simplecoil.simplecoil.hardware.blaster.GattProtocolHandler.RECOIL_OFFSET_HIT_BY1_SHOTID
 import com.simplecoil.simplecoil.hardware.blaster.GattProtocolHandler.RECOIL_OFFSET_HIT_BY2
@@ -47,7 +48,7 @@ class HitResolverTest {
         val damage: Map<Byte, Int> = emptyMap(),
     ) : HitResolver.Lookups {
         override fun networkTeam(playerId: Byte) = teams[playerId] ?: (100 + playerId)
-        override fun grenadePairing(grenadeId: Int) = pairings[grenadeId] ?: Globals.INVALID_PLAYER_ID
+        override fun grenadePairing(grenadeId: Int) = pairings[grenadeId] ?: PlayerRepository.INVALID_PLAYER_ID
         override fun damage(playerId: Byte): Int? = damage[playerId]
     }
 
@@ -80,7 +81,7 @@ class HitResolverTest {
     fun localSingleHit_costsOneHitAndCreditsNobody() {
         val r = resolve(GOLDEN_HIT_BY_PLAYER_2)
         assertTrue(r.countedHit)
-        assertEquals(Globals.DAMAGE_PER_HIT, r.healthRemoved)
+        assertEquals(GameSettingsRepository.DAMAGE_PER_HIT, r.healthRemoved)
         assertEquals(0.toByte(), r.hitById)
         assertTrue(r.messages.isEmpty())
     }
@@ -99,13 +100,13 @@ class HitResolverTest {
     fun localDoubleHit_costsTwoHits() {
         val r = resolve(GOLDEN_DOUBLE_HIT)
         assertTrue(r.countedHit)
-        assertEquals(2 * Globals.DAMAGE_PER_HIT, r.healthRemoved)
+        assertEquals(2 * GameSettingsRepository.DAMAGE_PER_HIT, r.healthRemoved)
     }
 
     @Test
     fun slot2_skippedWhenSlot1AlreadyEliminates() {
         val r = resolve(GOLDEN_DOUBLE_HIT, context(currentHealth = 1))
-        assertEquals(Globals.DAMAGE_PER_HIT, r.healthRemoved)
+        assertEquals(GameSettingsRepository.DAMAGE_PER_HIT, r.healthRemoved)
     }
 
     @Test
@@ -113,14 +114,14 @@ class HitResolverTest {
         // Before the fix de-dup only compared against the previous packet, so this cost two hits.
         val r = resolve(telemetry(RECOIL_OFFSET_HIT_BY1, 0x04, RECOIL_OFFSET_HIT_BY1_SHOTID, 0x3B,
             RECOIL_OFFSET_HIT_BY2, 0x04, RECOIL_OFFSET_HIT_BY2_SHOTID, 0x73))
-        assertEquals(Globals.DAMAGE_PER_HIT, r.healthRemoved)
+        assertEquals(GameSettingsRepository.DAMAGE_PER_HIT, r.healthRemoved)
     }
 
     @Test
     fun samePlayerDifferentShotsInOnePacket_countsTwice() {
         val r = resolve(telemetry(RECOIL_OFFSET_HIT_BY1, 0x04, RECOIL_OFFSET_HIT_BY1_SHOTID, 0x3B,
             RECOIL_OFFSET_HIT_BY2, 0x04, RECOIL_OFFSET_HIT_BY2_SHOTID, 0x3C))
-        assertEquals(2 * Globals.DAMAGE_PER_HIT, r.healthRemoved)
+        assertEquals(2 * GameSettingsRepository.DAMAGE_PER_HIT, r.healthRemoved)
     }
 
     @Test
@@ -128,7 +129,7 @@ class HitResolverTest {
         // Grenade damage is never de-duplicated.
         val r = resolve(telemetry(RECOIL_OFFSET_HIT_BY1, 0xA7, RECOIL_OFFSET_HIT_BY1_SHOTID, 0x31,
             RECOIL_OFFSET_HIT_BY2, 0xA7, RECOIL_OFFSET_HIT_BY2_SHOTID, 0x31))
-        assertEquals(2 * Globals.DAMAGE_PER_HIT, r.healthRemoved)
+        assertEquals(2 * GameSettingsRepository.DAMAGE_PER_HIT, r.healthRemoved)
     }
 
     // --- game state gating ------------------------------------------------------------------
@@ -138,24 +139,24 @@ class HitResolverTest {
         assertNoHit(resolve(GOLDEN_HIT_BY_PLAYER_2, context(gameActive = false)))
         assertNoHit(resolve(GOLDEN_HIT_BY_PLAYER_2, context(shielded = true)))
         // Nothing was recorded for de-dup, so the same shot counts once the game is live.
-        assertEquals(Globals.DAMAGE_PER_HIT, resolve(GOLDEN_HIT_BY_PLAYER_2).healthRemoved)
+        assertEquals(GameSettingsRepository.DAMAGE_PER_HIT, resolve(GOLDEN_HIT_BY_PLAYER_2).healthRemoved)
     }
 
     // --- de-dup -----------------------------------------------------------------------------
 
     @Test
     fun repeatedShot_isFilteredUntilAnIdlePacket() {
-        assertEquals(Globals.DAMAGE_PER_HIT, resolve(GOLDEN_HIT_BY_PLAYER_2).healthRemoved)
+        assertEquals(GameSettingsRepository.DAMAGE_PER_HIT, resolve(GOLDEN_HIT_BY_PLAYER_2).healthRemoved)
         assertNoHit(resolve(GOLDEN_HIT_BY_PLAYER_2))
         assertNoHit(resolve(GOLDEN_IDLE))
-        assertEquals(Globals.DAMAGE_PER_HIT, resolve(GOLDEN_HIT_BY_PLAYER_2).healthRemoved)
+        assertEquals(GameSettingsRepository.DAMAGE_PER_HIT, resolve(GOLDEN_HIT_BY_PLAYER_2).healthRemoved)
     }
 
     @Test
     fun dedup_comparesOnlyLowThreeBitsOfShotId() {
         resolve(GOLDEN_HIT_BY_PLAYER_2) // shot id byte 0x3D → shot id 5
         assertNoHit(resolve(telemetry(RECOIL_OFFSET_HIT_BY1, 0x08, RECOIL_OFFSET_HIT_BY1_SHOTID, 0x75)))
-        assertEquals(Globals.DAMAGE_PER_HIT,
+        assertEquals(GameSettingsRepository.DAMAGE_PER_HIT,
             resolve(telemetry(RECOIL_OFFSET_HIT_BY1, 0x08, RECOIL_OFFSET_HIT_BY1_SHOTID, 0x76)).healthRemoved)
     }
 
@@ -170,8 +171,8 @@ class HitResolverTest {
 
     @Test
     fun grenadeDamage_costsOneHitAndIsNeverDeduplicated() {
-        assertEquals(Globals.DAMAGE_PER_HIT, resolve(GOLDEN_GRENADE_DAMAGE).healthRemoved)
-        assertEquals(Globals.DAMAGE_PER_HIT, resolve(GOLDEN_GRENADE_DAMAGE).healthRemoved)
+        assertEquals(GameSettingsRepository.DAMAGE_PER_HIT, resolve(GOLDEN_GRENADE_DAMAGE).healthRemoved)
+        assertEquals(GameSettingsRepository.DAMAGE_PER_HIT, resolve(GOLDEN_GRENADE_DAMAGE).healthRemoved)
     }
 
     @Test
@@ -185,7 +186,7 @@ class HitResolverTest {
     fun networkHit_creditsShooterAndSendsHit() {
         val r = resolve(GOLDEN_HIT_BY_PLAYER_2, context(useNetwork = true))
         assertTrue(r.countedHit)
-        assertEquals(Globals.DAMAGE_PER_HIT, r.healthRemoved)
+        assertEquals(GameSettingsRepository.DAMAGE_PER_HIT, r.healthRemoved)
         assertEquals(2.toByte(), r.hitById)
         assertEquals(listOf(HitResolver.Message(out = false, playerId = 2)), r.messages)
     }
@@ -215,7 +216,7 @@ class HitResolverTest {
     fun freeForAll_hasNoFriendlyFire() {
         val r = resolve(GOLDEN_HIT_BY_PLAYER_2, context(useNetwork = true, freeForAll = true, myNetworkTeam = 7),
             FakeLookups(teams = mapOf(2.toByte() to 7)))
-        assertEquals(Globals.DAMAGE_PER_HIT, r.healthRemoved)
+        assertEquals(GameSettingsRepository.DAMAGE_PER_HIT, r.healthRemoved)
     }
 
     @Test
@@ -223,7 +224,7 @@ class HitResolverTest {
         val lookups = FakeLookups(teams = mapOf(5.toByte() to 1), pairings = mapOf(3 to 5))
         val r = resolve(GOLDEN_GRENADE_DAMAGE, context(useNetwork = true, myNetworkTeam = 1), lookups)
         assertEquals(5.toByte(), r.hitById)
-        assertEquals(Globals.DAMAGE_PER_HIT, r.healthRemoved)
+        assertEquals(GameSettingsRepository.DAMAGE_PER_HIT, r.healthRemoved)
         assertEquals(listOf(HitResolver.Message(out = false, playerId = 5)), r.messages)
     }
 
@@ -239,7 +240,7 @@ class HitResolverTest {
         resolve(GOLDEN_IDLE, context(useNetwork = true))
         now += 400
         val limited = resolve(GOLDEN_HIT_BY_PLAYER_2, context(useNetwork = true))
-        assertEquals(Globals.DAMAGE_PER_HIT, limited.healthRemoved)
+        assertEquals(GameSettingsRepository.DAMAGE_PER_HIT, limited.healthRemoved)
         assertTrue(limited.messages.isEmpty())
         resolve(GOLDEN_IDLE, context(useNetwork = true))
         now += 1
@@ -265,7 +266,7 @@ class HitResolverTest {
         // Player 3 has no settings: slot 2 falls back to DAMAGE_PER_HIT.
         val fallback = resolve(GOLDEN_DOUBLE_HIT, context(useNetwork = true),
             FakeLookups(damage = mapOf(1.toByte() to -2)))
-        assertEquals(-2 + Globals.DAMAGE_PER_HIT, fallback.healthRemoved)
+        assertEquals(-2 + GameSettingsRepository.DAMAGE_PER_HIT, fallback.healthRemoved)
     }
 
     /**
@@ -278,7 +279,7 @@ class HitResolverTest {
     fun b1_slot2ShooterIsTakenFromSlot2() {
         val lookups = FakeLookups(teams = mapOf(1.toByte() to 7, 3.toByte() to 8))
         val r = resolve(GOLDEN_DOUBLE_HIT, context(useNetwork = true, myNetworkTeam = 7), lookups)
-        assertEquals(Globals.DAMAGE_PER_HIT, r.healthRemoved)
+        assertEquals(GameSettingsRepository.DAMAGE_PER_HIT, r.healthRemoved)
         assertEquals(3.toByte(), r.hitById)
         assertEquals(listOf(HitResolver.Message(out = false, playerId = 3)), r.messages)
     }
@@ -287,7 +288,7 @@ class HitResolverTest {
     fun b1_teammateInSlot2IsIgnoredEvenWhenSlot1IsAnEnemy() {
         val lookups = FakeLookups(teams = mapOf(1.toByte() to 8, 3.toByte() to 7))
         val r = resolve(GOLDEN_DOUBLE_HIT, context(useNetwork = true, myNetworkTeam = 7), lookups)
-        assertEquals(Globals.DAMAGE_PER_HIT, r.healthRemoved)
+        assertEquals(GameSettingsRepository.DAMAGE_PER_HIT, r.healthRemoved)
         assertEquals(3.toByte(), r.hitById)
     }
 }

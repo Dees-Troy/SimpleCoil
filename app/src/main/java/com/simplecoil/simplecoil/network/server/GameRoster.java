@@ -16,11 +16,12 @@
 
 package com.simplecoil.simplecoil.network.server;
 
-import com.simplecoil.simplecoil.Globals;
 import com.simplecoil.simplecoil.NameGenerator;
 import com.simplecoil.simplecoil.ProfanityFilter;
+import com.simplecoil.simplecoil.data.model.GpsData;
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
+import com.simplecoil.simplecoil.domain.team.TeamLayout;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
@@ -207,8 +208,9 @@ public final class GameRoster {
     /** Points of every player whose id falls in [team]. */
     public synchronized int teamPoints(int team) {
         int points = 0;
+        TeamLayout layout = GameSettingsRepository.getInstance().getTeamLayout();
         for (PlayerRecord record : byId.values()) {
-            if (Globals.getInstance().calcNetworkTeam(record.playerId) == team) points += record.points;
+            if (layout.teamOf(record.playerId) == team) points += record.points;
         }
         return points;
     }
@@ -335,12 +337,13 @@ public final class GameRoster {
         byte id = requestedId;
         if (id != 0 && occupied.contains(id)) id = 0;
         if (id == 0) {
-            id = Globals.findAutoSortPlayerID(occupied);
+            id = PlayerRepository.getInstance().findAutoSortPlayerID(occupied);
             if (id == 0) return new HelloResult(HelloResult.Kind.FULL, null, null);
         }
         int team = 1;
-        if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
-            team = Globals.getInstance().calcNetworkTeam(id);
+        TeamLayout layout = GameSettingsRepository.getInstance().getTeamLayout();
+        if (!layout.getMode().isFreeForAll()) {
+            team = layout.teamOf(id);
         }
 
         PlayerRecord record = current;
@@ -474,8 +477,8 @@ public final class GameRoster {
     /** The same player, or teammates in a team game. */
     private static boolean sameSide(byte a, byte b) {
         if (a == b) return true;
-        Globals g = Globals.getInstance();
-        return g.mGameMode != Globals.GAME_MODE_FFA && g.calcNetworkTeam(a) == g.calcNetworkTeam(b);
+        TeamLayout layout = GameSettingsRepository.getInstance().getTeamLayout();
+        return !layout.getMode().isFreeForAll() && layout.teamOf(a) == layout.teamOf(b);
     }
 
     /** Removes the player and closes nothing; returns its connection (send it SERVERCANCEL and close it). */
@@ -511,7 +514,7 @@ public final class GameRoster {
      */
     public synchronized PlayerRecord movePlayer(byte oldId, byte newId) {
         if (phase != SessionPhase.LOBBY) return null;
-        int team = Globals.getInstance().calcNetworkTeam(newId);
+        int team = PlayerRepository.getInstance().calcNetworkTeam(newId);
         PlayerRecord record = byId.get(oldId);
         if (record != null) {
             PlayerRecord other = byId.get(newId);
@@ -549,15 +552,14 @@ public final class GameRoster {
     }
 
     /**
-     * Renumbers every player for the current game mode and team sizes, in id order or shuffled.
+     * Renumbers every player for the current team mode and team sizes, in id order or shuffled.
      * Players that do not fit are removed. Lobby only; elsewhere nothing changes.
      */
     public synchronized Rebalance rebalance(boolean randomize) {
         if (phase != SessionPhase.LOBBY)
             return new Rebalance(new ArrayList<PlayerRecord>(), new ArrayList<Connection>());
-        Globals g = Globals.getInstance();
-        int gameMode = g.mGameMode;
-        int maxPlayers = Globals.MAX_PLAYER_ID;
+        TeamLayout layout = GameSettingsRepository.getInstance().getTeamLayout();
+        int maxPlayers = GameSettingsRepository.MAX_PLAYER_ID;
         List<PlayerRecord> players = new ArrayList<>(byId.values());
         if (randomize) Collections.shuffle(players);
 
@@ -566,7 +568,7 @@ public final class GameRoster {
         Map<Byte, Byte> oldToNew = new LinkedHashMap<>();
         Map<Byte, Integer> newTeams = new HashMap<>();
 
-        if (gameMode == Globals.GAME_MODE_FFA) {
+        if (layout.getMode().isFreeForAll()) {
             byte nextId = 1;
             for (PlayerRecord record : players) {
                 byte newId = nextId <= maxPlayers ? nextId++ : 0;
@@ -580,16 +582,16 @@ public final class GameRoster {
             }
         } else {
             Set<Byte> usedIds = new HashSet<>();
-            int numTeams = (gameMode == Globals.GAME_MODE_4TEAMS) ? 4 : 2;
+            int numTeams = layout.getMode().teamCount;
             int[] teamPointers = new int[numTeams + 1];
             int[] teamLimits = new int[numTeams + 1];
             int[] teamCounts = new int[numTeams + 1];
             for (int t = 1; t <= numTeams; t++) {
-                teamPointers[t] = g.getTeamStartID(t);
-                teamLimits[t] = g.getTeamEndID(t);
+                teamPointers[t] = layout.teamStartId(t);
+                teamLimits[t] = layout.teamEndId(t);
             }
             for (PlayerRecord record : players) {
-                int targetTeam = findBestTeamForRebalance(numTeams, teamPointers, teamLimits, teamCounts);
+                int targetTeam = findBestTeamForRebalance(layout.teamSizes(), numTeams, teamPointers, teamLimits, teamCounts);
                 byte newId = 0;
                 if (targetTeam != -1) {
                     newId = (byte) teamPointers[targetTeam];
@@ -599,7 +601,7 @@ public final class GameRoster {
                     for (byte i = 1; i <= maxPlayers; i++) {
                         if (!usedIds.contains(i)) {
                             newId = i;
-                            targetTeam = g.calcNetworkTeam(newId);
+                            targetTeam = layout.teamOf(newId);
                             break;
                         }
                     }
@@ -639,14 +641,9 @@ public final class GameRoster {
         return new Rebalance(assigned, dropped);
     }
 
-    private static int findBestTeamForRebalance(int numTeams, int[] teamPointers, int[] teamLimits, int[] teamCounts) {
+    private static int findBestTeamForRebalance(int[] sizes, int numTeams, int[] teamPointers, int[] teamLimits, int[] teamCounts) {
         double minRatio = Double.MAX_VALUE;
         int bestTeam = -1;
-        int[] sizes = Globals.getInstance().getTeamSizes();
-        if (sizes == null || sizes.length < numTeams) {
-            Globals.getInstance().resetDefaultTeamSizes();
-            sizes = Globals.getInstance().getTeamSizes();
-        }
         for (int t = 1; t <= numTeams; t++) {
             if (teamPointers[t] <= teamLimits[t]) {
                 int capacity = sizes[t - 1];
@@ -661,7 +658,7 @@ public final class GameRoster {
     }
 
     private void updateGpsTeam(byte playerId, int team) {
-        Globals.GPSData gps = repo.getGpsData().get(playerId);
+        GpsData gps = repo.getGpsData().get(playerId);
         if (gps != null) {
             gps.team = team;
             gps.hasUpdate = true;
