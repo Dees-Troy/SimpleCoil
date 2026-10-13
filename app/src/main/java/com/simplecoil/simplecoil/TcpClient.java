@@ -22,10 +22,8 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.ServiceInfo;
 import android.net.ConnectivityManager;
 import android.net.Network;
@@ -39,7 +37,6 @@ import android.util.Log;
 import androidx.annotation.VisibleForTesting;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.ServiceCompat;
-import androidx.core.content.ContextCompat;
 
 import com.simplecoil.simplecoil.data.model.GpsData;
 import com.simplecoil.simplecoil.data.model.PlayerSettings;
@@ -47,6 +44,8 @@ import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.domain.team.TeamMode;
+import com.simplecoil.simplecoil.network.ClientEvent;
+import com.simplecoil.simplecoil.network.EventBus;
 import com.simplecoil.simplecoil.network.Frame;
 import com.simplecoil.simplecoil.network.FrameReader;
 import com.simplecoil.simplecoil.network.client.ClientOutbox;
@@ -107,6 +106,9 @@ public class TcpClient extends Service {
      */
     private final ExecutorService mWriter = Executors.newSingleThreadExecutor();
 
+    /** Where the client's events go: the app's client bus once created (a private one in tests). */
+    private EventBus<ClientEvent> mEvents = new EventBus<>();
+
     @Override
     public IBinder onBind(Intent intent) {
         return mBinder;
@@ -131,8 +133,8 @@ public class TcpClient extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        mEvents = ((SimpleCoilApp) getApplication()).getContainer().getClientEvents();
         createNotificationChannel();
-        ContextCompat.registerReceiver(this, mGPSUpdateReceiver, new IntentFilter(NetMsg.NETMSG_GPSLOCUPDATE), ContextCompat.RECEIVER_NOT_EXPORTED);
         registerWifiCallback();
     }
 
@@ -244,7 +246,6 @@ public class TcpClient extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        unregisterReceiver(mGPSUpdateReceiver);
         if (mWifiCallback != null) {
             ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
             try {
@@ -313,6 +314,11 @@ public class TcpClient extends Service {
         envelope.put(TcpServer.JSON_SEQ, entry.getSeq());
         envelope.put(TcpServer.JSON_GAMEID, gameId);
         return envelope;
+    }
+
+    @VisibleForTesting
+    void setEventsForTest(EventBus<ClientEvent> events) {
+        mEvents = events;
     }
 
     @VisibleForTesting
@@ -660,6 +666,18 @@ public class TcpClient extends Service {
         }
     }
 
+    /** Reports our position (the map's location updates) to the server. */
+    public void sendLocation(double latitude, double longitude) {
+        try {
+            JSONObject gpsUpdate = new JSONObject();
+            gpsUpdate.put(TcpServer.JSON_GPSLONGITUDE, longitude);
+            gpsUpdate.put(TcpServer.JSON_GPSLATITUDE, latitude);
+            sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + gpsUpdate.toString());
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
     /**
      * Stops the client once everything sent so far has been written: the stop is queued on the
      * writer, behind the frames already there (N11).
@@ -748,9 +766,7 @@ public class TcpClient extends Service {
                         }
                     }
                 }
-                Intent intent = new Intent(NetMsg.NETMSG_GPSDATAUPDATE);
-                intent.putExtra(NetMsg.INTENT_FULLUPDATE, fullUpdate);
-                sendBroadcast(intent);
+                mEvents.publish(new ClientEvent.GpsData(fullUpdate));
                 return;
             }
             if (game.has(TcpServer.JSON_PLAYERDATA)) {
@@ -934,22 +950,4 @@ public class TcpClient extends Service {
     public long getGameId() {
         return mGameId;
     }
-
-    private final BroadcastReceiver mGPSUpdateReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-            Log.e(TAG, action);
-            if (NetMsg.NETMSG_GPSLOCUPDATE.equals(action)) {
-                JSONObject gpsUpdate = new JSONObject();
-                try {
-                    gpsUpdate.put(TcpServer.JSON_GPSLONGITUDE, intent.getDoubleExtra(NetMsg.INTENT_LONGITUDE, 0));
-                    gpsUpdate.put(TcpServer.JSON_GPSLATITUDE, intent.getDoubleExtra(NetMsg.INTENT_LATITUDE, 0));
-                    sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + gpsUpdate.toString());
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    };
 }

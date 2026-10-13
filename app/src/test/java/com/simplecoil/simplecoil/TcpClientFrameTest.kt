@@ -17,6 +17,14 @@
 package com.simplecoil.simplecoil
 
 import android.content.Intent
+import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.network.ClientEvent
+import com.simplecoil.simplecoil.network.EventBus
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -76,5 +84,36 @@ class TcpClientFrameTest {
         val actions = broadcastsDuring { ended = it.handleFrame(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_SERVERCANCEL) }
         assertTrue(ended)
         assertEquals(listOf(NetMsg.NETMSG_SERVERCANCEL), actions)
+    }
+
+    /** The client events [block] publishes. */
+    private fun eventsDuring(block: (TcpClient) -> Unit): List<ClientEvent> = runBlocking {
+        val bus = EventBus<ClientEvent>()
+        val received = mutableListOf<ClientEvent>()
+        val collector = launch(start = CoroutineStart.UNDISPATCHED) { bus.events.toList(received) }
+        val client = TcpClient()
+        client.setEventsForTest(bus)
+        block(client)
+        yield() // the collector drains what was published
+        collector.cancel()
+        received
+    }
+
+    @Test
+    fun gpsUpdate_storesThePositions_andPublishesGpsData() {
+        val json = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON
+        val repo = PlayerRepository.getInstance()
+        repo.playerID = 1
+        try {
+            val events = eventsDuring {
+                it.handleFrame(json + """{"gpsupdate":[{"playerID":3,"team":1,"gpslongitude":4.5,"gpslatitude":6.5}]}""")
+                it.handleFrame(json + """{"gpsupdate":[{"playerID":1,"team":1,"gpslongitude":0,"gpslatitude":0}],"gpsfullupdate":true}""")
+            }
+            assertEquals(listOf(ClientEvent.GpsData(false), ClientEvent.GpsData(true)), events)
+            assertTrue(repo.gpsData.isEmpty()) // the full update replaced everything, and we are player 1
+        } finally {
+            repo.gpsData.clear()
+            repo.playerID = 0
+        }
     }
 }

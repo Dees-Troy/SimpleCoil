@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * thread; events from one thread arrive in the order that thread published them. Nothing is
  * replayed: an event nobody collects is dropped, like a broadcast with no receiver.
  */
-class EventBus<E : Any>(capacity: Int = 256, private val name: String = "EventBus") {
+class EventBus<E : Any> @JvmOverloads constructor(capacity: Int = 256, private val name: String = "EventBus") {
 
     private val flow = MutableSharedFlow<E>(extraBufferCapacity = capacity)
     private val droppedCount = AtomicInteger()

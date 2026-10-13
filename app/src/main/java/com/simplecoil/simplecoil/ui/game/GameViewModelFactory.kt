@@ -17,13 +17,12 @@
 package com.simplecoil.simplecoil.ui.game
 
 import android.content.Context
-import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import com.simplecoil.simplecoil.NetMsg
 import com.simplecoil.simplecoil.SimpleCoilApp
+import com.simplecoil.simplecoil.network.ClientEvent
 
 /** Builds [GameViewModel] from the application container. */
 class GameViewModelFactory(private val app: SimpleCoilApp) : ViewModelProvider.Factory {
@@ -38,7 +37,7 @@ class GameViewModelFactory(private val app: SimpleCoilApp) : ViewModelProvider.F
         prefs = container.userPreferences,
         sounds = container.soundEffects,
         wifiConnected = { isWifiConnected(app) },
-        broadcastGpsSetting = { app.sendBroadcast(Intent(NetMsg.NETMSG_GPSSETTING).setPackage(app.packageName)) },
+        publishGpsSetting = { container.clientEvents.publish(ClientEvent.GpsSettingChanged) },
         settingsRepo = container.settings,
         gameStateRepo = container.gameState,
         playerRepo = container.players,

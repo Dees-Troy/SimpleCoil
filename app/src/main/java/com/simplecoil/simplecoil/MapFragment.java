@@ -17,10 +17,6 @@
 package com.simplecoil.simplecoil;
 
 import android.Manifest;
-import android.content.BroadcastReceiver;
-import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
@@ -29,7 +25,8 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 
-import androidx.core.content.ContextCompat;
+import androidx.annotation.Nullable;
+import androidx.lifecycle.Lifecycle;
 
 import com.mousebird.maply.ComponentObject;
 import com.mousebird.maply.GlobeMapFragment;
@@ -43,6 +40,7 @@ import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.hardware.location.LocationUpdateListener;
 import com.simplecoil.simplecoil.hardware.location.MapLocationManager;
+import com.simplecoil.simplecoil.network.ClientEvent;
 
 import java.io.File;
 
@@ -83,12 +81,19 @@ public class MapFragment extends GlobeMapFragment {
             return;
         mLongitude = location.getLongitude();
         mLatitude = location.getLatitude();
-        Intent intent = new Intent(NetMsg.NETMSG_GPSLOCUPDATE);
         if (getActivity() == null) return;
-        intent.setPackage(getActivity().getPackageName());
-        intent.putExtra(NetMsg.INTENT_LATITUDE, mLatitude);
-        intent.putExtra(NetMsg.INTENT_LONGITUDE, mLongitude);
-        getActivity().sendBroadcast(intent);
+        container().getNetworkGateway().sendLocation(mLatitude, mLongitude);
+    }
+
+    private AppContainer container() {
+        return ((SimpleCoilApp) requireActivity().getApplication()).getContainer();
+    }
+
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        // While resumed, as the broadcast receiver it replaces was registered
+        container().getClientEvents().observe(this, Lifecycle.State.RESUMED, this::onClientEvent);
     }
 
     @Override
@@ -112,25 +117,6 @@ public class MapFragment extends GlobeMapFragment {
     }
 
     @Override
-    public void onResume() {
-        super.onResume();
-        IntentFilter filter = new IntentFilter(NetMsg.NETMSG_GPSDATAUPDATE);
-        filter.addAction(NetMsg.NETMSG_LISTPLAYERS);
-        filter.addAction(NetMsg.NETMSG_GPSSETTING);
-        if (getActivity() != null) {
-            ContextCompat.registerReceiver(getActivity(), mGPSDataReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED);
-        }
-    }
-
-    @Override
-    public void onPause() {
-        super.onPause();
-        if (getActivity() != null) {
-            getActivity().unregisterReceiver(mGPSDataReceiver);
-        }
-    }
-
-    @Override
     public void onDestroy() {
         // The manager is process-wide; don't leave it reporting to a dead fragment.
         if (mTracking) {
@@ -145,27 +131,20 @@ public class MapFragment extends GlobeMapFragment {
         return MapDisplayType.Map;
     }
 
-    private final BroadcastReceiver mGPSDataReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-            if (action == null)
-                return;
-
-            if (action.equals(NetMsg.NETMSG_GPSDATAUPDATE)) {
-                if (intent.getBooleanExtra(NetMsg.INTENT_FULLUPDATE, false)) {
-                    byte me = PlayerRepository.getInstance().getPlayerID();
-                    for (int x = 0; x <= GameSettingsRepository.MAX_PLAYER_ID; x++) {
-                        if (x != me)
-                            mLocation.removePlayerMarker(mapControl, x, mPlayerMarkers);
-                    }
+    private void onClientEvent(ClientEvent event) {
+        if (event instanceof ClientEvent.GpsData) {
+            if (((ClientEvent.GpsData) event).getFullUpdate()) {
+                byte me = PlayerRepository.getInstance().getPlayerID();
+                for (int x = 0; x <= GameSettingsRepository.MAX_PLAYER_ID; x++) {
+                    if (x != me)
+                        mLocation.removePlayerMarker(mapControl, x, mPlayerMarkers);
                 }
-                insertPlayerMarkers();
-            } else if (action.equals(NetMsg.NETMSG_LISTPLAYERS) || action.equals(NetMsg.NETMSG_GPSSETTING)) {
-                enableGPS(GameSettingsRepository.getInstance().isUseGPS());
             }
+            insertPlayerMarkers();
+        } else if (event instanceof ClientEvent.ListPlayers || event == ClientEvent.GpsSettingChanged.INSTANCE) {
+            enableGPS(GameSettingsRepository.getInstance().isUseGPS());
         }
-    };
+    }
 
     public void enableGPS(boolean enabled) {
         if (getActivity() == null) return;

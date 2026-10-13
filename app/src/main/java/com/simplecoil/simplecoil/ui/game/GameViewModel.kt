@@ -85,7 +85,7 @@ class GameViewModel(
     private val prefs: UserPreferencesRepository,
     private val sounds: SoundEffectPlayer,
     private val wifiConnected: () -> Boolean,
-    private val broadcastGpsSetting: () -> Unit,
+    private val publishGpsSetting: () -> Unit,
     private val settingsRepo: GameSettingsRepository,
     private val gameStateRepo: GameStateRepository,
     private val playerRepo: PlayerRepository,
@@ -263,7 +263,7 @@ class GameViewModel(
 
     fun onLocationPermissionsGranted() {
         screen?.requestConnect()
-        broadcastGpsSetting()
+        publishGpsSetting()
     }
 
     /** Permissions and Bluetooth are ready: scan (with the 30 s give-up). False if scanning wasn't allowed. */
@@ -760,7 +760,7 @@ class GameViewModel(
             screen?.setPlayerDataButtonVisible(false)
         }
         updatePreGameButtonVisibilities()
-        broadcastGpsSetting()
+        publishGpsSetting()
     }
 
     private fun startServerSearchTimeout() {

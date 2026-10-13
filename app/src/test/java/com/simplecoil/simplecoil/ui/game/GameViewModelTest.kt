@@ -78,7 +78,7 @@ class GameViewModelTest {
     private lateinit var client: TcpClient
     private lateinit var vm: GameViewModel
     private var wifi = true
-    private var gpsBroadcasts = 0
+    private var gpsSettingChanges = 0
 
     /** In-memory SharedPreferences. */
     private class MemoryPrefs : SharedPreferences {
@@ -132,7 +132,7 @@ class GameViewModelTest {
         screen = mock(GameScreen::class.java)
         vm = GameViewModel(engine, net, ble, blasterEvents, UserPreferencesRepository(prefs),
             object : SoundEffectPlayer { override fun play(sound: SessionSound) { sounds += sound } },
-            wifiConnected = { wifi }, broadcastGpsSetting = { gpsBroadcasts++ },
+            wifiConnected = { wifi }, publishGpsSetting = { gpsSettingChanges++ },
             settingsRepo = settings, gameStateRepo = gameState, playerRepo = players)
         prefs.values["PlayerName"] = "Tester"
         vm.screen = screen

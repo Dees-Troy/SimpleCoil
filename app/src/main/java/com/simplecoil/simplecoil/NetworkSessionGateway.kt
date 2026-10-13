@@ -234,6 +234,11 @@ class NetworkSessionGateway(
         tcpClient?.sendReliable(NetMsg.NETMSG_ELIMINATED + playerId)
     }
 
+    /** Our position, from the map's location updates. */
+    fun sendLocation(latitude: Double, longitude: Double) {
+        tcpClient?.sendLocation(latitude, longitude)
+    }
+
     override fun sendPlayerGrenade() {
         tcpClient!!.sendPlayerGrenade() // as before: only called while networking
     }
