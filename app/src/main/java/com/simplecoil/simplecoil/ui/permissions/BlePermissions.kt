@@ -17,6 +17,7 @@
 package com.simplecoil.simplecoil.ui.permissions
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.os.Build
 
 /** Which runtime permissions a flow needs, and what a request's result means. Pure; no Android calls. */
@@ -47,6 +48,25 @@ object BlePermissions {
         if (sdkInt >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
     }
 
+    /** Android 17, where local network access became a runtime permission. */
+    const val SDK_LOCAL_NETWORK = 37
+
+    /**
+     * The permissions hosting the dedicated server or joining a network game asks for on [sdkInt],
+     * in request order: local network access (Android 17+; without it every LAN packet fails with
+     * EPERM) and notifications (the server's and the client's network notification).
+     */
+    @SuppressLint("InlinedApi") // only listed from Android 17 on
+    fun forNetwork(sdkInt: Int): List<String> = buildList {
+        if (sdkInt >= SDK_LOCAL_NETWORK) add(Manifest.permission.ACCESS_LOCAL_NETWORK)
+        if (sdkInt >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
+    }
+
+    /** The permissions in [forNetwork] a network game can't run without; notifications are optional. */
+    @SuppressLint("InlinedApi") // only listed from Android 17 on
+    fun requiredForNetwork(sdkInt: Int): List<String> =
+        if (sdkInt >= SDK_LOCAL_NETWORK) listOf(Manifest.permission.ACCESS_LOCAL_NETWORK) else emptyList()
+
     /** The QR button's permissions on [sdkInt] (install-time before Android 6). */
     fun forQrScan(sdkInt: Int): List<String> =
         if (sdkInt >= Build.VERSION_CODES.M) listOf(Manifest.permission.CAMERA) else emptyList()
@@ -67,5 +87,13 @@ object BlePermissions {
             denied.any { !shouldShowRationale(it) } -> Outcome.PERMANENTLY_DENIED
             else -> Outcome.DENIED
         }
+    }
+
+    /** [outcome], where only the [required] permissions count: an optional one may be denied. */
+    fun outcome(results: Map<String, Boolean>, required: Collection<String>, shouldShowRationale: (String) -> Boolean): Outcome {
+        if (results.isEmpty()) return Outcome.DENIED
+        val requiredResults = results.filterKeys { it in required }
+        if (requiredResults.isEmpty()) return Outcome.GRANTED
+        return outcome(requiredResults, shouldShowRationale)
     }
 }

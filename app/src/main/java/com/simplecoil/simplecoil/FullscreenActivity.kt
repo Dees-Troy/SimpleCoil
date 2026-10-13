@@ -104,7 +104,7 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
         binding.reconnectWeaponButton.setOnClickListener { vm.onReconnectPressed() }
         binding.connectWeaponButton.setOnClickListener { vm.onConnectPressed() }
         binding.connectQrWeaponButton.setOnClickListener { permissions.scanQr() }
-        binding.dedicatedServerButton.setOnClickListener { vm.onDedicatedServerPressed() }
+        binding.dedicatedServerButton.setOnClickListener { permissions.hostServer() }
         binding.teamMinusButton.visibility = View.VISIBLE
         binding.teamMinusButton.setOnClickListener { vm.onTeamMinusPressed() }
         binding.teamPlusButton.visibility = View.VISIBLE
@@ -125,7 +125,7 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
             Log.e(TAG, "Unable to get app information from PackageManager: " + e.message)
         }
 
-        binding.useNetworkButton.setOnClickListener { vm.onNetworkButtonPressed() }
+        binding.useNetworkButton.setOnClickListener { permissions.joinNetwork() }
         binding.gameLimitButton.setOnClickListener { vm.onGameLimitPressed() }
         binding.teamModeButton.setOnClickListener { vm.onTeamModePressed() }
         binding.adminControlsButton.setOnClickListener(dialogs::showAdminMenu)

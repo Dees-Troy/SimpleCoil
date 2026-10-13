@@ -32,7 +32,7 @@ import com.simplecoil.simplecoil.R
  */
 class PermissionDialog : DialogFragment() {
 
-    enum class Flow { CONNECT, QR_SCAN }
+    enum class Flow { CONNECT, QR_SCAN, HOST_SERVER, JOIN_NETWORK }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val flow = Flow.valueOf(requireArguments().getString(ARG_FLOW)!!)
@@ -41,7 +41,13 @@ class PermissionDialog : DialogFragment() {
             .setNegativeButton(R.string.cancel) { dialog, _ -> dialog.cancel() }
         return if (settings) {
             builder.setTitle(R.string.permission_settings_title)
-                .setMessage(if (flow == Flow.CONNECT) R.string.permission_settings_ble else R.string.permission_settings_camera)
+                .setMessage(
+                    when (flow) {
+                        Flow.CONNECT -> R.string.permission_settings_ble
+                        Flow.QR_SCAN -> R.string.permission_settings_camera
+                        Flow.HOST_SERVER, Flow.JOIN_NETWORK -> R.string.permission_settings_network
+                    }
+                )
                 .setPositiveButton(R.string.permission_open_settings) { _, _ ->
                     val context = requireContext()
                     startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)))
@@ -49,7 +55,13 @@ class PermissionDialog : DialogFragment() {
                 .create()
         } else {
             builder.setTitle(R.string.permission_rationale_title)
-                .setMessage(if (flow == Flow.CONNECT) R.string.permission_rationale_ble else R.string.permission_rationale_camera)
+                .setMessage(
+                    when (flow) {
+                        Flow.CONNECT -> R.string.permission_rationale_ble
+                        Flow.QR_SCAN -> R.string.permission_rationale_camera
+                        Flow.HOST_SERVER, Flow.JOIN_NETWORK -> R.string.permission_rationale_network
+                    }
+                )
                 .setPositiveButton(R.string.permission_continue) { _, _ ->
                     parentFragmentManager.setFragmentResult(REQUEST_KEY, bundleOf(ARG_FLOW to flow.name))
                 }

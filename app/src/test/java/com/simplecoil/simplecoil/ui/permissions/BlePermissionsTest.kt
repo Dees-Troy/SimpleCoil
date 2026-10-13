@@ -28,6 +28,7 @@ class BlePermissionsTest {
     private val fineLocation = "android.permission.ACCESS_FINE_LOCATION"
     private val notifications = "android.permission.POST_NOTIFICATIONS"
     private val camera = "android.permission.CAMERA"
+    private val localNetwork = "android.permission.ACCESS_LOCAL_NETWORK"
 
     @Test
     fun connect_perApiLevel() {
@@ -46,6 +47,38 @@ class BlePermissionsTest {
         assertEquals(emptyList<String>(), BlePermissions.forQrScan(22))
         assertEquals(listOf(camera), BlePermissions.forQrScan(23))
         assertEquals(listOf(camera), BlePermissions.forQrScan(34))
+    }
+
+    @Test
+    fun network_perApiLevel() {
+        assertEquals(emptyList<String>(), BlePermissions.forNetwork(32))
+        assertEquals(listOf(notifications), BlePermissions.forNetwork(33))
+        assertEquals(listOf(notifications), BlePermissions.forNetwork(36))
+        assertEquals(listOf(localNetwork, notifications), BlePermissions.forNetwork(37))
+    }
+
+    @Test
+    fun network_onlyLocalNetworkIsRequired() {
+        assertEquals(emptyList<String>(), BlePermissions.requiredForNetwork(36))
+        assertEquals(listOf(localNetwork), BlePermissions.requiredForNetwork(37))
+    }
+
+    @Test
+    fun outcomeWithRequired_deniedOptionalStillGrants() {
+        val required = listOf(localNetwork)
+        assertEquals(Outcome.GRANTED, BlePermissions.outcome(mapOf(localNetwork to true, notifications to false), required) { false })
+        // Local network already held: only notifications were asked for.
+        assertEquals(Outcome.GRANTED, BlePermissions.outcome(mapOf(notifications to false), required) { false })
+        // Before Android 17 nothing is required.
+        assertEquals(Outcome.GRANTED, BlePermissions.outcome(mapOf(notifications to false), emptyList()) { false })
+    }
+
+    @Test
+    fun outcomeWithRequired_deniedRequired() {
+        val required = listOf(localNetwork)
+        assertEquals(Outcome.DENIED, BlePermissions.outcome(mapOf(localNetwork to false, notifications to true), required) { true })
+        assertEquals(Outcome.PERMANENTLY_DENIED, BlePermissions.outcome(mapOf(localNetwork to false), required) { false })
+        assertEquals(Outcome.DENIED, BlePermissions.outcome(emptyMap(), required) { false })
     }
 
     @Test

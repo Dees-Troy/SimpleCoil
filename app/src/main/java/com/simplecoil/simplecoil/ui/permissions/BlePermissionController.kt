@@ -33,8 +33,9 @@ import com.simplecoil.simplecoil.ui.game.GameViewModel
 import com.simplecoil.simplecoil.ui.permissions.PermissionDialog.Flow
 
 /**
- * The permission and Bluetooth checks in front of a connect, and the camera permission in front of
- * a QR scan, on the ActivityResult API. Moved from FullscreenActivity.connectWeapon() and
+ * The permission and Bluetooth checks in front of a connect, the camera permission in front of a
+ * QR scan, and the local network (Android 17+) and notification permissions in front of hosting
+ * the dedicated server or joining a network game, on the ActivityResult API. Moved from FullscreenActivity.connectWeapon() and
  * onRequestPermissionsResult() with the same order of checks; adds a rationale before a request
  * the system says needs one, and the app settings after a permanent denial.
  *
@@ -64,14 +65,26 @@ class BlePermissionController(
         }
     }
 
+    private val hostPermissions = registerNetworkLauncher(Flow.HOST_SERVER)
+
+    private val joinPermissions = registerNetworkLauncher(Flow.JOIN_NETWORK)
+
+    /** Only local network access is required: a game runs without its notification. */
+    private fun registerNetworkLauncher(flow: Flow) =
+        activity.registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+            when (BlePermissions.outcome(results, required(flow)) { ActivityCompat.shouldShowRequestPermissionRationale(activity, it) }) {
+                BlePermissions.Outcome.GRANTED -> proceed(flow)
+                BlePermissions.Outcome.DENIED ->
+                    Toast.makeText(activity, R.string.error_local_network_permission_required, Toast.LENGTH_SHORT).show()
+                BlePermissions.Outcome.PERMANENTLY_DENIED -> showDialog(PermissionDialog.openSettings(flow))
+            }
+        }
+
     private val enableBluetooth = activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { connect() }
 
     init {
         activity.supportFragmentManager.setFragmentResultListener(PermissionDialog.REQUEST_KEY, activity) { _, result ->
-            when (Flow.valueOf(result.getString(PermissionDialog.ARG_FLOW)!!)) {
-                Flow.CONNECT -> request(Flow.CONNECT, rationaleShown = true)
-                Flow.QR_SCAN -> request(Flow.QR_SCAN, rationaleShown = true)
-            }
+            request(Flow.valueOf(result.getString(PermissionDialog.ARG_FLOW)!!), rationaleShown = true)
         }
     }
 
@@ -131,9 +144,29 @@ class BlePermissionController(
         onQrScanAllowed()
     }
 
+    /** "Dedicated server": local network access and notifications, then open the server screen. */
+    fun hostServer() = request(Flow.HOST_SERVER, rationaleShown = false)
+
+    /** "Use network": local network access and notifications, then the network menu. */
+    fun joinNetwork() = request(Flow.JOIN_NETWORK, rationaleShown = false)
+
     private fun permissions(flow: Flow) = when (flow) {
         Flow.CONNECT -> BlePermissions.forConnect(Build.VERSION.SDK_INT)
         Flow.QR_SCAN -> BlePermissions.forQrScan(Build.VERSION.SDK_INT)
+        Flow.HOST_SERVER, Flow.JOIN_NETWORK -> BlePermissions.forNetwork(Build.VERSION.SDK_INT)
+    }
+
+    /** The permissions [flow] can't go ahead without. */
+    private fun required(flow: Flow) = when (flow) {
+        Flow.CONNECT, Flow.QR_SCAN -> permissions(flow)
+        Flow.HOST_SERVER, Flow.JOIN_NETWORK -> BlePermissions.requiredForNetwork(Build.VERSION.SDK_INT)
+    }
+
+    private fun proceed(flow: Flow) = when (flow) {
+        Flow.CONNECT -> vm.onLocationPermissionsGranted()
+        Flow.QR_SCAN -> onQrScanAllowed()
+        Flow.HOST_SERVER -> vm.onDedicatedServerPressed()
+        Flow.JOIN_NETWORK -> vm.onNetworkButtonPressed()
     }
 
     private fun missing(flow: Flow) = BlePermissions.missing(permissions(flow)) {
@@ -143,15 +176,22 @@ class BlePermissionController(
     private fun request(flow: Flow, rationaleShown: Boolean) {
         val missing = missing(flow)
         if (missing.isEmpty()) {
-            // Granted meanwhile (e.g. in the settings).
-            if (flow == Flow.CONNECT) vm.onLocationPermissionsGranted() else onQrScanAllowed()
+            // Granted meanwhile (e.g. in the settings), or nothing to ask for on this Android version.
+            proceed(flow)
             return
         }
-        if (!rationaleShown && missing.any { ActivityCompat.shouldShowRequestPermissionRationale(activity, it) }) {
+        // Only a required permission is worth a rationale; an optional one just gets the system prompt.
+        val required = required(flow)
+        if (!rationaleShown && missing.any { it in required && ActivityCompat.shouldShowRequestPermissionRationale(activity, it) }) {
             showDialog(PermissionDialog.rationale(flow))
             return
         }
-        val launcher = if (flow == Flow.CONNECT) connectPermissions else cameraPermission
+        val launcher = when (flow) {
+            Flow.CONNECT -> connectPermissions
+            Flow.QR_SCAN -> cameraPermission
+            Flow.HOST_SERVER -> hostPermissions
+            Flow.JOIN_NETWORK -> joinPermissions
+        }
         launcher.launch(missing.toTypedArray())
     }
 

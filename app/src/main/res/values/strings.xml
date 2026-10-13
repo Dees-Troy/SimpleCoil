@@ -188,6 +188,9 @@
     <string name="permission_settings_title">Permissions turned off</string>
     <string name="permission_settings_ble">The permissions SimpleCoil needs to connect to your blaster are turned off. Open the app settings to allow them, then connect again.</string>
     <string name="permission_settings_camera">Camera permission is turned off for SimpleCoil. Open the app settings to allow it to scan QR codes.</string>
+    <string name="permission_rationale_network">SimpleCoil needs access to devices on your local network to host or join a network game, and notifications to show that the game network is running.</string>
+    <string name="permission_settings_network">Local network access is turned off for SimpleCoil. Open the app settings to allow it, then try again.</string>
+    <string name="error_local_network_permission_required">Local network access is required for network games.</string>
     <string name="permission_continue">Continue</string>
     <string name="permission_open_settings">Open settings</string>
 </resources>
