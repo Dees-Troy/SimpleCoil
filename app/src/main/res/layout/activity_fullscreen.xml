@@ -541,6 +541,7 @@
             android:visibility="invisible"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
 
+        <!-- Above end_game_button, which is gone in network games, so it falls through to the team mode label. -->
         <Button
             android:id="@+id/end_network_game_button"
             style="@style/Widget.AppCompat.Button.Colored"
@@ -548,9 +549,21 @@
             android:layout_height="wrap_content"
             android:layout_centerHorizontal="true"
             android:layout_marginBottom="10dp"
-            android:layout_above="@id/team_mode_label_tv"
+            android:layout_above="@id/end_game_button"
             android:visibility="gone"
             android:text="@string/end_game_button" />
+
+        <!-- Manual respawn: above whichever End Game button is shown, else above the team mode label. -->
+        <Button
+            android:id="@+id/start_respawn_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="10dp"
+            android:layout_above="@id/end_network_game_button"
+            android:visibility="gone"
+            android:text="@string/start_respawn_button" />
 
         <ImageView
             android:id="@+id/hit_player_iv"

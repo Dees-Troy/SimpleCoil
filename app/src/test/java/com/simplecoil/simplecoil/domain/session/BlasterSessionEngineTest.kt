@@ -451,6 +451,79 @@ class BlasterSessionEngineTest {
     }
 
     @Test
+    fun manualRespawn_waitsForThePlayer_thenCountsDownAndRespawns() {
+        h.config.fullHealth = 1
+        h.config.manualRespawn = true
+        h.config.names[2] = "Bob"
+        h.rec.useNetwork = true
+        h.connected()
+        h.startedAndSpawned() // the game start countdown is never manual
+
+        h.telemetry(Packet().hit1(0x08, 0x3D))
+        assertEquals(SpawnPhase.AwaitingRespawn("Bob"), h.state.spawn)
+        h.advance(60_000)
+        assertEquals(SpawnPhase.AwaitingRespawn("Bob"), h.state.spawn)
+        assertEquals(GameStateRepository.GAME_STATE_ELIMINATED, h.config.gameState)
+
+        h.engine.startRespawn()
+        assertEquals(SpawnPhase.Spawning(10, "Bob", false), h.state.spawn)
+        h.engine.startRespawn() // already counting down: ignored
+        h.advance(10_000)
+        assertEquals(SpawnPhase.None, h.state.spawn)
+        assertEquals(GameStateRepository.GAME_STATE_RUNNING, h.config.gameState)
+        assertTrue(h.state.shieldSeconds != null)
+    }
+
+    @Test
+    fun manualRespawn_holdingReloadTwoSecondsStartsTheRespawn() {
+        h.config.fullHealth = 1
+        h.config.manualRespawn = true
+        h.connected()
+        h.startedAndSpawned()
+        h.telemetry(Packet().hit1(0x08, 0x3D))
+
+        // Just under a long press, then released: still waiting.
+        h.telemetry(Packet().reload(1).reloadHeld())
+        h.advance(BlasterSessionEngine.RELOAD_LONG_PRESS_MILLIS - 1)
+        h.telemetry(Packet().reload(1).reloadHeld())
+        h.telemetry(Packet().reload(1))
+        assertEquals(SpawnPhase.AwaitingRespawn(""), h.state.spawn)
+
+        h.telemetry(Packet().reload(2).reloadHeld())
+        for (i in 1..20) {
+            h.advance(100)
+            h.telemetry(Packet().reload(2).reloadHeld())
+        }
+        assertEquals(SpawnPhase.Spawning(10, "", false), h.state.spawn)
+    }
+
+    @Test
+    fun manualRespawn_holdingReloadWhileAliveDoesNothing() {
+        h.config.manualRespawn = true
+        h.connected()
+        h.startedAndSpawned()
+        h.telemetry(Packet().reloadHeld())
+        h.advance(3_000)
+        h.telemetry(Packet().reloadHeld())
+        assertEquals(SpawnPhase.None, h.state.spawn)
+        assertEquals(GameStateRepository.GAME_STATE_RUNNING, h.config.gameState)
+    }
+
+    @Test
+    fun manualRespawn_endGameWhileWaitingClearsIt() {
+        h.config.fullHealth = 1
+        h.config.manualRespawn = true
+        h.connected()
+        h.startedAndSpawned()
+        h.telemetry(Packet().hit1(0x08, 0x3D))
+        h.engine.endGame()
+        assertEquals(SpawnPhase.None, h.state.spawn)
+        h.engine.startRespawn()
+        assertEquals(SpawnPhase.None, h.state.spawn)
+        assertEquals(GameStateRepository.GAME_STATE_NONE, h.config.gameState)
+    }
+
+    @Test
     fun shieldCountdown_showsWholeSecondsRoundedUp() {
         h.config.fullHealth = 1
         h.connected()

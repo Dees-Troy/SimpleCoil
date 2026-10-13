@@ -44,6 +44,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
     private EditText mReloadShotsET = null;
     private EditText mReloadTimeET = null;
     private Switch mReloadOnEmptySwitch = null;
+    private Switch mManualRespawnSwitch = null;
     private EditText mSpawnTimeET = null;
     private EditText mRespawnShieldTimeET = null;
     private EditText mDamageET = null;
@@ -97,6 +98,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
         mReloadShotsET.setText("" + playerSettings.shots);
         mReloadTimeET.setText("" + playerSettings.reloadTime);
         mReloadOnEmptySwitch.setChecked(playerSettings.reloadOnEmpty);
+        mManualRespawnSwitch.setChecked(playerSettings.manualRespawn);
         mSpawnTimeET.setText("" + playerSettings.spawnTime);
         mRespawnShieldTimeET.setText("" + playerSettings.respawnShieldTime);
         mDamageET.setText("" + (playerSettings.damage * -1));
@@ -186,6 +188,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
         mReloadShotsET.setText("" + GameSettingsRepository.getInstance().getFullReload());
         mReloadTimeET.setText("" + GameSettingsRepository.getInstance().getReloadTime());
         mReloadOnEmptySwitch.setChecked(GameSettingsRepository.getInstance().isReloadOnEmpty());
+        mManualRespawnSwitch.setChecked(GameSettingsRepository.getInstance().isManualRespawn());
         mSpawnTimeET.setText("" + GameSettingsRepository.getInstance().getRespawnTime());
         mRespawnShieldTimeET.setText("" + GameSettingsRepository.getInstance().getRespawnShieldTime());
         mDamageET.setText("" + (GameSettingsRepository.getInstance().getDamage() * -1));
@@ -211,6 +214,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
         mReloadShotsET = view.findViewById(R.id.reload_shots_et);
         mReloadTimeET = view.findViewById(R.id.reload_time_et);
         mReloadOnEmptySwitch = view.findViewById(R.id.reload_on_empty_switch);
+        mManualRespawnSwitch = view.findViewById(R.id.manual_respawn_switch);
         mSpawnTimeET = view.findViewById(R.id.spawn_time_et);
         mRespawnShieldTimeET = view.findViewById(R.id.respawn_shield_time_et);
         mDamageET = view.findViewById(R.id.damage_et);
@@ -239,6 +243,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
                 mReloadShotsET.setText("" + GameSettingsRepository.RELOAD_COUNT);
                 mReloadTimeET.setText("" + GameSettingsRepository.RELOAD_TIME_MILLISECONDS);
                 mReloadOnEmptySwitch.setChecked(false);
+                mManualRespawnSwitch.setChecked(false);
                 mSpawnTimeET.setText("" + GameSettingsRepository.RESPAWN_TIME_SECONDS);
                 mRespawnShieldTimeET.setText("" + GameSettingsRepository.RESPAWN_SHIELD_TIME_SECONDS);
                 mDamageET.setText("" + (GameSettingsRepository.DAMAGE_PER_HIT * -1));
@@ -353,6 +358,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
                                 value = (int) GameSettingsRepository.RELOAD_TIME_MILLISECONDS;
                             GameSettingsRepository.getInstance().setReloadTime(value);
                             GameSettingsRepository.getInstance().setReloadOnEmpty(mReloadOnEmptySwitch.isChecked());
+                            GameSettingsRepository.getInstance().setManualRespawn(mManualRespawnSwitch.isChecked());
                             value = Integer.parseInt(mSpawnTimeET.getText().toString());
                             if (value > 1000 || value <= 0)
                                 value = (int) GameSettingsRepository.RESPAWN_TIME_SECONDS;
@@ -399,6 +405,7 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
                                     value = (int) GameSettingsRepository.RELOAD_TIME_MILLISECONDS;
                                 playerSettings.reloadTime = value;
                                 playerSettings.reloadOnEmpty = mReloadOnEmptySwitch.isChecked();
+                                playerSettings.manualRespawn = mManualRespawnSwitch.isChecked();
                                 value = Integer.parseInt(mSpawnTimeET.getText().toString());
                                 if (value > 1000 || value <= 0)
                                     value = (int) GameSettingsRepository.RESPAWN_TIME_SECONDS;

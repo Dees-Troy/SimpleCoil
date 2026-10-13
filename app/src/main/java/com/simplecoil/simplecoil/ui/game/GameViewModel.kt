@@ -571,6 +571,10 @@ class GameViewModel(
         engine.startGame()
     }
 
+    fun onStartRespawnPressed() {
+        engine.startRespawn()
+    }
+
     fun onEndGamePressed() {
         screen?.confirmEndGame()
     }

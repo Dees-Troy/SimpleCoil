@@ -128,7 +128,7 @@ Each JSON message is identified by the key it contains.
 |---|---|
 | hello | `playerID`, `playername`, plus optional `blaster_mac`, `rejoin`, `gameid`, `pending` (§3). |
 | `playernamechange` | The player's new name. |
-| `playersettings` | The player's own settings: `health`, `reloadshots`, `reloadtime`, `reloadonempty`, `spawntime`, `respawnshieldtime`, `damage`, `liveslimit` (optional), `shotmodesingle`/`shotmodeburst3`/`shotmodeauto`, `firingmode`. Rejected unless the server allows player settings. |
+| `playersettings` | The player's own settings: `health`, `reloadshots`, `reloadtime`, `reloadonempty`, `manualrespawn` (optional, default off), `spawntime`, `respawnshieldtime`, `damage`, `liveslimit` (optional), `shotmodesingle`/`shotmodeburst3`/`shotmodeauto`, `firingmode`. Rejected unless the server allows player settings. |
 | `requestteamchange` | The team the player wants. Only works in the lobby, in a team mode, when the server lets players choose teams, and when that team has an open slot. |
 | `pairedgrenadeID` | Which grenade this player paired (see `GRENADES.md`). |
 | `gpslongitude`, `gpslatitude` | The player's location, when GPS is on. |

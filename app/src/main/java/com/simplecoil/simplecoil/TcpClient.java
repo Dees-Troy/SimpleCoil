@@ -611,6 +611,7 @@ public class TcpClient extends Service {
             playerSettings.put(TcpServer.JSON_RELOAD_SHOTS, GameSettingsRepository.getInstance().getFullReload());
             playerSettings.put(TcpServer.JSON_RELOAD_TIME, GameSettingsRepository.getInstance().getReloadTime());
             playerSettings.put(TcpServer.JSON_RELOAD_ON_EMPTY, GameSettingsRepository.getInstance().isReloadOnEmpty());
+            playerSettings.put(TcpServer.JSON_MANUAL_RESPAWN, GameSettingsRepository.getInstance().isManualRespawn());
             playerSettings.put(TcpServer.JSON_SPAWN_TIME, GameSettingsRepository.getInstance().getRespawnTime());
             playerSettings.put(TcpServer.JSON_RESPAWN_SHIELD_TIME, GameSettingsRepository.getInstance().getRespawnShieldTime());
             playerSettings.put(TcpServer.JSON_DAMAGE, GameSettingsRepository.getInstance().getDamage());
@@ -737,6 +738,7 @@ public class TcpClient extends Service {
                         playerSettings.shots = (byte)setting.getInt(TcpServer.JSON_RELOAD_SHOTS);
                         playerSettings.reloadTime = setting.getLong(TcpServer.JSON_RELOAD_TIME);
                         playerSettings.reloadOnEmpty = setting.getBoolean(TcpServer.JSON_RELOAD_ON_EMPTY);
+                        playerSettings.manualRespawn = setting.optBoolean(TcpServer.JSON_MANUAL_RESPAWN, false);
                         playerSettings.spawnTime = setting.getLong(TcpServer.JSON_SPAWN_TIME);
                         if (setting.has(TcpServer.JSON_RESPAWN_SHIELD_TIME)) {
                             playerSettings.respawnShieldTime = setting.getLong(TcpServer.JSON_RESPAWN_SHIELD_TIME);
@@ -764,6 +766,7 @@ public class TcpClient extends Service {
                             GameSettingsRepository.getInstance().setFullReload(playerSettings.shots);
                             GameSettingsRepository.getInstance().setReloadTime(playerSettings.reloadTime);
                             GameSettingsRepository.getInstance().setReloadOnEmpty(playerSettings.reloadOnEmpty);
+                            GameSettingsRepository.getInstance().setManualRespawn(playerSettings.manualRespawn);
                             GameSettingsRepository.getInstance().setRespawnTime(playerSettings.spawnTime);
                             GameSettingsRepository.getInstance().setRespawnShieldTime(playerSettings.respawnShieldTime);
                             GameSettingsRepository.getInstance().setDamage(playerSettings.damage);

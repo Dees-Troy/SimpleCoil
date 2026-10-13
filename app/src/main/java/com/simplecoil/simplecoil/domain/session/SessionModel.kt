@@ -23,6 +23,9 @@ sealed interface SpawnPhase {
     /** Eliminated (or starting): respawn countdown in whole seconds. */
     data class Spawning(val seconds: Long, val eliminatedBy: String, val startingGame: Boolean) : SpawnPhase
 
+    /** Eliminated with manual respawn: waiting for the player to start the respawn countdown. */
+    data class AwaitingRespawn(val eliminatedBy: String) : SpawnPhase
+
     /** Eliminated with no lives left; no respawn. */
     data class OutOfLives(val eliminatedBy: String) : SpawnPhase
 }

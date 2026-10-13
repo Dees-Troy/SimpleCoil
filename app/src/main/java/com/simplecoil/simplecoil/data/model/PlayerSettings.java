@@ -24,6 +24,7 @@ public class PlayerSettings {
     public volatile byte shots = GameSettingsRepository.RELOAD_COUNT;
     public volatile long reloadTime = GameSettingsRepository.RELOAD_TIME_MILLISECONDS;
     public volatile boolean reloadOnEmpty = false;
+    public volatile boolean manualRespawn = false;
     public volatile long spawnTime = GameSettingsRepository.RESPAWN_TIME_SECONDS;
     public volatile long respawnShieldTime = GameSettingsRepository.RESPAWN_SHIELD_TIME_SECONDS;
     public volatile int damage = GameSettingsRepository.DAMAGE_PER_HIT;

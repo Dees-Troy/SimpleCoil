@@ -57,6 +57,8 @@
     <string name="starting_game_label">STARTING!</string>
     <string name="eliminated_label">ELIMINATED!</string>
     <string name="spawn_in_label">Spawn in %1$d</string>
+    <string name="start_respawn_button">Start Respawn</string>
+    <string name="manual_respawn_hint">Hold reload to respawn</string>
     <string name="respawn_shield_label">Shield: %1$d</string>
 
     <string name="ble_not_supported">BLE is not supported</string>
@@ -154,6 +156,7 @@
     <string name="player_settings_team_title">Player Settings (%1$d-%2$d)</string>
     <string name="player_settings_button">Player Settings</string>
     <string name="player_settings_health_title">Health</string>
+    <string name="player_settings_manual_respawn">Manual respawn?</string>
     <string name="player_settings_spawn_time">Respawn Time (Seconds)</string>
     <string name="player_settings_respawn_shield_time">Respawn Shield Time (Seconds)</string>
     <string name="player_settings_reload_time">Reload Time (Milliseconds)</string>

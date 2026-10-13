@@ -78,6 +78,7 @@ public class GameSettingsRepository {
     private volatile int overrideLivesVal = 0;
     private volatile boolean allowPlayerSettings = true;
     private volatile boolean reloadOnEmpty = false;
+    private volatile boolean manualRespawn = false;
     private volatile boolean allowJoinInProgress = true;
     private volatile boolean allowChooseTeams = true;
 
@@ -203,6 +204,9 @@ public class GameSettingsRepository {
 
     public boolean isReloadOnEmpty() { return reloadOnEmpty; }
     public void setReloadOnEmpty(boolean reloadOnEmpty) { this.reloadOnEmpty = reloadOnEmpty; }
+
+    public boolean isManualRespawn() { return manualRespawn; }
+    public void setManualRespawn(boolean manualRespawn) { this.manualRespawn = manualRespawn; }
 
     public boolean isAllowJoinInProgress() { return allowJoinInProgress; }
     public void setAllowJoinInProgress(boolean allowJoinInProgress) { this.allowJoinInProgress = allowJoinInProgress; }

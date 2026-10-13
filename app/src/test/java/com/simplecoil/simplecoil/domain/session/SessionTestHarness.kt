@@ -36,6 +36,7 @@ class FakeGameConfig : GameConfig {
     override var fullHealth = GameSettingsRepository.MAX_HEALTH
     override var fullReload = GameSettingsRepository.RELOAD_COUNT
     override var reloadTimeMillis = GameSettingsRepository.RELOAD_TIME_MILLISECONDS
+    override var manualRespawn = false
     override var respawnTimeSeconds = GameSettingsRepository.RESPAWN_TIME_SECONDS
     override var respawnShieldTimeSeconds = GameSettingsRepository.RESPAWN_SHIELD_TIME_SECONDS
     override var startCountdownSeconds = GameSettingsRepository.START_TIME_SECONDS
@@ -126,6 +127,7 @@ class SessionTestHarness {
         fun thumb(n: Int) = set(GattProtocolHandler.RECOIL_OFFSET_THUMB_COUNTER, n)
         fun power(n: Int) = set(GattProtocolHandler.RECOIL_OFFSET_POWER_COUNTER, n)
         fun thumbHeld() = set(GattProtocolHandler.RECOIL_OFFSET_BUTTONS, GattProtocolHandler.RECOIL_BUTTON_THUMB)
+        fun reloadHeld() = set(GattProtocolHandler.RECOIL_OFFSET_BUTTONS, GattProtocolHandler.RECOIL_BUTTON_RELOAD)
         fun player(n: Int) = set(GattProtocolHandler.RECOIL_OFFSET_TEAM, n)
         fun battery(n: Int) = set(GattProtocolHandler.RECOIL_OFFSET_BATTERY_LEVEL, n)
         fun hit1(hitBy: Int, shotIdByte: Int) = set(GattProtocolHandler.RECOIL_OFFSET_HIT_BY1, hitBy)

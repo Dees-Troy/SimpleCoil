@@ -92,6 +92,9 @@ class BlasterSessionEngine(
     /** A long press just ended: a thumb count in the next packet belongs to it, not a new press. */
     private var thumbLongPressReleased = false
 
+    /** Reload held while awaiting a manual respawn, from the buttons-held byte. */
+    private var reloadHeldSince = NOT_HELD
+
     // Reload
     private var reloading = RELOADING_ELIMINATED
 
@@ -380,6 +383,20 @@ class BlasterSessionEngine(
             return
         }
 
+        if (!startingGameLabel && config.manualRespawn) {
+            _state.update { it.copy(spawn = SpawnPhase.AwaitingRespawn(eliminatedBy)) }
+            return
+        }
+        startSpawnCountdown(eliminatedBy)
+    }
+
+    /** Manual respawn: the player asked to respawn, so start the respawn countdown. */
+    fun startRespawn() {
+        val awaiting = _state.value.spawn as? SpawnPhase.AwaitingRespawn ?: return
+        startSpawnCountdown(awaiting.eliminatedBy)
+    }
+
+    private fun startSpawnCountdown(eliminatedBy: String) {
         val countdownSeconds = if (startingGameLabel) config.startCountdownSeconds else config.respawnTimeSeconds
         _state.update { it.copy(spawn = SpawnPhase.Spawning(countdownSeconds, eliminatedBy, startingGameLabel)) }
         spawnTimer = scope.countDown(clock, countdownSeconds * 1000, SPAWN_TICK_MILLIS,
@@ -468,6 +485,7 @@ class BlasterSessionEngine(
             thumbLongPressed = false
             thumbPressPending = false
             thumbLongPressReleased = false
+            reloadHeldSince = NOT_HELD
             setShotMode(currentShotMode)
             scope.launch {
                 delay(FIRST_PACKET_TEAM_DELAY_MILLIS)
@@ -495,6 +513,7 @@ class BlasterSessionEngine(
             if (shotsRemaining != config.fullReload) startReload()
         }
         processThumbButton(telemetry)
+        processReloadHold(telemetry)
         if (telemetry.powerCounter != lastPowerButtonCount) {
             lastPowerButtonCount = telemetry.powerCounter
             val recoil = RecoilPolicy.onPowerButton(config.serverRecoilSetting, recoilEnabled)
@@ -597,6 +616,21 @@ class BlasterSessionEngine(
         }
     }
 
+    /** Manual respawn: holding reload for [RELOAD_LONG_PRESS_MILLIS] while awaiting respawn starts it. */
+    private fun processReloadHold(telemetry: GattProtocolHandler.TelemetryData) {
+        val held = telemetry.buttonsHeld and GattProtocolHandler.RECOIL_BUTTON_RELOAD != 0
+        if (!held || _state.value.spawn !is SpawnPhase.AwaitingRespawn) {
+            reloadHeldSince = NOT_HELD
+            return
+        }
+        val now = clock()
+        if (reloadHeldSince == NOT_HELD) reloadHeldSince = now
+        if (now - reloadHeldSince >= RELOAD_LONG_PRESS_MILLIS) {
+            reloadHeldSince = NOT_HELD
+            startRespawn()
+        }
+    }
+
     private fun applyGrenadePairing(hitBy: Int, shotIdByte: Byte, useNetwork: Boolean) {
         when (GrenadeDecoder.pairingAction(hitBy, shotIdByte)) {
             GrenadeDecoder.PairingAction.PAIR -> {
@@ -686,6 +720,8 @@ class BlasterSessionEngine(
 
         /** Holding the thumb (mode) button this long is a long press. */
         const val THUMB_LONG_PRESS_MILLIS = 2000L
+        /** Holding reload this long while awaiting a manual respawn starts the respawn. */
+        const val RELOAD_LONG_PRESS_MILLIS = 2000L
         private const val NOT_HELD = -1L
 
         private const val SPAWN_TICK_MILLIS = 999L

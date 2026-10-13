@@ -96,6 +96,14 @@
             android:textColor="#FFFFFF"
             android:text="@string/player_settings_reload_on_empty" />
 
+        <Switch
+            android:id="@+id/manual_respawn_switch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="5dp"
+            android:textColor="#FFFFFF"
+            android:text="@string/player_settings_manual_respawn" />
+
         <TextView
             android:id="@+id/spawn_time_title"
             android:layout_width="wrap_content"

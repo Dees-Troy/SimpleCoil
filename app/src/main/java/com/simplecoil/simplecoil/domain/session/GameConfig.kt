@@ -33,6 +33,8 @@ interface GameConfig {
     val fullHealth: Int
     val fullReload: Byte
     val reloadTimeMillis: Long
+    /** Eliminated players wait for the player to start the respawn countdown. */
+    val manualRespawn: Boolean
     val respawnTimeSeconds: Long
     val respawnShieldTimeSeconds: Long
     val startCountdownSeconds: Long
@@ -74,6 +76,7 @@ object RepositoryGameConfig : GameConfig {
     override val fullHealth get() = settings.fullHealth
     override val fullReload get() = settings.fullReload
     override val reloadTimeMillis get() = settings.reloadTime
+    override val manualRespawn get() = settings.isManualRespawn
     override val respawnTimeSeconds get() = settings.respawnTime
     override val respawnShieldTimeSeconds get() = settings.respawnShieldTime
     override val startCountdownSeconds get() = settings.startTime

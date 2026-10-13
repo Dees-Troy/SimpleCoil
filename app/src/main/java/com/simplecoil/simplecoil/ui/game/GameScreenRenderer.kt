@@ -457,6 +457,7 @@ class GameScreenRenderer(
     }
 
     private fun renderSpawn(spawn: SpawnPhase) {
+        b.startRespawnButton.visibility = if (spawn is SpawnPhase.AwaitingRespawn) View.VISIBLE else View.GONE
         when (spawn) {
             is SpawnPhase.Spawning -> {
                 b.eliminatedTv.setText(if (spawn.startingGame) R.string.starting_game_label else R.string.eliminated_label)
@@ -464,6 +465,14 @@ class GameScreenRenderer(
                 b.eliminatedByTv.text = spawn.eliminatedBy
                 b.eliminatedByTv.visibility = View.VISIBLE
                 b.spawnCountdownTv.text = context.resources.getString(R.string.spawn_in_label, spawn.seconds)
+                b.spawnCountdownTv.visibility = View.VISIBLE
+            }
+            is SpawnPhase.AwaitingRespawn -> {
+                b.eliminatedTv.setText(R.string.eliminated_label)
+                b.eliminatedTv.visibility = View.VISIBLE
+                b.eliminatedByTv.text = spawn.eliminatedBy
+                b.eliminatedByTv.visibility = View.VISIBLE
+                b.spawnCountdownTv.setText(R.string.manual_respawn_hint)
                 b.spawnCountdownTv.visibility = View.VISIBLE
             }
             is SpawnPhase.OutOfLives -> {

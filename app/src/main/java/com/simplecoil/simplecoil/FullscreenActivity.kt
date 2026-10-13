@@ -110,6 +110,7 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
         binding.playerSettingsButton.setOnClickListener { vm.onPlayerSettingsPressed() }
         binding.endGameButton.setOnClickListener { vm.onEndGamePressed() }
         binding.endNetworkGameButton.setOnClickListener { vm.onEndGamePressed() }
+        binding.startRespawnButton.setOnClickListener { vm.onStartRespawnPressed() }
         binding.infoWv.loadUrl("file:///android_asset/simplecoil.html")
         binding.infoWv.visibility = View.VISIBLE
         binding.firingModeButton.setOnClickListener(dialogs::showFiringModeMenu)
