@@ -35,6 +35,7 @@ class FakeGameConfig : GameConfig {
     override var reloadTimeMillis = Globals.RELOAD_TIME_MILLISECONDS
     override var respawnTimeSeconds = Globals.RESPAWN_TIME_SECONDS
     override var respawnShieldTimeSeconds = Globals.RESPAWN_SHIELD_TIME_SECONDS
+    override var startCountdownSeconds = Globals.START_TIME_SECONDS
     override var gameLimit = Globals.GAME_LIMIT_NONE
     override var timeLimitMinutes = 0
     override var livesLimit = 0
@@ -155,7 +156,7 @@ class SessionTestHarness {
     fun startedAndSpawned() {
         engine.startGame()
         runCurrent()
-        advance(config.respawnTimeSeconds * 1000)
+        advance(config.startCountdownSeconds * 1000)
         writeFinished() // finishReload acknowledged
         rec.ble.clear()
         rec.net.clear()

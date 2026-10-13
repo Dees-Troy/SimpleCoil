@@ -111,6 +111,7 @@ public class TcpServer extends Service {
     public static final String JSON_RELOAD_ON_EMPTY = "reloadonempty";
     public static final String JSON_SPAWN_TIME = "spawntime";
     public static final String JSON_RESPAWN_SHIELD_TIME = "respawnshieldtime";
+    public static final String JSON_START_TIME = "starttime";
     public static final String JSON_DAMAGE = "damage";
     public static final String JSON_SHOT_MODE_SINGLE = "shotmodesingle";
     public static final String JSON_SHOT_MODE_BURST3 = "shotmodeburst3";
@@ -461,6 +462,7 @@ public class TcpServer extends Service {
             game.put(JSON_PLAYERSETTINGS, getPlayerSettings(id, false));
             game.put(JSON_ONLY_SERVER_SETTINGS, Globals.getInstance().mOnlyServerSettings);
             game.put(JSON_ALLOW_CHOOSE_TEAMS, GameSettingsRepository.getInstance().isAllowChooseTeams());
+            game.put(JSON_START_TIME, Globals.getInstance().mStartTime);
             final String allMessage = TCPMESSAGE_PREFIX + TCPPREFIX_JSON + game.toString();
             if (id == SEND_ALL)
                 sendTCPMessageAll(allMessage);

@@ -6,4 +6,6 @@
         android:title="@string/game_mode_4teams" />
     <item android:id="@+id/game_mode_ffa_item"
         android:title="@string/game_mode_ffa" />
+    <item android:id="@+id/sort_teams_item"
+        android:title="@string/shuffle_teams_button" />
 </menu>

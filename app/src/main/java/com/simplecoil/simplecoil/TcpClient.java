@@ -862,6 +862,10 @@ public class TcpClient extends Service {
                 if (Globals.getInstance().mUseGPS) {
                     Globals.getInstance().mGPSMode = game.getInt(TcpServer.JSON_USEGPS);
                 }
+                if (game.has(TcpServer.JSON_START_TIME)) {
+                    Globals.getInstance().mStartTime = game.getLong(TcpServer.JSON_START_TIME);
+                    GameSettingsRepository.getInstance().setStartTime(Globals.getInstance().mStartTime);
+                }
                 Globals.getInstance().mOnlyServerSettings = game.getBoolean(TcpServer.JSON_ONLY_SERVER_SETTINGS);
                 if (game.has(TcpServer.JSON_ALLOW_CHOOSE_TEAMS)) {
                     boolean allowChooseTeams = game.getBoolean(TcpServer.JSON_ALLOW_CHOOSE_TEAMS);

@@ -39,6 +39,7 @@ public class DedicatedServerViewModelTest {
         gameStateRepo = GameStateRepository.getInstance();
         playerRepo = PlayerRepository.getInstance();
 
+        settingsRepo.setStartTime(GameSettingsRepository.START_TIME_SECONDS);
         settingsRepo.setGameMode(GameSettingsRepository.GAME_MODE_2TEAMS);
         settingsRepo.setGameLimit(GameSettingsRepository.GAME_LIMIT_NONE);
         settingsRepo.setGpsMode(GameSettingsRepository.GPS_ALL);
@@ -51,6 +52,14 @@ public class DedicatedServerViewModelTest {
 
         settingsRepo.setGameMode(GameSettingsRepository.GAME_MODE_4TEAMS);
         assertEquals(GameSettingsRepository.GAME_MODE_4TEAMS, settingsRepo.getGameMode());
+    }
+
+    @Test
+    public void testStartTimeUpdate() {
+        assertEquals(GameSettingsRepository.START_TIME_SECONDS, settingsRepo.getStartTime());
+
+        settingsRepo.setStartTime(8);
+        assertEquals(8, settingsRepo.getStartTime());
     }
 
     @Test

@@ -207,6 +207,7 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
         // Still read by DedicatedServerActivity.
         const val PREF_NAME = UserPreferencesRepository.PREF_NAME
         const val PREF_GAME_MODE = UserPreferencesRepository.GAME_MODE
+        const val PREF_START_TIME = UserPreferencesRepository.START_TIME
         const val PREF_LIMIT_TIME = UserPreferencesRepository.LIMIT_TIME
         const val PREF_LIMIT_LIVES = UserPreferencesRepository.LIMIT_LIVES
         const val PREF_LIMIT_SCORE = UserPreferencesRepository.LIMIT_SCORE

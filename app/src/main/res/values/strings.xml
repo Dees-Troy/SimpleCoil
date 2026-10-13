@@ -112,6 +112,8 @@
     <string name="game_limit_time">Time in minutes</string>
     <string name="game_limit_lives">Lives</string>
     <string name="game_limit_score">Score</string>
+    <string name="starting_timer_button">Starting Timer</string>
+    <string name="starting_timer_title">Set Game Start Countdown (Seconds):</string>
 
     <string name="please_wait">Please Wait</string>
 

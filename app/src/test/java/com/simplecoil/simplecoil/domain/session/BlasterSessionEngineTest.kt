@@ -213,22 +213,42 @@ class BlasterSessionEngineTest {
         h.engine.startGame()
         assertEquals(Globals.GAME_STATE_ELIMINATED, h.config.gameState)
         assertEquals(listOf("shotMode:$single/0"), h.rec.ble) // reload is already locked: no stage-1 write
-        assertEquals(SpawnPhase.Spawning(10, "", true), h.state.spawn)
+        assertEquals(SpawnPhase.Spawning(5, "", true), h.state.spawn)
 
         h.runCurrent()
         val seconds = mutableListOf<Long>()
-        repeat(10_000) {
+        repeat(5_000) {
             (h.state.spawn as? SpawnPhase.Spawning)?.let { if (seconds.lastOrNull() != it.seconds) seconds += it.seconds }
             h.advance(1)
         }
-        // CountDownTimer(10000, 999): ticks at 0, 999, ... 9990 with millisLeft/1000.
-        assertEquals(listOf(10L, 9L, 8L, 7L, 6L, 5L, 4L, 3L, 2L, 1L, 0L), seconds)
-        assertEquals(11, h.sounds().count { it == SessionSound.BEEP })
+        // CountDownTimer(5000, 999): ticks at 0, 999, ... 4995 with millisLeft/1000.
+        assertEquals(listOf(5L, 4L, 3L, 2L, 1L, 0L), seconds)
+        assertEquals(6, h.sounds().count { it == SessionSound.BEEP })
         assertEquals(SpawnPhase.None, h.state.spawn)
         assertEquals(Globals.GAME_STATE_RUNNING, h.config.gameState)
         assertEquals(SessionSound.SPAWN, h.sounds().last())
         assertEquals(listOf("shotMode:$single/0", "finishReload:5/30"), h.rec.ble)
-        assertEquals(GameClock.Chronometer(10_000 + 1_000), h.state.clock)
+        assertEquals(GameClock.Chronometer(5_000 + 1_000), h.state.clock)
+    }
+
+    @Test
+    fun startGame_usesStartCountdownSetting_andRespawnUsesRespawnSetting() {
+        h.config.startCountdownSeconds = 8
+        h.config.respawnTimeSeconds = 12
+        h.config.fullHealth = 1
+        h.config.names[2] = "Bob"
+        h.rec.useNetwork = true
+        h.connected()
+
+        h.engine.startGame()
+        assertEquals(SpawnPhase.Spawning(8, "", true), h.state.spawn)
+        h.advance(8_000)
+        h.writeFinished()
+        assertEquals(SpawnPhase.None, h.state.spawn)
+
+        // Eliminate player to trigger respawn
+        h.telemetry(Packet().hit1(0x08, 0x3D))
+        assertEquals(SpawnPhase.Spawning(12, "Bob", false), h.state.spawn)
     }
 
     @Test

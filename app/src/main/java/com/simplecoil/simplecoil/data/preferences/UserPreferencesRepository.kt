@@ -76,6 +76,7 @@ class UserPreferencesRepository(private val prefs: SharedPreferences) : SessionP
         const val SHOT_MODE = "ShotMode"
         const val RECOIL_ENABLED = "RecoilEnabled"
         const val GAME_MODE = "GameMode"
+        const val START_TIME = "StartTime"
         const val LIMIT_TIME = "TimeLimit"
         const val LIMIT_LIVES = "LivesLimit"
         const val LIMIT_SCORE = "ScoreLimit"

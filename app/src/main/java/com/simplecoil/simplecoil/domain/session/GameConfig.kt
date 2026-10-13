@@ -33,6 +33,7 @@ interface GameConfig {
     val reloadTimeMillis: Long
     val respawnTimeSeconds: Long
     val respawnShieldTimeSeconds: Long
+    val startCountdownSeconds: Long
     val gameLimit: Int
     val timeLimitMinutes: Int
     val livesLimit: Int
@@ -71,6 +72,7 @@ object GlobalsGameConfig : GameConfig {
     override val reloadTimeMillis get() = g.mReloadTime
     override val respawnTimeSeconds get() = g.mRespawnTime
     override val respawnShieldTimeSeconds get() = g.mRespawnShieldTime
+    override val startCountdownSeconds get() = g.mStartTime
     override val gameLimit get() = g.mGameLimit
     override val timeLimitMinutes get() = g.mTimeLimit
     override val livesLimit get() = g.mLivesLimit

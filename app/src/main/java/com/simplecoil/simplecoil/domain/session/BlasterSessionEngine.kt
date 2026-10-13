@@ -369,9 +369,9 @@ class BlasterSessionEngine(
             return
         }
 
-        val respawnTime = config.respawnTimeSeconds
-        _state.update { it.copy(spawn = SpawnPhase.Spawning(respawnTime, eliminatedBy, startingGameLabel)) }
-        spawnTimer = scope.countDown(clock, respawnTime * 1000, SPAWN_TICK_MILLIS,
+        val countdownSeconds = if (startingGameLabel) config.startCountdownSeconds else config.respawnTimeSeconds
+        _state.update { it.copy(spawn = SpawnPhase.Spawning(countdownSeconds, eliminatedBy, startingGameLabel)) }
+        spawnTimer = scope.countDown(clock, countdownSeconds * 1000, SPAWN_TICK_MILLIS,
             onTick = { millisLeft ->
                 _state.update { it.copy(spawn = SpawnPhase.Spawning(millisLeft / 1000, eliminatedBy, startingGameLabel)) }
                 emit(SessionEffect.Sound(SessionSound.BEEP))

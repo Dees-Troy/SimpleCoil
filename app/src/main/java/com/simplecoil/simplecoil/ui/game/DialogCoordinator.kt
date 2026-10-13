@@ -265,6 +265,7 @@ class DialogCoordinator(
             R.id.game_mode_2teams_item -> vm.onGameModeSelected(Globals.GAME_MODE_2TEAMS)
             R.id.game_mode_4teams_item -> vm.onGameModeSelected(Globals.GAME_MODE_4TEAMS)
             R.id.game_mode_ffa_item -> vm.onGameModeSelected(Globals.GAME_MODE_FFA)
+            R.id.sort_teams_item -> vm.onAdminAction(AdminAction.SHUFFLE_TEAMS)
             else -> return false
         }
         return true

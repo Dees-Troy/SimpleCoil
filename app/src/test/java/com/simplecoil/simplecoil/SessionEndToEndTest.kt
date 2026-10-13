@@ -171,7 +171,7 @@ class SessionEndToEndTest {
 
         engine.startGame()
         scope.testScheduler.runCurrent()
-        advance(10_000) // respawn countdown
+        advance(5_000) // start game countdown
         // Stage 2 of the spawn reload: CID 10 (team used 00), 30 shots.
         assertEquals(listOf(
             "00 00 80 00 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00",

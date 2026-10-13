@@ -54,6 +54,7 @@ public class GameSettingsRepositoryTest {
         assertEquals(GameSettingsRepository.MAX_HEALTH, repository.getFullHealth());
         assertEquals(GameSettingsRepository.RELOAD_COUNT, repository.getFullReload());
         assertEquals(GameSettingsRepository.RESPAWN_SHIELD_TIME_SECONDS, repository.getRespawnShieldTime());
+        assertEquals(GameSettingsRepository.START_TIME_SECONDS, repository.getStartTime());
         assertEquals(GameSettingsRepository.GAME_MODE_2TEAMS, repository.getGameMode());
         assertEquals(GameSettingsRepository.GAME_LIMIT_NONE, repository.getGameLimit());
     }
@@ -109,6 +110,9 @@ public class GameSettingsRepositoryTest {
 
         repository.setTimeLimit(600);
         assertEquals(600, repository.getTimeLimit());
+
+        repository.setStartTime(8);
+        assertEquals(8, repository.getStartTime());
 
         repository.setReloadOnEmpty(true);
         assertTrue(repository.isReloadOnEmpty());

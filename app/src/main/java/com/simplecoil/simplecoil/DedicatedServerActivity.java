@@ -82,6 +82,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     private TextView mNetworkPlayerCountTV = null;
     private Button mGameModeButton = null;
     private Button mGameLimitButton = null;
+    private Button mStartingTimerButton = null;
     private Button mGPSModeButton = null;
     private Button mEndGameButton = null;
     private Button mStartGameButton = null;
@@ -204,6 +205,14 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 }
             }));
         }
+        mStartingTimerButton = findViewById(R.id.starting_timer_button);
+        if (mStartingTimerButton != null) {
+            mStartingTimerButton.setOnClickListener((new View.OnClickListener() {
+                public void onClick(View v) {
+                    requestStartingTimer();
+                }
+            }));
+        }
         mGameLimitTV = findViewById(R.id.game_limit_tv);
         mGameStatusTV = findViewById(R.id.game_status_tv);
         mGPSModeButton = findViewById(R.id.gps_mode_button);
@@ -270,6 +279,8 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             gameLimit += Globals.GAME_LIMIT_SCORE;
         Globals.getInstance().mGameLimit = gameLimit;
         setGameLimit();
+        Globals.getInstance().mStartTime = sharedPreferences.getInt(FullscreenActivity.PREF_START_TIME, (int) Globals.START_TIME_SECONDS);
+        GameSettingsRepository.getInstance().setStartTime(Globals.getInstance().mStartTime);
         Globals.getInstance().mGPSMode = sharedPreferences.getInt(PREF_GPS_MODE, Globals.GPS_ALL);
         setGPSMode(Globals.getInstance().mGPSMode);
         mAllowJoinSwitch = findViewById(R.id.allow_join_switch);
@@ -323,19 +334,6 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         mPlayerDisplayListAdapter = new PlayerDisplayDataListAdapter(DedicatedServerActivity.this, mPlayerDisplayData, false);
         mPlayerDisplayList = findViewById(R.id.player_list);
         mPlayerDisplayList.setAdapter(mPlayerDisplayListAdapter);
-        Button shuffleTeamsButton = findViewById(R.id.shuffle_teams_button);
-        if (shuffleTeamsButton != null) {
-            shuffleTeamsButton.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    if (mTcpServer != null) {
-                        resetIfPostGame();
-                        mTcpServer.rebalanceAllPlayers(true);
-                        Toast.makeText(DedicatedServerActivity.this, "Teams Sorted & Randomized!", Toast.LENGTH_SHORT).show();
-                    }
-                }
-            });
-        }
         mPlayerDisplayList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
 
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
@@ -440,6 +438,13 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 mTcpServer.rebalanceAllPlayers(false);
             }
             getPlayerDisplayData();
+            return true;
+        } else if (id == R.id.sort_teams_item) {
+            if (mTcpServer != null) {
+                resetIfPostGame();
+                mTcpServer.rebalanceAllPlayers(true);
+                Toast.makeText(DedicatedServerActivity.this, "Teams Sorted & Randomized!", Toast.LENGTH_SHORT).show();
+            }
             return true;
         } else if (id == R.id.gps_mode_disabled) {
             resetIfPostGame();
@@ -604,6 +609,56 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             mTcpServer.sendAllGameInfo(TcpServer.SEND_ALL);
     }
 
+    private void requestStartingTimer() {
+        LayoutInflater li = LayoutInflater.from(getApplicationContext());
+        View view = li.inflate(R.layout.starting_timer_dialog, null);
+
+        AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(this, R.style.Theme_AppCompat_DayNight_Dialog_Alert);
+        alertDialogBuilder.setView(view);
+
+        final EditText startingTimerET = view.findViewById(R.id.starting_timer_et);
+        startingTimerET.setText(String.valueOf(Globals.getInstance().mStartTime));
+
+        alertDialogBuilder
+                .setCancelable(false)
+                .setPositiveButton(R.string.ok,
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog, int id) {
+                                if (startingTimerET.getText().toString().isEmpty()) {
+                                    dialog.dismiss();
+                                    return;
+                                }
+                                long time;
+                                try {
+                                    time = Long.parseLong(startingTimerET.getText().toString());
+                                } catch (Exception ignored) {
+                                    dialog.dismiss();
+                                    return;
+                                }
+                                if (time > 1000) {
+                                    Toast.makeText(getApplicationContext(), getString(R.string.error_limit_too_high), Toast.LENGTH_SHORT).show();
+                                    dialog.dismiss();
+                                    return;
+                                }
+                                resetIfPostGame();
+                                Globals.getInstance().mStartTime = time;
+                                GameSettingsRepository.getInstance().setStartTime(time);
+                                savePreference(FullscreenActivity.PREF_START_TIME, (int) time);
+                                if (mTcpServer != null)
+                                    mTcpServer.sendAllGameInfo(TcpServer.SEND_ALL);
+                                dialog.dismiss();
+                            }
+                        })
+                .setNegativeButton(R.string.cancel,
+                        new DialogInterface.OnClickListener() {
+                            public void onClick(DialogInterface dialog, int id) {
+                                dialog.cancel();
+                            }
+                        });
+        AlertDialog alertDialog = alertDialogBuilder.create();
+        alertDialog.show();
+    }
+
     public void kickPlayerFromAdmin(byte playerID) {
         if (mTcpServer != null) {
             mTcpServer.kickPlayer(playerID);
@@ -753,9 +808,8 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         mEndGameButton.setEnabled(running);
         mGameModeButton.setEnabled(!running);
         mGameLimitButton.setEnabled(!running);
+        if (mStartingTimerButton != null) mStartingTimerButton.setEnabled(!running);
         mGPSModeButton.setEnabled(!running);
-        Button shuffleTeamsBtn = findViewById(R.id.shuffle_teams_button);
-        if (shuffleTeamsBtn != null) shuffleTeamsBtn.setEnabled(!running);
         if (running)
             mGameStatusTV.setText(R.string.dedicated_game_running);
         else if (postGame)
@@ -771,7 +825,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_TIME) != 0) {
             startGameCountdown();
         } else {
-            mSpawnTimer = new CountDownTimer(Globals.getInstance().mRespawnTime * 1000, 999) {
+            mSpawnTimer = new CountDownTimer(Globals.getInstance().mStartTime * 1000, 999) {
 
                 public void onTick(long millisUntilFinished) {
                     // Do nothing
@@ -919,7 +973,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     private void startGameCountdown() {
         if (mGameCountdownTimer != null)
             mGameCountdownTimer.cancel();
-        mGameCountdownTimer = new CountDownTimer((Globals.getInstance().mTimeLimit * 60 * 1000) + (Globals.getInstance().mRespawnTime * 1000), 1000) {
+        mGameCountdownTimer = new CountDownTimer((Globals.getInstance().mTimeLimit * 60 * 1000) + (Globals.getInstance().mStartTime * 1000), 1000) {
 
             public void onTick(long millisUntilFinished) {
                 String display = ""+String.format("%02d:%02d",

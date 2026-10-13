@@ -47,6 +47,7 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
     private final MutableLiveData<Integer> playerCountLiveData = new MutableLiveData<>();
     private final MutableLiveData<Integer> gameModeLiveData = new MutableLiveData<>();
     private final MutableLiveData<Integer> gameLimitLiveData = new MutableLiveData<>();
+    private final MutableLiveData<Long> startingTimerLiveData = new MutableLiveData<>();
     private final MutableLiveData<Integer> gpsModeLiveData = new MutableLiveData<>();
     private final MutableLiveData<Boolean> allowJoinLiveData = new MutableLiveData<>();
     private final MutableLiveData<Boolean> onlyServerSettingsLiveData = new MutableLiveData<>();
@@ -87,6 +88,7 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
         playerCountLiveData.postValue(playerRepo.getPlayerCount(true));
         gameModeLiveData.postValue(settingsRepo.getGameMode());
         gameLimitLiveData.postValue(settingsRepo.getGameLimit());
+        startingTimerLiveData.postValue(settingsRepo.getStartTime());
         gpsModeLiveData.postValue(settingsRepo.getGpsMode());
         allowJoinLiveData.postValue(true);
         onlyServerSettingsLiveData.postValue(settingsRepo.isOnlyServerSettings());
@@ -131,6 +133,11 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
         settingsRepo.setScoreLimit(scoreLimit);
 
         gameLimitLiveData.postValue(settingsRepo.getGameLimit());
+    }
+
+    public void setStartTime(long startTime) {
+        settingsRepo.setStartTime(startTime);
+        startingTimerLiveData.postValue(settingsRepo.getStartTime());
     }
 
     public void setAllowJoin(boolean allowJoin) {
@@ -181,6 +188,7 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
     public LiveData<Integer> getPlayerCountLiveData() { return playerCountLiveData; }
     public LiveData<Integer> getGameModeLiveData() { return gameModeLiveData; }
     public LiveData<Integer> getGameLimitLiveData() { return gameLimitLiveData; }
+    public LiveData<Long> getStartingTimerLiveData() { return startingTimerLiveData; }
     public LiveData<Integer> getGpsModeLiveData() { return gpsModeLiveData; }
     public LiveData<Boolean> getAllowJoinLiveData() { return allowJoinLiveData; }
     public LiveData<Boolean> getOnlyServerSettingsLiveData() { return onlyServerSettingsLiveData; }
