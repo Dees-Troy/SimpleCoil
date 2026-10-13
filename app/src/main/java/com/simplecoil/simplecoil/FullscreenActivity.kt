@@ -86,7 +86,6 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
                 it.getByte("mSelectedPlayerID", 0),
                 it.getString("mDeviceAddress", ""),
                 it.getBoolean("mUseNetwork", false),
-                it.getBoolean("mIsServer", false),
                 it.getInt("mNetworkMenuType", GameViewModel.NETWORK_TYPE_ENABLED),
             )
         }
@@ -124,7 +123,6 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
 
         binding.useNetworkButton.setOnClickListener { vm.onNetworkButtonPressed() }
         binding.gameLimitButton.setOnClickListener { vm.onGameLimitPressed() }
-        binding.shuffleTeamsButton.setOnClickListener { vm.onShuffleTeamsPressed() }
         binding.adminControlsButton.setOnClickListener(dialogs::showAdminMenu)
         binding.useNetworkButton.visibility = View.VISIBLE
         binding.playerDataButton.setOnClickListener { vm.openScoreboard() }
@@ -137,7 +135,6 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
         outState.putByte("mSelectedPlayerID", saved.selectedPlayerId)
         outState.putString("mDeviceAddress", saved.deviceAddress)
         outState.putBoolean("mUseNetwork", saved.useNetwork)
-        outState.putBoolean("mIsServer", saved.isServer)
         outState.putInt("mNetworkMenuType", saved.networkMenuType)
     }
 
@@ -194,7 +191,7 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
         startActivity(Intent(this, DedicatedServerActivity::class.java))
     }
 
-    /** Called by the scoreboard adapter for a team header (host). */
+    /** Called by the scoreboard adapter for a team header. */
     fun showTeamRatioDialog() {
         vm.onTeamRatiosRequested()
     }

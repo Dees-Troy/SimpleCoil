@@ -248,14 +248,14 @@ class BlasterSessionEngineTest {
     }
 
     @Test
-    fun networkTimeLimit_hostEndsGame_andLocalFallbackAfter3s() {
+    fun networkTimeLimit_serverEndsGame_andLocalFallbackAfter3s() {
         h.rec.useNetwork = true
         h.config.gameLimit = Globals.GAME_LIMIT_TIME
         h.config.timeLimitMinutes = 1
         h.connected()
         h.startedAndSpawned()
         h.advance(60_000)
-        assertEquals(listOf("serverEndGame"), h.rec.net)
+        assertTrue(h.rec.net.isEmpty()) // the server ends the game; the client sends nothing
         h.advance(2_999)
         assertTrue(h.effects.none { it == SessionEffect.EndGameRequested })
         h.advance(1)
@@ -363,7 +363,7 @@ class BlasterSessionEngineTest {
         assertEquals(Globals.GAME_STATE_ELIMINATED, h.config.gameState)
         assertEquals(SpawnPhase.Spawning(10, "Bob", false), h.state.spawn)
         assertEquals(listOf("startReload:5"), h.rec.ble)
-        assertEquals(listOf("OUT2", "hostElims:1", "ELIMINATED2"), h.rec.net)
+        assertEquals(listOf("OUT2", "ELIMINATED2"), h.rec.net)
 
         h.advance(10_000)
         assertEquals(Globals.GAME_STATE_RUNNING, h.config.gameState)

@@ -91,7 +91,7 @@ class SessionEndToEndTest {
 
         val net = NetworkSessionGateway(mock(Context::class.java), scope)
         client = mock(TcpClient::class.java)
-        net.attachForTest(null, client, null)
+        net.attachForTest(null, client)
         net.useNetwork = true
 
         val prefs = Recorder()

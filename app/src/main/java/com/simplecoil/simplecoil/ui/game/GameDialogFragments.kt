@@ -211,25 +211,16 @@ class TeamRatioDialog : GameDialogFragment() {
     }
 }
 
-/** Player settings: the local player's (client) or, on the host, another player's. */
+/** The local player's settings. */
 class PlayerSettingsDialog : GameDialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val dialog = PlayerSettingsAlertDialog(requireActivity())
-        val args = requireArguments()
-        if (args.containsKey(ARG_PLAYER_ID)) {
-            dialog.setServer(args.getByte(ARG_PLAYER_ID), vm.tcpServer)
-        } else {
-            dialog.setLocal(vm.tcpClient)
-        }
+        dialog.setLocal(vm.tcpClient)
         return dialog
     }
 
     companion object {
-        private const val ARG_PLAYER_ID = "playerId"
-
         fun local() = PlayerSettingsDialog().apply { arguments = Bundle() }
-
-        fun forPlayer(playerId: Byte) = PlayerSettingsDialog().apply { arguments = bundleOf(ARG_PLAYER_ID to playerId) }
     }
 }
 
@@ -250,16 +241,6 @@ class ScoreboardDialog : GameDialogFragment() {
         val adapter = PlayerDisplayDataListAdapter(activity, players, true)
         this.adapter = adapter
         binding.playerList.adapter = adapter
-        if (requireArguments().getBoolean(ARG_IS_SERVER)) {
-            binding.playerList.setOnItemClickListener { _, _, position, _ ->
-                val row = adapter.getDisplayRow(position)
-                if (row != null && row.type == PlayerDisplayDataListAdapter.DisplayRow.TYPE_TEAM_HEADER && row.teamNumber > 0) {
-                    vm.onScoreboardTeamHeader()
-                    return@setOnItemClickListener
-                }
-                vm.onScoreboardPlayer(adapter.getPlayerID(position))
-            }
-        }
         return alertBuilder()
             .setNegativeButton(R.string.ok) { dialog, _ -> dialog.cancel() }
             .setView(binding.root)
@@ -274,12 +255,6 @@ class ScoreboardDialog : GameDialogFragment() {
         super.onDismiss(dialog)
         // Closed by the user, not torn down with the activity.
         if (!isStateSaved) vm.onScoreboardDismissed()
-    }
-
-    companion object {
-        private const val ARG_IS_SERVER = "isServer"
-
-        fun newInstance(isServer: Boolean) = ScoreboardDialog().apply { arguments = bundleOf(ARG_IS_SERVER to isServer) }
     }
 }
 

@@ -88,7 +88,7 @@ class GameScreenRenderer(
     // Game
     // ---------------------------------------------------------------------------------------
 
-    override fun showGameStarted(useNetwork: Boolean, isServer: Boolean, freeForAll: Boolean) {
+    override fun showGameStarted(useNetwork: Boolean, isAdmin: Boolean, freeForAll: Boolean) {
         window.enterGame()
         b.scoreTv.text = "0"
         b.teamScoreTv.text = "0"
@@ -100,8 +100,7 @@ class GameScreenRenderer(
         b.shuffleTeamsButton.isEnabled = false
         b.shuffleTeamsButton.visibility = View.GONE
         if (useNetwork) {
-            displayInGameNetworkingOptions(isServer, freeForAll)
-            b.endNetworkGameButton.visibility = if (isServer) View.VISIBLE else View.GONE
+            displayInGameNetworkingOptions(isAdmin, freeForAll)
         } else {
             displayAllNetworkingOptions(false, freeForAll)
             b.endGameButton.visibility = View.VISIBLE
@@ -224,8 +223,7 @@ class GameScreenRenderer(
         val playerSettingsVisibility = if (buttons.serverSettingsOnly) View.GONE else View.VISIBLE
         b.firingModeButton.visibility = playerSettingsVisibility
         b.playerSettingsButton.visibility = playerSettingsVisibility
-        b.shuffleTeamsButton.isEnabled = true
-        b.shuffleTeamsButton.visibility = if (buttons.shuffleVisible) View.VISIBLE else View.GONE
+        b.shuffleTeamsButton.visibility = View.GONE
     }
 
     override fun showAdminButton(visible: Boolean) {
@@ -249,14 +247,14 @@ class GameScreenRenderer(
         b.teamScoreTv.visibility = teamScoreVisibility
     }
 
-    private fun displayInGameNetworkingOptions(isServer: Boolean, freeForAll: Boolean) {
+    private fun displayInGameNetworkingOptions(isAdmin: Boolean, freeForAll: Boolean) {
         displayAllNetworkingOptions(false, freeForAll)
         b.playerCountTv.visibility = View.VISIBLE
         b.gameModeLabelTv.visibility = View.VISIBLE
         b.gameModeTv.visibility = View.VISIBLE
         b.scoreLabelTv.visibility = View.VISIBLE
         b.scoreTv.visibility = View.VISIBLE
-        b.endNetworkGameButton.visibility = if (isServer) View.VISIBLE else View.GONE
+        b.endNetworkGameButton.visibility = if (isAdmin) View.VISIBLE else View.GONE
         if (!freeForAll) {
             b.teamScoreLabelTv.visibility = View.VISIBLE
             b.teamScoreTv.visibility = View.VISIBLE
@@ -305,14 +303,12 @@ class GameScreenRenderer(
         b.playerCountTv.setText(R.string.network_player_1count)
     }
 
-    override fun showConnectedToServer(ip: String, dedicated: Boolean) {
+    override fun showConnectedToServer(ip: String) {
         b.serverIpTv.text = context.getString(R.string.server_status_connected_to, ip)
         b.serverIpTv.visibility = View.VISIBLE
-        if (dedicated) {
-            b.playerDataButton.visibility = View.VISIBLE
-            b.networkStatusIv.visibility = View.VISIBLE
-            b.networkStatusIv.setImageResource(R.drawable.ic_network_connected_24dp)
-        }
+        b.playerDataButton.visibility = View.VISIBLE
+        b.networkStatusIv.visibility = View.VISIBLE
+        b.networkStatusIv.setImageResource(R.drawable.ic_network_connected_24dp)
     }
 
     override fun hideStartButton() {

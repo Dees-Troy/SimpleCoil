@@ -117,7 +117,6 @@ class DialogCoordinator(
         when (message) {
             GameMessage.NOT_ENOUGH_PLAYERS -> toast(appContext.getString(R.string.not_enough_players_toast))
             GameMessage.PLAYER_SETTINGS_NOT_ALLOWED -> toast(appContext.getString(R.string.player_settings_not_allowed_toast))
-            GameMessage.TEAMS_SHUFFLED -> toast("Teams Sorted & Randomized!")
             GameMessage.NO_WIFI -> toast(appContext.getString(R.string.error_no_wifi))
             GameMessage.LIMIT_TOO_HIGH -> toast(appContext.getString(R.string.error_limit_too_high))
             GameMessage.UDP_VERSION_ERROR -> toast(appContext.getString(R.string.error_udp_version))
@@ -131,7 +130,6 @@ class DialogCoordinator(
             GameMessage.RATIOS_MIN_ONE -> activityToast("Team limits must be at least 1 player slot")
             GameMessage.RATIOS_TOTAL ->
                 activityToast("Total player slots across all teams must equal " + Globals.MAX_PLAYER_ID + " (current sum: " + arg + ")", Toast.LENGTH_LONG)
-            GameMessage.PLAYER_KICKED -> activityToast("Player kicked")
             GameMessage.KICK_SENT -> activityToast("Kick command sent")
         }
     }
@@ -268,16 +266,14 @@ class DialogCoordinator(
 
     override fun showLocalPlayerSettings() = show(TAG_PLAYER_SETTINGS) { PlayerSettingsDialog.local() }
 
-    override fun showServerPlayerSettings(playerId: Byte) = show(TAG_PLAYER_SETTINGS) { PlayerSettingsDialog.forPlayer(playerId) }
-
-    override fun showScoreboard(players: Array<PlayerDisplayData?>, isServer: Boolean) {
+    override fun showScoreboard(players: Array<PlayerDisplayData?>) {
         if (activity.isFinishing || activity.isDestroyed) return
         val open = fm.findFragmentByTag(TAG_SCOREBOARD) as? ScoreboardDialog
         if (open != null) {
             open.setData(players)
             return
         }
-        show(TAG_SCOREBOARD) { ScoreboardDialog.newInstance(isServer) }
+        show(TAG_SCOREBOARD) { ScoreboardDialog() }
     }
 
     override fun closeScoreboard() = dismiss(TAG_SCOREBOARD)

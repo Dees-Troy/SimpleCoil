@@ -29,7 +29,6 @@ import com.simplecoil.simplecoil.NetworkSessionGateway
 import com.simplecoil.simplecoil.PlayerDisplayData
 import com.simplecoil.simplecoil.ProfanityFilter
 import com.simplecoil.simplecoil.TcpClient
-import com.simplecoil.simplecoil.TcpServer
 import com.simplecoil.simplecoil.data.preferences.UserPreferencesRepository
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.domain.session.BlasterSessionEngine
@@ -55,7 +54,6 @@ data class SavedGameScreen(
     val selectedPlayerId: Byte,
     val deviceAddress: String,
     val useNetwork: Boolean,
-    val isServer: Boolean,
     val networkMenuType: Int,
 )
 
@@ -109,12 +107,10 @@ class GameViewModel(
     private var searchTimeout: Job? = null
 
     val useNetwork: Boolean get() = net.useNetwork
-    val isServer: Boolean get() = net.isServer
     val isScanning: Boolean get() = ble.isScanning
 
     /** For the player settings dialog. */
     val tcpClient: TcpClient? get() = net.tcpClient
-    val tcpServer: TcpServer? get() = net.tcpServer
 
     /** The latest scoreboard data, if any arrived yet. */
     val scoreboardPlayers: Array<PlayerDisplayData?>? get() = latestPlayerData
@@ -135,7 +131,6 @@ class GameViewModel(
             selectedPlayerId = saved.selectedPlayerId
             setDeviceAddress(saved.deviceAddress)
             net.useNetwork = saved.useNetwork
-            net.isServer = saved.isServer
             networkMenuType = saved.networkMenuType
         } else {
             selectedPlayerId = prefs.selectedPlayerId().toByte()
@@ -176,7 +171,7 @@ class GameViewModel(
         updatePlayerSettings()
     }
 
-    fun saveState() = SavedGameScreen(selectedPlayerId, deviceAddress, net.useNetwork, net.isServer, networkMenuType)
+    fun saveState() = SavedGameScreen(selectedPlayerId, deviceAddress, net.useNetwork, networkMenuType)
 
     fun onResume() {
         resumed = true
@@ -412,7 +407,7 @@ class GameViewModel(
             engine.networkTeam = networkTeam
             val startID = g.getTeamStartID(networkTeam)
             val player = g.mPlayerID - startID + 1
-            val dedicatedName = if (net.useNetwork && net.tcpClient?.isDedicatedServer == true) {
+            val dedicatedName = if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINED) {
                 g.mPlayerName?.takeIf { it.isNotEmpty() }?.let { "$it ($networkTeam-$player)" }
             } else null
             screen?.showTeam(TeamDisplay.Team(networkTeam, player, Globals.getTeamColor(networkTeam), net.useNetwork, dedicatedName))
@@ -462,7 +457,6 @@ class GameViewModel(
         g.mGameMode = gameMode
         screen?.showGameMode(gameMode)
         setTeam()
-        if (net.isServer) net.tcpServer?.rebalanceAllPlayers(false)
     }
 
     private fun updatePlayerSettings() {
@@ -541,8 +535,7 @@ class GameViewModel(
                 screen?.showOnlyOnePlayer()
                 return
             }
-            if (net.isServer) net.tcpServer!!.startGame()
-            else net.tcpClient!!.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_STARTGAME))
+            net.tcpClient!!.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_STARTGAME))
         } else {
             if (net.useNetwork) stopServerSearch(true)
             startGame()
@@ -553,7 +546,7 @@ class GameViewModel(
         closeScoreboard()
         net.score = 0
         net.teamScore = 0
-        screen?.showGameStarted(net.useNetwork, net.isServer, freeForAll())
+        screen?.showGameStarted(net.useNetwork, g.mIsAdmin, freeForAll())
         if (net.useNetwork) net.udp?.startGame()
         // Lives/eliminations, health, shot mode, first spawn
         engine.startGame()
@@ -565,10 +558,8 @@ class GameViewModel(
 
     fun onEndGameConfirmed() {
         if (net.useNetwork) {
-            if (g.mIsAdmin || net.isServer) {
-                val client = net.tcpClient
-                if (client != null) client.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_ENDGAME))
-                else if (net.isServer) net.tcpServer?.endGame()
+            if (g.mIsAdmin) {
+                net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_ENDGAME))
             } else {
                 net.tcpClient!!.leaveServer()
                 endGame()
@@ -585,7 +576,7 @@ class GameViewModel(
         hideWeaponDisconnect()
         screen?.showGameEnded(net.useNetwork, freeForAll())
         updatePreGameButtonVisibilities()
-        if (ready && !net.isServer && net.tcpClient?.isDedicatedServer == true) {
+        if (ready && net.useNetwork) {
             setNetworkMenu(NETWORK_TYPE_JOINED)
             screen?.setPlayerDataButtonVisible(true)
         } else {
@@ -596,22 +587,21 @@ class GameViewModel(
 
     private fun updatePreGameButtonVisibilities() {
         if (g.mGameState != Globals.GAME_STATE_NONE) return
-        val connectedClient = net.useNetwork && networkMenuType == NETWORK_TYPE_JOINED && !net.isServer
-        val searching = net.useNetwork && networkMenuType == NETWORK_TYPE_JOINING && !net.isServer
+        val connectedClient = net.useNetwork && networkMenuType == NETWORK_TYPE_JOINED
+        val searching = net.useNetwork && networkMenuType == NETWORK_TYPE_JOINING
         screen?.showPreGameButtons(PreGameButtons(
             ready = ready,
             startVisible = !(g.mOnlyServerSettings || connectedClient),
             startEnabled = !searching,
             serverSettingsOnly = g.mOnlyServerSettings,
-            shuffleVisible = net.isServer,
         ))
         updateAdminButtonVisibility()
     }
 
     private fun updateAdminButtonVisibility() {
-        val showAdmin = (net.isServer || g.mIsAdmin) && net.useNetwork && ready
+        val showAdmin = g.mIsAdmin && net.useNetwork && ready
         screen?.showAdminButton(showAdmin)
-        Log.d(TAG, "updateAdminButtonVisibility: mIsServer=" + net.isServer + ", mIsAdmin=" + g.mIsAdmin + ", mUseNetwork=" + net.useNetwork + ", mReady=" + ready + " -> show=" + showAdmin)
+        Log.d(TAG, "updateAdminButtonVisibility: mIsAdmin=" + g.mIsAdmin + ", mUseNetwork=" + net.useNetwork + ", mReady=" + ready + " -> show=" + showAdmin)
     }
 
     // ---------------------------------------------------------------------------------------
@@ -692,10 +682,8 @@ class GameViewModel(
     }
 
     fun onServerIpEntered(ip: String) {
-        net.isServer = true // This tricks the setReady function into not searching for a server
         ready = true
         setReady()
-        net.isServer = false
         net.udp!!.joinServer(ip)
         setNetworkMenu(NETWORK_TYPE_JOINING)
     }
@@ -732,10 +720,8 @@ class GameViewModel(
             g.mOnlyServerSettings = false
             g.mUseGPS = false
             if (sendPlayerLeft) net.tcpClient?.leaveServer()
-            if (!net.isServer) {
-                net.udp?.stopListen()
-                net.tcpClient?.stopTcpClient()
-            }
+            net.udp?.stopListen()
+            net.tcpClient?.stopTcpClient()
             screen?.showNotReady()
             setNetworkMenu(NETWORK_TYPE_ENABLED)
             screen?.setPlayerDataButtonVisible(false)
@@ -748,7 +734,7 @@ class GameViewModel(
         cancelServerSearchTimeout()
         searchTimeout = viewModelScope.launch {
             delay(SEARCH_TIMEOUT_MILLIS)
-            if (net.useNetwork && !net.isServer && networkMenuType == NETWORK_TYPE_JOINING) {
+            if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINING) {
                 Log.d(TAG, "Server search cycle ended; re-triggering scan...")
                 net.udp?.joinServer()
                 startServerSearchTimeout()
@@ -783,7 +769,7 @@ class GameViewModel(
 
     private fun autoStartServerScan() {
         val udp = net.udp
-        if (!autoScanStarted && udp != null && !net.isServer) {
+        if (!autoScanStarted && udp != null) {
             if (!wifiConnected()) {
                 Log.d(TAG, "autoStartServerScan: Wi-Fi not connected, skipping auto-scan")
                 return
@@ -805,7 +791,7 @@ class GameViewModel(
     // ---------------------------------------------------------------------------------------
 
     fun adminActions(): List<AdminAction> {
-        Log.d(TAG, "showAdminControlsMenu: current mGameState=" + g.mGameState + ", mIsServer=" + net.isServer)
+        Log.d(TAG, "showAdminControlsMenu: current mGameState=" + g.mGameState)
         return if (g.mGameState == Globals.GAME_STATE_NONE) {
             listOf(AdminAction.START_GAME, AdminAction.TWO_TEAMS, AdminAction.FOUR_TEAMS, AdminAction.FREE_FOR_ALL, AdminAction.SHUFFLE_TEAMS)
         } else {
@@ -814,63 +800,33 @@ class GameViewModel(
     }
 
     fun onAdminAction(action: AdminAction) {
-        val server = net.tcpServer
         val client = net.tcpClient
         when (action) {
             AdminAction.START_GAME -> {
-                Log.d(TAG, "Server Controls: Start Game clicked. mIsServer=" + net.isServer + ", mTcpClient=" + (client != null))
-                if (net.isServer && server != null) {
-                    server.startGame()
-                } else if (client != null) {
-                    client.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_STARTGAME))
-                    client.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_STARTGAME))
-                }
+                Log.d(TAG, "Server Controls: Start Game clicked. mTcpClient=" + (client != null))
+                client?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_STARTGAME))
+                client?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_STARTGAME))
             }
             AdminAction.END_GAME -> {
-                Log.d(TAG, "Server Controls: End Game clicked. mIsServer=" + net.isServer + ", mTcpClient=" + (client != null))
-                if (net.isServer && server != null) server.endGame()
-                else client?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_ENDGAME))
+                Log.d(TAG, "Server Controls: End Game clicked. mTcpClient=" + (client != null))
+                client?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_ENDGAME))
             }
             AdminAction.TWO_TEAMS -> changeAdminGameMode(Globals.GAME_MODE_2TEAMS)
             AdminAction.FOUR_TEAMS -> changeAdminGameMode(Globals.GAME_MODE_4TEAMS)
             AdminAction.FREE_FOR_ALL -> changeAdminGameMode(Globals.GAME_MODE_FFA)
-            AdminAction.SHUFFLE_TEAMS -> {
-                if (net.isServer && server != null) server.rebalanceAllPlayers(true)
-                else client?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_SORTTEAMS))
-            }
+            AdminAction.SHUFFLE_TEAMS -> client?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_SORTTEAMS))
         }
     }
 
     private fun changeAdminGameMode(mode: Int) {
-        Log.d(TAG, "changeAdminGameMode: mode=" + mode + ", mIsServer=" + net.isServer + ", mTcpClient=" + (net.tcpClient != null))
-        val server = net.tcpServer
-        if (net.isServer && server != null) {
-            g.mGameMode = mode
-            server.rebalanceAllPlayers(false)
-        } else {
-            net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_GAMEMODE + mode))
-        }
-    }
-
-    /** Shuffle button and menu item (host only). */
-    fun onShuffleTeamsPressed() {
-        val server = net.tcpServer
-        if (net.isServer && server != null) {
-            server.rebalanceAllPlayers(true)
-            screen?.showMessage(GameMessage.TEAMS_SHUFFLED)
-        }
+        Log.d(TAG, "changeAdminGameMode: mode=" + mode + ", mTcpClient=" + (net.tcpClient != null))
+        net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_GAMEMODE + mode))
     }
 
     fun onKickPlayer(playerId: Byte) {
-        val server = net.tcpServer
-        val client = net.tcpClient
-        if (net.isServer && server != null) {
-            server.kickPlayer(playerId)
-            screen?.showMessage(GameMessage.PLAYER_KICKED)
-        } else if (client != null) {
-            client.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_KICK + playerId))
-            screen?.showMessage(GameMessage.KICK_SENT)
-        }
+        val client = net.tcpClient ?: return
+        client.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_KICK + playerId))
+        screen?.showMessage(GameMessage.KICK_SENT)
     }
 
     fun onTeamRatiosRequested() {
@@ -878,7 +834,7 @@ class GameViewModel(
             screen?.showMessage(GameMessage.RATIOS_DURING_GAME)
             return
         }
-        if (!net.isServer && !g.mIsAdmin) {
+        if (!g.mIsAdmin) {
             screen?.showMessage(GameMessage.RATIOS_ADMIN_ONLY)
             return
         }
@@ -909,12 +865,7 @@ class GameViewModel(
             return false
         }
         g.setTeamSizes(newSizes)
-        val server = net.tcpServer
-        if (net.isServer && server != null) {
-            server.rebalanceAllPlayers(false)
-        } else {
-            net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_TEAMSIZES + newSizes.joinToString(",")))
-        }
+        net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_TEAMSIZES + newSizes.joinToString(",")))
         return true
     }
 
@@ -924,16 +875,8 @@ class GameViewModel(
 
     fun openScoreboard() {
         scoreboardVisible = true
-        latestPlayerData?.let { screen?.showScoreboard(it, net.isServer) }
-        if (net.useNetwork) {
-            val server = net.tcpServer
-            if (net.isServer && server != null) {
-                val json = server.playerDataJson
-                if (!json.isNullOrEmpty()) displayPlayerData(json) else server.sendPlayerData(TcpServer.SEND_ALL)
-            } else {
-                net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_PLAYERDATAREQUEST))
-            }
-        }
+        latestPlayerData?.let { screen?.showScoreboard(it) }
+        if (net.useNetwork) net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_PLAYERDATAREQUEST))
     }
 
     private fun closeScoreboard() {
@@ -945,22 +888,14 @@ class GameViewModel(
         scoreboardVisible = false
     }
 
-    /** Host scoreboard row tapped: a team header opens the ratios, a player their settings. */
-    fun onScoreboardTeamHeader() = onTeamRatiosRequested()
-
-    fun onScoreboardPlayer(playerId: Byte) {
-        if (playerId <= 0) return
-        screen?.showServerPlayerSettings(playerId)
-    }
-
     private fun displayPlayerData(json: String?) {
-        net.updatePlayerData(json) { engine.eliminations }
+        net.updatePlayerData(json)
     }
 
     private fun updateScoreboardData(players: Array<PlayerDisplayData?>) {
         latestPlayerData = players
         if (!scoreboardVisible) return
-        screen?.showScoreboard(players, net.isServer)
+        screen?.showScoreboard(players)
     }
 
     // ---------------------------------------------------------------------------------------
@@ -973,7 +908,6 @@ class GameViewModel(
             NetworkEvent.UdpServiceDisconnected -> {
                 ready = false
                 setReady(false)
-                net.isServer = false
                 if (g.mGameState != Globals.GAME_STATE_NONE) endGame()
             }
             is NetworkEvent.PlayerData -> {
@@ -1025,11 +959,11 @@ class GameViewModel(
             }
             NetworkEvent.FailedToJoin -> {
                 Log.d(TAG, "NETMSG_FAILEDTOJOIN received. mUseNetwork=" + net.useNetwork + ", mNetworkMenuType=" + networkMenuType)
-                if (net.useNetwork && !net.isServer && networkMenuType == NETWORK_TYPE_JOINING) {
+                if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINING) {
                     viewModelScope.launch {
                         delay(FAILED_JOIN_RETRY_MILLIS)
                         val udp = net.udp
-                        if (net.useNetwork && !net.isServer && networkMenuType == NETWORK_TYPE_JOINING && udp != null) {
+                        if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINING && udp != null) {
                             Log.d(TAG, "Auto-retrying server scan...")
                             udp.joinServer()
                         }
@@ -1066,7 +1000,7 @@ class GameViewModel(
             NetworkEvent.NetworkConnected -> {
                 cancelServerSearchTimeout()
                 screen?.showNetworkConnected(true)
-                if (!net.isServer && ready && net.useNetwork) setNetworkMenu(NETWORK_TYPE_JOINED)
+                if (ready && net.useNetwork) setNetworkMenu(NETWORK_TYPE_JOINED)
             }
             NetworkEvent.NetworkDisconnected -> screen?.showNetworkConnected(false)
             NetworkEvent.PlayerSettingsUpdate -> updatePlayerSettings()
@@ -1077,8 +1011,6 @@ class GameViewModel(
         // Increase score
         net.score = net.score + 1
         screen?.showScore(net.score)
-        val server = net.tcpServer
-        if (net.isServer && server != null) server.setHostScore(net.score, engine.eliminations)
         screen?.showScoreIncrease(playerName(playerId))
         sounds.play(SessionSound.SCORE)
         if (g.mGameMode != Globals.GAME_MODE_FFA) {
@@ -1098,7 +1030,7 @@ class GameViewModel(
         screen?.showPlayerCount(Globals.getPlayerCount())
         screen?.showGameMode(g.mGameMode)
         setTeam()
-        if (!net.isServer && ready && net.useNetwork && g.mGameState == Globals.GAME_STATE_NONE) {
+        if (ready && net.useNetwork && g.mGameState == Globals.GAME_STATE_NONE) {
             ready = true
             setReady()
             setGameLimit()
@@ -1106,7 +1038,7 @@ class GameViewModel(
             screen?.hideStartButton()
             var ip = g.mServerIP?.toString() ?: ""
             if (ip.startsWith("/")) ip = ip.substring(1)
-            screen?.showConnectedToServer(ip, net.tcpClient!!.isDedicatedServer)
+            screen?.showConnectedToServer(ip)
         }
         event.gameUpdate?.let { applyGameUpdate(it) }
         event.gameState?.let { serverGameState ->
@@ -1129,7 +1061,7 @@ class GameViewModel(
             net.teamScore = update.teamScore
             screen?.showTeamScore(net.teamScore)
         }
-        // Eliminations (or lives left) and the game countdown follow the host
+        // Eliminations (or lives left) and the game countdown follow the server
         engine.syncFromServer(update.eliminations, update.timeRemaining)
     }
 

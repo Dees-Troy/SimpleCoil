@@ -37,7 +37,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONException
 import org.json.JSONObject
 
-/** Score update from the host, carried by NETMSG_LISTPLAYERS. */
+/** Score update from the server, carried by NETMSG_LISTPLAYERS. */
 data class GameUpdate(val score: Int, val eliminations: Int, val teamScore: Int, val timeRemaining: Long)
 
 /** The NETMSG_* broadcasts the play screen handles, with their extras, plus service lifecycle. */
@@ -75,11 +75,10 @@ sealed interface NetworkEvent {
 }
 
 /**
- * The play screen's network session (R13/R14 transport): binds UDPListenerService, TcpClient and
- * TcpServer, turns their NETMSG_* broadcasts into [events], builds the TCP message strings, holds
- * the session's network flags and scores, and serves BlasterSessionEngine as its
- * [SessionNetwork]. TcpClient, TcpServer, UDPListenerService, NetMsg and Globals are unchanged;
- * every string sent is byte-identical to what the activity built inline.
+ * The play screen's network session (R13/R14 transport): binds UDPListenerService and TcpClient,
+ * turns their NETMSG_* broadcasts into [events], builds the TCP message strings, holds the
+ * session's network flags and scores, and serves BlasterSessionEngine as its [SessionNetwork].
+ * The phone is always a client; the only server is DedicatedServerActivity.
  *
  * App-scoped; main thread unless noted.
  */
@@ -98,15 +97,11 @@ class NetworkSessionGateway(
         private set
     var tcpClient: TcpClient? = null
         private set
-    var tcpServer: TcpServer? = null
-        private set
 
     private var udpConnection: ServiceConnection? = null
     private var tcpClientConnection: ServiceConnection? = null
-    private var tcpServerConnection: ServiceConnection? = null
 
     override var useNetwork = false
-    var isServer = false
     /** Main thread only. */
     var score = 0
     /** Main thread only. */
@@ -122,7 +117,7 @@ class NetworkSessionGateway(
     // ---------------------------------------------------------------------------------------
 
     /**
-     * Starts the three network services and binds each one that isn't bound yet. The activity
+     * Starts the two network services and binds each one that isn't bound yet. The activity
      * calls this on every resume; it used to bind again each time, leaving one more live
      * ServiceConnection per resume (B4).
      */
@@ -130,7 +125,6 @@ class NetworkSessionGateway(
         handedOff = false
         if (udpConnection == null) bindUdp() else startServiceSafely(Intent(context, UDPListenerService::class.java))
         if (tcpClientConnection == null) bindTcpClient() else startServiceSafely(Intent(context, TcpClient::class.java))
-        if (tcpServerConnection == null) bindTcpServer() else startServiceSafely(Intent(context, TcpServer::class.java))
     }
 
     private fun bindUdp() {
@@ -168,38 +162,20 @@ class NetworkSessionGateway(
         context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
     }
 
-    private fun bindTcpServer() {
-        val connection = object : ServiceConnection {
-            override fun onServiceConnected(name: ComponentName?, service: IBinder) {
-                tcpServer = (service as TcpServer.LocalBinder).service
-            }
-
-            override fun onServiceDisconnected(name: ComponentName?) {
-                tcpServer = null
-            }
-        }
-        tcpServerConnection = connection
-        val intent = Intent(context, TcpServer::class.java)
-        startServiceSafely(intent)
-        context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
-    }
-
     /** Hands the network over to DedicatedServerActivity (what its launch button did). */
     fun releaseForDedicatedServer() {
         handedOff = true
         tcpClient?.stopTcpClient() // takes its network notification down with it
         udpConnection?.let { context.unbindService(it) }
         tcpClientConnection?.let { context.unbindService(it) }
-        tcpServerConnection?.let { context.unbindService(it) }
         udp = null
         udpConnection = null
         tcpClientConnection = null
-        tcpServerConnection = null
     }
 
     /** Unbinds the current connections, ignoring ones that are already gone (the activity's onDestroy). */
     fun unbindServices() {
-        for (connection in listOfNotNull(udpConnection, tcpClientConnection, tcpServerConnection)) {
+        for (connection in listOfNotNull(udpConnection, tcpClientConnection)) {
             try {
                 context.unbindService(connection)
             } catch (e: Exception) {
@@ -208,7 +184,6 @@ class NetworkSessionGateway(
         }
         udpConnection = null
         tcpClientConnection = null
-        tcpServerConnection = null
     }
 
     private fun startServiceSafely(intent: Intent) {
@@ -246,20 +221,16 @@ class NetworkSessionGateway(
 
     /**
      * Parses player data JSON off the main thread, then on the main thread raises the local
-     * player's score to its points, publishes the host's score, sets the team score and emits
-     * [NetworkEvent.PlayerData]. [eliminations] supplies the host player's eliminations.
+     * player's score to its points, sets the team score and emits [NetworkEvent.PlayerData].
      *
      * B7: the scores used to be written from the parsing thread while the main thread also wrote
-     * them, and the host score was published from that thread.
+     * them.
      */
-    fun updatePlayerData(message: String?, eliminations: () -> Int) {
+    fun updatePlayerData(message: String?) {
         if (message.isNullOrEmpty()) return
         scope.launch {
             val parsed = withContext(parseDispatcher) { parsePlayerData(message) } ?: return@launch
-            parsed.myPoints?.let {
-                score = maxOf(score, it)
-                if (isServer) tcpServer?.setHostScore(score, eliminations())
-            }
+            parsed.myPoints?.let { score = maxOf(score, it) }
             if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
                 val myTeamIdx = Globals.getInstance().calcNetworkTeam(Globals.getInstance().mPlayerID) - 1
                 if (myTeamIdx in 0..3) teamScore = parsed.teamPoints[myTeamIdx]
@@ -294,23 +265,13 @@ class NetworkSessionGateway(
     }
 
     override fun sendPlayerGrenade() {
-        val client = tcpClient!! // as before: only called while networking
-        if (client.isDedicatedServer) client.sendPlayerGrenade()
-    }
-
-    override fun setHostEliminations(eliminations: Int) {
-        if (isServer) tcpServer?.setHostScore(score, eliminations)
-    }
-
-    override fun serverEndGame() {
-        if (isServer) tcpServer?.endGame()
+        tcpClient!!.sendPlayerGrenade() // as before: only called while networking
     }
 
     @androidx.annotation.VisibleForTesting
-    internal fun attachForTest(udp: UDPListenerService?, tcpClient: TcpClient?, tcpServer: TcpServer?) {
+    internal fun attachForTest(udp: UDPListenerService?, tcpClient: TcpClient?) {
         this.udp = udp
         this.tcpClient = tcpClient
-        this.tcpServer = tcpServer
     }
 
     @androidx.annotation.VisibleForTesting
@@ -322,7 +283,7 @@ class NetworkSessionGateway(
         private const val TAG = "NetworkSession"
 
         /**
-         * Parses the host's player data JSON. Reads player settings under Globals' player settings
+         * Parses the server's player data JSON. Reads player settings under Globals' player settings
          * semaphore. Null when the JSON is malformed.
          */
         @JvmStatic

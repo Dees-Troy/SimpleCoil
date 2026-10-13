@@ -23,7 +23,6 @@ import com.simplecoil.simplecoil.Globals
 import com.simplecoil.simplecoil.NetworkEvent
 import com.simplecoil.simplecoil.NetworkSessionGateway
 import com.simplecoil.simplecoil.TcpClient
-import com.simplecoil.simplecoil.TcpServer
 import com.simplecoil.simplecoil.UDPListenerService
 import com.simplecoil.simplecoil.data.preferences.UserPreferencesRepository
 import com.simplecoil.simplecoil.domain.session.BlasterSessionEngine
@@ -71,7 +70,6 @@ class GameViewModelTest {
     private lateinit var screen: GameScreen
     private lateinit var udp: UDPListenerService
     private lateinit var client: TcpClient
-    private lateinit var server: TcpServer
     private lateinit var vm: GameViewModel
     private var wifi = true
     private var gpsBroadcasts = 0
@@ -120,8 +118,7 @@ class GameViewModelTest {
         net = NetworkSessionGateway(mock(Context::class.java), scope)
         udp = mock(UDPListenerService::class.java)
         client = mock(TcpClient::class.java)
-        server = mock(TcpServer::class.java)
-        net.attachForTest(udp, client, server)
+        net.attachForTest(udp, client)
         engine.network = net
         val binder = object : BleConnectionManager.ServiceBinder {
             override fun start() = Unit
@@ -357,13 +354,12 @@ class GameViewModelTest {
 
     @Test
     fun teamSizes_validateLikeTheDialogDid() {
-        net.isServer = true
         assertFalse(vm.onTeamSizesEntered(listOf("16", "")))
         verify(screen).showMessage(GameMessage.RATIOS_MIN_ONE, 0)
         assertFalse(vm.onTeamSizesEntered(listOf("10", "10")))
         verify(screen).showMessage(GameMessage.RATIOS_TOTAL, 20)
         assertTrue(vm.onTeamSizesEntered(listOf("20", "12")))
-        verify(server).rebalanceAllPlayers(false)
+        verify(client).sendTCPMessage("SimpleCoil:06MESGADMIN_TEAMSIZES20,12")
     }
 
     @Test

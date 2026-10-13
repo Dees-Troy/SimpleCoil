@@ -65,7 +65,6 @@ public class TcpServer extends Service {
 
     public static final int TCP_SERVER_PORT = 17510;
     // Amount of time to sleep before checking if data is available. Lower is more responsive but may gobble up more CPU time
-    public static final int TCP_READ_WAIT_MS = 200;
     public static final int TCP_DEDICATED_READ_WAIT_MS = 100;
     public static final String TCP_SERVER_PING = "ping";
 
@@ -127,9 +126,6 @@ public class TcpServer extends Service {
     private static volatile boolean keepListening = false;
     private Semaphore mClientDataSemaphore = new Semaphore(1);
     private volatile Map<Integer, ClientData> mClientData = null;
-    private static volatile boolean mIsDedicated = false;
-    private final AtomicInteger mHostPoints = new AtomicInteger(0);
-    private final AtomicInteger mHostEliminated = new AtomicInteger(0);
     private static volatile boolean mGPSRunning = false;
 
     Handler mGPSHandler = new Handler();
@@ -265,8 +261,6 @@ public class TcpServer extends Service {
     }
 
     public void resetScores() {
-        mHostPoints.set(0);
-        mHostEliminated.set(0);
         if (mClientData == null)
             return;
         try {
@@ -309,14 +303,6 @@ public class TcpServer extends Service {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        if (!mIsDedicated && Globals.getInstance().mPlayerID != 0) {
-            byte hostId = Globals.getInstance().mPlayerID;
-            String hostMac = PlayerRepository.getInstance().getPlayerMacMap().get(hostId);
-            String hostName = Globals.getInstance().mPlayerName;
-            int hostTeam = Globals.getInstance().calcNetworkTeam(hostId);
-            PlayerRepository.getInstance().addActiveGamePlayer(hostMac, hostId, hostTeam, hostName);
-        }
-
         Thread sendThread = new Thread(new Runnable() {
             public void run() {
                 // we want to make sure that we have sent the start game message to all clients before broadcasting that the game has started locally
@@ -336,8 +322,6 @@ public class TcpServer extends Service {
                 sendAllGameInfo(SEND_ALL);
                 sendBroadcast(new Intent(NetMsg.NETMSG_STARTGAME));
                 sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
-                if (!mIsDedicated)
-                    keepListening = false;
             }
         });
         sendThread.start();
@@ -467,10 +451,6 @@ public class TcpServer extends Service {
                     if (gps != null) {
                         gps.team = Globals.getInstance().calcNetworkTeam(newPlayerID);
                         gps.hasUpdate = true;
-                    }
-
-                    if (oldPlayerID == Globals.getInstance().mPlayerID) {
-                        Globals.getInstance().setPlayerID(newPlayerID);
                     }
 
                     Globals.getInstance().mGPSDataSemaphore.release();
@@ -630,50 +610,6 @@ public class TcpServer extends Service {
                         if (gameMode == Globals.GAME_MODE_FFA) {
                             byte nextID = 1;
                             Set<Byte> usedIDs = new HashSet<>();
-                            if (!mIsDedicated && Globals.getInstance().mPlayerID != 0) {
-                                byte oldHostID = Globals.getInstance().mPlayerID;
-                                byte newHostID = nextID++;
-                                usedIDs.add(newHostID);
-                                Globals.getInstance().mPlayerID = newHostID;
-                                String hostName = PlayerRepository.getInstance().getPlayerName(oldHostID);
-                                if (hostName == null || hostName.isEmpty()) {
-                                    hostName = Globals.getInstance().mTeamPlayerNameMap.get(oldHostID);
-                                }
-                                if (hostName == null || hostName.isEmpty()) {
-                                    hostName = Globals.getInstance().mPlayerName;
-                                }
-                                if (hostName != null && !hostName.isEmpty()) {
-                                    newNameMap.put(newHostID, hostName);
-                                }
-                                InetAddress hostIP = Globals.getInstance().mTeamIPMap.get(oldHostID);
-                                if (hostIP == null) {
-                                    hostIP = PlayerRepository.getInstance().getTeamIPMap().get(oldHostID);
-                                }
-                                if (hostIP == null) {
-                                    try { hostIP = InetAddress.getByName(Globals.getIPAddressStr()); } catch (Exception e) {}
-                                }
-                                if (hostIP != null) {
-                                    newTeamIPMap.put(newHostID, hostIP);
-                                    newIPTeamMap.put(hostIP, newHostID);
-                                }
-                                Globals.PlayerSettings set = Globals.getInstance().mPlayerSettings.get(oldHostID);
-                                if (set != null) newSettingsMap.put(newHostID, set);
-                                Globals.GPSData gps = Globals.getInstance().mGPSData.get(oldHostID);
-                                if (gps != null) {
-                                    gps.team = newHostID;
-                                    gps.hasUpdate = true;
-                                    newGPSMap.put(newHostID, gps);
-                                }
-                                String hostMac = PlayerRepository.getInstance().getPlayerMacMap().get(oldHostID);
-                                if (hostMac != null && !hostMac.isEmpty()) {
-                                    newPlayerMacMap.put(newHostID, hostMac);
-                                    newMacPlayerMap.put(hostMac, newHostID);
-                                }
-
-                                Intent hostReplyIntent = new Intent(NetMsg.NETMSG_SERVERREPLY);
-                                hostReplyIntent.putExtra(UDPListenerService.INTENT_PLAYERID, newHostID);
-                                sendBroadcast(hostReplyIntent);
-                            }
                             for (ClientData client : clients) {
                                 byte oldID = client.mPlayerID;
                                 byte newID = 0;
@@ -738,67 +674,6 @@ public class TcpServer extends Service {
                                 teamPointers[t] = Globals.getInstance().getTeamStartID(t);
                                 teamLimits[t] = Globals.getInstance().getTeamEndID(t);
                                 teamCounts[t] = 0;
-                            }
-
-                            if (!mIsDedicated && Globals.getInstance().mPlayerID != 0) {
-                                byte oldHostID = Globals.getInstance().mPlayerID;
-                                int hostTeam = findBestTeamForRebalance(numTeams, teamPointers, teamLimits, teamCounts);
-                                byte newHostID = 0;
-                                if (hostTeam != -1) {
-                                    newHostID = (byte) teamPointers[hostTeam];
-                                    teamPointers[hostTeam]++;
-                                    teamCounts[hostTeam]++;
-                                } else {
-                                    for (byte i = 1; i <= maxPlayers; i++) {
-                                        if (!usedIDs.contains(i)) {
-                                            newHostID = i;
-                                            hostTeam = Globals.getInstance().calcNetworkTeam(newHostID);
-                                            break;
-                                        }
-                                    }
-                                }
-                                if (newHostID != 0) {
-                                    usedIDs.add(newHostID);
-                                    Globals.getInstance().mPlayerID = newHostID;
-                                    String hostName = PlayerRepository.getInstance().getPlayerName(oldHostID);
-                                    if (hostName == null || hostName.isEmpty()) {
-                                        hostName = Globals.getInstance().mTeamPlayerNameMap.get(oldHostID);
-                                    }
-                                    if (hostName == null || hostName.isEmpty()) {
-                                        hostName = Globals.getInstance().mPlayerName;
-                                    }
-                                    if (hostName != null && !hostName.isEmpty()) {
-                                        newNameMap.put(newHostID, hostName);
-                                    }
-                                    InetAddress hostIP = Globals.getInstance().mTeamIPMap.get(oldHostID);
-                                    if (hostIP == null) {
-                                        hostIP = PlayerRepository.getInstance().getTeamIPMap().get(oldHostID);
-                                    }
-                                    if (hostIP == null) {
-                                        try { hostIP = InetAddress.getByName(Globals.getIPAddressStr()); } catch (Exception e) {}
-                                    }
-                                    if (hostIP != null) {
-                                        newTeamIPMap.put(newHostID, hostIP);
-                                        newIPTeamMap.put(hostIP, newHostID);
-                                    }
-                                    Globals.PlayerSettings set = Globals.getInstance().mPlayerSettings.get(oldHostID);
-                                    if (set != null) newSettingsMap.put(newHostID, set);
-                                    Globals.GPSData gps = Globals.getInstance().mGPSData.get(oldHostID);
-                                    if (gps != null) {
-                                        gps.team = hostTeam;
-                                        gps.hasUpdate = true;
-                                        newGPSMap.put(newHostID, gps);
-                                    }
-                                    String hostMac = PlayerRepository.getInstance().getPlayerMacMap().get(oldHostID);
-                                    if (hostMac != null && !hostMac.isEmpty()) {
-                                        newPlayerMacMap.put(newHostID, hostMac);
-                                        newMacPlayerMap.put(hostMac, newHostID);
-                                    }
-
-                                    Intent hostReplyIntent = new Intent(NetMsg.NETMSG_SERVERREPLY);
-                                    hostReplyIntent.putExtra(UDPListenerService.INTENT_PLAYERID, newHostID);
-                                    sendBroadcast(hostReplyIntent);
-                                }
                             }
 
                             for (ClientData client : clients) {
@@ -912,13 +787,6 @@ public class TcpServer extends Service {
                 player.put(JSON_PLAYERIP, entry.getValue());
                 players.put(player);
             }
-            if (!mIsDedicated) {
-                JSONObject player = new JSONObject();
-                player.put(JSON_PLAYERNAME, Globals.getInstance().mPlayerName);
-                player.put(JSON_PLAYERID, Globals.getInstance().mPlayerID);
-                player.put(JSON_PLAYERIP, Globals.getIPAddressStr());
-                players.put(player);
-            }
             JSONObject game = new JSONObject();
             game.put(JSON_PLAYERS, players);
             JSONObject limits = new JSONObject();
@@ -943,9 +811,7 @@ public class TcpServer extends Service {
             game.put(JSON_GAMESTATE, Globals.getInstance().mGameState);
             if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE && (Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_TIME) != 0)
                 game.put(JSON_TIMEREMAINING, Globals.getInstance().mServerGameTimeRemaining);
-            if (mIsDedicated) {
-                game.put(JSON_DEDICATED, true);
-            }
+            game.put(JSON_DEDICATED, true);
             if (Globals.getInstance().mUseGPS)
                 game.put(JSON_USEGPS, Globals.getInstance().mGPSMode);
             game.put(JSON_ALLOWPLAYERSETTINGS, Globals.getInstance().mAllowPlayerSettings);
@@ -1087,21 +953,6 @@ public class TcpServer extends Service {
                     players.put(player);
                 }
             }
-            if (!mIsDedicated) {
-                JSONObject player = new JSONObject();
-                player.put(JSON_PLAYERNAME, Globals.getInstance().mPlayerName);
-                player.put(JSON_PLAYERID, Globals.getInstance().mPlayerID);
-                player.put(JSON_PLAYERIP, Globals.getIPAddressStr());
-                ScoreData hostScore = getScore(Globals.getInstance().mPlayerID);
-                if (hostScore != null) {
-                    player.put(JSON_PLAYERPOINTS, hostScore.points);
-                    player.put(JSON_PLAYERELIMINATED, hostScore.eliminated);
-                } else {
-                    player.put(JSON_PLAYERPOINTS, 0);
-                    player.put(JSON_PLAYERELIMINATED, 0);
-                }
-                players.put(player);
-            }
             JSONObject game = new JSONObject();
             game.put(JSON_PLAYERDATA, players);
             return game.toString();
@@ -1125,21 +976,6 @@ public class TcpServer extends Service {
                 if (scoreData != null) {
                     player.put(JSON_PLAYERPOINTS, scoreData.points);
                     player.put(JSON_PLAYERELIMINATED, scoreData.eliminated);
-                } else {
-                    player.put(JSON_PLAYERPOINTS, 0);
-                    player.put(JSON_PLAYERELIMINATED, 0);
-                }
-                players.put(player);
-            }
-            if (!mIsDedicated) {
-                JSONObject player = new JSONObject();
-                player.put(JSON_PLAYERNAME, Globals.getInstance().mPlayerName);
-                player.put(JSON_PLAYERID, Globals.getInstance().mPlayerID);
-                player.put(JSON_PLAYERIP, Globals.getIPAddressStr());
-                ScoreData hostScore = getScore(Globals.getInstance().mPlayerID);
-                if (hostScore != null) {
-                    player.put(JSON_PLAYERPOINTS, hostScore.points);
-                    player.put(JSON_PLAYERELIMINATED, hostScore.eliminated);
                 } else {
                     player.put(JSON_PLAYERPOINTS, 0);
                     player.put(JSON_PLAYERELIMINATED, 0);
@@ -1279,10 +1115,6 @@ public class TcpServer extends Service {
             game.put(JSON_ALLOWPLAYERSETTINGS, allowPlayerSettings);
             Globals.getInstance().mAllowPlayerSettings = allowPlayerSettings;
             game.put(JSON_PLAYERSETTINGS, players);
-            Globals.PlayerSettings hostSettings = Globals.getInstance().mPlayerSettings.get(Globals.getInstance().mPlayerID);
-            if (hostSettings != null) {
-                Globals.getInstance().mServerRecoilSetting = hostSettings.recoilSetting;
-            }
             String message = TCPMESSAGE_PREFIX + TCPPREFIX_JSON + game.toString();
             sendTCPMessageAll(message);
         } catch (JSONException e) {
@@ -1385,12 +1217,6 @@ public class TcpServer extends Service {
         mClientDataSemaphore.release();
     }
 
-    public void setHostScore(int points, int eliminated) {
-        mHostPoints.set(points);
-        mHostEliminated.set(eliminated);
-        checkLivesLimitEndGame();
-    }
-
     public void checkLivesLimitEndGame() {
         if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE) {
             return;
@@ -1452,28 +1278,6 @@ public class TcpServer extends Service {
             }
         }
 
-        if (!mIsDedicated && Globals.getInstance().mPlayerID != 0) {
-            byte hostId = Globals.getInstance().mPlayerID;
-            int totalLives = 0;
-            Globals.PlayerSettings settings = (playerSettingsMap != null) ? playerSettingsMap.get(hostId) : null;
-            if (settings != null && settings.overrideLives && settings.lives > 0) {
-                totalLives = settings.lives;
-            } else if (hasGlobalLifeLimit) {
-                totalLives = Globals.getInstance().mLivesLimit;
-            }
-
-            if (totalLives > 0) {
-                int remainingLives = totalLives - mHostEliminated.get();
-                if (remainingLives > 0) {
-                    int team = Globals.getInstance().calcNetworkTeam(hostId);
-                    livingTeams.add(team);
-                }
-            } else {
-                int team = Globals.getInstance().calcNetworkTeam(hostId);
-                livingTeams.add(team);
-            }
-        }
-
         if (livingTeams.size() <= 1) {
             Log.d(TAG, "checkLivesLimitEndGame: ending game, living teams remaining: " + livingTeams.size());
             endGame();
@@ -1481,13 +1285,6 @@ public class TcpServer extends Service {
     }
 
     public ScoreData getScore(byte playerID) {
-        if (!mIsDedicated && playerID == Globals.getInstance().mPlayerID) {
-            ScoreData scoreData = new ScoreData();
-            scoreData.points = mHostPoints.get();
-            scoreData.eliminated = mHostEliminated.get();
-            scoreData.isConnected = true;
-            return scoreData;
-        }
         int clientID = clientIDFromPlayerID(playerID);
         if (clientID < 0)
             return null;
@@ -1647,9 +1444,7 @@ public class TcpServer extends Service {
                                             Byte id = (byte) (int) Integer.parseInt(message);
                                             int clientID = clientIDFromPlayerID(id);
                                             int shooterScore = 0;
-                                            if (!mIsDedicated && id == Globals.getInstance().mPlayerID) {
-                                                shooterScore = mHostPoints.incrementAndGet();
-                                            } else if (clientID >= 0 && mClientData.get(clientID) != null) {
+                                            if (clientID >= 0 && mClientData.get(clientID) != null) {
                                                 shooterScore = mClientData.get(clientID).points.incrementAndGet();
                                             }
                                             sendTCPMessageID(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ELIMINATED + client.mPlayerID, id, false, true);
@@ -1704,18 +1499,14 @@ public class TcpServer extends Service {
                                             startGame();
                                         } else if (message.equals(NetMsg.NETMSG_ENDGAME) || message.startsWith(NetMsg.NETMSG_ADMIN_ENDGAME)) {
                                             Log.d(TAG, "TcpServer received ENDGAME / ADMIN_ENDGAME command: '" + message + "'");
-                                            if (mIsDedicated || Globals.getInstance().mOnlyServerSettings) {
-                                                if (message.startsWith(NetMsg.NETMSG_ADMIN_ENDGAME)) {
-                                                    endGame();
-                                                } else {
-                                                    // Regular ENDGAME from a client on a dedicated/restricted server is treated as client leaving
-                                                    removeClient(client, client.clientID, true);
-                                                    if (mClientData.size() <= 1 && Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
-                                                        endGame();
-                                                    break;
-                                                }
-                                            } else {
+                                            if (message.startsWith(NetMsg.NETMSG_ADMIN_ENDGAME)) {
                                                 endGame();
+                                            } else {
+                                                // Regular ENDGAME from a client is treated as the client leaving
+                                                removeClient(client, client.clientID, true);
+                                                if (mClientData.size() <= 1 && Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
+                                                    endGame();
+                                                break;
                                             }
                                         } else if (message.startsWith(NetMsg.NETMSG_ADMIN_SORTTEAMS)) {
                                             Log.d(TAG, "TcpServer received ADMIN_SORTTEAMS command: '" + message + "'");
@@ -1782,9 +1573,7 @@ public class TcpServer extends Service {
                         break;
                     }
                 }
-                long sleepTime = TCP_READ_WAIT_MS - (System.currentTimeMillis() - startTime);
-                if (mIsDedicated)
-                    sleepTime = TCP_DEDICATED_READ_WAIT_MS - (System.currentTimeMillis() - startTime);
+                long sleepTime = TCP_DEDICATED_READ_WAIT_MS - (System.currentTimeMillis() - startTime);
                 //Log.d(TAG, "Took " + (System.currentTimeMillis() - startTime) + "ms to service " + mClientData.size() + " clients");
                 sleep(sleepTime);
             }
@@ -1941,15 +1730,6 @@ public class TcpServer extends Service {
                 }
                 Globals.getmTeamPlayerNameSemaphore();
                 Set<String> usedNames = new HashSet<>();
-                if (!mIsDedicated && Globals.getInstance().mPlayerID != 0) {
-                    String hostName = PlayerRepository.getInstance().getPlayerName(Globals.getInstance().mPlayerID);
-                    if (hostName == null || hostName.isEmpty()) {
-                        hostName = Globals.getInstance().mPlayerName;
-                    }
-                    if (hostName != null && !hostName.isEmpty()) {
-                        usedNames.add(hostName);
-                    }
-                }
                 for (Map.Entry<Byte, String> entry : Globals.getInstance().mTeamPlayerNameMap.entrySet()) {
                     if (entry.getKey() != client.mPlayerID) {
                         usedNames.add(entry.getValue());
@@ -1988,9 +1768,6 @@ public class TcpServer extends Service {
             boolean isGameRunning = Globals.getInstance().mGameState != Globals.GAME_STATE_NONE;
 
             Set<Byte> occupiedIDs = new HashSet<>();
-            if (!mIsDedicated && Globals.getInstance().mPlayerID != 0) {
-                occupiedIDs.add(Globals.getInstance().mPlayerID);
-            }
             if (isGameRunning && Globals.getInstance().mTeamIPMap != null) {
                 occupiedIDs.addAll(Globals.getInstance().mTeamIPMap.keySet());
             }
@@ -2081,15 +1858,6 @@ public class TcpServer extends Service {
                 InetAddress inetAddress = client.clientSocket.getInetAddress();
                 Globals.getmTeamPlayerNameSemaphore();
                 Set<String> usedNames = new HashSet<>();
-                if (!mIsDedicated && Globals.getInstance().mPlayerID != 0) {
-                    String hostName = PlayerRepository.getInstance().getPlayerName(Globals.getInstance().mPlayerID);
-                    if (hostName == null || hostName.isEmpty()) {
-                        hostName = Globals.getInstance().mPlayerName;
-                    }
-                    if (hostName != null && !hostName.isEmpty()) {
-                        usedNames.add(hostName);
-                    }
-                }
                 for (Map.Entry<Byte, String> entry : Globals.getInstance().mTeamPlayerNameMap.entrySet()) {
                     if (entry.getKey() != client.mPlayerID) {
                         usedNames.add(entry.getValue());
@@ -2172,9 +1940,6 @@ public class TcpServer extends Service {
 
                     try {
                         Set<Byte> occupiedIDs = new HashSet<>();
-                        if (!mIsDedicated && Globals.getInstance().mPlayerID != 0) {
-                            occupiedIDs.add(Globals.getInstance().mPlayerID);
-                        }
                         if (Globals.getInstance().mTeamIPMap != null) {
                             occupiedIDs.addAll(Globals.getInstance().mTeamIPMap.keySet());
                         }
@@ -2208,10 +1973,6 @@ public class TcpServer extends Service {
                         if (gps != null) {
                             gps.team = targetTeam;
                             gps.hasUpdate = true;
-                        }
-
-                        if (oldPlayerID == Globals.getInstance().mPlayerID) {
-                            Globals.getInstance().setPlayerID(newPlayerID);
                         }
                         success = true;
                     } catch (Exception e) {
@@ -2270,6 +2031,4 @@ public class TcpServer extends Service {
             e.printStackTrace();
         }
     }
-
-    public void setDedicated() { mIsDedicated = true; }
 }

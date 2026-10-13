@@ -27,12 +27,12 @@ enum class NetworkButton { USE_NETWORK, MENU, SEARCHING, CONNECTED }
 
 /** One-line messages the game shows. */
 enum class GameMessage {
-    NOT_ENOUGH_PLAYERS, PLAYER_SETTINGS_NOT_ALLOWED, TEAMS_SHUFFLED, NO_WIFI, LIMIT_TOO_HIGH,
+    NOT_ENOUGH_PLAYERS, PLAYER_SETTINGS_NOT_ALLOWED, NO_WIFI, LIMIT_TOO_HIGH,
     UDP_VERSION_ERROR, SAME_ID_ERROR, KICKED_BY_SERVER, INAPPROPRIATE_NAME, LOCATION_PERMISSION_REQUIRED,
     RATIOS_DURING_GAME, RATIOS_ADMIN_ONLY, RATIOS_NOT_IN_FFA, RATIOS_MIN_ONE,
     /** Team sizes don't add up; arg = the entered total. */
     RATIOS_TOTAL,
-    PLAYER_KICKED, KICK_SENT,
+    KICK_SENT,
 }
 
 /** Entries of the network popup menu, in display order. */
@@ -65,7 +65,6 @@ data class PreGameButtons(
     val startVisible: Boolean,
     val startEnabled: Boolean,
     val serverSettingsOnly: Boolean,
-    val shuffleVisible: Boolean,
 )
 
 /**
@@ -90,7 +89,8 @@ interface GameView {
     fun showConnectStatus(status: ConnectStatus)
 
     // Game
-    fun showGameStarted(useNetwork: Boolean, isServer: Boolean, freeForAll: Boolean)
+    /** [isAdmin]: a network admin also gets the in-game End Game button. */
+    fun showGameStarted(useNetwork: Boolean, isAdmin: Boolean, freeForAll: Boolean)
     fun showGameEnded(useNetwork: Boolean, freeForAll: Boolean)
     fun showScore(score: Int)
     fun showTeamScore(teamScore: Int)
@@ -112,7 +112,7 @@ interface GameView {
     fun setPlayerDataButtonVisible(visible: Boolean)
     fun showPlayerCount(count: Int)
     fun showOnlyOnePlayer()
-    fun showConnectedToServer(ip: String, dedicated: Boolean)
+    fun showConnectedToServer(ip: String)
     fun hideStartButton()
     fun showNetworkConnected(connected: Boolean)
     fun showShotsFired()
@@ -139,8 +139,7 @@ interface GameDialogs {
     fun showGameLimitDialog(allowScoreLimit: Boolean)
     fun showTeamRatioDialog(numTeams: Int, sizes: IntArray)
     fun showLocalPlayerSettings()
-    fun showServerPlayerSettings(playerId: Byte)
-    fun showScoreboard(players: Array<PlayerDisplayData?>, isServer: Boolean)
+    fun showScoreboard(players: Array<PlayerDisplayData?>)
     fun closeScoreboard()
 }
 

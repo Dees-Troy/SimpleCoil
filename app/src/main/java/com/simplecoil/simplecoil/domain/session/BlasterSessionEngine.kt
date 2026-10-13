@@ -427,7 +427,7 @@ class BlasterSessionEngine(
                 emit(SessionEffect.Sound(SessionSound.ELIMINATED))
                 val net = network
                 if (net != null && net.useNetwork) {
-                    net.serverEndGame()
+                    // The server ends the game for everyone; end it locally if it doesn't.
                     scope.launch {
                         delay(NETWORK_END_GAME_FALLBACK_MILLIS)
                         if (config.gameState != Globals.GAME_STATE_NONE) emit(SessionEffect.EndGameRequested)
@@ -580,7 +580,6 @@ class BlasterSessionEngine(
         emit(SessionEffect.Sound(SessionSound.ELIMINATED))
         if (hasLivesLimit) eliminationCount-- else eliminationCount++
         setEliminationDisplay(eliminationCount)
-        network?.setHostEliminations(eliminationCount)
         val eliminatedBy = if (useNetwork) config.playerName(hitById) ?: "" else ""
         startSpawn(eliminatedBy)
         if (useNetwork) {

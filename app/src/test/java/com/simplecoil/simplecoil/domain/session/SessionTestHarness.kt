@@ -75,8 +75,6 @@ class Recorder : BlasterCommands, SessionNetwork, SessionPreferences {
     override fun sendShotFired() { net += "SHOTFIRED" }
     override fun sendEliminated(playerId: Byte) { net += "ELIMINATED$playerId" }
     override fun sendPlayerGrenade() { net += "GRENADE" }
-    override fun setHostEliminations(eliminations: Int) { net += "hostElims:$eliminations" }
-    override fun serverEndGame() { net += "serverEndGame" }
 
     override fun saveShotMode(shotMode: Int) { saved += "shotMode:$shotMode" }
     override fun saveRecoilEnabled(enabled: Boolean) { saved += "recoil:$enabled" }

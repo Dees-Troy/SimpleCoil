@@ -35,14 +35,8 @@ interface SessionNetwork {
     fun sendShotFired()
     fun sendEliminated(playerId: Byte)
 
-    /** Grenade paired: tells a dedicated server (only when networking and the server is dedicated). */
+    /** Grenade paired: tells the server (only when networking). */
     fun sendPlayerGrenade()
-
-    /** Host only: publishes the host player's eliminations (with the current score). */
-    fun setHostEliminations(eliminations: Int)
-
-    /** Game time ran out: a hosting server ends the game for everyone. */
-    fun serverEndGame()
 }
 
 /** Persists the player's shot mode and recoil choice (the "SimpleCoil" preferences). */

@@ -66,7 +66,6 @@ public class TcpClient extends Service {
 
     private static volatile boolean keepListening = false;
     private static volatile boolean isListening = false;
-    private static volatile boolean mIsDedicatedServer = false;
 
     private final Object mOutLock = new Object();
     private DataOutputStream out = null;
@@ -347,10 +346,7 @@ public class TcpClient extends Service {
                             }
                         }
                     } else {
-                        if (mIsDedicatedServer)
-                            sleep(TcpServer.TCP_DEDICATED_READ_WAIT_MS);
-                        else
-                            sleep(TcpServer.TCP_READ_WAIT_MS);
+                        sleep(TcpServer.TCP_DEDICATED_READ_WAIT_MS);
                         noReadCount++;
                         if (noReadCount >= 35) {
                             Log.d(TAG, "no ping from server, disconnecting");
@@ -477,8 +473,7 @@ public class TcpClient extends Service {
     }
 
     public void stopTcpClient() {
-        if (mIsDedicatedServer)
-            sleep(75); // Make sure that the end game message gets sent before we close down the socket
+        sleep(75); // Make sure that the end game message gets sent before we close down the socket
         keepListening = false;
     }
 
@@ -710,7 +705,6 @@ public class TcpClient extends Service {
                     if (playerGameUpdate.has(TcpServer.JSON_TIMEREMAINING))
                         intent.putExtra(NetMsg.INTENT_TIMEREMAINING, playerGameUpdate.getLong(TcpServer.JSON_TIMEREMAINING));
                 }
-                mIsDedicatedServer = game.has(TcpServer.JSON_DEDICATED);
                 if (game.has(TcpServer.JSON_GAMESTATE)) {
                     int gameState = game.getInt(TcpServer.JSON_GAMESTATE);
                     intent.putExtra(NetMsg.INTENT_GAMESTATE, gameState);
@@ -721,8 +715,6 @@ public class TcpClient extends Service {
             e.printStackTrace();
         }
     }
-
-    public boolean isDedicatedServer() { return mIsDedicatedServer; }
 
     private final BroadcastReceiver mGPSUpdateReceiver = new BroadcastReceiver() {
         @Override

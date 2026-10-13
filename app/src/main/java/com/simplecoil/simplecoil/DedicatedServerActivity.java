@@ -141,7 +141,6 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             @Override
             public void onServiceConnected(ComponentName componentName, IBinder service) {
                 mTcpServer = ((TcpServer.LocalBinder) service).getService();
-                mTcpServer.setDedicated();
                 mTcpServer.startTcpServer();
             }
 
