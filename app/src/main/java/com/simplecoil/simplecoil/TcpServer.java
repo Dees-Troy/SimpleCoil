@@ -40,6 +40,7 @@ import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.domain.team.TeamLayout;
 import com.simplecoil.simplecoil.domain.team.TeamMode;
+import com.simplecoil.simplecoil.network.Frame;
 import com.simplecoil.simplecoil.network.server.Connection;
 import com.simplecoil.simplecoil.network.server.GameRoster;
 import com.simplecoil.simplecoil.network.server.PlayerRecord;
@@ -894,128 +895,126 @@ public class TcpServer extends Service {
                         if (client.available() > 0) {
                             client.resetNoReadCount();
                             String message = client.readUTF();
-                            if (!message.equals(TcpClient.TCP_CLIENT_PONG)) {
+                            Frame frame = Frame.parse(message);
+                            if (frame.kind != Frame.Kind.PONG) {
                                 Log.i(TAG, "received: '" + message + "' from " + client.getConnectionId());
-                                if (message.startsWith(TCPMESSAGE_PREFIX)) {
-                                    if (message.substring(TCPMESSAGE_PREFIX.length(), TCPMESSAGE_PREFIX.length() + TCPPREFIX_JSON.length()).equals(TCPPREFIX_JSON)) {
-                                        // Handle JSON Data
-                                        message = message.substring(TCPMESSAGE_PREFIX.length() + TCPPREFIX_JSON.length());
-                                        parsePlayerInfo(message, client);
+                                if (frame.kind == Frame.Kind.JSON) {
+                                    // Handle JSON Data
+                                    parsePlayerInfo(frame.body, client);
+                                    break;
+                                } else if (frame.kind == Frame.Kind.MESG) {
+                                    // Handle messages
+                                    message = frame.body;
+                                    if (message.equals(NetMsg.NETMSG_LEAVE)) {
+                                        // A player in the game's roster stays on the scoreboard, disconnected (Q12)
+                                        removeClient(client);
+                                        if (mRoster.isRunning() && mRoster.connectedCount() <= 1)
+                                            endGame();
                                         break;
-                                    } else if (message.substring(TCPMESSAGE_PREFIX.length(), TCPMESSAGE_PREFIX.length() + TCPPREFIX_MESG.length()).equals(TCPPREFIX_MESG)) {
-                                        // Handle messages
-                                        message = message.substring(TCPMESSAGE_PREFIX.length() + TCPPREFIX_MESG.length());
-                                        if (message.equals(NetMsg.NETMSG_LEAVE)) {
-                                            // A player in the game's roster stays on the scoreboard, disconnected (Q12)
+                                    } else if (message.startsWith(NetMsg.NETMSG_ELIMINATED)) {
+                                        // Sent reliably since v07; a bare one is applied the same way, without de-dup
+                                        handleEliminated(client, message);
+                                    } else if (message.equals(NetMsg.NETMSG_SHOTFIRED)) {
+                                        sendTCPMessageAll(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SHOTFIRED);
+                                    } else if (message.startsWith(NetMsg.NETMSG_HIT)) {
+                                        message = message.substring(NetMsg.NETMSG_HIT.length());
+                                        try {
+                                            byte shooterId = (byte) Integer.parseInt(message);
+                                            byte targetId = playerIdOf(client);
+                                            sendTCPMessageID(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_HIT + targetId, shooterId);
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
+                                        }
+                                    } else if (message.startsWith(NetMsg.NETMSG_OUT)) {
+                                        message = message.substring(NetMsg.NETMSG_OUT.length());
+                                        try {
+                                            byte shooterId = (byte) Integer.parseInt(message);
+                                            byte targetId = playerIdOf(client);
+                                            sendTCPMessageID(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_OUT + targetId, shooterId);
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
+                                        }
+                                    } else if (message.equals(NetMsg.NETMSG_TEAMELIMINATED)) {
+                                        sendTCPMessageTeam(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_TEAMELIMINATED, playerIdOf(client), false);
+                                    } else if (message.equals(NetMsg.NETMSG_PLAYERDATAREQUEST)) {
+                                        sendPlayerData(playerIdOf(client));
+                                    } else if (isAdminCommand(message) && !isAdmin(client)) {
+                                        // D14: only players the server operator made admins may run the game
+                                        Log.w(TAG, "Ignoring '" + message + "' from non-admin client " + client.getConnectionId());
+                                    } else if (message.equals(NetMsg.NETMSG_STARTGAME) || message.startsWith(NetMsg.NETMSG_ADMIN_STARTGAME)) {
+                                        Log.d(TAG, "TcpServer received STARTGAME / ADMIN_STARTGAME command: '" + message + "'");
+                                        if (!startGame() && mRoster.phase() == SessionPhase.POST_GAME)
+                                            client.send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ERROR + "Reset the game first");
+                                    } else if (message.equals(NetMsg.NETMSG_ENDGAME) || message.startsWith(NetMsg.NETMSG_ADMIN_ENDGAME)) {
+                                        Log.d(TAG, "TcpServer received ENDGAME / ADMIN_ENDGAME command: '" + message + "'");
+                                        if (message.startsWith(NetMsg.NETMSG_ADMIN_ENDGAME)) {
+                                            endGame();
+                                        } else {
+                                            // Regular ENDGAME from a client is treated as the client leaving
                                             removeClient(client);
                                             if (mRoster.isRunning() && mRoster.connectedCount() <= 1)
                                                 endGame();
                                             break;
-                                        } else if (message.startsWith(NetMsg.NETMSG_ELIMINATED)) {
-                                            // Sent reliably since v07; a bare one is applied the same way, without de-dup
-                                            handleEliminated(client, message);
-                                        } else if (message.equals(NetMsg.NETMSG_SHOTFIRED)) {
-                                            sendTCPMessageAll(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SHOTFIRED);
-                                        } else if (message.startsWith(NetMsg.NETMSG_HIT)) {
-                                            message = message.substring(NetMsg.NETMSG_HIT.length());
-                                            try {
-                                                byte shooterId = (byte) Integer.parseInt(message);
-                                                byte targetId = playerIdOf(client);
-                                                sendTCPMessageID(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_HIT + targetId, shooterId);
-                                            } catch (Exception e) {
-                                                e.printStackTrace();
-                                            }
-                                        } else if (message.startsWith(NetMsg.NETMSG_OUT)) {
-                                            message = message.substring(NetMsg.NETMSG_OUT.length());
-                                            try {
-                                                byte shooterId = (byte) Integer.parseInt(message);
-                                                byte targetId = playerIdOf(client);
-                                                sendTCPMessageID(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_OUT + targetId, shooterId);
-                                            } catch (Exception e) {
-                                                e.printStackTrace();
-                                            }
-                                        } else if (message.equals(NetMsg.NETMSG_TEAMELIMINATED)) {
-                                            sendTCPMessageTeam(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_TEAMELIMINATED, playerIdOf(client), false);
-                                        } else if (message.equals(NetMsg.NETMSG_PLAYERDATAREQUEST)) {
-                                            sendPlayerData(playerIdOf(client));
-                                        } else if (isAdminCommand(message) && !isAdmin(client)) {
-                                            // D14: only players the server operator made admins may run the game
-                                            Log.w(TAG, "Ignoring '" + message + "' from non-admin client " + client.getConnectionId());
-                                        } else if (message.equals(NetMsg.NETMSG_STARTGAME) || message.startsWith(NetMsg.NETMSG_ADMIN_STARTGAME)) {
-                                            Log.d(TAG, "TcpServer received STARTGAME / ADMIN_STARTGAME command: '" + message + "'");
-                                            if (!startGame() && mRoster.phase() == SessionPhase.POST_GAME)
-                                                client.send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ERROR + "Reset the game first");
-                                        } else if (message.equals(NetMsg.NETMSG_ENDGAME) || message.startsWith(NetMsg.NETMSG_ADMIN_ENDGAME)) {
-                                            Log.d(TAG, "TcpServer received ENDGAME / ADMIN_ENDGAME command: '" + message + "'");
-                                            if (message.startsWith(NetMsg.NETMSG_ADMIN_ENDGAME)) {
-                                                endGame();
-                                            } else {
-                                                // Regular ENDGAME from a client is treated as the client leaving
-                                                removeClient(client);
-                                                if (mRoster.isRunning() && mRoster.connectedCount() <= 1)
-                                                    endGame();
-                                                break;
-                                            }
-                                        } else if (message.startsWith(NetMsg.NETMSG_ADMIN_RESET)) {
-                                            Log.d(TAG, "TcpServer received ADMIN_RESET command: '" + message + "'");
-                                            resetSession();
-                                        } else if (message.startsWith(NetMsg.NETMSG_ADMIN_SORTTEAMS)) {
-                                            Log.d(TAG, "TcpServer received ADMIN_SORTTEAMS command: '" + message + "'");
-                                            if (!mRoster.isRunning()) {
+                                        }
+                                    } else if (message.startsWith(NetMsg.NETMSG_ADMIN_RESET)) {
+                                        Log.d(TAG, "TcpServer received ADMIN_RESET command: '" + message + "'");
+                                        resetSession();
+                                    } else if (message.startsWith(NetMsg.NETMSG_ADMIN_SORTTEAMS)) {
+                                        Log.d(TAG, "TcpServer received ADMIN_SORTTEAMS command: '" + message + "'");
+                                        if (!mRoster.isRunning()) {
+                                            resetIfPostGame();
+                                            rebalanceAllPlayers(true);
+                                        }
+                                    } else if (message.startsWith(NetMsg.NETMSG_ADMIN_GAMEMODE)) {
+                                        Log.d(TAG, "TcpServer received ADMIN_GAMEMODE command: '" + message + "'");
+                                        try {
+                                            TeamMode mode = TeamMode.fromWire(Integer.parseInt(message.substring(NetMsg.NETMSG_ADMIN_GAMEMODE.length()).trim()));
+                                            if (mode == null) {
+                                                Log.w(TAG, "ADMIN_GAMEMODE ignored: unknown team mode");
+                                            } else if (!mRoster.isRunning()) {
                                                 resetIfPostGame();
-                                                rebalanceAllPlayers(true);
+                                                GameSettingsRepository.getInstance().setTeamMode(mode);
+                                                new UserPreferencesRepository(TcpServer.this).saveTeamMode(mode);
+                                                rebalanceAllPlayers(false);
                                             }
-                                        } else if (message.startsWith(NetMsg.NETMSG_ADMIN_GAMEMODE)) {
-                                            Log.d(TAG, "TcpServer received ADMIN_GAMEMODE command: '" + message + "'");
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
+                                        }
+                                    } else if (message.startsWith(NetMsg.NETMSG_ADMIN_KICK)) {
+                                        Log.d(TAG, "TcpServer received ADMIN_KICK command: '" + message + "'");
+                                        try {
+                                            byte targetID = (byte) Integer.parseInt(message.substring(NetMsg.NETMSG_ADMIN_KICK.length()).trim());
+                                            kickPlayer(targetID);
+                                        } catch (Exception e) {
+                                            e.printStackTrace();
+                                        }
+                                    } else if (message.startsWith(NetMsg.NETMSG_ADMIN_TEAMSIZES)) {
+                                        Log.d(TAG, "TcpServer received ADMIN_TEAMSIZES command: '" + message + "'");
+                                        if (!mRoster.isRunning()) {
                                             try {
-                                                TeamMode mode = TeamMode.fromWire(Integer.parseInt(message.substring(NetMsg.NETMSG_ADMIN_GAMEMODE.length()).trim()));
-                                                if (mode == null) {
-                                                    Log.w(TAG, "ADMIN_GAMEMODE ignored: unknown team mode");
-                                                } else if (!mRoster.isRunning()) {
+                                                String sizesStr = message.substring(NetMsg.NETMSG_ADMIN_TEAMSIZES.length()).trim();
+                                                String[] parts = sizesStr.split(",");
+                                                int[] newSizes = new int[parts.length];
+                                                int sum = 0;
+                                                for (int i = 0; i < parts.length; i++) {
+                                                    newSizes[i] = Integer.parseInt(parts[i].trim());
+                                                    sum += newSizes[i];
+                                                }
+                                                if (sum == GameSettingsRepository.MAX_PLAYER_ID) {
                                                     resetIfPostGame();
-                                                    GameSettingsRepository.getInstance().setTeamMode(mode);
-                                                    new UserPreferencesRepository(TcpServer.this).saveTeamMode(mode);
+                                                    GameSettingsRepository.getInstance().setTeamSizes(newSizes);
                                                     rebalanceAllPlayers(false);
                                                 }
                                             } catch (Exception e) {
                                                 e.printStackTrace();
                                             }
-                                        } else if (message.startsWith(NetMsg.NETMSG_ADMIN_KICK)) {
-                                            Log.d(TAG, "TcpServer received ADMIN_KICK command: '" + message + "'");
-                                            try {
-                                                byte targetID = (byte) Integer.parseInt(message.substring(NetMsg.NETMSG_ADMIN_KICK.length()).trim());
-                                                kickPlayer(targetID);
-                                            } catch (Exception e) {
-                                                e.printStackTrace();
-                                            }
-                                        } else if (message.startsWith(NetMsg.NETMSG_ADMIN_TEAMSIZES)) {
-                                            Log.d(TAG, "TcpServer received ADMIN_TEAMSIZES command: '" + message + "'");
-                                            if (!mRoster.isRunning()) {
-                                                try {
-                                                    String sizesStr = message.substring(NetMsg.NETMSG_ADMIN_TEAMSIZES.length()).trim();
-                                                    String[] parts = sizesStr.split(",");
-                                                    int[] newSizes = new int[parts.length];
-                                                    int sum = 0;
-                                                    for (int i = 0; i < parts.length; i++) {
-                                                        newSizes[i] = Integer.parseInt(parts[i].trim());
-                                                        sum += newSizes[i];
-                                                    }
-                                                    if (sum == GameSettingsRepository.MAX_PLAYER_ID) {
-                                                        resetIfPostGame();
-                                                        GameSettingsRepository.getInstance().setTeamSizes(newSizes);
-                                                        rebalanceAllPlayers(false);
-                                                    }
-                                                } catch (Exception e) {
-                                                    e.printStackTrace();
-                                                }
-                                            }
                                         }
-                                    } else {
-                                        Log.d(TAG, "unknown tcp message received");
                                     }
-                                } else if (message.startsWith(NetMsg.MESSAGE_PREFIX)) {
+                                } else if (frame.kind == Frame.Kind.OTHER_VERSION) {
                                     client.send(NetMsg.NETMSG_VERSIONERROR);
                                     break;
+                                } else if (frame.kind != Frame.Kind.PING) {
+                                    Log.d(TAG, "unknown tcp message received");
                                 }
                             }
                         } else {

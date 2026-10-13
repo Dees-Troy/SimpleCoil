@@ -556,4 +556,23 @@ class TcpServerLoopbackTest {
         assertTrue(score(idB)!!.isConnected)
         assertNotNull(score(idA))
     }
+
+    @Test
+    fun malformedFrame_isIgnored_andTheServerKeepsServingEveryone() {
+        // N5: a short frame after the version prefix used to throw out of the read thread
+        val (a, _) = join("Alpha", "AA:00")
+        val (b, _) = join("Bravo", "BB:00")
+        a.send(TcpServer.TCPMESSAGE_PREFIX + "X")
+        a.send(TcpServer.TCPMESSAGE_PREFIX)
+        b.mesg(NetMsg.NETMSG_SHOTFIRED)
+        a.awaitMesg(NetMsg.NETMSG_SHOTFIRED)
+        b.awaitMesg(NetMsg.NETMSG_SHOTFIRED)
+    }
+
+    @Test
+    fun otherProtocolVersion_getsVersionError() {
+        val client = connect()
+        client.send(NetMsg.MESSAGE_PREFIX + "06" + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_LEAVE)
+        awaitTrue { client.received.contains(NetMsg.NETMSG_VERSIONERROR) }
+    }
 }

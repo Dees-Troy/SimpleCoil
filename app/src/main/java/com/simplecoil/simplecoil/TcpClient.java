@@ -47,6 +47,7 @@ import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.domain.team.TeamMode;
+import com.simplecoil.simplecoil.network.Frame;
 import com.simplecoil.simplecoil.network.client.ClientOutbox;
 import com.simplecoil.simplecoil.network.client.ReconnectPolicy;
 import com.simplecoil.simplecoil.network.server.SessionPhase;
@@ -407,88 +408,9 @@ public class TcpClient extends Service {
                     if (in.available() > 0) {
                         noReadCount = 0;
                         String message = in.readUTF();
-                        if (message.equals(TcpServer.TCP_SERVER_PING))
-                            sendTCPMessage(TCP_CLIENT_PONG);
-                        else {
-                            Log.i(TAG, "received: '" + message + "'");
-                            if (message.substring(TcpServer.TCPMESSAGE_PREFIX.length(), TcpServer.TCPMESSAGE_PREFIX.length() + TcpServer.TCPPREFIX_JSON.length()).equals(TcpServer.TCPPREFIX_JSON)) {
-                                message = message.substring(TcpServer.TCPMESSAGE_PREFIX.length() + TcpServer.TCPPREFIX_JSON.length());
-                                parseGameInfo(message);
-                            } else if (message.substring(TcpServer.TCPMESSAGE_PREFIX.length(), TcpServer.TCPMESSAGE_PREFIX.length() + TcpServer.TCPPREFIX_MESG.length()).equals(TcpServer.TCPPREFIX_MESG)) {
-                                message = message.substring(TcpServer.TCPMESSAGE_PREFIX.length() + TcpServer.TCPPREFIX_MESG.length());
-                                if (message.startsWith(NetMsg.NETMSG_ELIMINATED)) {
-                                    message = message.substring(NetMsg.NETMSG_ELIMINATED.length());
-                                    Byte id = (byte) (int) Integer.parseInt(message);
-                                    Intent intent = new Intent(NetMsg.NETMSG_ELIMINATED);
-                                    intent.putExtra(UDPListenerService.INTENT_PLAYERID, id);
-                                    sendBroadcast(intent);
-                                } else if (message.startsWith(NetMsg.NETMSG_HIT)) {
-                                    message = message.substring(NetMsg.NETMSG_HIT.length());
-                                    Intent intent = new Intent(NetMsg.NETMSG_HIT);
-                                    if (!message.isEmpty()) {
-                                        try {
-                                            byte id = (byte) Integer.parseInt(message);
-                                            intent.putExtra(UDPListenerService.INTENT_PLAYERID, id);
-                                        } catch (Exception e) {
-                                            e.printStackTrace();
-                                        }
-                                    }
-                                    sendBroadcast(intent);
-                                } else if (message.startsWith(NetMsg.NETMSG_OUT)) {
-                                    message = message.substring(NetMsg.NETMSG_OUT.length());
-                                    Intent intent = new Intent(NetMsg.NETMSG_OUT);
-                                    if (!message.isEmpty()) {
-                                        try {
-                                            byte id = (byte) Integer.parseInt(message);
-                                            intent.putExtra(UDPListenerService.INTENT_PLAYERID, id);
-                                        } catch (Exception e) {
-                                            e.printStackTrace();
-                                        }
-                                    }
-                                    sendBroadcast(intent);
-                                } else if (message.equals(NetMsg.NETMSG_SHOTFIRED)) {
-                                    sendBroadcast(new Intent(NetMsg.NETMSG_SHOTFIRED));
-                                } else if (message.startsWith(NetMsg.NETMSG_SERVERREPLY)) {
-                                    Intent intent = new Intent(NetMsg.NETMSG_SERVERREPLY);
-                                    String assignedIDStr = message.substring(NetMsg.NETMSG_SERVERREPLY.length());
-                                    if (!assignedIDStr.isEmpty()) {
-                                        try {
-                                            byte assignedID = (byte) Integer.parseInt(assignedIDStr);
-                                            PlayerRepository.getInstance().setPlayerID(assignedID);
-                                            intent.putExtra(UDPListenerService.INTENT_PLAYERID, assignedID);
-                                        } catch (Exception e) {
-                                            e.printStackTrace();
-                                        }
-                                    }
-                                    sendBroadcast(intent);
-                                } else if (message.equals(NetMsg.NETMSG_TEAMELIMINATED)) {
-                                    sendBroadcast(new Intent(NetMsg.NETMSG_TEAMELIMINATED));
-                                } else if (message.equals(NetMsg.NETMSG_ENDGAME)) {
-                                    sendBroadcast(new Intent(NetMsg.NETMSG_ENDGAME));
-                                } else if (message.equals(NetMsg.NETMSG_STARTGAME)) {
-                                    sendBroadcast(new Intent(NetMsg.NETMSG_STARTGAME));
-                                } else if (message.equals(NetMsg.NETMSG_SERVERCANCEL)) {
-                                    sendBroadcast(new Intent(NetMsg.NETMSG_SERVERCANCEL));
-                                    cancelled = true;
-                                    break;
-                                } else if (message.startsWith(NetMsg.NETMSG_ACK)) {
-                                    try {
-                                        mOutbox.ack(Integer.parseInt(message.substring(NetMsg.NETMSG_ACK.length())));
-                                    } catch (NumberFormatException e) {
-                                        e.printStackTrace();
-                                    }
-                                } else if (message.startsWith(NetMsg.NETMSG_ERROR)) {
-                                    Intent intent = new Intent(NetMsg.NETMSG_ERROR);
-                                    intent.putExtra(UDPListenerService.INTENT_MESSAGE, message.substring(NetMsg.NETMSG_ERROR.length()));
-                                    sendBroadcast(intent);
-                                }
-                            } else if (message.startsWith(NetMsg.NETMSG_VERSIONERROR)) {
-                                sendBroadcast(new Intent(NetMsg.NETMSG_VERSIONERROR));
-                                cancelled = true;
-                                break;
-                            } else {
-                                Log.d(TAG, "unknown tcp message received");
-                            }
+                        if (handleFrame(message)) {
+                            cancelled = true;
+                            break;
                         }
                     } else {
                         sleep(TcpServer.TCP_DEDICATED_READ_WAIT_MS);
@@ -530,6 +452,92 @@ public class TcpClient extends Service {
             stopAsForeground();
             keepListening = false;
             isListening = false;
+        }
+    }
+
+    /**
+     * Handles one frame from the server on the reader thread. Returns true when the server ended
+     * the session (SERVERCANCEL or VERSIONERROR) and the client must not reconnect.
+     */
+    @VisibleForTesting
+    boolean handleFrame(String raw) {
+        Frame frame = Frame.parse(raw);
+        if (frame.kind == Frame.Kind.PING) {
+            sendTCPMessage(TCP_CLIENT_PONG);
+            return false;
+        }
+        Log.i(TAG, "received: '" + raw + "'");
+        if (frame.kind == Frame.Kind.JSON) {
+            parseGameInfo(frame.body);
+        } else if (frame.kind == Frame.Kind.MESG) {
+            String message = frame.body;
+            if (message.startsWith(NetMsg.NETMSG_ELIMINATED)) {
+                Byte id = parseId(message.substring(NetMsg.NETMSG_ELIMINATED.length()));
+                if (id != null) {
+                    Intent intent = new Intent(NetMsg.NETMSG_ELIMINATED);
+                    intent.putExtra(UDPListenerService.INTENT_PLAYERID, id);
+                    sendBroadcast(intent);
+                }
+            } else if (message.startsWith(NetMsg.NETMSG_HIT)) {
+                Intent intent = new Intent(NetMsg.NETMSG_HIT);
+                Byte id = parseId(message.substring(NetMsg.NETMSG_HIT.length()));
+                if (id != null)
+                    intent.putExtra(UDPListenerService.INTENT_PLAYERID, id);
+                sendBroadcast(intent);
+            } else if (message.startsWith(NetMsg.NETMSG_OUT)) {
+                Intent intent = new Intent(NetMsg.NETMSG_OUT);
+                Byte id = parseId(message.substring(NetMsg.NETMSG_OUT.length()));
+                if (id != null)
+                    intent.putExtra(UDPListenerService.INTENT_PLAYERID, id);
+                sendBroadcast(intent);
+            } else if (message.equals(NetMsg.NETMSG_SHOTFIRED)) {
+                sendBroadcast(new Intent(NetMsg.NETMSG_SHOTFIRED));
+            } else if (message.startsWith(NetMsg.NETMSG_SERVERREPLY)) {
+                Intent intent = new Intent(NetMsg.NETMSG_SERVERREPLY);
+                Byte assignedID = parseId(message.substring(NetMsg.NETMSG_SERVERREPLY.length()));
+                if (assignedID != null) {
+                    PlayerRepository.getInstance().setPlayerID(assignedID);
+                    intent.putExtra(UDPListenerService.INTENT_PLAYERID, assignedID);
+                }
+                sendBroadcast(intent);
+            } else if (message.equals(NetMsg.NETMSG_TEAMELIMINATED)) {
+                sendBroadcast(new Intent(NetMsg.NETMSG_TEAMELIMINATED));
+            } else if (message.equals(NetMsg.NETMSG_ENDGAME)) {
+                sendBroadcast(new Intent(NetMsg.NETMSG_ENDGAME));
+            } else if (message.equals(NetMsg.NETMSG_STARTGAME)) {
+                sendBroadcast(new Intent(NetMsg.NETMSG_STARTGAME));
+            } else if (message.equals(NetMsg.NETMSG_SERVERCANCEL)) {
+                sendBroadcast(new Intent(NetMsg.NETMSG_SERVERCANCEL));
+                return true;
+            } else if (message.startsWith(NetMsg.NETMSG_ACK)) {
+                try {
+                    mOutbox.ack(Integer.parseInt(message.substring(NetMsg.NETMSG_ACK.length())));
+                } catch (NumberFormatException e) {
+                    e.printStackTrace();
+                }
+            } else if (message.startsWith(NetMsg.NETMSG_ERROR)) {
+                Intent intent = new Intent(NetMsg.NETMSG_ERROR);
+                intent.putExtra(UDPListenerService.INTENT_MESSAGE, message.substring(NetMsg.NETMSG_ERROR.length()));
+                sendBroadcast(intent);
+            }
+        } else if (frame.kind == Frame.Kind.VERSION_ERROR) {
+            sendBroadcast(new Intent(NetMsg.NETMSG_VERSIONERROR));
+            return true;
+        } else {
+            Log.d(TAG, "unknown tcp message received");
+        }
+        return false;
+    }
+
+    /** A player id from a command's argument, or null (logged) when it is missing or not a number. */
+    private static Byte parseId(String text) {
+        if (text.isEmpty())
+            return null;
+        try {
+            return (byte) Integer.parseInt(text.trim());
+        } catch (NumberFormatException e) {
+            Log.w(TAG, "Bad player id '" + text + "'");
+            return null;
         }
     }
 
