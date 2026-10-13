@@ -128,8 +128,8 @@ class ScoreboardAdapter(
             id.text = row.label
             name.setTextColor(if (row.isSelf) SELF_COLOR else Color.WHITE)
             name.text = row.name
-            points.text = context.getString(R.string.scoreboard_number, row.points)
-            stat.text = context.getString(R.string.scoreboard_number, row.livesOrEliminations)
+            points.text = context.getString(R.string.number, row.points)
+            stat.text = context.getString(R.string.number, row.livesOrEliminations)
             networkStatus?.let {
                 it.visibility = View.VISIBLE
                 it.setImageResource(if (row.connected) R.drawable.ic_network_connected_24dp else R.drawable.ic_network_disconnected_24dp)

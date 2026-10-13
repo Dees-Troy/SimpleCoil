@@ -158,7 +158,8 @@
     <string name="team_ratio_total">Total player slots across all teams must equal %1$d (current sum: %2$d)</string>
     <string name="scoreboard_players_header">PLAYERS</string>
     <string name="scoreboard_edit_ratio">Tap to edit ratio</string>
-    <string name="scoreboard_number">%1$d</string>
+    <!-- A number shown on its own, in the locale's digits. -->
+    <string name="number">%1$d</string>
     <string name="scoreboard_connected">Connected</string>
     <string name="scoreboard_disconnected">Disconnected</string>
 

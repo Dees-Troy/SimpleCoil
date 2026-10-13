@@ -16,6 +16,7 @@
 
 package com.simplecoil.simplecoil.ui.playersettings
 
+import android.annotation.SuppressLint
 import android.app.AlertDialog
 import android.app.Dialog
 import android.os.Bundle
@@ -76,6 +77,8 @@ class PlayerSettingsDialog : DialogFragment() {
         outState.putInt(STATE_TARGET_TEAM, targetTeam)
     }
 
+    // The fields hold ASCII digits that PlayerSettingsForm parses back; locale digits wouldn't parse.
+    @SuppressLint("SetTextI18n")
     private fun show(values: PlayerSettingsValues) = with(binding) {
         healthEt.setText(values.health.toString())
         reloadShotsEt.setText(values.shots.toString())

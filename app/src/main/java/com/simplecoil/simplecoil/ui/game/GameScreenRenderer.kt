@@ -130,11 +130,11 @@ class GameScreenRenderer(
     }
 
     override fun showScore(score: Int) {
-        b.scoreTv.text = score.toString()
+        b.scoreTv.text = number(score)
     }
 
     override fun showTeamScore(teamScore: Int) {
-        b.teamScoreTv.text = teamScore.toString()
+        b.teamScoreTv.text = number(teamScore)
     }
 
     override fun showGameLimit(timeLimitMinutes: Int?, livesLabel: Boolean, scoreLimit: Int?) {
@@ -207,7 +207,7 @@ class GameScreenRenderer(
         b.teamLabelTv.setText(R.string.team_label)
         clearTeamLabelStyle()
         if (team is TeamDisplay.FreeForAll) {
-            b.teamTv.text = team.playerId.toString()
+            b.teamTv.text = number(team.playerId.toInt())
         } else {
             b.teamTv.setText(R.string.auto_sort_team)
         }
@@ -389,12 +389,14 @@ class GameScreenRenderer(
     /** Last session state drawn; each view is only touched when its value changes. */
     private var rendered: SessionState? = null
 
+    private fun number(value: Int): String = context.getString(R.string.number, value)
+
     fun render(s: SessionState) {
         val p = rendered
         rendered = s
         if (p == null || p.maxHealth != s.maxHealth) b.healthPb.max = s.maxHealth
         if (p == null || p.health != s.health) b.healthPb.progress = s.health
-        if (p == null || p.shotsRemaining != s.shotsRemaining) b.shotsRemainingTv.text = s.shotsRemaining.toString()
+        if (p == null || p.shotsRemaining != s.shotsRemaining) b.shotsRemainingTv.text = number(s.shotsRemaining.toInt())
         val reloadBarShown = s.reloadBarShown
         if (reloadBarShown != null && (p == null || reloadBarShown != p.reloadBarShown)) {
             if (reloadBarShown) {
@@ -405,8 +407,8 @@ class GameScreenRenderer(
                 b.shotsRemainingTv.visibility = View.VISIBLE
             }
         }
-        if (p == null || p.hitsTaken != s.hitsTaken) b.hitsTakenTv.text = s.hitsTaken.toString()
-        if (p == null || p.eliminationDisplay != s.eliminationDisplay) b.eliminationsCountTv.text = s.eliminationDisplay.toString()
+        if (p == null || p.hitsTaken != s.hitsTaken) b.hitsTakenTv.text = number(s.hitsTaken)
+        if (p == null || p.eliminationDisplay != s.eliminationDisplay) b.eliminationsCountTv.text = number(s.eliminationDisplay)
         if (p == null || p.shotMode != s.shotMode) {
             when (s.shotMode) {
                 GameSettingsRepository.SHOT_MODE_SINGLE -> b.shotModeTv.setText(R.string.shot_mode_single)

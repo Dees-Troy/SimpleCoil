@@ -16,6 +16,7 @@
 
 package com.simplecoil.simplecoil.ui.dialogs
 
+import android.annotation.SuppressLint
 import android.app.Dialog
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -113,6 +114,8 @@ class GameLimitDialog : AppDialogFragment() {
  * player slot used); then returns them under [REQUEST_KEY].
  */
 class TeamRatioDialog : AppDialogFragment() {
+    // The fields hold ASCII digits that TeamSizes parses back; locale digits wouldn't parse.
+    @SuppressLint("SetTextI18n")
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         isCancelable = false
         val numTeams = requireArguments().getInt(ARG_NUM_TEAMS)
@@ -171,6 +174,8 @@ class TeamRatioDialog : AppDialogFragment() {
 
 /** The starting timer in seconds, as entered. Results under [REQUEST_KEY]. */
 class StartingTimerDialog : AppDialogFragment() {
+    // The field holds ASCII digits that the host parses back; locale digits wouldn't parse.
+    @SuppressLint("SetTextI18n")
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         isCancelable = false
         val binding = StartingTimerDialogBinding.inflate(appInflater)
