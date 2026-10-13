@@ -28,6 +28,7 @@
 
         <TextView
             android:id="@+id/health_title"
+            android:labelFor="@+id/health_et"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
@@ -37,6 +38,7 @@
 
         <EditText
             android:id="@+id/health_et"
+            android:importantForAutofill="no"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:digits="0123456789"
@@ -50,6 +52,7 @@
 
         <TextView
             android:id="@+id/shots_title"
+            android:labelFor="@+id/reload_shots_et"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/player_settings_reload_shots"
@@ -58,6 +61,7 @@
 
         <EditText
             android:id="@+id/reload_shots_et"
+            android:importantForAutofill="no"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:digits="0123456789"
@@ -70,6 +74,7 @@
 
         <TextView
             android:id="@+id/reload_time_title"
+            android:labelFor="@+id/reload_time_et"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/player_settings_reload_time"
@@ -78,6 +83,7 @@
 
         <EditText
             android:id="@+id/reload_time_et"
+            android:importantForAutofill="no"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:digits="0123456789"
@@ -106,6 +112,7 @@
 
         <TextView
             android:id="@+id/spawn_time_title"
+            android:labelFor="@+id/spawn_time_et"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/player_settings_spawn_time"
@@ -114,6 +121,7 @@
 
         <EditText
             android:id="@+id/spawn_time_et"
+            android:importantForAutofill="no"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:digits="0123456789"
@@ -126,6 +134,7 @@
 
         <TextView
             android:id="@+id/respawn_shield_time_title"
+            android:labelFor="@+id/respawn_shield_time_et"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/player_settings_respawn_shield_time"
@@ -134,6 +143,7 @@
 
         <EditText
             android:id="@+id/respawn_shield_time_et"
+            android:importantForAutofill="no"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:digits="0123456789"
@@ -146,6 +156,7 @@
 
         <TextView
             android:id="@+id/damage_title"
+            android:labelFor="@+id/damage_et"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/player_settings_damage"
@@ -154,6 +165,7 @@
 
         <EditText
             android:id="@+id/damage_et"
+            android:importantForAutofill="no"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:digits="0123456789"
@@ -174,6 +186,7 @@
 
         <TextView
             android:id="@+id/lives_title"
+            android:labelFor="@+id/lives_et"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/player_settings_lives"
@@ -182,6 +195,7 @@
 
         <EditText
             android:id="@+id/lives_et"
+            android:importantForAutofill="no"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:digits="0123456789"

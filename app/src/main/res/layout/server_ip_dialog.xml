@@ -9,6 +9,7 @@
 
     <TextView
         android:id="@+id/title_tv"
+        android:labelFor="@+id/server_ip_et"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/server_ip"
@@ -17,6 +18,7 @@
 
     <EditText
         android:id="@+id/server_ip_et"
+        android:importantForAutofill="no"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:digits="0123456789."

@@ -31,6 +31,7 @@
 
         <EditText
             android:id="@+id/team1_ratio_et"
+            android:importantForAutofill="no"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="number"
@@ -55,6 +56,7 @@
 
         <EditText
             android:id="@+id/team2_ratio_et"
+            android:importantForAutofill="no"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="number"
@@ -80,6 +82,7 @@
 
         <EditText
             android:id="@+id/team3_ratio_et"
+            android:importantForAutofill="no"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="number"
@@ -105,6 +108,7 @@
 
         <EditText
             android:id="@+id/team4_ratio_et"
+            android:importantForAutofill="no"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:inputType="number"

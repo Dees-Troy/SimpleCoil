@@ -171,6 +171,9 @@
     <!-- A number shown on its own, in the locale's digits. -->
     <string name="number">%1$d</string>
     <string name="scoreboard_connected">Connected</string>
+    <string name="cd_blaster_battery">Blaster battery</string>
+    <string name="cd_network_status">Network status</string>
+    <string name="cd_kick_player">Kick player</string>
     <string name="scoreboard_disconnected">Disconnected</string>
 
     <string name="player_settings_title">Player Settings</string>

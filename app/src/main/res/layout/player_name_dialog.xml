@@ -9,6 +9,7 @@
 
     <TextView
         android:id="@+id/title_tv"
+        android:labelFor="@+id/player_name_et"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/player_name"
@@ -17,6 +18,7 @@
 
     <EditText
         android:id="@+id/player_name_et"
+        android:autofillHints="username"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:maxLength="20"

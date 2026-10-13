@@ -62,6 +62,7 @@
 
         <ImageView
             android:id="@+id/kick_player_iv"
+            android:contentDescription="@string/cd_kick_player"
             android:layout_width="34dp"
             android:layout_height="34dp"
             android:layout_gravity="center_vertical"

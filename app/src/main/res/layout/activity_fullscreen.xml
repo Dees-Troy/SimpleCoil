@@ -104,6 +104,7 @@
 
         <ImageView
             android:id="@+id/battery_iv"
+            android:contentDescription="@string/cd_blaster_battery"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
@@ -112,6 +113,7 @@
 
         <ImageView
             android:id="@+id/network_status_iv"
+            android:contentDescription="@string/cd_network_status"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
@@ -314,6 +316,7 @@
 
         <ImageView
             android:id="@+id/hit_animation_iv"
+            android:contentDescription="@null"
             android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -567,6 +570,7 @@
 
         <ImageView
             android:id="@+id/hit_player_iv"
+            android:contentDescription="@null"
             android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -587,6 +591,7 @@
 
         <ImageView
             android:id="@+id/shots_fired_iv"
+            android:contentDescription="@null"
             android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -598,6 +603,7 @@
 
         <ImageView
             android:id="@+id/score_increase_iv"
+            android:contentDescription="@null"
             android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
