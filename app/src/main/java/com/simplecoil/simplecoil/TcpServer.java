@@ -258,6 +258,9 @@ public class TcpServer extends Service {
                 for (Connection connection : mRoster.connections()) {
                     connection.send(message);
                 }
+                // after ENDGAME, so the clients have ended the game before they see game state NONE;
+                // carries the POST_GAME phase, which swaps End Game for Reset in the admin menu
+                sendAllGameInfo(SEND_ALL);
                 Globals.getmGPSDataSemaphore();
                 Globals.getInstance().mGPSData.clear();
                 Globals.getInstance().mGPSDataSemaphore.release();
