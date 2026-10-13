@@ -310,15 +310,14 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
             else
                 playerEliminatedTV.setText("" + data[playerID].eliminated);
         }
-        if (!isClient) {
-            ImageView networkStatus = rowView.findViewById(R.id.network_status_iv);
-            if (networkStatus != null) {
-                networkStatus.setVisibility(View.VISIBLE);
-                if (data[playerID].isConnected)
-                    networkStatus.setImageResource(R.drawable.ic_network_connected_24dp);
-                else
-                    networkStatus.setImageResource(R.drawable.ic_network_disconnected_24dp);
-            }
+        // Clients get "connected" in the player data too, so their scoreboards show who is away.
+        ImageView networkStatus = rowView.findViewById(R.id.network_status_iv);
+        if (networkStatus != null) {
+            networkStatus.setVisibility(View.VISIBLE);
+            if (data[playerID].isConnected)
+                networkStatus.setImageResource(R.drawable.ic_network_connected_24dp);
+            else
+                networkStatus.setImageResource(R.drawable.ic_network_disconnected_24dp);
         }
 
         ImageView kickPlayerIV = rowView.findViewById(R.id.kick_player_iv);
