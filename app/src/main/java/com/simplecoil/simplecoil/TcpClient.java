@@ -48,6 +48,7 @@ import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.domain.team.TeamMode;
 import com.simplecoil.simplecoil.network.Frame;
+import com.simplecoil.simplecoil.network.FrameReader;
 import com.simplecoil.simplecoil.network.client.ClientOutbox;
 import com.simplecoil.simplecoil.network.client.ReconnectPolicy;
 import com.simplecoil.simplecoil.network.server.SessionPhase;
@@ -57,7 +58,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.BufferedOutputStream;
-import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -76,6 +76,8 @@ public class TcpClient extends Service {
 
     public static final String TCP_CLIENT_PONG = "pong";
     private static final int CONNECTION_TIMEOUT_MS = 1000;
+    /** No byte from the server for this long: the connection is dead. */
+    static final long SILENCE_DROP_MS = 3500;
 
     private static volatile boolean keepListening = false;
     private static volatile boolean isListening = false;
@@ -363,7 +365,6 @@ public class TcpClient extends Service {
         Log.d(TAG, "Starting client...");
         Socket s = null;
         InputStream is = null;
-        DataInputStream in = null;
         OutputStream os = null;
         boolean rejoin = false;
         boolean wasConnected = false;
@@ -395,8 +396,9 @@ public class TcpClient extends Service {
                 s = new Socket();
                 bindToWifi(s);
                 s.connect(new InetSocketAddress(GameStateRepository.getInstance().getServerIP(), TcpServer.TCP_SERVER_PORT), CONNECTION_TIMEOUT_MS);
+                s.setSoTimeout(TcpServer.TCP_DEDICATED_READ_WAIT_MS);
                 is = s.getInputStream();
-                in = new DataInputStream(is);
+                FrameReader reader = new FrameReader(is);
                 os = s.getOutputStream();
                 synchronized (mOutLock) {
                     out = new DataOutputStream(new BufferedOutputStream(os));
@@ -406,12 +408,11 @@ public class TcpClient extends Service {
                 if (rejoin)
                     sendBroadcast(new Intent(NetMsg.NETMSG_NETWORKCONNECTED));
                 rejoin = true;
-                int noReadCount = 0;
                 mReconnectPolicy.onConnected();
                 while (keepListening) {
-                    if (in.available() > 0) {
-                        noReadCount = 0;
-                        String message = in.readUTF();
+                    // Times out after 100 ms; a half-received frame waits for the next poll (N4)
+                    String message = reader.poll();
+                    if (message != null) {
                         boolean ended = false;
                         try {
                             ended = handleFrame(message);
@@ -423,20 +424,11 @@ public class TcpClient extends Service {
                             cancelled = true;
                             break;
                         }
-                    } else {
-                        sleep(TcpServer.TCP_DEDICATED_READ_WAIT_MS);
-                        noReadCount++;
-                        if (noReadCount >= 35) {
-                            Log.d(TAG, "no ping from server, disconnecting");
-                            break;
-                        }
+                    } else if (reader.silenceMillis() >= SILENCE_DROP_MS) {
+                        Log.d(TAG, "no ping from server, disconnecting");
+                        break;
                     }
                 }
-                s.close();
-                is.close();
-                in.close();
-                os.close();
-                out.close();
             } catch (UnknownHostException e) {
                 e.printStackTrace();
             } catch (ConnectException e) {
@@ -453,7 +445,6 @@ public class TcpClient extends Service {
                 }
                 try { if (s != null) s.close(); } catch (Exception e) { /* ignored */ }
                 try { if (is != null) is.close(); } catch (Exception e) { /* ignored */ }
-                try { if (in != null) in.close(); } catch (Exception e) { /* ignored */ }
                 try { if (os != null) os.close(); } catch (Exception e) { /* ignored */ }
             }
         }
