@@ -43,7 +43,7 @@ abstract class AppDialogFragment : DialogFragment() {
     /** The dialogs' layouts were inflated with the application context; keep their look. */
     protected val appInflater: LayoutInflater get() = LayoutInflater.from(requireContext().applicationContext)
 
-    protected fun alertBuilder() = AlertDialog.Builder(requireContext(), R.style.Theme_AppCompat_DayNight_Dialog_Alert)
+    protected fun alertBuilder() = AlertDialog.Builder(requireContext(), R.style.AppDialogTheme)
 }
 
 /** A game limit: the text entered and which limit it is for. Results under [REQUEST_KEY]. */

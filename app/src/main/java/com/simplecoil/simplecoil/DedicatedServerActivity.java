@@ -653,7 +653,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         for (PlayerDisplayData player : mPlayerDisplayData) {
             if (player != null && !player.isConnected) disconnected++;
         }
-        new AlertDialog.Builder(this, R.style.Theme_AppCompat_DayNight_Dialog_Alert)
+        new AlertDialog.Builder(this, R.style.AppDialogTheme)
                 .setMessage(getString(R.string.dedicated_reset_confirm, disconnected))
                 .setPositiveButton(R.string.reset_game_button, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int id) {

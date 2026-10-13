@@ -37,7 +37,7 @@ class PermissionDialog : DialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val flow = Flow.valueOf(requireArguments().getString(ARG_FLOW)!!)
         val settings = requireArguments().getBoolean(ARG_SETTINGS)
-        val builder = AlertDialog.Builder(requireContext(), R.style.Theme_AppCompat_DayNight_Dialog_Alert)
+        val builder = AlertDialog.Builder(requireContext(), R.style.AppDialogTheme)
             .setNegativeButton(R.string.cancel) { dialog, _ -> dialog.cancel() }
         return if (settings) {
             builder.setTitle(R.string.permission_settings_title)
