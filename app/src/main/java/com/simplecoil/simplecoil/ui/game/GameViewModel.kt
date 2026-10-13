@@ -999,7 +999,7 @@ class GameViewModel(
                 setReady()
             }
             ClientEvent.FailedToJoin -> {
-                Log.d(TAG, "NETMSG_FAILEDTOJOIN received. mUseNetwork=" + net.useNetwork + ", mNetworkMenuType=" + networkMenuType)
+                Log.d(TAG, "FailedToJoin received. mUseNetwork=" + net.useNetwork + ", mNetworkMenuType=" + networkMenuType)
                 if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINING) {
                     viewModelScope.launch {
                         delay(FAILED_JOIN_RETRY_MILLIS)

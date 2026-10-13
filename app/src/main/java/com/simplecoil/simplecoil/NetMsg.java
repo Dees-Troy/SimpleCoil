@@ -16,7 +16,7 @@
 
 package com.simplecoil.simplecoil;
 
-// Network message globals
+// The v07 wire strings: frame header pieces and MESG commands. Frozen (network design §1).
 
 public class NetMsg {
     public static final String MESSAGE_PREFIX = "SimpleCoil:";
@@ -31,23 +31,11 @@ public class NetMsg {
     public static final String NETMSG_STARTGAME = "STARTGAME";
     public static final String NETMSG_ENDGAME = "ENDGAME";
     public static final String NETMSG_ERROR = "ERROR";
-    public static final String NETMSG_FAILEDTOJOIN = "FAILEDTOJOIN";
     public static final String NETMSG_VERSIONERROR = "VERSIONERROR";
-    public static final String NETMSG_SAMETEAM = "SAMETEAM";
-    public static final String NETMSG_SERVERCREATED = "SERVERCREATED";
     public static final String NETMSG_SERVERCANCEL = "SERVERCANCEL";
     public static final String NETMSG_TEAMELIMINATED = "TEAMELIMINATED";
     public static final String NETMSG_SERVERREPLY = "SERVERREPLY";
-    public static final String NETMSG_GPSLOCUPDATE = "GPSLOCUPDATE";
-    public static final String NETMSG_GPSDATAUPDATE = "GPSDATAUPDATE";
-    public static final String NETMSG_GPSSETTING = "GPSSETTING";
-    public static final String NETMSG_PLAYERDATAUPDATE = "PLAYERDATAUPDATE";
     public static final String NETMSG_PLAYERDATAREQUEST = "PLAYERDATAREQUEST";
-    public static final String NETMSG_NETWORKCONNECTED = "NETWORKCONNECTED";
-    public static final String NETMSG_NETWORKDISCONNECTED = "NETWORKDISCONNECTED";
-    public static final String NETMSG_PLAYERSETTINGSUPDATE = "PLAYERSETTINGSUPDATE";
-    // Local broadcast only: the dedicated server's session was reset to the lobby
-    public static final String NETMSG_SESSIONRESET = "SESSIONRESET";
     public static final String NETMSG_ADMIN_STARTGAME = "ADMIN_STARTGAME";
     public static final String NETMSG_ADMIN_ENDGAME = "ADMIN_ENDGAME";
     public static final String NETMSG_ADMIN_GAMEMODE = "ADMIN_GAMEMODE";
@@ -58,24 +46,6 @@ public class NetMsg {
     // Server -> client: ACK + seq acknowledges every reliable message up to seq
     public static final String NETMSG_ACK = "ACK";
 
-    // When players join a game in progress, the server can send the player updates on appropriate values.
-    // These items are intent extras.
-    public static final String INTENT_HASGAMEUPDATE = "HASGAMEUPDATE";
-    public static final String INTENT_SCORE = "SCORE";
-    public static final String INTENT_TEAMSCORE = "TEAMSCORE";
-    public static final String INTENT_ELIMINATIONS = "ELIMINATIONS";
-    public static final String INTENT_TIMEREMAINING = "TIMEREMAINING";
-    public static final String INTENT_GAMESTATE = "GAMESTATE";
-    // The server's session phase (SessionPhase.wireValue) and current game id, from every game info.
-    public static final String INTENT_SESSIONPHASE = "SESSIONPHASE";
-    public static final String INTENT_GAMEID = "GAMEID";
-
-    public static final String INTENT_LONGITUDE = "longitude";
-    public static final String INTENT_LATITUDE = "latitude";
-    public static final String INTENT_FULLUPDATE = "fullupdate";
-    public static final String INTENT_PLAYERDATA = "playerdata";
-
-    // UDPJOIN is UDPJOIN + playerID, so UDPJOIN2 for playerID 2
+    // UDP discovery: a beacon answers a query that starts with MESSAGE_PREFIX + NETMSG_JOIN
     public static final String NETMSG_JOIN = "JOIN";
-    public static final String NETMSG_LISTPLAYERS = "LISTPLAYERS";
 }
