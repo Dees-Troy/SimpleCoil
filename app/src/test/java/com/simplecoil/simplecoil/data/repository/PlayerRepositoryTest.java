@@ -39,13 +39,11 @@ public class PlayerRepositoryTest {
 
     @Before
     public void setUp() {
-        playerRepo = PlayerRepository.getInstance();
-        settingsRepo = GameSettingsRepository.getInstance();
+        settingsRepo = new GameSettingsRepository();
+        playerRepo = new PlayerRepository(settingsRepo, new GameStateRepository());
 
         playerRepo.setPlayerID((byte) 1);
         playerRepo.setPlayerName("TestPlayer");
-        playerRepo.getTeamIPMap().clear();
-        playerRepo.getTeamPlayerNameMap().clear();
     }
 
     @Test

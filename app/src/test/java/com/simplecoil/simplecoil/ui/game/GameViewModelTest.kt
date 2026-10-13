@@ -107,19 +107,17 @@ class GameViewModelTest {
     }
 
     private val prefs = MemoryPrefs()
+    private val settings = GameSettingsRepository()
+    private val gameState = GameStateRepository()
+    private val players = PlayerRepository(settings, gameState)
 
     @Before
     fun setUp() {
         Dispatchers.setMain(main)
-        GameStateRepository.getInstance().gameState = GameStateRepository.GAME_STATE_NONE
-        GameSettingsRepository.getInstance().teamMode = TeamMode.TWO_TEAMS
-        GameSettingsRepository.getInstance().gameLimit = GameSettingsRepository.GAME_LIMIT_NONE
-        PlayerRepository.getInstance().playerID = 0
-        GameSettingsRepository.getInstance().isOnlyServerSettings = false
-        PlayerRepository.getInstance().isAdmin = false
-        PlayerRepository.getInstance().playerName = "Tester"
-        engine = BlasterSessionEngine(rec, RepositoryGameConfig(GameSettingsRepository.getInstance(), PlayerRepository.getInstance(), GameStateRepository.getInstance()), rec, scope, clock = { scope.testScheduler.currentTime })
-        net = NetworkSessionGateway(mock(Context::class.java), scope)
+        settings.isOnlyServerSettings = false
+        players.playerName = "Tester"
+        engine = BlasterSessionEngine(rec, RepositoryGameConfig(settings, players, gameState), rec, scope, clock = { scope.testScheduler.currentTime })
+        net = NetworkSessionGateway(mock(Context::class.java), scope, settings, players)
         udp = mock(UDPListenerService::class.java)
         client = mock(TcpClient::class.java)
         net.attachForTest(udp, client)
@@ -133,7 +131,8 @@ class GameViewModelTest {
         screen = mock(GameScreen::class.java)
         vm = GameViewModel(engine, net, ble, blasterEvents, UserPreferencesRepository(prefs),
             object : SoundEffectPlayer { override fun play(sound: SessionSound) { sounds += sound } },
-            wifiConnected = { wifi }, broadcastGpsSetting = { gpsBroadcasts++ })
+            wifiConnected = { wifi }, broadcastGpsSetting = { gpsBroadcasts++ },
+            settingsRepo = settings, gameStateRepo = gameState, playerRepo = players)
         prefs.values["PlayerName"] = "Tester"
         vm.screen = screen
         vm.onCreate(null)
@@ -158,8 +157,8 @@ class GameViewModelTest {
     @Test
     fun startLocalGame_setsDefaultPlayerAndStartsTheSession() {
         vm.onStartGamePressed()
-        assertEquals(1.toByte(), PlayerRepository.getInstance().playerID)
-        assertEquals(GameStateRepository.GAME_STATE_ELIMINATED, GameStateRepository.getInstance().gameState) // spawning
+        assertEquals(1.toByte(), players.playerID)
+        assertEquals(GameStateRepository.GAME_STATE_ELIMINATED, gameState.gameState) // spawning
         verify(screen).showGameStarted(false, false, false)
         assertTrue(rec.ble.contains("team:1"))
         assertEquals(1, prefs.values["PlayerID"])
@@ -169,18 +168,18 @@ class GameViewModelTest {
     fun endGameConfirmed_locally_endsSessionAndShowsLobby() {
         vm.onStartGamePressed()
         vm.onEndGameConfirmed()
-        assertEquals(GameStateRepository.GAME_STATE_NONE, GameStateRepository.getInstance().gameState)
+        assertEquals(GameStateRepository.GAME_STATE_NONE, gameState.gameState)
         verify(screen).showGameEnded(false, false)
         verify(client, never()).sendTCPMessage("SimpleCoil:07MESGPLAYERDATAREQUEST") // no scoreboard after a local game
     }
 
     @Test
     fun teamButtons_wrapAroundAndPersist() {
-        PlayerRepository.getInstance().playerID = 1
+        players.playerID = 1
         vm.onTeamMinusPressed()
-        assertEquals(GameSettingsRepository.MAX_PLAYER_ID, PlayerRepository.getInstance().playerID)
+        assertEquals(GameSettingsRepository.MAX_PLAYER_ID, players.playerID)
         vm.onTeamPlusPressed()
-        assertEquals(1.toByte(), PlayerRepository.getInstance().playerID)
+        assertEquals(1.toByte(), players.playerID)
         assertEquals(1, prefs.values["SelectedPlayerID"])
         assertEquals(listOf("team:32", "team:1"), rec.ble)
     }
@@ -196,13 +195,13 @@ class GameViewModelTest {
     @Test
     fun gameLimit_parsesAndRejectsTooHigh() {
         vm.onGameLimitEntered("10", GameViewModel.LimitKind.TIME)
-        assertEquals(GameSettingsRepository.GAME_LIMIT_TIME, GameSettingsRepository.getInstance().gameLimit)
+        assertEquals(GameSettingsRepository.GAME_LIMIT_TIME, settings.gameLimit)
         assertEquals(10, prefs.values["TimeLimit"])
         verify(screen).showGameLimit(10, false, null)
         vm.onGameLimitEntered("101", GameViewModel.LimitKind.LIVES)
         verify(screen).showMessage(GameMessage.LIMIT_TOO_HIGH, 0)
         vm.onGameLimitEntered("abc", GameViewModel.LimitKind.LIVES)
-        assertEquals(GameSettingsRepository.GAME_LIMIT_TIME, GameSettingsRepository.getInstance().gameLimit)
+        assertEquals(GameSettingsRepository.GAME_LIMIT_TIME, settings.gameLimit)
     }
 
     // --------------------------------------------------------------------------------------
@@ -238,7 +237,7 @@ class GameViewModelTest {
         net.useNetwork = true
         vm.onStartGamePressed()
         vm.onDisconnectQuit()
-        assertEquals(GameStateRepository.GAME_STATE_NONE, GameStateRepository.getInstance().gameState)
+        assertEquals(GameStateRepository.GAME_STATE_NONE, gameState.gameState)
         assertFalse(net.useNetwork)
         verify(screen).showConnectStatus(ConnectStatus.NOT_CONNECTED)
         verify(client, org.mockito.Mockito.atLeastOnce()).leaveServer()
@@ -248,7 +247,7 @@ class GameViewModelTest {
     fun qrPayload_setsAddressAndNameThenConnects() {
         vm.onQrScanned("AA:BB:CC:DD:EE:FF-Bob")
         assertEquals("AA:BB:CC:DD:EE:FF", vm.deviceAddress)
-        assertEquals("Bob", PlayerRepository.getInstance().playerName)
+        assertEquals("Bob", players.playerName)
         assertEquals("Bob", prefs.values["PlayerName"])
         verify(screen).requestConnect()
     }
@@ -299,7 +298,7 @@ class GameViewModelTest {
         order.verify(udp, times(2)).joinServer()
 
         emitNetwork(NetworkEvent.ServerReply(7))
-        assertEquals(7.toByte(), PlayerRepository.getInstance().playerID)
+        assertEquals(7.toByte(), players.playerID)
         assertEquals(GameViewModel.NETWORK_TYPE_JOINED, vm.networkMenuType)
         verify(screen).showNetworkButton(NetworkButton.CONNECTED)
         // Joined: no more automatic re-scans.
@@ -312,11 +311,11 @@ class GameViewModelTest {
         vm.onTeamModePressed()
         verify(screen).showTeamModeMenu()
 
-        GameStateRepository.getInstance().gameState = GameStateRepository.GAME_STATE_RUNNING
+        gameState.gameState = GameStateRepository.GAME_STATE_RUNNING
         vm.onTeamModePressed()
         verify(screen, times(1)).showTeamModeMenu()
 
-        GameStateRepository.getInstance().gameState = GameStateRepository.GAME_STATE_NONE
+        gameState.gameState = GameStateRepository.GAME_STATE_NONE
         vm.onNetworkButtonPressed()
         vm.onNetworkMenuEntry(NetworkMenuEntry.Join)
         emitNetwork(NetworkEvent.ServerReply(7))
@@ -328,12 +327,12 @@ class GameViewModelTest {
     @Test
     fun gameModeSelected_fourTeams_splitsPlayerIdsIntoTeamsOfEight() {
         vm.onTeamModeSelected(TeamMode.FOUR_TEAMS)
-        assertEquals(1, PlayerRepository.getInstance().calcNetworkTeam(8))
-        assertEquals(2, PlayerRepository.getInstance().calcNetworkTeam(9))
-        assertEquals(4, PlayerRepository.getInstance().calcNetworkTeam(32))
+        assertEquals(1, players.calcNetworkTeam(8))
+        assertEquals(2, players.calcNetworkTeam(9))
+        assertEquals(4, players.calcNetworkTeam(32))
         vm.onTeamModeSelected(TeamMode.TWO_TEAMS)
-        assertEquals(1, PlayerRepository.getInstance().calcNetworkTeam(16))
-        assertEquals(2, PlayerRepository.getInstance().calcNetworkTeam(17))
+        assertEquals(1, players.calcNetworkTeam(16))
+        assertEquals(2, players.calcNetworkTeam(17))
     }
 
     @Test
@@ -351,14 +350,14 @@ class GameViewModelTest {
         verify(screen).showGameStarted(true, false, false)
         verify(udp).startGame()
         emitNetwork(NetworkEvent.EndGame)
-        assertEquals(GameStateRepository.GAME_STATE_NONE, GameStateRepository.getInstance().gameState)
+        assertEquals(GameStateRepository.GAME_STATE_NONE, gameState.gameState)
         verify(client).sendTCPMessage("SimpleCoil:07MESGPLAYERDATAREQUEST")
     }
 
     @Test
     fun eliminatingSomeone_scoresAndTellsTheTeam() {
         net.useNetwork = true
-        PlayerRepository.getInstance().playerID = 1
+        players.playerID = 1
         emitNetwork(NetworkEvent.Eliminated(2))
         assertEquals(1, net.score)
         assertEquals(1, net.teamScore)
@@ -372,7 +371,7 @@ class GameViewModelTest {
         vm.onGameLimitEntered("1", GameViewModel.LimitKind.SCORE)
         vm.onStartGamePressed()
         emitNetwork(NetworkEvent.Eliminated(2))
-        assertEquals(GameStateRepository.GAME_STATE_NONE, GameStateRepository.getInstance().gameState)
+        assertEquals(GameStateRepository.GAME_STATE_NONE, gameState.gameState)
     }
 
     @Test

@@ -28,6 +28,7 @@ import androidx.core.content.ContextCompat
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.domain.team.TeamLayout
 import com.simplecoil.simplecoil.domain.session.SessionNetwork
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -96,6 +97,8 @@ sealed interface NetworkEvent {
 class NetworkSessionGateway(
     private val context: Context,
     private val scope: CoroutineScope,
+    private val settings: GameSettingsRepository,
+    private val players: PlayerRepository,
     private val parseDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : SessionNetwork {
 
@@ -240,11 +243,11 @@ class NetworkSessionGateway(
     fun updatePlayerData(message: String?) {
         if (message.isNullOrEmpty()) return
         scope.launch {
-            val parsed = withContext(parseDispatcher) { parsePlayerData(message) } ?: return@launch
+            val parsed = withContext(parseDispatcher) { parsePlayerData(message, players, settings.teamLayout) } ?: return@launch
             parsed.myPoints?.let { score = maxOf(score, it) }
-            val layout = GameSettingsRepository.getInstance().teamLayout
+            val layout = settings.teamLayout
             if (!layout.mode.isFreeForAll) {
-                val myTeamIdx = layout.teamOf(PlayerRepository.getInstance().playerID) - 1
+                val myTeamIdx = layout.teamOf(players.playerID) - 1
                 if (myTeamIdx in 0..3) teamScore = parsed.teamPoints[myTeamIdx]
             }
             emit(NetworkEvent.PlayerData(parsed.players))
@@ -299,15 +302,13 @@ class NetworkSessionGateway(
          * so a settings update can't land halfway through a player. Null when the JSON is malformed.
          */
         @JvmStatic
-        fun parsePlayerData(message: String): ParsedPlayerData? {
+        fun parsePlayerData(message: String, repo: PlayerRepository, layout: TeamLayout): ParsedPlayerData? {
             val finalData = arrayOfNulls<PlayerDisplayData>(GameSettingsRepository.MAX_PLAYER_ID + 2)
             val teamPoints = IntArray(4)
             var myPoints: Int? = null
             try {
                 val json = JSONObject(message)
                 val players = json.getJSONArray(TcpServer.JSON_PLAYERDATA)
-                val repo = PlayerRepository.getInstance()
-                val layout = GameSettingsRepository.getInstance().teamLayout
                 synchronized(repo) {
                     for (x in 0 until players.length()) {
                         val player = players.getJSONObject(x)

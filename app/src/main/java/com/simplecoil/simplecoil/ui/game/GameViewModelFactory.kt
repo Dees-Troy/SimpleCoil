@@ -40,6 +40,9 @@ class GameViewModelFactory(private val app: SimpleCoilApp) : ViewModelProvider.F
         sounds = container.soundEffects,
         wifiConnected = { isWifiConnected(app) },
         broadcastGpsSetting = { app.sendBroadcast(Intent(NetMsg.NETMSG_GPSSETTING).setPackage(app.packageName)) },
+        settingsRepo = container.settings,
+        gameStateRepo = container.gameState,
+        playerRepo = container.players,
     ) as T
 
     companion object {

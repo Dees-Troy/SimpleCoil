@@ -80,6 +80,9 @@ class GameViewModel(
     private val sounds: SoundEffectPlayer,
     private val wifiConnected: () -> Boolean,
     private val broadcastGpsSetting: () -> Unit,
+    private val settingsRepo: GameSettingsRepository,
+    private val gameStateRepo: GameStateRepository,
+    private val playerRepo: PlayerRepository,
 ) : ViewModel() {
 
     /** The screen, while one exists. */
@@ -87,10 +90,6 @@ class GameViewModel(
 
     /** Session values for the play screen to render. */
     val session: StateFlow<SessionState> get() = engine.state
-
-    private val settingsRepo get() = GameSettingsRepository.getInstance()
-    private val gameStateRepo get() = GameStateRepository.getInstance()
-    private val playerRepo get() = PlayerRepository.getInstance()
 
     var selectedPlayerId: Byte = 0
         private set

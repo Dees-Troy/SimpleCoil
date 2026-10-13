@@ -42,9 +42,7 @@ public class GameStateRepositoryTest {
 
     @Before
     public void setUp() {
-        repository = GameStateRepository.getInstance();
-        repository.setGameState(GameStateRepository.GAME_STATE_NONE);
-        repository.setServerGameTimeRemaining(0);
+        repository = new GameStateRepository();
         stateChangedOldState = -1;
         stateChangedNewState = -1;
         updatedTimeRemaining = -1;

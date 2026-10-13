@@ -21,6 +21,9 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattService
 import android.content.Context
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
+import com.simplecoil.simplecoil.data.repository.GameStateRepository
+import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.domain.session.BlasterSessionEngine
 import com.simplecoil.simplecoil.domain.session.FakeGameConfig
 import com.simplecoil.simplecoil.domain.session.Recorder
@@ -89,7 +92,7 @@ class SessionEndToEndTest {
         val repository = BleDeviceRepository(manager)
         manager.setBluetoothLeService(service)
 
-        val net = NetworkSessionGateway(mock(Context::class.java), scope)
+        val net = NetworkSessionGateway(mock(Context::class.java), scope, GameSettingsRepository(), PlayerRepository(GameSettingsRepository(), GameStateRepository()))
         client = mock(TcpClient::class.java)
         net.attachForTest(null, client)
         net.useNetwork = true

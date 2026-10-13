@@ -18,7 +18,6 @@ package com.simplecoil.simplecoil.data.repository;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import com.simplecoil.simplecoil.domain.team.TeamLayout;
@@ -42,17 +41,7 @@ public class GameSettingsRepositoryTest {
 
     @Before
     public void setUp() {
-        repository = GameSettingsRepository.getInstance();
-        repository.setTeamMode(TeamMode.TWO_TEAMS);
-        repository.resetDefaultTeamSizes();
-        repository.setFullHealth(GameSettingsRepository.MAX_HEALTH);
-        repository.setFullReload(GameSettingsRepository.RELOAD_COUNT);
-    }
-
-    @Test
-    public void testSingletonInstance() {
-        assertNotNull(repository);
-        assertEquals(repository, GameSettingsRepository.getInstance());
+        repository = new GameSettingsRepository();
     }
 
     @Test

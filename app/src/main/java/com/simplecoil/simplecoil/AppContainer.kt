@@ -108,6 +108,6 @@ class AppContainer(private val app: Application) {
 
     /** Network services, NETMSG_* events and the network session state (R13/R14). */
     val networkGateway: NetworkSessionGateway by lazy {
-        NetworkSessionGateway(app, appScope).also { it.registerReceiver() }
+        NetworkSessionGateway(app, appScope, settings, players).also { it.registerReceiver() }
     }
 }

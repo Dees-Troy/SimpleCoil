@@ -21,7 +21,6 @@ import android.content.Intent
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
-import com.simplecoil.simplecoil.domain.team.TeamMode
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -49,6 +48,10 @@ import org.mockito.Mockito.`when`
 @OptIn(ExperimentalCoroutinesApi::class)
 class NetworkSessionGatewayTest {
 
+    private val settings = GameSettingsRepository()
+    private val players = PlayerRepository(settings, GameStateRepository())
+
+
     @Test
     fun messageFormat_isPrefixVersionMesgPayload() {
         assertEquals("SimpleCoil:07MESGHIT2", NetworkSessionGateway.message(NetMsg.NETMSG_HIT + 2.toByte()))
@@ -64,7 +67,7 @@ class NetworkSessionGatewayTest {
     }
 
     private fun gateway(client: TcpClient? = mock(TcpClient::class.java)) =
-        NetworkSessionGateway(mock(Context::class.java), TestScope()).also { it.attachForTest(null, client) }
+        NetworkSessionGateway(mock(Context::class.java), TestScope(), settings, players).also { it.attachForTest(null, client) }
 
     @Test
     fun sessionSends_useTheSameStrings_andEliminatedGoesReliably() {
@@ -152,7 +155,7 @@ class NetworkSessionGatewayTest {
     fun bindServices_bindsEachServiceOnceAcrossResumes() {
         // B4: every resume used to bind all the services again.
         val context = mock(Context::class.java)
-        val g = NetworkSessionGateway(context, TestScope())
+        val g = NetworkSessionGateway(context, TestScope(), settings, players)
         repeat(3) { g.bindServices() }
         verify(context, times(2)).bindService(any(Intent::class.java), any(ServiceConnection::class.java), anyInt())
         verify(context, times(6)).startService(any(Intent::class.java))
@@ -166,7 +169,7 @@ class NetworkSessionGatewayTest {
     @Test
     fun dedicatedServerHandOff_releasesBothSoTheyRebindOnReturn() {
         val context = mock(Context::class.java)
-        val g = NetworkSessionGateway(context, TestScope())
+        val g = NetworkSessionGateway(context, TestScope(), settings, players)
         g.bindServices()
         g.releaseForDedicatedServer()
         verify(context, times(2)).unbindService(any(ServiceConnection::class.java))
@@ -185,9 +188,8 @@ class NetworkSessionGatewayTest {
 
     @Test
     fun parsePlayerData_buildsRowsMyPointsAndTeamPoints() {
-        PlayerRepository.getInstance().playerID = 1
-        GameSettingsRepository.getInstance().teamMode = TeamMode.TWO_TEAMS
-        val parsed = NetworkSessionGateway.parsePlayerData(playerJson)
+        players.playerID = 1
+        val parsed = NetworkSessionGateway.parsePlayerData(playerJson, players, settings.teamLayout)
         assertNotNull(parsed)
         parsed!!
         assertEquals("Me", parsed.players[1]!!.playerName)
@@ -195,19 +197,18 @@ class NetworkSessionGatewayTest {
         assertTrue(parsed.players[2]!!.isConnected) // absent means connected
         assertEquals(6, parsed.players[17]!!.points)
         assertEquals(4, parsed.myPoints)
-        val t1 = PlayerRepository.getInstance().calcNetworkTeam(1) - 1
-        val t17 = PlayerRepository.getInstance().calcNetworkTeam(17) - 1
+        val t1 = players.calcNetworkTeam(1) - 1
+        val t17 = players.calcNetworkTeam(17) - 1
         assertEquals(if (t1 == t17) 13 else 7, parsed.teamPoints[t1])
-        assertNull(NetworkSessionGateway.parsePlayerData("not json"))
+        assertNull(NetworkSessionGateway.parsePlayerData("not json", players, settings.teamLayout))
     }
 
     @Test
     fun updatePlayerData_parsesOffMainThenWritesScoresOnMain() {
-        PlayerRepository.getInstance().playerID = 1
-        GameSettingsRepository.getInstance().teamMode = TeamMode.TWO_TEAMS
+        players.playerID = 1
         val scope = TestScope()
         val parse = StandardTestDispatcher(scope.testScheduler)
-        val g = NetworkSessionGateway(mock(Context::class.java), scope, parse)
+        val g = NetworkSessionGateway(mock(Context::class.java), scope, settings, players, parse)
         g.score = 2
         val events = mutableListOf<NetworkEvent>()
         scope.backgroundScope.launch(UnconfinedTestDispatcher(scope.testScheduler)) { g.events.collect { events += it } }
@@ -231,7 +232,7 @@ class NetworkSessionGatewayTest {
     fun broadcastsAreNotPublishedWhileTheDedicatedServerOwnsTheNetwork() {
         val scope = TestScope()
         val context = mock(Context::class.java)
-        val g = NetworkSessionGateway(context, scope)
+        val g = NetworkSessionGateway(context, scope, settings, players)
         val events = mutableListOf<NetworkEvent>()
         scope.backgroundScope.launch(UnconfinedTestDispatcher(scope.testScheduler)) { g.events.collect { events += it } }
         val receiver = g.receiver
