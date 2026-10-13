@@ -99,7 +99,7 @@ class GameRosterTest {
     @Test
     fun lobbyDisconnect_removesThePlayer() {
         val (connection, a) = join("Alpha", "AA")
-        assertEquals(GameRoster.Disconnect.REMOVED, roster.onDisconnect(connection, false))
+        assertEquals(GameRoster.Disconnect.REMOVED, roster.onDisconnect(connection))
         assertNull(roster.record(a.playerId))
         assertNull(repo.teamIPMap[a.playerId])
         assertEquals(0, roster.connectionCount())
@@ -111,7 +111,7 @@ class GameRosterTest {
         val (shooter, _) = join("Bravo", "BB")
         roster.startGame()
         roster.onEliminated(shooter, a.playerId)
-        assertEquals(GameRoster.Disconnect.KEPT, roster.onDisconnect(connection, false))
+        assertEquals(GameRoster.Disconnect.KEPT, roster.onDisconnect(connection))
         val score = roster.score(a.playerId)!!
         assertFalse(score.connected)
         assertEquals(1, score.points)
@@ -136,7 +136,7 @@ class GameRosterTest {
         assertEquals(1, a.eliminated)
         assertEquals(2, roster.connectionCount())
         // The displaced connection timing out later doesn't touch the player.
-        assertEquals(GameRoster.Disconnect.NO_PLAYER, roster.onDisconnect(old, false))
+        assertEquals(GameRoster.Disconnect.NO_PLAYER, roster.onDisconnect(old))
         assertTrue(roster.score(a.playerId)!!.connected)
     }
 
@@ -158,24 +158,124 @@ class GameRosterTest {
         join("NoMac", null)
         roster.startGame()
         roster.onEliminated(ca, 17)
+        roster.endGame()
         roster.startGame()
         assertTrue(roster.isCached("AA"))
+        assertFalse(roster.isCached(""))
         assertEquals(0, a.eliminated)
     }
 
     @Test
-    fun endGame_forgetsTheCache_andPurgeRemovesDisconnectedPlayers() {
+    fun endGame_keepsTheRosterAndDisconnectedPlayers() {
+        // D5: the roster used to be discarded at the end of the game.
         val (ca, a) = join("Alpha", "AA")
-        val (_, b) = join("Bravo", "BB")
+        join("Bravo", "BB")
         roster.startGame()
-        roster.onDisconnect(ca, false)
-        assertTrue(roster.purgeDisconnected().isEmpty()) // nothing purged while running
+        roster.onDisconnect(ca)
+        assertTrue(roster.endGame())
+        assertEquals(SessionPhase.POST_GAME, roster.phase())
+        assertTrue(roster.isCached("AA"))
+        assertSame(a, roster.record(a.playerId))
+        assertFalse(roster.endGame()) // only once
+    }
+
+    @Test
+    fun postGame_cachedMacRejoins_withItsFinalScore() {
+        val (ca, a) = join("Alpha", "AA")
+        val (cb, b) = join("Bravo", "BB")
+        roster.startGame()
+        roster.onEliminated(ca, b.playerId)
+        roster.onDisconnect(cb)
         roster.endGame()
-        assertFalse(roster.isCached("AA"))
-        assertEquals(listOf(a), roster.purgeDisconnected())
+        val result = hello("Bravo", "BB")
+        assertEquals(GameRoster.HelloResult.Kind.REJOINED, result.kind)
+        assertSame(b, result.record)
+        assertEquals(1, b.points)
+        assertEquals(17.toByte(), b.playerId)
+        assertEquals(1, a.eliminated)
+    }
+
+    @Test
+    fun postGame_newPlayer_isNotCached_andNeverGetsAReservedId() {
+        val (_, a) = join("Alpha", "AA")
+        val (cb, b) = join("Bravo", "BB")
+        roster.startGame()
+        roster.onDisconnect(cb)
+        roster.endGame()
+        GameSettingsRepository.getInstance().setAllowJoinInProgress(false) // not consulted after the game
+        val (_, late) = join("Late", "LL", requestedId = b.playerId.toInt())
+        assertTrue(late.playerId != a.playerId && late.playerId != b.playerId)
+        assertFalse(roster.isCached("LL"))
+    }
+
+    @Test
+    fun runningOrPostGame_disconnect_keepsCachedPlayers_andRemovesUncachedOnes() {
+        val (ca, a) = join("Alpha", "AA")
+        val (cn, n) = join("NoMac", null)
+        roster.startGame()
+        assertEquals(GameRoster.Disconnect.KEPT, roster.onDisconnect(ca))
+        assertEquals(GameRoster.Disconnect.REMOVED, roster.onDisconnect(cn))
+        assertNull(roster.record(n.playerId))
+        roster.endGame()
+        val (cl, late) = join("Late", "LL")
+        assertEquals(GameRoster.Disconnect.REMOVED, roster.onDisconnect(cl))
+        assertNull(roster.record(late.playerId))
+        assertNotNull(roster.record(a.playerId))
+    }
+
+    @Test
+    fun reset_removesDisconnectedPlayers_zeroesTheRest_andReturnsToTheLobby() {
+        val (ca, a) = join("Alpha", "AA")
+        val (cb, b) = join("Bravo", "BB")
+        assertNull(roster.reset()) // only after a game
+        roster.startGame()
+        roster.onEliminated(ca, b.playerId)
+        roster.onDisconnect(ca)
+        roster.endGame()
+        repo.setGrenadePairing(3, a.playerId.toInt())
+        assertEquals(listOf(a), roster.reset())
+        assertEquals(SessionPhase.LOBBY, roster.phase())
         assertNull(roster.record(a.playerId))
-        assertNotNull(roster.record(b.playerId))
         assertNull(repo.getPlayerIdByMac("AA"))
+        assertEquals(PlayerRepository.INVALID_PLAYER_ID, repo.getGrenadePairing(3))
+        assertEquals(0, b.points)
+        assertFalse(roster.isCached("BB"))
+        assertNull(roster.reset())
+        // Nobody is cached again until the next start: a disconnect now removes the player.
+        assertEquals(GameRoster.Disconnect.REMOVED, roster.onDisconnect(cb))
+    }
+
+    @Test
+    fun startAfterAGame_resetsFirst() {
+        val (ca, a) = join("Alpha", "AA")
+        join("Bravo", "BB")
+        roster.startGame()
+        roster.onDisconnect(ca)
+        roster.endGame()
+        assertTrue(roster.startGame())
+        assertNull(roster.record(a.playerId))
+        assertFalse(roster.startGame()) // already running
+    }
+
+    @Test
+    fun eliminations_areIgnoredInTheLobby() {
+        val (ca, _) = join("Alpha", "AA")
+        val (_, b) = join("Bravo", "BB")
+        assertNull(roster.onEliminated(ca, b.playerId))
+        assertEquals(0, b.points)
+    }
+
+    @Test
+    fun teamChangesAndOperatorMoves_onlyInTheLobby() {
+        val (ca, a) = join("Alpha", "AA")
+        join("Bravo", "BB")
+        roster.startGame()
+        assertNull(roster.changeTeam(ca, 2))
+        assertNull(roster.movePlayer(a.playerId, 5))
+        assertTrue(roster.rebalance(false).assigned.isEmpty())
+        roster.endGame()
+        assertNull(roster.changeTeam(ca, 2))
+        assertEquals(1.toByte(), a.playerId)
     }
 
     // ------------------------------------------------------------------------------------------
@@ -187,7 +287,7 @@ class GameRosterTest {
         val (ca, a) = join("Alpha", "AA")
         val (cb, b) = join("Bravo", "BB")
         roster.startGame()
-        roster.onDisconnect(cb, false)
+        roster.onDisconnect(cb)
         val elimination = roster.onEliminated(ca, b.playerId)
         assertEquals(a.playerId, elimination.victimId)
         assertEquals(1, elimination.shooterPoints)
@@ -198,6 +298,7 @@ class GameRosterTest {
     @Test
     fun elimination_fromAConnectionWithoutHello_onlyCreditsTheShooter() {
         val (_, b) = join("Bravo", "BB")
+        roster.startGame()
         val stranger = connect()
         val elimination = roster.onEliminated(stranger, b.playerId)
         assertEquals(0.toByte(), elimination.victimId)

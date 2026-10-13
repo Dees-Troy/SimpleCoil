@@ -20,6 +20,7 @@ import com.simplecoil.simplecoil.LoopbackClient.Companion.awaitTrue
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.network.server.SessionPhase
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -201,11 +202,19 @@ class TcpServerLoopbackTest {
     }
 
     @Test
-    fun runningGame_leaveRemovesThePlayer() {
-        // Today an explicit LEAVE mid-game deletes the player (Q12 changes this).
+    fun runningGame_leaveKeepsThePlayerAsDisconnected() {
+        // Q12: a player who leaves on purpose stays on the scoreboard until the reset.
         val (clientA, idA) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00", "Charlie" to "CC:00")[0]
         clientA.mesg(NetMsg.NETMSG_LEAVE)
-        awaitTrue { score(idA) == null }
+        awaitDisconnected(idA)
+        assertEquals(SessionPhase.RUNNING, server.sessionPhase)
+    }
+
+    @Test
+    fun runningGame_lastButOnePlayerLeaving_endsTheGame() {
+        val (a, _) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
+        a.first.mesg(NetMsg.NETMSG_LEAVE)
+        awaitTrue { server.sessionPhase == SessionPhase.POST_GAME }
     }
 
     // ------------------------------------------------------------------------------------------
@@ -213,20 +222,36 @@ class TcpServerLoopbackTest {
     // ------------------------------------------------------------------------------------------
 
     @Test
-    fun endGame_deletesDisconnectedPlayersAndForgetsTheRoster() {
-        // D5: the roster is discarded at the end of the game.
+    fun endGame_keepsDisconnectedPlayersAndTheRoster_andTheyRejoinAfterTheGame() {
+        // D5: the roster used to be discarded at the end of the game.
         val (a, b) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
         val (clientA, idA) = a
         val (clientB, idB) = b
+        clientA.mesg(NetMsg.NETMSG_ELIMINATED + idB)
+        awaitTrue { score(idB)?.points == 1 }
         clientB.close()
         awaitDisconnected(idB)
 
         server.endGame()
         clientA.awaitMesg(NetMsg.NETMSG_ENDGAME)
-        awaitTrue { score(idB) == null }
+        assertEquals(SessionPhase.POST_GAME, server.sessionPhase)
         assertEquals(Globals.GAME_STATE_NONE, Globals.getInstance().mGameState)
-        assertFalse(server.roster.isCached("BB:00"))
+        assertEquals(GameStateRepository.GAME_STATE_NONE, GameStateRepository.getInstance().gameState)
+        assertTrue(server.roster.isCached("BB:00"))
+        assertFalse(score(idB)!!.isConnected)
+
+        val (back, idBack) = join("Bravo", "BB:00")
+        assertEquals(idB, idBack)
+        val update = back.awaitJson(TcpServer.JSON_PLAYERGAMEUPDATE).getJSONObject(TcpServer.JSON_PLAYERGAMEUPDATE)
+        assertEquals(1, update.getInt(TcpServer.JSON_PLAYERPOINTS))
         assertNotNull(score(idA))
+    }
+
+    @Test
+    fun startGame_syncsGameStateRepository() {
+        // D8: GameStateRepository always said "not running".
+        startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
+        assertEquals(GameStateRepository.GAME_STATE_RUNNING, GameStateRepository.getInstance().gameState)
     }
 
     @Test

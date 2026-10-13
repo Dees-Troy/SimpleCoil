@@ -103,7 +103,7 @@ public final class GameRoster {
     }
 
     private int nextConnectionId = 0;
-    private boolean running = false;
+    private SessionPhase phase = SessionPhase.LOBBY;
     private final Map<Byte, PlayerRecord> byId = new TreeMap<>();
     private final Map<String, PlayerRecord> cacheByMac = new HashMap<>();
     private final Map<Integer, Connection> connections = new LinkedHashMap<>();
@@ -117,7 +117,7 @@ public final class GameRoster {
     /** Forgets every player and connection (the server is starting). Does not close sockets. */
     public synchronized void clear() {
         nextConnectionId = 0;
-        running = false;
+        phase = SessionPhase.LOBBY;
         byId.clear();
         cacheByMac.clear();
         connections.clear();
@@ -145,6 +145,15 @@ public final class GameRoster {
 
     public synchronized int connectionCount() {
         return connections.size();
+    }
+
+    /** Players with a live connection. */
+    public synchronized int connectedCount() {
+        int count = 0;
+        for (PlayerRecord record : byId.values()) {
+            if (record.connection != null) count++;
+        }
+        return count;
     }
 
     /** Players plus connections that have not said hello: what the server used to count as its clients. */
@@ -196,8 +205,12 @@ public final class GameRoster {
         return points;
     }
 
+    public synchronized SessionPhase phase() {
+        return phase;
+    }
+
     public synchronized boolean isRunning() {
-        return running;
+        return phase == SessionPhase.RUNNING;
     }
 
     public synchronized boolean isCached(String mac) {
@@ -209,12 +222,14 @@ public final class GameRoster {
     // ---------------------------------------------------------------------------------------
 
     /**
-     * Starts a game: scores to 0 and every player with a MAC into the roster cache. False (and
-     * nothing changes) if nobody is connected.
+     * Starts a game: scores to 0 and every player with a MAC into the roster cache. After a game
+     * it resets first. False (and nothing changes) during a game or if nobody is there.
      */
     public synchronized boolean startGame() {
+        if (phase == SessionPhase.RUNNING) return false;
         if (connections.isEmpty() && byId.isEmpty()) return false;
-        running = true;
+        if (phase == SessionPhase.POST_GAME) resetLocked();
+        phase = SessionPhase.RUNNING;
         resetScoresLocked();
         cacheByMac.clear();
         for (PlayerRecord record : byId.values()) {
@@ -223,10 +238,43 @@ public final class GameRoster {
         return true;
     }
 
-    /** Ends the game and forgets the roster cache. Disconnected players stay until {@link #purgeDisconnected()}. */
-    public synchronized void endGame() {
-        running = false;
+    /**
+     * Ends a running game. The roster cache and every player, connected or not, are kept so that
+     * cached players can still come back. False if no game was running.
+     */
+    public synchronized boolean endGame() {
+        if (phase != SessionPhase.RUNNING) return false;
+        phase = SessionPhase.POST_GAME;
+        return true;
+    }
+
+    /**
+     * After a game: removes every disconnected player, zeroes the others, forgets the roster
+     * cache and returns to the lobby. Returns the removed players, or null outside POST_GAME.
+     */
+    public synchronized List<PlayerRecord> reset() {
+        if (phase != SessionPhase.POST_GAME) return null;
+        return resetLocked();
+    }
+
+    private List<PlayerRecord> resetLocked() {
+        List<PlayerRecord> removed = new ArrayList<>();
+        Set<Byte> remainingIds = new HashSet<>();
+        for (PlayerRecord record : new ArrayList<>(byId.values())) {
+            if (record.connection == null) {
+                removeRecordLocked(record);
+                repo.removePlayer(record.playerId, false);
+                repo.removeGrenadePairings(record.playerId);
+                removed.add(record);
+            } else {
+                remainingIds.add(record.playerId);
+            }
+        }
+        repo.purgeDisconnectedPlayers(remainingIds);
+        resetScoresLocked();
         cacheByMac.clear();
+        phase = SessionPhase.LOBBY;
+        return removed;
     }
 
     public synchronized void resetScores() {
@@ -237,25 +285,8 @@ public final class GameRoster {
         for (PlayerRecord record : byId.values()) {
             record.points = 0;
             record.eliminated = 0;
+            record.messageQueue.clear();
         }
-    }
-
-    /** Outside a game, removes every disconnected player. Returns the removed players. */
-    public synchronized List<PlayerRecord> purgeDisconnected() {
-        List<PlayerRecord> removed = new ArrayList<>();
-        if (running) return removed;
-        Set<Byte> connectedIds = new HashSet<>();
-        for (PlayerRecord record : new ArrayList<>(byId.values())) {
-            if (record.connection == null) {
-                removeRecordLocked(record);
-                repo.removePlayer(record.playerId, false);
-                removed.add(record);
-            } else {
-                connectedIds.add(record.playerId);
-            }
-        }
-        repo.purgeDisconnectedPlayers(connectedIds);
-        return removed;
     }
 
     // ---------------------------------------------------------------------------------------
@@ -268,7 +299,7 @@ public final class GameRoster {
      */
     public synchronized HelloResult onHello(Connection connection, byte requestedId, String requestedName, String mac, InetAddress address) {
         if (mac == null) mac = "";
-        if (running && !mac.isEmpty()) {
+        if (phase != SessionPhase.LOBBY && !mac.isEmpty()) {
             PlayerRecord cached = cacheByMac.get(mac);
             if (cached != null) {
                 Connection displaced = bindLocked(cached, connection);
@@ -277,14 +308,14 @@ public final class GameRoster {
             }
         }
         PlayerRecord current = connection.player;
-        if (running && current == null && !GameSettingsRepository.getInstance().isAllowJoinInProgress()) {
+        if (phase == SessionPhase.RUNNING && current == null && !GameSettingsRepository.getInstance().isAllowJoinInProgress()) {
             return new HelloResult(HelloResult.Kind.REFUSED_IN_PROGRESS, null, null);
         }
 
+        // Every known player's id is taken, connected or not: cached players keep theirs.
         Set<Byte> occupied = new HashSet<>();
         for (PlayerRecord record : byId.values()) {
-            if (record == current) continue;
-            if (running || record.connection != null) occupied.add(record.playerId);
+            if (record != current) occupied.add(record.playerId);
         }
         byte id = requestedId;
         if (id != 0 && occupied.contains(id)) id = 0;
@@ -310,7 +341,7 @@ public final class GameRoster {
         byId.put(id, record);
         bindLocked(record, connection);
         repo.addOrUpdatePlayer(id, address, record.name, mac);
-        if (running && !mac.isEmpty()) cacheByMac.put(mac, record);
+        if (phase == SessionPhase.RUNNING && !mac.isEmpty()) cacheByMac.put(mac, record);
         return new HelloResult(HelloResult.Kind.JOINED, record, null);
     }
 
@@ -365,26 +396,32 @@ public final class GameRoster {
     public enum Disconnect { NO_PLAYER, KEPT, REMOVED }
 
     /**
-     * [connection] is gone. Its player is removed outside a game, or always if [alwaysRemove];
-     * during a game it stays, disconnected, with its score.
+     * [connection] is gone: dropped, timed out, or the player left on purpose. A player in the
+     * game's roster stays, disconnected, with its score until the reset (Q12). Anyone else is
+     * removed.
      */
-    public synchronized Disconnect onDisconnect(Connection connection, boolean alwaysRemove) {
+    public synchronized Disconnect onDisconnect(Connection connection) {
         connections.remove(connection.getConnectionId());
         PlayerRecord record = connection.player;
         connection.player = null;
         if (record == null) return Disconnect.NO_PLAYER;
         if (record.connection != connection) return Disconnect.NO_PLAYER; // already replaced by a newer connection
         record.connection = null;
-        if (alwaysRemove || !running) {
+        boolean cached = !record.blasterMac.isEmpty() && cacheByMac.get(record.blasterMac) == record;
+        if (phase == SessionPhase.LOBBY || !cached) {
             removeRecordLocked(record);
-            repo.removePlayer(record.playerId, running);
+            repo.removePlayer(record.playerId, phase == SessionPhase.RUNNING);
             return Disconnect.REMOVED;
         }
         return Disconnect.KEPT;
     }
 
-    /** The player behind [sender] was eliminated by [shooterId]. */
+    /**
+     * The player behind [sender] was eliminated by [shooterId]. Counted during and after a game;
+     * null (ignored) in the lobby.
+     */
     public synchronized Elimination onEliminated(Connection sender, byte shooterId) {
+        if (phase == SessionPhase.LOBBY) return null;
         PlayerRecord victim = sender.player;
         if (victim != null) victim.eliminated++;
         PlayerRecord shooter = byId.get(shooterId);
@@ -420,8 +457,12 @@ public final class GameRoster {
     // Renumbering
     // ---------------------------------------------------------------------------------------
 
-    /** The server operator moved [oldId] to [newId]. Returns the player, or null if there is none. */
+    /**
+     * The server operator moved [oldId] to [newId]. Returns the player, or null if there is none
+     * or it is not the lobby (ids are reserved by the game's roster).
+     */
     public synchronized PlayerRecord movePlayer(byte oldId, byte newId) {
+        if (phase != SessionPhase.LOBBY) return null;
         int team = Globals.getInstance().calcNetworkTeam(newId);
         PlayerRecord record = byId.get(oldId);
         if (record != null) {
@@ -439,11 +480,11 @@ public final class GameRoster {
 
     /**
      * The player behind [connection] asked to move to [targetTeam]. Returns the player with its
-     * new id, or null if there is no open slot on that team.
+     * new id, or null outside the lobby or if there is no open slot on that team.
      */
     public synchronized PlayerRecord changeTeam(Connection connection, int targetTeam) {
         PlayerRecord record = connection.player;
-        if (record == null) return null;
+        if (record == null || phase != SessionPhase.LOBBY) return null;
         Set<Byte> occupied = new HashSet<>(repo.getTeamIPMap().keySet());
         occupied.addAll(byId.keySet());
         occupied.remove(record.playerId);
@@ -461,9 +502,11 @@ public final class GameRoster {
 
     /**
      * Renumbers every player for the current game mode and team sizes, in id order or shuffled.
-     * Players that do not fit are removed.
+     * Players that do not fit are removed. Lobby only; elsewhere nothing changes.
      */
     public synchronized Rebalance rebalance(boolean randomize) {
+        if (phase != SessionPhase.LOBBY)
+            return new Rebalance(new ArrayList<PlayerRecord>(), new ArrayList<Connection>());
         Globals g = Globals.getInstance();
         int gameMode = g.mGameMode;
         int maxPlayers = Globals.MAX_PLAYER_ID;

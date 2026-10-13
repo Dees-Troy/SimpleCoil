@@ -28,6 +28,7 @@ import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.network.server.Connection;
 import com.simplecoil.simplecoil.network.server.GameRoster;
 import com.simplecoil.simplecoil.network.server.PlayerRecord;
+import com.simplecoil.simplecoil.network.server.SessionPhase;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -214,7 +215,7 @@ public class TcpServer extends Service {
         Log.d(TAG, "TcpServer.startGame called. Clients: " + mRoster.size());
         if (!mRoster.startGame())
             return;
-        Globals.getInstance().mGameState = Globals.GAME_STATE_RUNNING;
+        syncGameState();
 
         Thread sendThread = new Thread(new Runnable() {
             public void run() {
@@ -231,14 +232,18 @@ public class TcpServer extends Service {
         sendThread.start();
     }
 
+    /**
+     * Ends a running game (POST_GAME). Every player stays, connected or not, so the game's roster
+     * can still come back until the reset. Does nothing if no game is running.
+     */
     public void endGame() {
         Log.d(TAG, "TcpServer.endGame called. Clients: " + mRoster.size());
-        Globals.getInstance().mGameState = Globals.GAME_STATE_NONE;
-        mRoster.endGame();
+        if (!mRoster.endGame())
+            return;
+        syncGameState();
         Thread sendThread = new Thread(new Runnable() {
             public void run() {
                 sendPlayerData(SEND_ALL);
-                // we want to make sure that we have sent the end game message to all clients before removing all clients
                 String message = TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ENDGAME;
                 for (Connection connection : mRoster.connections()) {
                     connection.send(message);
@@ -246,23 +251,44 @@ public class TcpServer extends Service {
                 Globals.getmGPSDataSemaphore();
                 Globals.getInstance().mGPSData.clear();
                 Globals.getInstance().mGPSDataSemaphore.release();
-                cleanUpDisconnectedClients();
                 sendBroadcast(new Intent(NetMsg.NETMSG_ENDGAME));
             }
         });
         sendThread.start();
     }
 
-    public void cleanUpDisconnectedClients() {
-        if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
-            return;
-        }
+    /**
+     * After a game: removes the disconnected players, zeroes the scores, forgets the game's
+     * roster and returns to the lobby. Returns false (and does nothing) outside POST_GAME.
+     */
+    public boolean resetIfPostGame() {
+        java.util.List<PlayerRecord> removed;
         acquirePlayerMapSemaphores();
         try {
-            mRoster.purgeDisconnected();
+            removed = mRoster.reset();
         } finally {
             releasePlayerMapSemaphores();
         }
+        if (removed == null)
+            return false;
+        Log.d(TAG, "Session reset: removed " + removed.size() + " disconnected players");
+        syncGameState();
+        mGPSIntervalCount.set(SEND_ALL_GPS_INTERVAL);
+        sendPlayerData(SEND_ALL);
+        sendAllGameInfo(SEND_ALL);
+        sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+        return true;
+    }
+
+    public SessionPhase getSessionPhase() {
+        return mRoster.phase();
+    }
+
+    /** Globals and GameStateRepository follow the session: running only in RUNNING (D8). */
+    private void syncGameState() {
+        int state = mRoster.isRunning() ? Globals.GAME_STATE_RUNNING : Globals.GAME_STATE_NONE;
+        Globals.getInstance().mGameState = state;
+        GameStateRepository.getInstance().setGameState(state);
     }
 
     /** The Globals semaphores over the player maps, in the order every caller takes them (before the roster's lock). */
@@ -331,11 +357,11 @@ public class TcpServer extends Service {
     }
 
     public void rebalanceAllPlayers(final boolean randomize) {
-        if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
+        if (mRoster.isRunning()) {
             Log.w(TAG, "rebalanceAllPlayers: Game is running, skipping team rebalance!");
             return;
         }
-        cleanUpDisconnectedClients();
+        resetIfPostGame();
         Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -714,6 +740,7 @@ public class TcpServer extends Service {
 
     private void runTcpServer() {
         mRoster.clear();
+        syncGameState();
         if (Globals.getInstance().mGPSData == null)
             Globals.getInstance().mGPSData = new ConcurrentHashMap<>();
         else
@@ -857,8 +884,9 @@ public class TcpServer extends Service {
                                         // Handle messages
                                         message = message.substring(TCPMESSAGE_PREFIX.length() + TCPPREFIX_MESG.length());
                                         if (message.equals(NetMsg.NETMSG_LEAVE)) {
-                                            removeClient(client, true);
-                                            if (mRoster.size() <= 1 && Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
+                                            // A player in the game's roster stays on the scoreboard, disconnected (Q12)
+                                            removeClient(client);
+                                            if (mRoster.isRunning() && mRoster.connectedCount() <= 1)
                                                 endGame();
                                             break;
                                         } else if (message.startsWith(NetMsg.NETMSG_ELIMINATED)) {
@@ -866,6 +894,16 @@ public class TcpServer extends Service {
                                             message = message.substring(NetMsg.NETMSG_ELIMINATED.length());
                                             byte id = (byte) Integer.parseInt(message);
                                             GameRoster.Elimination elimination = mRoster.onEliminated(client, id);
+                                            if (elimination == null) {
+                                                Log.d(TAG, "elimination ignored outside a game");
+                                                continue;
+                                            }
+                                            if (!mRoster.isRunning()) {
+                                                // After the game: counted in the final scores, no live notifications or limits
+                                                sendPlayerData(SEND_ALL);
+                                                sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+                                                continue;
+                                            }
                                             int shooterScore = elimination.shooterPoints;
                                             sendTCPMessageID(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ELIMINATED + elimination.victimId, id, true);
                                             if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
@@ -918,8 +956,8 @@ public class TcpServer extends Service {
                                                 endGame();
                                             } else {
                                                 // Regular ENDGAME from a client is treated as the client leaving
-                                                removeClient(client, true);
-                                                if (mRoster.size() <= 1 && Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
+                                                removeClient(client);
+                                                if (mRoster.isRunning() && mRoster.connectedCount() <= 1)
                                                     endGame();
                                                 break;
                                             }
@@ -976,7 +1014,7 @@ public class TcpServer extends Service {
                             int count = client.incrementNoReadCount();
                             if (client.isOpen() && count >= 35) {
                                 Log.d(TAG, "no reply so dropping client " + client.getConnectionId());
-                                removeClient(client, false);
+                                removeClient(client);
                                 break;
                             } else if (count == 10 || count == 20) {
                                 client.send(TCP_SERVER_PING);
@@ -984,7 +1022,7 @@ public class TcpServer extends Service {
                         }
                     } catch (IOException e) {
                         e.printStackTrace();
-                        removeClient(client, false);
+                        removeClient(client);
                         break;
                     }
                 }
@@ -1229,8 +1267,8 @@ public class TcpServer extends Service {
                 Log.w(TAG, "Team change rejected: Allow players to choose teams is turned off.");
                 return;
             }
-            if (GameStateRepository.getInstance().isGameRunning()) {
-                Log.w(TAG, "Team change rejected: Game is currently in progress.");
+            if (mRoster.phase() != SessionPhase.LOBBY) {
+                Log.w(TAG, "Team change rejected: only allowed in the lobby.");
                 return;
             }
             int gameMode = GameSettingsRepository.getInstance().getGameMode();
@@ -1271,8 +1309,8 @@ public class TcpServer extends Service {
             switchThread.start();
         }
 
-        private void removeClient(Connection client, boolean alwaysRemove) {
-            GameRoster.Disconnect result = mRoster.onDisconnect(client, alwaysRemove);
+        private void removeClient(Connection client) {
+            GameRoster.Disconnect result = mRoster.onDisconnect(client);
             if (result == GameRoster.Disconnect.REMOVED) {
                 mGPSIntervalCount.set(SEND_ALL_GPS_INTERVAL); // Force a full GPS update when someone leaves
                 sendAllGameInfo(SEND_ALL);
