@@ -138,7 +138,7 @@ Each JSON message is identified by the key it contains.
 
 | Key | Contents |
 |---|---|
-| `players` | **Game info**, the full snapshot: every player's `playerID`, `playername`, `playerIP`; `limits` (`timelimit`, `liveslimit`, `scorelimit`); `gamemode`; `teamsizes`; `gamestate`; `sessionphase`; `gameid` (when not in the lobby); `timeremaining`; `usegps`; `allowplayersettings`; `onlyserversettings`; `allowchooseteams`; and `playersettings` for everyone. The copy sent to one player also has `playergameupdate`, which holds that player's `points`, `eliminated`, `teampoints`, `timeremaining` and `ackseq`. |
+| `players` | **Game info**, the full snapshot: every player's `playerID`, `playername`, `playerIP`; `limits` (`timelimit`, `liveslimit`, `scorelimit`); `gamemode`; `teamsizes`; `gamestate`; `sessionphase`; `gameid` (when not in the lobby); `timeremaining`; `usegps`; `allowplayersettings`; `onlyserversettings`; `allowchooseteams`; `starttime`; and `playersettings` for everyone. The copy sent to one player also has `playergameupdate`, which holds that player's `points`, `eliminated`, `teampoints`, `timeremaining` and `ackseq`. |
 | `playerdata` | Scoreboard: each player's `playerID`, `playername`, `points`, `eliminated`, and whether they are `connected`. |
 | `playersettings` | Every player's settings (fields as above, plus `recoilsetting` and `isadmin`), and `allowplayersettings`. The settings under the client's own ID replace its local settings. |
 | `grenadepairings` | Every grenade pairing: a list of `{pairedgrenadeID, playerID}`. |
