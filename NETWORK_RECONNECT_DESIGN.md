@@ -1,7 +1,8 @@
 # SimpleCoil Dedicated Server: Reconnect, Post-Game & Reset — Design Document
 
-Status: **APPROVED (2026-10-12).** All decisions in §7 are resolved except Q-D and Q-E, which have accepted defaults
-(§7.2). No source has been modified for this design yet.
+Status: **IMPLEMENTED (2026-10-12).** All decisions in §7 are resolved except Q-D and Q-E, which have accepted defaults
+(§7.2). Steps 1–11 of §5 are on `V2-refactor`; §9 records the commits, the deviations and what is still pending on
+devices.
 Branch audited: `V2-refactor` @ `c826752` (plus the uncommitted foreground-service changes in the working tree, which
 this design does not depend on).
 Date: 2026-10-12
@@ -622,3 +623,64 @@ both eliminations once, and the client's lives equal its local count.
   require it.
 - GPS data retention for disconnected players (still cleared at game end, as today).
 - Any change to the BLE protocol.
+
+---
+
+## 9. Implementation record (2026-10-12)
+
+Every step is its own commit. Each one passed `./gradlew testDebugUnitTest assembleDebug`. At the end: 406 unit tests,
+0 failures; `lintDebug` reports 0 errors.
+
+| Step | Commit | Notes |
+|---|---|---|
+| 1 | `b40f2ca` | Hosted mode removed. `SessionNetwork` also loses `setHostEliminations()`/`serverEndGame()`; the engine's 3 s local fallback after a network time limit stays. |
+| 2 | `f47be3f` | `TcpServerLoopbackTest` + `LoopbackClient` (a hand-written wire client). `TcpServer.isAccepting()` added for the test. |
+| 3 | `6a74d3c` | `GameRoster`/`PlayerRecord`/`Connection` in `network/server`. The MAC cache moved out of `PlayerRepository`. The D4 pin flipped. |
+| 4 | `4b7f4d3` | `SessionPhase`; POST_GAME keeps the roster; Q12; `GameStateRepository` synced. |
+| 5 | `8553224` | Reset button, `renderPhase()`, implicit Reset, beacon kept on. |
+| 6 | `9b83646` | Admin check on `ADMIN_*` and plain `STARTGAME`. |
+| 7 | `67311ae` | v07: `sessionphase`, `gameid`, `ADMIN_RESET`, `connected`; `dedicatedserver` removed; remote admin menu by phase. |
+| 8 | `bacb035` | Single writer thread in `TcpClient`. |
+| 9 | `c6f32d4` | `ClientOutbox`, reliable envelope, `ACK`, `pending` replay, de-dup, `ackseq`; server→client queue removed. |
+| 10 | `f05c578` | `ReconnectPolicy`, Wi-Fi callback, socket binding. |
+| 11 | `148cbff` | Disconnected icon on client scoreboards. |
+
+### 9.1 Deviations from the design
+
+- **§3.9 `showGameStarted`.** It keeps one flag, renamed from `isServer` to `isAdmin`, so the view model still decides
+  what the renderer shows. Admins now see the in-game End Game button.
+- **§3.9 `onServerIpEntered`.** No `setReady(searchForServer)` parameter was added. `setReady()` never searched for a
+  server, so the `isServer` trick did nothing; it was simply removed.
+- **§3.8 `dedicatedserver`.** The server kept sending it until step 7, so that steps 1–6 stayed wire-compatible with v06.
+- **§3.8 `connected`.** It was added in step 7 rather than step 11, because the remote admin's Reset confirmation needs
+  it to count the disconnected players. Step 11 only shows the icon.
+- **§3.2 `PlayerRecord.gameId`.** Not added. De-dup compares against the roster's current `gameId`, and
+  `lastAppliedSeq` is zeroed at each start and at Reset, which has the same effect.
+- **§3.3 reliable from a connection that has not sent its hello.** It is left unacknowledged, so the client replays it
+  in the hello. An entry for another game is acknowledged with its own seq.
+- **§3.3 explicit `LEAVE`.** As before, the server ends a running game when at most one player is still connected after
+  an explicit leave. It now counts *connected* players, because leavers stay on the roster.
+- **§3.3 operator moves.** `switchPlayerTeam` (the server's player settings dialog) is refused outside the lobby, like
+  rebalance and client team changes.
+- **D14.** In addition, the server ignores `isadmin` in a client's own player-settings JSON. Admin rights come only from
+  the operator's dialog.
+- **§3.6.** `SERVERCANCEL` and `VERSIONERROR` now end the retry loop. In the lobby, the first attempt plus up to 3
+  retries are made (one attempt more than before). Socket binding needs API 23. On 21–22 the socket is not bound.
+- **Activity.** `DedicatedServerActivity`'s own FFA "last player left" handler, which only changed the UI, was removed;
+  the server ends the game. `TcpClient` now forwards `MESG ERROR…` as `NETMSG_ERROR`, so "Reset the game first" and the
+  join-in-progress refusal reach the screen.
+- **§6.1 loopback integration test.** A real `TcpClient` can't share a JVM with `TcpServer`, because both write the
+  `Globals`/`PlayerRepository` singletons. The test instead drives the server with `TcpClient.helloJson()`,
+  `TcpClient.reliableJson()` and a real `ClientOutbox` over `LoopbackClient`.
+
+### 9.2 Known gap
+
+The client reports only eliminations by an opponent (`BlasterSessionEngine` skips self and friendly-fire kills). Those
+unreported eliminations are still counted locally, so a snapshot can give their lives back. This predates the design.
+It is not covered by Q5, which is about messages that were queued.
+
+### 9.3 Pending
+
+The on-device checklist in §6.2 (items 1–13) has not been run. Two extra things to watch on device: the longer
+`dedicated_game_over` status text on narrow screens, and the Wi-Fi binding of item 8.
+
