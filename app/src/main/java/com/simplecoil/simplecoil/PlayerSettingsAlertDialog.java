@@ -347,35 +347,24 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
                             return;
                         }
                         if (!isServer) {
-                            Integer value = Integer.parseInt(mHealthET.getText().toString());
-                            if (value > 1000 || value <= 0) value = GameSettingsRepository.MAX_HEALTH;
+                            Integer value = parseInRange(mHealthET.getText(), 1, 1000, GameSettingsRepository.MAX_HEALTH);
                             GameSettingsRepository.getInstance().setFullHealth(value);
-                            value = Integer.parseInt(mReloadShotsET.getText().toString());
-                            if (value > 255 || value <= 0) value = (int) GameSettingsRepository.RELOAD_COUNT;
+                            value = parseInRange(mReloadShotsET.getText(), 1, 255, (int) GameSettingsRepository.RELOAD_COUNT);
                             GameSettingsRepository.getInstance().setFullReload((byte) (int) value);
-                            value = Integer.parseInt(mReloadTimeET.getText().toString());
-                            if (value > 10000 || value < 0)
-                                value = (int) GameSettingsRepository.RELOAD_TIME_MILLISECONDS;
+                            value = parseInRange(mReloadTimeET.getText(), 0, 10000, (int) GameSettingsRepository.RELOAD_TIME_MILLISECONDS);
                             GameSettingsRepository.getInstance().setReloadTime(value);
                             GameSettingsRepository.getInstance().setReloadOnEmpty(mReloadOnEmptySwitch.isChecked());
                             GameSettingsRepository.getInstance().setManualRespawn(mManualRespawnSwitch.isChecked());
-                            value = Integer.parseInt(mSpawnTimeET.getText().toString());
-                            if (value > 1000 || value <= 0)
-                                value = (int) GameSettingsRepository.RESPAWN_TIME_SECONDS;
+                            value = parseInRange(mSpawnTimeET.getText(), 1, 1000, (int) GameSettingsRepository.RESPAWN_TIME_SECONDS);
                             GameSettingsRepository.getInstance().setRespawnTime(value);
-                            value = Integer.parseInt(mRespawnShieldTimeET.getText().toString());
-                            if (value > 1000 || value < 0)
-                                value = (int) GameSettingsRepository.RESPAWN_SHIELD_TIME_SECONDS;
+                            value = parseInRange(mRespawnShieldTimeET.getText(), 0, 1000, (int) GameSettingsRepository.RESPAWN_SHIELD_TIME_SECONDS);
                             GameSettingsRepository.getInstance().setRespawnShieldTime(value);
                             GameSettingsRepository.getInstance().setRespawnShieldTime(value);
-                            value = Integer.parseInt(mDamageET.getText().toString());
-                            if (value > 1000 || value <= 0) value = GameSettingsRepository.DAMAGE_PER_HIT * -1;
+                            value = parseInRange(mDamageET.getText(), 1, 1000, GameSettingsRepository.DAMAGE_PER_HIT * -1);
                             value = value * -1;
                             GameSettingsRepository.getInstance().setDamage(value);
                             GameSettingsRepository.getInstance().setOverrideLives(mOverrideLivesSwitch.isChecked());
-                            value = Integer.parseInt(mLivesET.getText().toString());
-                            if (value > 1000 || value <= 0)
-                                value = 0;
+                            value = parseInRange(mLivesET.getText(), 1, 1000, 0);
                             GameSettingsRepository.getInstance().setOverrideLivesVal(value);
                             GameSettingsRepository.getInstance().setAllowSingleShotMode(mShotModeSingle.isChecked());
                             GameSettingsRepository.getInstance().setAllowBurst3ShotMode(mShotModeBurst3.isChecked());
@@ -394,34 +383,23 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
                                     playerSettings = new PlayerSettings();
                                     repo.getPlayerSettings().put(mPlayerID, playerSettings);
                                 }
-                                Integer value = Integer.parseInt(mHealthET.getText().toString());
-                                if (value > 1000 || value <= 0) value = GameSettingsRepository.MAX_HEALTH;
+                                Integer value = parseInRange(mHealthET.getText(), 1, 1000, GameSettingsRepository.MAX_HEALTH);
                                 playerSettings.health = value;
-                                value = Integer.parseInt(mReloadShotsET.getText().toString());
-                                if (value > 255 || value <= 0) value = (int) GameSettingsRepository.RELOAD_COUNT;
+                                value = parseInRange(mReloadShotsET.getText(), 1, 255, (int) GameSettingsRepository.RELOAD_COUNT);
                                 playerSettings.shots = (byte) (int) value;
-                                value = Integer.parseInt(mReloadTimeET.getText().toString());
-                                if (value > 10000 || value < 0)
-                                    value = (int) GameSettingsRepository.RELOAD_TIME_MILLISECONDS;
+                                value = parseInRange(mReloadTimeET.getText(), 0, 10000, (int) GameSettingsRepository.RELOAD_TIME_MILLISECONDS);
                                 playerSettings.reloadTime = value;
                                 playerSettings.reloadOnEmpty = mReloadOnEmptySwitch.isChecked();
                                 playerSettings.manualRespawn = mManualRespawnSwitch.isChecked();
-                                value = Integer.parseInt(mSpawnTimeET.getText().toString());
-                                if (value > 1000 || value <= 0)
-                                    value = (int) GameSettingsRepository.RESPAWN_TIME_SECONDS;
+                                value = parseInRange(mSpawnTimeET.getText(), 1, 1000, (int) GameSettingsRepository.RESPAWN_TIME_SECONDS);
                                 playerSettings.spawnTime = value;
-                                value = Integer.parseInt(mRespawnShieldTimeET.getText().toString());
-                                if (value > 1000 || value < 0)
-                                    value = (int) GameSettingsRepository.RESPAWN_SHIELD_TIME_SECONDS;
+                                value = parseInRange(mRespawnShieldTimeET.getText(), 0, 1000, (int) GameSettingsRepository.RESPAWN_SHIELD_TIME_SECONDS);
                                 playerSettings.respawnShieldTime = value;
-                                value = Integer.parseInt(mDamageET.getText().toString());
-                                if (value > 1000 || value <= 0) value = GameSettingsRepository.DAMAGE_PER_HIT * -1;
+                                value = parseInRange(mDamageET.getText(), 1, 1000, GameSettingsRepository.DAMAGE_PER_HIT * -1);
                                 value = value * -1;
                                 playerSettings.damage = value;
                                 playerSettings.overrideLives = mOverrideLivesSwitch.isChecked();
-                                value = Integer.parseInt(mLivesET.getText().toString());
-                                if (value > 1000 || value <= 0)
-                                    value = 0;
+                                value = parseInRange(mLivesET.getText(), 1, 1000, 0);
                                 playerSettings.lives = value;
                                 playerSettings.allowShotModeSingle = mShotModeSingle.isChecked();
                                 playerSettings.allowShotModeBurst3 = mShotModeBurst3.isChecked();
@@ -493,5 +471,20 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
             return true;
         }
         return false;
+    }
+
+    /**
+     * The field's number when it parses and lies in [min, max], otherwise [fallback]. An empty or
+     * non-numeric field used to crash the dialog (S8).
+     */
+    static int parseInRange(CharSequence text, int min, int max, int fallback) {
+        if (text == null)
+            return fallback;
+        try {
+            int value = Integer.parseInt(text.toString().trim());
+            return (value < min || value > max) ? fallback : value;
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 }
