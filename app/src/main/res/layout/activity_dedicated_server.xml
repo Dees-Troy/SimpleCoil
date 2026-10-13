@@ -153,7 +153,7 @@
             android:enabled="false"
             android:text="@string/end_game_button" />
 
-        <Switch
+        <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/allow_join_switch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -164,7 +164,7 @@
             android:text="@string/dedicated_allow_join"
             android:textColor="#FFFFFF"/>
 
-        <Switch
+        <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/only_server_settings_switch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -174,7 +174,7 @@
             android:text="@string/dedicated_server_settings_only"
             android:textColor="#FFFFFF"/>
 
-        <Switch
+        <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/allow_choose_teams_switch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

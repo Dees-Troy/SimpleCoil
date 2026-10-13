@@ -94,7 +94,7 @@
             android:inputType="number" >
         </EditText>
 
-        <Switch
+        <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/reload_on_empty_switch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -102,7 +102,7 @@
             android:textColor="#FFFFFF"
             android:text="@string/player_settings_reload_on_empty" />
 
-        <Switch
+        <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/manual_respawn_switch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -176,7 +176,7 @@
             android:inputType="number" >
         </EditText>
 
-        <Switch
+        <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/override_lives_limit_switch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -214,21 +214,21 @@
             android:textColor="#FFFFFF"
             android:textAppearance="?android:attr/textAppearanceMedium" />
 
-        <Switch
+        <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/shot_mode_single"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textColor="#FFFFFF"
             android:text="@string/shot_mode_single" />
 
-        <Switch
+        <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/shot_mode_burst3"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:textColor="#FFFFFF"
             android:text="@string/shot_mode_burst3" />
 
-        <Switch
+        <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/shot_mode_auto"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -278,7 +278,7 @@
             android:layout_marginTop="5dp"
             android:text="@string/player_settings_reset" />
 
-        <Switch
+        <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/apply_to_all_switch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -286,7 +286,7 @@
             android:textColor="#FFFFFF"
             android:text="@string/player_settings_apply_to_all" />
 
-        <Switch
+        <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/apply_to_team_switch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -294,7 +294,7 @@
             android:textColor="#FFFFFF"
             android:text="@string/player_settings_apply_to_team" />
 
-        <Switch
+        <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/admin_switch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

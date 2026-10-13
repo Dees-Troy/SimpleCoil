@@ -31,6 +31,7 @@ import android.os.IBinder;
 import android.os.SystemClock;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.FragmentManager;
@@ -68,7 +69,6 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.Chronometer;
 import android.widget.PopupMenu;
-import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -91,9 +91,9 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     private Button mResetGameButton = null;
     private TextView mGameLimitTV = null;
     private TextView mGameStatusTV = null;
-    private Switch mAllowJoinSwitch = null;
-    private Switch mOnlyServerSettingsSwitch = null;
-    private Switch mAllowChooseTeamsSwitch = null;
+    private SwitchCompat mAllowJoinSwitch = null;
+    private SwitchCompat mOnlyServerSettingsSwitch = null;
+    private SwitchCompat mAllowChooseTeamsSwitch = null;
     private RecyclerView mPlayerDisplayList = null;
 
     private CountDownTimer mGameCountdownTimer = null;
