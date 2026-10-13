@@ -26,6 +26,10 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
 import android.os.Build;
 import android.os.Binder;
 import android.os.IBinder;
@@ -39,6 +43,7 @@ import androidx.core.content.ContextCompat;
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.network.client.ClientOutbox;
+import com.simplecoil.simplecoil.network.client.ReconnectPolicy;
 import com.simplecoil.simplecoil.network.server.SessionPhase;
 
 import org.json.JSONArray;
@@ -65,7 +70,6 @@ public class TcpClient extends Service {
     private static final String TAG = "TCPClient";
 
     public static final String TCP_CLIENT_PONG = "pong";
-    private static final int MAX_REJOIN_TRIES = 3;
     private static final int CONNECTION_TIMEOUT_MS = 1000;
 
     private static volatile boolean keepListening = false;
@@ -77,6 +81,14 @@ public class TcpClient extends Service {
 
     private final Object mOutLock = new Object();
     private DataOutputStream out = null;
+    private final ReconnectPolicy mReconnectPolicy = new ReconnectPolicy();
+    /** Wakes the retry wait early when Wi-Fi comes back. */
+    private final Object mRetryLock = new Object();
+    private boolean mRetryWake = false;
+    /** The Wi-Fi network while it is up; sockets are bound to it (§3.6). */
+    private volatile Network mWifiNetwork = null;
+    private ConnectivityManager.NetworkCallback mWifiCallback = null;
+
     /** Reliable messages (eliminations) the server hasn't acknowledged yet (§3.4). */
     private final ClientOutbox mOutbox = new ClientOutbox();
     /**
@@ -111,6 +123,64 @@ public class TcpClient extends Service {
         super.onCreate();
         createNotificationChannel();
         ContextCompat.registerReceiver(this, mGPSUpdateReceiver, new IntentFilter(NetMsg.NETMSG_GPSLOCUPDATE), ContextCompat.RECEIVER_NOT_EXPORTED);
+        registerWifiCallback();
+    }
+
+    /**
+     * Follows the Wi-Fi network: when it comes back the retry loop wakes at once (Q4), and
+     * sockets are bound to it so they don't go out over mobile data when the field's Wi-Fi has
+     * no internet.
+     */
+    private void registerWifiCallback() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null)
+            return;
+        mWifiCallback = new ConnectivityManager.NetworkCallback() {
+            @Override
+            public void onAvailable(Network network) {
+                Log.d(TAG, "Wi-Fi available");
+                mWifiNetwork = network;
+                mReconnectPolicy.onNetworkAvailable();
+                wakeRetry();
+            }
+
+            @Override
+            public void onLost(Network network) {
+                if (network.equals(mWifiNetwork))
+                    mWifiNetwork = null;
+            }
+        };
+        try {
+            cm.registerNetworkCallback(new NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build(), mWifiCallback);
+        } catch (Exception e) {
+            Log.w(TAG, "Could not watch Wi-Fi: " + e.getMessage());
+            mWifiCallback = null;
+        }
+    }
+
+    private void wakeRetry() {
+        synchronized (mRetryLock) {
+            mRetryWake = true;
+            mRetryLock.notifyAll();
+        }
+    }
+
+    /** Waits [millis] before the next attempt, or less if Wi-Fi comes back or the client stops. */
+    private void waitForRetry(long millis) {
+        long deadline = System.currentTimeMillis() + millis;
+        synchronized (mRetryLock) {
+            while (!mRetryWake && keepListening) {
+                long left = deadline - System.currentTimeMillis();
+                if (left <= 0)
+                    break;
+                try {
+                    mRetryLock.wait(left);
+                } catch (InterruptedException e) {
+                    break;
+                }
+            }
+            mRetryWake = false;
+        }
     }
 
     private void createNotificationChannel() {
@@ -164,6 +234,16 @@ public class TcpClient extends Service {
     public void onDestroy() {
         super.onDestroy();
         unregisterReceiver(mGPSUpdateReceiver);
+        if (mWifiCallback != null) {
+            ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            try {
+                if (cm != null)
+                    cm.unregisterNetworkCallback(mWifiCallback);
+            } catch (Exception e) {
+                // already gone
+            }
+            mWifiCallback = null;
+        }
         mWriter.shutdown();
     }
 
@@ -275,6 +355,8 @@ public class TcpClient extends Service {
             Globals.getInstance().mGPSDataSemaphore.release();
         }
         mOutbox.clear();
+        mSessionPhase = SessionPhase.LOBBY; // a new session: nothing to come back to until the server says so
+        mGameId = 0;
         keepListening = true;
         isListening = true;
         Log.d(TAG, "Starting client...");
@@ -282,18 +364,35 @@ public class TcpClient extends Service {
         InputStream is = null;
         DataInputStream in = null;
         OutputStream os = null;
-        int retryCount = MAX_REJOIN_TRIES;
         boolean rejoin = false;
         boolean wasConnected = false;
-        while (retryCount > 0 && keepListening) {
+        boolean firstAttempt = true;
+        boolean gaveUp = false;
+        boolean cancelled = false;
+        mReconnectPolicy.onConnected();
+        synchronized (mRetryLock) {
+            mRetryWake = false;
+        }
+        while (keepListening && !cancelled) {
+            if (!firstAttempt) {
+                // D6, D10: retry for as long as the server could still recognize us, spaced out
+                Long delay = mReconnectPolicy.nextDelay(mSessionPhase);
+                if (delay == null) {
+                    gaveUp = true;
+                    break;
+                }
+                waitForRetry(delay);
+                if (!keepListening)
+                    break;
+            }
+            firstAttempt = false;
             try {
                 if (wasConnected) {
                     wasConnected = false;
                     sendBroadcast(new Intent(NetMsg.NETMSG_NETWORKDISCONNECTED));
                 }
-                if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE)
-                    retryCount--;
                 s = new Socket();
+                bindToWifi(s);
                 s.connect(new InetSocketAddress(Globals.getInstance().mServerIP, TcpServer.TCP_SERVER_PORT), CONNECTION_TIMEOUT_MS);
                 is = s.getInputStream();
                 in = new DataInputStream(is);
@@ -307,7 +406,7 @@ public class TcpClient extends Service {
                     sendBroadcast(new Intent(NetMsg.NETMSG_NETWORKCONNECTED));
                 rejoin = true;
                 int noReadCount = 0;
-                retryCount = MAX_REJOIN_TRIES;
+                mReconnectPolicy.onConnected();
                 while (keepListening) {
                     if (in.available() > 0) {
                         noReadCount = 0;
@@ -374,6 +473,7 @@ public class TcpClient extends Service {
                                     sendBroadcast(new Intent(NetMsg.NETMSG_STARTGAME));
                                 } else if (message.equals(NetMsg.NETMSG_SERVERCANCEL)) {
                                     sendBroadcast(new Intent(NetMsg.NETMSG_SERVERCANCEL));
+                                    cancelled = true;
                                     break;
                                 } else if (message.startsWith(NetMsg.NETMSG_ACK)) {
                                     try {
@@ -388,6 +488,7 @@ public class TcpClient extends Service {
                                 }
                             } else if (message.startsWith(NetMsg.NETMSG_VERSIONERROR)) {
                                 sendBroadcast(new Intent(NetMsg.NETMSG_VERSIONERROR));
+                                cancelled = true;
                                 break;
                             } else {
                                 Log.d(TAG, "unknown tcp message received");
@@ -424,7 +525,7 @@ public class TcpClient extends Service {
                 try { if (os != null) os.close(); } catch (Exception e) { /* ignored */ }
             }
         }
-        if (retryCount == 0 && keepListening) {
+        if (gaveUp && keepListening) {
             sendBroadcast(new Intent(NetMsg.NETMSG_SERVERCANCEL));
         }
         Log.d(TAG, "Client stopping");
@@ -433,6 +534,18 @@ public class TcpClient extends Service {
             stopAsForeground();
             keepListening = false;
             isListening = false;
+        }
+    }
+
+    /** Routes [socket] over Wi-Fi even when Android made mobile data the default network. */
+    private void bindToWifi(Socket socket) {
+        Network wifi = mWifiNetwork;
+        if (wifi == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M)
+            return;
+        try {
+            wifi.bindSocket(socket);
+        } catch (IOException e) {
+            Log.w(TAG, "Could not bind to Wi-Fi: " + e.getMessage());
         }
     }
 
@@ -534,6 +647,7 @@ public class TcpClient extends Service {
     public void stopTcpClient() {
         sleep(75); // Make sure that the end game message gets sent before we close down the socket
         keepListening = false;
+        wakeRetry();
     }
 
     public void leaveServer() {
