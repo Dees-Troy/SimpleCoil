@@ -825,12 +825,15 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
 
     private void getPlayerDisplayData() {
         if (mTcpServer == null) return;
-        mTcpServer.lockAccess();
+        TcpServer.ScoreData[] scores = new TcpServer.ScoreData[Globals.MAX_PLAYER_ID + 1];
+        for (byte x = 1; x <= Globals.MAX_PLAYER_ID; x++) {
+            scores[x] = mTcpServer.getScore(x);
+        }
         Globals.getmTeamPlayerNameSemaphore();
         Globals.getmPlayerSettingsSemaphore();
         try {
             for (byte x = 1; x <= Globals.MAX_PLAYER_ID; x++) {
-                TcpServer.ScoreData scoreData = mTcpServer.getScore(x);
+                TcpServer.ScoreData scoreData = scores[x];
                 if (scoreData == null) {
                     mPlayerDisplayData[x] = null;
                 } else {
@@ -852,7 +855,6 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         } finally {
             Globals.getInstance().mPlayerSettingsSemaphore.release();
             Globals.getInstance().mTeamPlayerNameSemaphore.release();
-            mTcpServer.unlockAccess();
         }
         if (mPlayerDisplayListAdapter != null) {
             mPlayerDisplayListAdapter.setData(mPlayerDisplayData);

@@ -197,7 +197,7 @@ class TcpServerLoopbackTest {
         startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
         val (_, idC) = join("Charlie", "CC:00")
         assertTrue(idC != 1 && idC != 17)
-        assertNotNull(PlayerRepository.getInstance().getActiveGamePlayerByMac("CC:00"))
+        assertTrue(server.roster.isCached("CC:00"))
     }
 
     @Test
@@ -225,7 +225,7 @@ class TcpServerLoopbackTest {
         clientA.awaitMesg(NetMsg.NETMSG_ENDGAME)
         awaitTrue { score(idB) == null }
         assertEquals(Globals.GAME_STATE_NONE, Globals.getInstance().mGameState)
-        assertNull(PlayerRepository.getInstance().getActiveGamePlayerByMac("BB:00"))
+        assertFalse(server.roster.isCached("BB:00"))
         assertNotNull(score(idA))
     }
 
@@ -248,19 +248,21 @@ class TcpServerLoopbackTest {
     // ------------------------------------------------------------------------------------------
 
     @Test
-    fun d4_aNewConnectionWhoseCounterMatchesAReKeyedPlayer_replacesThatPlayer() {
-        // Players are re-keyed by player id when teams are rebalanced; new connections are keyed
-        // by an accept counter. When the counter reaches a re-keyed player's id, put() replaces
-        // that player (D4). Pinned here; the roster extraction fixes it.
+    fun d4_aNewConnectionWhoseCounterMatchesARenumberedPlayer_leavesThatPlayerAlone() {
+        // Players used to be re-keyed by player id when teams were rebalanced while new
+        // connections were keyed by an accept counter, so the 17th connection replaced player 17
+        // (D4). Connections are now keyed by connection id only.
         val (_, idA) = join("Alpha", "AA:00")
         val (b, idB) = join("Bravo", "BB:00")
         assertEquals(17, idB)
         server.rebalanceAllPlayers(false)
-        awaitTrue { b.mesgs(NetMsg.NETMSG_SERVERREPLY).size >= 2 } // re-keyed by id 17
+        awaitTrue { b.mesgs(NetMsg.NETMSG_SERVERREPLY).size >= 2 }
 
-        // Connections 3..17: the 15th is keyed 17.
+        // Connections 3..17.
         repeat(15) { connect() }
-        awaitTrue(3000, "Bravo to be replaced") { score(idB) == null }
+        awaitTrue(3000, "17 connections") { server.roster.connectionCount() == 17 }
+        assertNotNull(score(idB))
+        assertTrue(score(idB)!!.isConnected)
         assertNotNull(score(idA))
     }
 }

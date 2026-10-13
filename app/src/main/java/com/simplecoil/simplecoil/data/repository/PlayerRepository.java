@@ -22,6 +22,7 @@ import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -46,22 +47,6 @@ public class PlayerRepository {
     private final Map<Byte, Globals.PlayerSettings> playerSettings = new ConcurrentHashMap<>();
     private final Map<String, Byte> macPlayerMap = new ConcurrentHashMap<>();
     private final Map<Byte, String> playerMacMap = new ConcurrentHashMap<>();
-
-    public static class ActiveGamePlayerInfo {
-        public final String macAddress;
-        public final byte playerId;
-        public final int team;
-        public final String originalName;
-
-        public ActiveGamePlayerInfo(String macAddress, byte playerId, int team, String originalName) {
-            this.macAddress = macAddress;
-            this.playerId = playerId;
-            this.team = team;
-            this.originalName = originalName != null ? originalName : "";
-        }
-    }
-
-    private final Map<String, ActiveGamePlayerInfo> activeGameMacMap = new ConcurrentHashMap<>();
 
     private volatile byte pairedGrenadeID = 0;
     private final int[] grenadePairings = new int[MAX_GRENADE_IDS];
@@ -165,25 +150,6 @@ public class PlayerRepository {
         return macPlayerMap.get(mac);
     }
 
-    public synchronized void clearActiveGameMacMap() {
-        activeGameMacMap.clear();
-    }
-
-    public synchronized void addActiveGamePlayer(String mac, byte playerId, int team, String originalName) {
-        if (mac != null && !mac.isEmpty()) {
-            activeGameMacMap.put(mac, new ActiveGamePlayerInfo(mac, playerId, team, originalName));
-        }
-    }
-
-    public synchronized ActiveGamePlayerInfo getActiveGamePlayerByMac(String mac) {
-        if (mac == null || mac.isEmpty()) return null;
-        return activeGameMacMap.get(mac);
-    }
-
-    public Map<String, ActiveGamePlayerInfo> getActiveGameMacMap() {
-        return activeGameMacMap;
-    }
-
     public synchronized boolean isNameUnique(String name, byte excludePlayerId) {
         if (name == null || name.trim().isEmpty()) {
             return false;
@@ -271,6 +237,41 @@ public class PlayerRepository {
         }
     }
 
+    /**
+     * Moves every player in [oldToNew] to its new id, in all the maps. Players not in [oldToNew]
+     * are dropped.
+     */
+    public synchronized void remapPlayers(Map<Byte, Byte> oldToNew) {
+        Map<Byte, InetAddress> newTeamIPMap = new HashMap<>();
+        Map<InetAddress, Byte> newIPTeamMap = new HashMap<>();
+        Map<Byte, String> newNameMap = new HashMap<>();
+        Map<Byte, Globals.PlayerSettings> newSettingsMap = new HashMap<>();
+        Map<Byte, Globals.GPSData> newGPSMap = new HashMap<>();
+        Map<Byte, String> newPlayerMacMap = new HashMap<>();
+        Map<String, Byte> newMacPlayerMap = new HashMap<>();
+        for (Map.Entry<Byte, Byte> entry : oldToNew.entrySet()) {
+            byte oldId = entry.getKey();
+            byte newId = entry.getValue();
+            InetAddress ip = teamIPMap.get(oldId);
+            if (ip != null) {
+                newTeamIPMap.put(newId, ip);
+                newIPTeamMap.put(ip, newId);
+            }
+            String name = teamPlayerNameMap.get(oldId);
+            if (name != null && !name.isEmpty()) newNameMap.put(newId, name);
+            Globals.PlayerSettings settings = playerSettings.get(oldId);
+            if (settings != null) newSettingsMap.put(newId, settings);
+            Globals.GPSData gps = gpsData.get(oldId);
+            if (gps != null) newGPSMap.put(newId, gps);
+            String mac = playerMacMap.get(oldId);
+            if (mac != null && !mac.isEmpty()) {
+                newPlayerMacMap.put(newId, mac);
+                newMacPlayerMap.put(mac, newId);
+            }
+        }
+        updateAllPlayerMappings(newTeamIPMap, newIPTeamMap, newNameMap, newSettingsMap, newGPSMap, newPlayerMacMap, newMacPlayerMap);
+    }
+
     public synchronized void updateAllPlayerMappings(
             Map<Byte, InetAddress> newTeamIPMap,
             Map<InetAddress, Byte> newIPTeamMap,
@@ -323,7 +324,6 @@ public class PlayerRepository {
         playerSettings.clear();
         macPlayerMap.clear();
         playerMacMap.clear();
-        activeGameMacMap.clear();
     }
 
     public synchronized int calcNetworkTeam(byte id) {

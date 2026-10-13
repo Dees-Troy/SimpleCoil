@@ -23,6 +23,8 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.simplecoil.simplecoil.Globals;
+
 import java.net.InetAddress;
 import java.util.HashSet;
 import java.util.Map;
@@ -291,22 +293,29 @@ public class PlayerRepositoryTest {
     }
 
     @Test
-    public void testActiveGameMacSnapshotAndReconnection() {
+    public void testRemapPlayersMovesEveryMapAndDropsTheRest() throws Exception {
         playerRepo.setPlayerID((byte) 0);
         playerRepo.clearAllPlayers();
-        playerRepo.clearActiveGameMacMap();
 
-        String mac = "DE:AD:BE:EF:00:01";
-        playerRepo.addActiveGamePlayer(mac, (byte) 5, 2, "GamePlayer5");
+        InetAddress ip1 = InetAddress.getByName("10.0.0.1");
+        InetAddress ip2 = InetAddress.getByName("10.0.0.2");
+        playerRepo.addOrUpdatePlayer((byte) 1, ip1, "One", "AA:01");
+        playerRepo.addOrUpdatePlayer((byte) 2, ip2, "Two", "AA:02");
+        Globals.PlayerSettings settings = new Globals.PlayerSettings();
+        playerRepo.getPlayerSettings().put((byte) 1, settings);
 
-        PlayerRepository.ActiveGamePlayerInfo info = playerRepo.getActiveGamePlayerByMac(mac);
-        assertNotNull(info);
-        assertEquals((byte) 5, info.playerId);
-        assertEquals(2, info.team);
-        assertEquals("GamePlayer5", info.originalName);
+        Map<Byte, Byte> oldToNew = new java.util.HashMap<>();
+        oldToNew.put((byte) 1, (byte) 17);
+        playerRepo.remapPlayers(oldToNew);
 
-        playerRepo.clearActiveGameMacMap();
-        Assert.assertNull(playerRepo.getActiveGamePlayerByMac(mac));
+        assertEquals(ip1, playerRepo.getTeamIPMap().get((byte) 17));
+        assertEquals(Byte.valueOf((byte) 17), playerRepo.getIpTeamMap().get(ip1));
+        assertEquals("One", playerRepo.getPlayerName((byte) 17));
+        assertEquals(Byte.valueOf((byte) 17), playerRepo.getPlayerIdByMac("AA:01"));
+        Assert.assertSame(settings, playerRepo.getPlayerSettings().get((byte) 17));
+        Assert.assertNull(playerRepo.getTeamIPMap().get((byte) 1));
+        Assert.assertNull(playerRepo.getTeamIPMap().get((byte) 2));
+        Assert.assertNull(playerRepo.getPlayerIdByMac("AA:02"));
     }
 
     @Test
