@@ -282,6 +282,30 @@ class GameRosterTest {
     }
 
     @Test
+    fun reliable_isAppliedOncePerSeq_andOnlyForTheCurrentGame() {
+        val (ca, _) = join("Alpha", "AA")
+        join("Bravo", "BB")
+        val stranger = connect()
+        assertEquals(GameRoster.ReliableCheck.NO_PLAYER, roster.checkReliable(stranger, 1, 0))
+        assertEquals(GameRoster.ReliableCheck.STALE, roster.checkReliable(ca, 1, 0)) // lobby
+        roster.startGame()
+        val game = roster.gameId()
+        assertTrue(game != 0L)
+        assertEquals(GameRoster.ReliableCheck.APPLY, roster.checkReliable(ca, 1, game))
+        assertEquals(GameRoster.ReliableCheck.DUPLICATE, roster.checkReliable(ca, 1, game))
+        assertEquals(GameRoster.ReliableCheck.APPLY, roster.checkReliable(ca, 3, game))
+        assertEquals(GameRoster.ReliableCheck.DUPLICATE, roster.checkReliable(ca, 2, game)) // lower than applied
+        assertEquals(GameRoster.ReliableCheck.STALE, roster.checkReliable(ca, 4, game + 1))
+        assertEquals(3, ca.player.lastAppliedSeq)
+        roster.endGame()
+        assertEquals(GameRoster.ReliableCheck.APPLY, roster.checkReliable(ca, 4, game)) // late replay after the game
+        roster.reset()
+        assertEquals(0L, roster.gameId())
+        assertEquals(GameRoster.ReliableCheck.STALE, roster.checkReliable(ca, 5, game))
+        assertEquals(0, ca.player.lastAppliedSeq)
+    }
+
+    @Test
     fun eliminations_areIgnoredInTheLobby() {
         val (ca, _) = join("Alpha", "AA")
         val (_, b) = join("Bravo", "BB")

@@ -38,6 +38,7 @@ import androidx.core.content.ContextCompat;
 
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
+import com.simplecoil.simplecoil.network.client.ClientOutbox;
 import com.simplecoil.simplecoil.network.server.SessionPhase;
 
 import org.json.JSONArray;
@@ -55,9 +56,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -78,7 +77,8 @@ public class TcpClient extends Service {
 
     private final Object mOutLock = new Object();
     private DataOutputStream out = null;
-    private final Queue<String> messageQueue = new ConcurrentLinkedQueue<>();
+    /** Reliable messages (eliminations) the server hasn't acknowledged yet (§3.4). */
+    private final ClientOutbox mOutbox = new ClientOutbox();
     /**
      * Every write goes through this one thread, in the order sent (D3). Thread-per-message used
      * to let queued eliminations overtake the hello they followed.
@@ -175,27 +175,19 @@ public class TcpClient extends Service {
         super.sendBroadcast(intent);
     }
 
+    /** Queues [message] for the writer thread. Without a connection it is dropped. */
     public void sendTCPMessage(final String message) {
-        sendTCPMessage(message, false);
-    }
-
-    /** Queues [message] for the writer thread; with [queueMessage], keeps it for the next connection if it can't be written. */
-    public void sendTCPMessage(final String message, final boolean queueMessage) {
         mWriter.execute(new Runnable() {
             public void run() {
-                write(message, queueMessage);
+                write(message);
             }
         });
     }
 
-    private void write(String message, boolean queueMessage) {
+    private void write(String message) {
         synchronized (mOutLock) {
             if (out == null) {
-                Log.d(TAG, "Writer is null");
-                if (queueMessage) {
-                    Log.e(TAG, "queuing: " + message);
-                    messageQueue.add(message);
-                }
+                Log.d(TAG, "Writer is null, dropping: " + message);
                 return;
             }
             try {
@@ -205,12 +197,36 @@ public class TcpClient extends Service {
                     Log.i(TAG, "sent: " + message);
             } catch (IOException e) {
                 e.printStackTrace();
-                if (queueMessage) {
-                    Log.e(TAG, "queuing: " + message);
-                    messageQueue.add(message);
-                }
             }
         }
+    }
+
+    /**
+     * Sends [rmsg] (an ELIMINATED message) reliably: it stays in the outbox, whatever happens to
+     * this write, until the server acknowledges it, and is replayed in the next hello (D1).
+     * Writes are not retried on a live connection; TCP does that.
+     */
+    public void sendReliable(String rmsg) {
+        ClientOutbox.Entry entry = mOutbox.add(rmsg, mGameId);
+        try {
+            sendTCPMessage(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + reliableJson(entry, mOutbox.getGameId()));
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /** The reliable envelope: {"rmsg": "ELIMINATED7", "seq": 12, "gameid": 418873301}. */
+    static JSONObject reliableJson(ClientOutbox.Entry entry, long gameId) throws JSONException {
+        JSONObject envelope = new JSONObject();
+        envelope.put(TcpServer.JSON_RMSG, entry.getRmsg());
+        envelope.put(TcpServer.JSON_SEQ, entry.getSeq());
+        envelope.put(TcpServer.JSON_GAMEID, gameId);
+        return envelope;
+    }
+
+    @VisibleForTesting
+    ClientOutbox getOutbox() {
+        return mOutbox;
     }
 
     @VisibleForTesting
@@ -258,7 +274,7 @@ public class TcpClient extends Service {
         } finally {
             Globals.getInstance().mGPSDataSemaphore.release();
         }
-        messageQueue.clear();
+        mOutbox.clear();
         keepListening = true;
         isListening = true;
         Log.d(TAG, "Starting client...");
@@ -359,6 +375,12 @@ public class TcpClient extends Service {
                                 } else if (message.equals(NetMsg.NETMSG_SERVERCANCEL)) {
                                     sendBroadcast(new Intent(NetMsg.NETMSG_SERVERCANCEL));
                                     break;
+                                } else if (message.startsWith(NetMsg.NETMSG_ACK)) {
+                                    try {
+                                        mOutbox.ack(Integer.parseInt(message.substring(NetMsg.NETMSG_ACK.length())));
+                                    } catch (NumberFormatException e) {
+                                        e.printStackTrace();
+                                    }
                                 } else if (message.startsWith(NetMsg.NETMSG_ERROR)) {
                                     Intent intent = new Intent(NetMsg.NETMSG_ERROR);
                                     intent.putExtra(UDPListenerService.INTENT_MESSAGE, message.substring(NetMsg.NETMSG_ERROR.length()));
@@ -421,41 +443,55 @@ public class TcpClient extends Service {
             playerInfo.put(TcpServer.JSON_PLAYERNAMECHANGE, Globals.getInstance().mPlayerName);
             String message = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + playerInfo.toString();
             sendTCPMessage(message);
-            flushQueue();
         } catch (JSONException e) {
             e.printStackTrace();
         }
     }
 
-    /** Sends the messages kept while disconnected, after whatever was sent before this call. */
-    private void flushQueue() {
-        String queuedMsg;
-        while ((queuedMsg = messageQueue.poll()) != null) {
-            Log.e(TAG, "sending queued: " + queuedMsg);
-            sendTCPMessage(queuedMsg, true);
-        }
-    }
-
     public void sendPlayerInfo(boolean rejoin) {
+        if (rejoin)
+            Log.d(TAG, "Attempting to rejoin server");
         try {
-            JSONObject playerInfo = new JSONObject();
-            playerInfo.put(TcpServer.JSON_PLAYERID, (int) Globals.getInstance().mPlayerID);
-            playerInfo.put(TcpServer.JSON_PLAYERNAME, Globals.getInstance().mPlayerName);
-            if (Globals.getInstance().mDeviceAddress != null && !Globals.getInstance().mDeviceAddress.isEmpty()) {
-                playerInfo.put(TcpServer.JSON_BLASTER_MAC, Globals.getInstance().mDeviceAddress);
-            }
-            if (rejoin) {
-                Log.d(TAG, "Attempting to rejoin server");
-                playerInfo.put(TcpServer.JSON_REJOIN, true);
-            }
+            JSONObject playerInfo = helloJson(Globals.getInstance().mPlayerID, Globals.getInstance().mPlayerName,
+                    Globals.getInstance().mDeviceAddress, rejoin, mOutbox);
             String message = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + playerInfo.toString();
             sendTCPMessage(message);
-            flushQueue();
         } catch (JSONException e) {
             e.printStackTrace();
         }
         if (Globals.getInstance().mPairedGrenadeID != 0)
             sendPlayerGrenade();
+    }
+
+    /**
+     * The hello: who we are, and the reliable messages not acknowledged yet. They ride in the
+     * hello so the server applies them once it knows who we are and before it builds our
+     * snapshot (D2, D3).
+     */
+    static JSONObject helloJson(byte playerId, String name, String mac, boolean rejoin, ClientOutbox outbox) throws JSONException {
+        JSONObject playerInfo = new JSONObject();
+        playerInfo.put(TcpServer.JSON_PLAYERID, (int) playerId);
+        playerInfo.put(TcpServer.JSON_PLAYERNAME, name);
+        if (mac != null && !mac.isEmpty()) {
+            playerInfo.put(TcpServer.JSON_BLASTER_MAC, mac);
+        }
+        if (rejoin) {
+            playerInfo.put(TcpServer.JSON_REJOIN, true);
+        }
+        if (outbox.getGameId() != 0)
+            playerInfo.put(TcpServer.JSON_GAMEID, outbox.getGameId());
+        JSONArray pending = new JSONArray();
+        for (ClientOutbox.Entry entry : outbox.pending()) {
+            JSONObject item = new JSONObject();
+            item.put(TcpServer.JSON_RMSG, entry.getRmsg());
+            item.put(TcpServer.JSON_SEQ, entry.getSeq());
+            pending.put(item);
+        }
+        if (pending.length() > 0) {
+            Log.d(TAG, "Replaying " + pending.length() + " unacknowledged messages");
+            playerInfo.put(TcpServer.JSON_PENDING, pending);
+        }
+        return playerInfo;
     }
 
     public void sendPlayerSettings() {
@@ -501,6 +537,7 @@ public class TcpClient extends Service {
     }
 
     public void leaveServer() {
+        mOutbox.clear();
         if (keepListening) {
             String message = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_LEAVE;
             sendTCPMessage(message);
@@ -718,11 +755,21 @@ public class TcpClient extends Service {
                     GameSettingsRepository.getInstance().setAllowChooseTeams(allowChooseTeams);
                 }
                 Intent intent = new Intent(NetMsg.NETMSG_LISTPLAYERS);
+                if (game.has(TcpServer.JSON_SESSIONPHASE)) {
+                    mSessionPhase = SessionPhase.fromWire(game.getInt(TcpServer.JSON_SESSIONPHASE));
+                    mGameId = game.optLong(TcpServer.JSON_GAMEID, 0);
+                    mOutbox.onGameId(mGameId); // a new game, or a reset: the old entries are void
+                    intent.putExtra(NetMsg.INTENT_SESSIONPHASE, mSessionPhase.wireValue);
+                    intent.putExtra(NetMsg.INTENT_GAMEID, mGameId);
+                }
                 if (game.has(TcpServer.JSON_PLAYERGAMEUPDATE)) {
                     intent.putExtra(NetMsg.INTENT_HASGAMEUPDATE, true);
                     JSONObject playerGameUpdate = game.getJSONObject(TcpServer.JSON_PLAYERGAMEUPDATE);
                     intent.putExtra(NetMsg.INTENT_SCORE, playerGameUpdate.getInt(TcpServer.JSON_PLAYERPOINTS));
-                    intent.putExtra(NetMsg.INTENT_ELIMINATIONS, playerGameUpdate.getInt(TcpServer.JSON_PLAYERELIMINATED));
+                    // D2: the server's count plus the eliminations it hasn't applied yet
+                    int eliminations = mOutbox.reconcile(playerGameUpdate.getInt(TcpServer.JSON_PLAYERELIMINATED),
+                            playerGameUpdate.optInt(TcpServer.JSON_ACKSEQ, 0));
+                    intent.putExtra(NetMsg.INTENT_ELIMINATIONS, eliminations);
                     if (playerGameUpdate.has(TcpServer.JSON_TEAMPOINTS))
                         intent.putExtra(NetMsg.INTENT_TEAMSCORE, playerGameUpdate.getInt(TcpServer.JSON_TEAMPOINTS));
                     if (playerGameUpdate.has(TcpServer.JSON_TIMEREMAINING))
@@ -731,12 +778,6 @@ public class TcpClient extends Service {
                 if (game.has(TcpServer.JSON_GAMESTATE)) {
                     int gameState = game.getInt(TcpServer.JSON_GAMESTATE);
                     intent.putExtra(NetMsg.INTENT_GAMESTATE, gameState);
-                }
-                if (game.has(TcpServer.JSON_SESSIONPHASE)) {
-                    mSessionPhase = SessionPhase.fromWire(game.getInt(TcpServer.JSON_SESSIONPHASE));
-                    mGameId = game.optLong(TcpServer.JSON_GAMEID, 0);
-                    intent.putExtra(NetMsg.INTENT_SESSIONPHASE, mSessionPhase.wireValue);
-                    intent.putExtra(NetMsg.INTENT_GAMEID, mGameId);
                 }
                 sendBroadcast(intent);
             }

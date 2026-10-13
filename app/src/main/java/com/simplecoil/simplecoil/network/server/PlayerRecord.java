@@ -16,9 +16,6 @@
 
 package com.simplecoil.simplecoil.network.server;
 
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
-
 /**
  * One per player the server knows about. Survives disconnects: the score lives here, not on the
  * connection. Only {@link GameRoster} changes it, under the roster's lock; the fields are volatile
@@ -34,8 +31,8 @@ public final class PlayerRecord {
     volatile int eliminated;
     /** Null while disconnected. */
     volatile Connection connection;
-    /** Server→client messages kept for a disconnected player and sent when it rejoins. */
-    final Queue<String> messageQueue = new ConcurrentLinkedQueue<>();
+    /** The highest reliable-message seq applied in the current game (§3.4). */
+    volatile int lastAppliedSeq;
 
     PlayerRecord(byte playerId, int team, String name, String blasterMac) {
         this.playerId = playerId;
@@ -76,7 +73,7 @@ public final class PlayerRecord {
         return connection != null;
     }
 
-    public Queue<String> getMessageQueue() {
-        return messageQueue;
+    public int getLastAppliedSeq() {
+        return lastAppliedSeq;
     }
 }

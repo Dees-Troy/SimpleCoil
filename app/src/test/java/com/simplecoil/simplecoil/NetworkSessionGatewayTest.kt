@@ -63,7 +63,7 @@ class NetworkSessionGatewayTest {
         NetworkSessionGateway(mock(Context::class.java), TestScope()).also { it.attachForTest(null, client) }
 
     @Test
-    fun sessionSends_useTheSameStringsAndQueueOnlyEliminated() {
+    fun sessionSends_useTheSameStrings_andEliminatedGoesReliably() {
         val client = mock(TcpClient::class.java)
         val g = gateway(client)
         g.sendHit(2)
@@ -73,7 +73,7 @@ class NetworkSessionGatewayTest {
         verify(client).sendTCPMessage("SimpleCoil:07MESGHIT2")
         verify(client).sendTCPMessage("SimpleCoil:07MESGOUT3")
         verify(client).sendTCPMessage("SimpleCoil:07MESGSHOTFIRED")
-        verify(client).sendTCPMessage("SimpleCoil:07MESGELIMINATED4", true)
+        verify(client).sendReliable("ELIMINATED4")
     }
 
     @Test

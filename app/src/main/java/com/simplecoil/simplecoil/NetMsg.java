@@ -55,6 +55,8 @@ public class NetMsg {
     public static final String NETMSG_ADMIN_KICK = "ADMIN_KICK";
     public static final String NETMSG_ADMIN_TEAMSIZES = "ADMIN_TEAMSIZES";
     public static final String NETMSG_ADMIN_RESET = "ADMIN_RESET";
+    // Server -> client: ACK + seq acknowledges every reliable message up to seq
+    public static final String NETMSG_ACK = "ACK";
 
     // When players join a game in progress, the server can send the player updates on appropriate values.
     // These items are intent extras.

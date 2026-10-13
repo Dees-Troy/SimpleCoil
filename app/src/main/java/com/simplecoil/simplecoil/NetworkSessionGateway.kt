@@ -269,7 +269,7 @@ class NetworkSessionGateway(
     }
 
     override fun sendEliminated(playerId: Byte) {
-        tcpClient?.sendTCPMessage(message(NetMsg.NETMSG_ELIMINATED + playerId), true)
+        tcpClient?.sendReliable(NetMsg.NETMSG_ELIMINATED + playerId)
     }
 
     override fun sendPlayerGrenade() {

@@ -52,16 +52,17 @@ class TcpClientWriterTest {
         assertEquals(sent, written())
     }
 
+    private fun json(message: String) = JSONObject(message.removePrefix(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON))
+
     @Test
-    fun messagesKeptWhileDisconnected_followTheHelloOnReconnect() {
-        // D3: the queued eliminations used to race the hello and could reach the server first.
+    fun eliminationsWhileDisconnected_rideInsideTheHello() {
+        // D3: queued eliminations used to race the hello; now they are part of it.
         Globals.getInstance().mPlayerID = 7
         Globals.getInstance().mPlayerName = "Rook"
         Globals.getInstance().mDeviceAddress = "AA:BB"
         Globals.getInstance().mPairedGrenadeID = 0
         val client = TcpClient()
-        val eliminated = NetworkSessionGateway.message(NetMsg.NETMSG_ELIMINATED + 3)
-        client.sendTCPMessage(eliminated, true) // no connection: kept
+        client.sendReliable(NetMsg.NETMSG_ELIMINATED + 3) // no connection: only in the outbox
         client.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_HIT + 3)) // no connection: dropped
         client.awaitWritesForTest()
 
@@ -69,10 +70,27 @@ class TcpClientWriterTest {
         client.sendPlayerInfo(true)
         client.awaitWritesForTest()
         val messages = written()
-        assertEquals(2, messages.size)
-        val hello = JSONObject(messages[0].removePrefix(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON))
+        assertEquals(1, messages.size)
+        val hello = json(messages[0])
         assertEquals(7, hello.getInt(TcpServer.JSON_PLAYERID))
+        assertEquals("AA:BB", hello.getString(TcpServer.JSON_BLASTER_MAC))
         assertTrue(hello.getBoolean(TcpServer.JSON_REJOIN))
-        assertEquals(eliminated, messages[1])
+        val pending = hello.getJSONArray(TcpServer.JSON_PENDING)
+        assertEquals(1, pending.length())
+        assertEquals("ELIMINATED3", pending.getJSONObject(0).getString(TcpServer.JSON_RMSG))
+        assertEquals(1, pending.getJSONObject(0).getInt(TcpServer.JSON_SEQ))
+    }
+
+    @Test
+    fun aReliableMessageStaysInTheOutbox_evenWhenItsWriteSucceeds() {
+        // D1: a write into the socket buffer during the 3.5 s detection window is no delivery.
+        val client = TcpClient()
+        client.attachOutputForTest(DataOutputStream(bytes))
+        client.sendReliable(NetMsg.NETMSG_ELIMINATED + 3)
+        client.awaitWritesForTest()
+        val envelope = json(written().single())
+        assertEquals("ELIMINATED3", envelope.getString(TcpServer.JSON_RMSG))
+        assertEquals(1, envelope.getInt(TcpServer.JSON_SEQ))
+        assertEquals(1, client.outbox.pending().size)
     }
 }

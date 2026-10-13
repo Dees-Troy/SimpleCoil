@@ -20,6 +20,7 @@ import com.simplecoil.simplecoil.LoopbackClient.Companion.awaitTrue
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.network.client.ClientOutbox
 import com.simplecoil.simplecoil.network.server.SessionPhase
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -399,6 +400,89 @@ class TcpServerLoopbackTest {
         a.mesg(NetMsg.NETMSG_ADMIN_ENDGAME)
         a.awaitMesg(NetMsg.NETMSG_ENDGAME)
         assertEquals(SessionPhase.POST_GAME, server.sessionPhase)
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Reliable eliminations (§3.4, §3.5), with TcpClient's own hello and envelope
+    // ------------------------------------------------------------------------------------------
+
+    private fun LoopbackClient.reliable(outbox: ClientOutbox, rmsg: String): ClientOutbox.Entry {
+        val entry = outbox.add(rmsg, outbox.gameId)
+        json(TcpClient.reliableJson(entry, outbox.gameId))
+        return entry
+    }
+
+    private fun LoopbackClient.rejoin(name: String, mac: String, outbox: ClientOutbox) =
+        json(TcpClient.helloJson(0, name, mac, true, outbox))
+
+    @Test
+    fun reliableEliminations_lostAckAndOfflineKills_countOnceAfterTheRejoin() {
+        val (a, b) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
+        val (clientA, idA) = a
+        val (clientB, idB) = b
+        val outbox = ClientOutbox()
+        outbox.onGameId(server.roster.gameId())
+        val killedByBravo = NetMsg.NETMSG_ELIMINATED + idB
+
+        // 1: delivered and acknowledged.
+        clientA.reliable(outbox, killedByBravo)
+        assertEquals(NetMsg.NETMSG_ACK + 1, clientA.awaitMesg(NetMsg.NETMSG_ACK))
+        outbox.ack(1)
+        // 2: applied, but its ack is lost with the connection (D1).
+        clientA.reliable(outbox, killedByBravo)
+        awaitTrue { score(idA)?.eliminated == 2 }
+        clientA.close()
+        awaitDisconnected(idA)
+        // 3 and 4: eliminated twice while out of range.
+        outbox.add(killedByBravo, outbox.gameId)
+        outbox.add(killedByBravo, outbox.gameId)
+        assertEquals(listOf(2, 3, 4), outbox.pending().map { it.seq })
+
+        val back = connect()
+        back.rejoin("Alpha", "AA:00", outbox)
+        assertEquals(NetMsg.NETMSG_SERVERREPLY + idA, back.awaitMesg(NetMsg.NETMSG_SERVERREPLY))
+        val update = back.awaitJson(TcpServer.JSON_PLAYERGAMEUPDATE).getJSONObject(TcpServer.JSON_PLAYERGAMEUPDATE)
+        assertEquals(4, update.getInt(TcpServer.JSON_ACKSEQ))
+        assertEquals(4, update.getInt(TcpServer.JSON_PLAYERELIMINATED))
+        // D2: the lives the client shows equal its own count.
+        assertEquals(4, outbox.reconcile(update.getInt(TcpServer.JSON_PLAYERELIMINATED), update.getInt(TcpServer.JSON_ACKSEQ)))
+        assertTrue(outbox.pending().isEmpty())
+        awaitTrue { score(idA)?.isConnected == true }
+        assertEquals(4, score(idA)!!.eliminated)
+        assertEquals(4, score(idB)!!.points)
+        // The shooter heard about each kill once.
+        awaitTrue { clientB.mesgs(NetMsg.NETMSG_ELIMINATED).size == 4 }
+        Thread.sleep(200)
+        assertEquals(4, clientB.mesgs(NetMsg.NETMSG_ELIMINATED).size)
+    }
+
+    @Test
+    fun reliableReplay_afterTheGame_countsInTheFinalScore_andAnOldGamesIsDropped() {
+        val (a, b) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
+        val (clientA, idA) = a
+        val (clientB, idB) = b
+        val outbox = ClientOutbox()
+        outbox.onGameId(server.roster.gameId())
+        clientA.close()
+        awaitDisconnected(idA)
+        outbox.add(NetMsg.NETMSG_ELIMINATED + idB, outbox.gameId)
+        server.endGame()
+        clientB.awaitMesg(NetMsg.NETMSG_ENDGAME)
+
+        val back = connect()
+        back.rejoin("Alpha", "AA:00", outbox)
+        back.awaitMesg(NetMsg.NETMSG_SERVERREPLY)
+        awaitTrue { score(idA)?.isConnected == true }
+        assertEquals(1, score(idA)!!.eliminated)
+        assertEquals(1, score(idB)!!.points)
+        assertEquals(SessionPhase.POST_GAME, server.sessionPhase)
+
+        // An envelope from an older game is acknowledged and dropped.
+        val stale = ClientOutbox()
+        stale.onGameId(server.roster.gameId() + 1)
+        back.reliable(stale, NetMsg.NETMSG_ELIMINATED + idB)
+        assertEquals(NetMsg.NETMSG_ACK + 1, back.awaitMesg(NetMsg.NETMSG_ACK))
+        assertEquals(1, score(idB)!!.points)
     }
 
     @Test

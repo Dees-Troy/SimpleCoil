@@ -125,9 +125,9 @@ class SessionEndToEndTest {
         val single = ArgumentCaptor.forClass(String::class.java)
         verify(client, org.mockito.Mockito.atLeast(0)).sendTCPMessage(single.capture())
         strings += single.allValues
-        val queued = ArgumentCaptor.forClass(String::class.java)
-        verify(client, org.mockito.Mockito.atLeast(0)).sendTCPMessage(queued.capture(), org.mockito.ArgumentMatchers.eq(true))
-        strings += queued.allValues.map { "$it (queued)" }
+        val reliable = ArgumentCaptor.forClass(String::class.java)
+        verify(client, org.mockito.Mockito.atLeast(0)).sendReliable(reliable.capture())
+        strings += reliable.allValues.map { "$it (reliable)" }
         return strings
     }
 
@@ -184,7 +184,7 @@ class SessionEndToEndTest {
         notify(packet())
         advance(401) // HIT/OUT messages are limited to one per 400 ms
         notify(packet().also { it[9] = 0x08; it[8] = 0x3E })
-        assertEquals(listOf("SimpleCoil:07MESGHIT2", "SimpleCoil:07MESGOUT2", "SimpleCoil:07MESGELIMINATED2 (queued)"), sent())
+        assertEquals(listOf("SimpleCoil:07MESGHIT2", "SimpleCoil:07MESGOUT2", "ELIMINATED2 (reliable)"), sent())
         // Eliminated: stage 1 locks the blaster.
         assertEquals("20 00 02 00 05 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00", writes(commandChar).last())
     }

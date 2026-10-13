@@ -80,6 +80,11 @@ public class TcpServer extends Service {
     public static final String JSON_SESSIONPHASE = "sessionphase";
     public static final String JSON_GAMEID = "gameid";
     public static final String JSON_CONNECTED = "connected";
+    // Reliable client messages (§3.4): {"rmsg": "ELIMINATED7", "seq": 12, "gameid": 418873301}
+    public static final String JSON_RMSG = "rmsg";
+    public static final String JSON_SEQ = "seq";
+    public static final String JSON_PENDING = "pending";
+    public static final String JSON_ACKSEQ = "ackseq";
     public static final String JSON_ONLY_SERVER_SETTINGS = "onlyserversettings";
     public static final String JSON_ALLOW_CHOOSE_TEAMS = "allowchooseteams";
     public static final String JSON_REQUEST_TEAM_CHANGE = "requestteamchange";
@@ -165,31 +170,30 @@ public class TcpServer extends Service {
         sendThread.start();
     }
 
-    /** Sends to [record]'s connection; if it has none or the write fails, queues it when [queueMessage]. */
-    private void sendToPlayer(PlayerRecord record, String message, boolean queueMessage) {
+    /**
+     * Sends to [record]'s connection. A disconnected player misses it: the snapshot it gets when
+     * it comes back carries everything it needs (D11).
+     */
+    private void sendToPlayer(PlayerRecord record, String message) {
         Connection connection = record.getConnection();
-        if (connection != null && connection.send(message))
-            return;
-        if (queueMessage) {
-            Log.e(TAG, "queuing: " + message);
-            record.getMessageQueue().add(message);
-        }
+        if (connection != null)
+            connection.send(message);
     }
 
-    private void sendTCPMessageID(final String message, final byte playerID, final boolean queueMessage) {
+    private void sendTCPMessageID(final String message, final byte playerID) {
         if (mRoster.isEmpty())
             return;
         Thread sendThread = new Thread(new Runnable() {
             public void run() {
                 PlayerRecord record = mRoster.record(playerID);
                 if (record != null)
-                    sendToPlayer(record, message, queueMessage);
+                    sendToPlayer(record, message);
             }
         });
         sendThread.start();
     }
 
-    private void sendTCPMessageTeam(final String message, final byte playerID, final boolean includePlayer, final boolean queueMessage) {
+    private void sendTCPMessageTeam(final String message, final byte playerID, final boolean includePlayer) {
         if (mRoster.isEmpty())
             return;
         Thread sendThread = new Thread(new Runnable() {
@@ -200,10 +204,10 @@ public class TcpServer extends Service {
                 int team = player.getTeam();
                 Log.e(TAG, "team is " + team);
                 if (includePlayer)
-                    sendToPlayer(player, message, queueMessage);
+                    sendToPlayer(player, message);
                 for (PlayerRecord record : mRoster.recordsOnTeam(team)) {
                     if (record != player)
-                        sendToPlayer(record, message, queueMessage);
+                        sendToPlayer(record, message);
                 }
             }
         });
@@ -478,6 +482,8 @@ public class TcpServer extends Service {
                 if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_TIME) != 0 && Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
                     playerGameUpdate.put(JSON_TIMEREMAINING, Globals.getInstance().mServerGameTimeRemaining);
                 }
+                PlayerRecord record = mRoster.record((byte) id);
+                playerGameUpdate.put(JSON_ACKSEQ, record != null ? record.getLastAppliedSeq() : 0);
                 game.put(JSON_PLAYERGAMEUPDATE, playerGameUpdate);
                 final String idMessage = TCPMESSAGE_PREFIX + TCPPREFIX_JSON + game.toString();
 
@@ -587,7 +593,7 @@ public class TcpServer extends Service {
             game.put(JSON_PLAYERDATA, players);
             String message = TCPMESSAGE_PREFIX + TCPPREFIX_JSON + game.toString();
             if (playerID != SEND_ALL)
-                sendTCPMessageID(message, (byte)playerID, false);
+                sendTCPMessageID(message, (byte)playerID);
             else {
                 for (Connection connection : mRoster.connections()) {
                     connection.send(message);
@@ -887,39 +893,8 @@ public class TcpServer extends Service {
                                                 endGame();
                                             break;
                                         } else if (message.startsWith(NetMsg.NETMSG_ELIMINATED)) {
-                                            // A player was eliminated
-                                            message = message.substring(NetMsg.NETMSG_ELIMINATED.length());
-                                            byte id = (byte) Integer.parseInt(message);
-                                            GameRoster.Elimination elimination = mRoster.onEliminated(client, id);
-                                            if (elimination == null) {
-                                                Log.d(TAG, "elimination ignored outside a game");
-                                                continue;
-                                            }
-                                            if (!mRoster.isRunning()) {
-                                                // After the game: counted in the final scores, no live notifications or limits
-                                                sendPlayerData(SEND_ALL);
-                                                sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
-                                                continue;
-                                            }
-                                            int shooterScore = elimination.shooterPoints;
-                                            sendTCPMessageID(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ELIMINATED + elimination.victimId, id, true);
-                                            if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
-                                                // Send a message to all teammates about the score increase
-                                                sendTCPMessageTeam(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_TEAMELIMINATED, id, false, true);
-                                            }
-                                            sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
-                                            int scoreLimit = ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_SCORE) != 0 ? Globals.getInstance().mScoreLimit : 0);
-                                            if (scoreLimit != 0) {
-                                                if (Globals.getInstance().mGameMode == Globals.GAME_MODE_FFA) {
-                                                    if (shooterScore >= scoreLimit)
-                                                        endGame();
-                                                } else {
-                                                    int team = Globals.getInstance().calcNetworkTeam(id);
-                                                    if (mRoster.teamPoints(team) >= scoreLimit)
-                                                        endGame();
-                                                }
-                                            }
-                                            checkLivesLimitEndGame();
+                                            // Sent reliably since v07; a bare one is applied the same way, without de-dup
+                                            handleEliminated(client, message);
                                         } else if (message.equals(NetMsg.NETMSG_SHOTFIRED)) {
                                             sendTCPMessageAll(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SHOTFIRED);
                                         } else if (message.startsWith(NetMsg.NETMSG_HIT)) {
@@ -927,7 +902,7 @@ public class TcpServer extends Service {
                                             try {
                                                 byte shooterId = (byte) Integer.parseInt(message);
                                                 byte targetId = playerIdOf(client);
-                                                sendTCPMessageID(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_HIT + targetId, shooterId, true);
+                                                sendTCPMessageID(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_HIT + targetId, shooterId);
                                             } catch (Exception e) {
                                                 e.printStackTrace();
                                             }
@@ -936,12 +911,12 @@ public class TcpServer extends Service {
                                             try {
                                                 byte shooterId = (byte) Integer.parseInt(message);
                                                 byte targetId = playerIdOf(client);
-                                                sendTCPMessageID(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_OUT + targetId, shooterId, true);
+                                                sendTCPMessageID(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_OUT + targetId, shooterId);
                                             } catch (Exception e) {
                                                 e.printStackTrace();
                                             }
                                         } else if (message.equals(NetMsg.NETMSG_TEAMELIMINATED)) {
-                                            sendTCPMessageTeam(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_TEAMELIMINATED, playerIdOf(client), false, true);
+                                            sendTCPMessageTeam(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_TEAMELIMINATED, playerIdOf(client), false);
                                         } else if (message.equals(NetMsg.NETMSG_PLAYERDATAREQUEST)) {
                                             sendPlayerData(playerIdOf(client));
                                         } else if (isAdminCommand(message) && !isAdmin(client)) {
@@ -1095,12 +1070,107 @@ public class TcpServer extends Service {
             return player != null ? player.getPlayerId() : 0;
         }
 
+        /**
+         * [message] ("ELIMINATED" + shooter id): the player behind [client] was eliminated. During
+         * the game: the shooter and its team are told and the limits checked. After the game it
+         * only counts in the final scores.
+         */
+        private void handleEliminated(Connection client, String message) {
+            byte id;
+            try {
+                id = (byte) Integer.parseInt(message.substring(NetMsg.NETMSG_ELIMINATED.length()));
+            } catch (NumberFormatException e) {
+                e.printStackTrace();
+                return;
+            }
+            GameRoster.Elimination elimination = mRoster.onEliminated(client, id);
+            if (elimination == null) {
+                Log.d(TAG, "elimination ignored outside a game");
+                return;
+            }
+            if (!mRoster.isRunning()) {
+                sendPlayerData(SEND_ALL);
+                sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+                return;
+            }
+            int shooterScore = elimination.shooterPoints;
+            sendTCPMessageID(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ELIMINATED + elimination.victimId, id);
+            if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
+                // Send a message to all teammates about the score increase
+                sendTCPMessageTeam(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_TEAMELIMINATED, id, false);
+            }
+            sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+            int scoreLimit = ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_SCORE) != 0 ? Globals.getInstance().mScoreLimit : 0);
+            if (scoreLimit != 0) {
+                if (Globals.getInstance().mGameMode == Globals.GAME_MODE_FFA) {
+                    if (shooterScore >= scoreLimit)
+                        endGame();
+                } else {
+                    int team = Globals.getInstance().calcNetworkTeam(id);
+                    if (mRoster.teamPoints(team) >= scoreLimit)
+                        endGame();
+                }
+            }
+            checkLivesLimitEndGame();
+        }
+
+        /**
+         * A reliable message [rmsg] (§3.4): applied once, through the same handler as a live
+         * one. Returns the seq to acknowledge, or -1 to leave it unacknowledged.
+         */
+        private int handleReliable(Connection client, String rmsg, int seq, long gameId) {
+            GameRoster.ReliableCheck check = mRoster.checkReliable(client, seq, gameId);
+            switch (check) {
+                case NO_PLAYER:
+                    Log.w(TAG, "reliable message before hello from client " + client.getConnectionId() + ": " + rmsg);
+                    return -1;
+                case STALE:
+                    Log.d(TAG, "dropping reliable message from another game: " + rmsg + " (" + gameId + ")");
+                    return seq;
+                case DUPLICATE:
+                    Log.d(TAG, "dropping duplicate reliable message " + seq + ": " + rmsg);
+                    break;
+                case APPLY:
+                    if (rmsg.startsWith(NetMsg.NETMSG_ELIMINATED))
+                        handleEliminated(client, rmsg);
+                    else
+                        Log.w(TAG, "unknown reliable message: " + rmsg);
+                    break;
+            }
+            PlayerRecord player = client.getPlayer();
+            return player != null ? player.getLastAppliedSeq() : seq;
+        }
+
+        /** The entries a (re)joining client hadn't had acknowledged, applied before its snapshot is built. */
+        private void applyPending(Connection client, JSONObject hello) {
+            JSONArray pending = hello.optJSONArray(JSON_PENDING);
+            if (pending == null)
+                return;
+            long gameId = hello.optLong(JSON_GAMEID, 0);
+            for (int i = 0; i < pending.length(); i++) {
+                JSONObject entry = pending.optJSONObject(i);
+                if (entry == null || !entry.has(JSON_RMSG) || !entry.has(JSON_SEQ))
+                    continue;
+                handleReliable(client, entry.optString(JSON_RMSG), entry.optInt(JSON_SEQ), gameId);
+            }
+        }
+
         private void parsePlayerInfo(String message, Connection client) {
             JSONObject player;
             try {
                 player = new JSONObject(message);
             } catch (JSONException e) {
                 e.printStackTrace();
+                return;
+            }
+            if (player.has(JSON_RMSG)) {
+                try {
+                    int ack = handleReliable(client, player.getString(JSON_RMSG), player.getInt(JSON_SEQ), player.optLong(JSON_GAMEID, 0));
+                    if (ack >= 0)
+                        client.send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ACK + ack);
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
                 return;
             }
             if (player.has(JSON_REQUEST_TEAM_CHANGE)) {
@@ -1255,11 +1325,7 @@ public class TcpServer extends Service {
                     Log.d(TAG, "rejoining client " + client.getConnectionId() + " to player ID " + existingPlayerId + " (MAC: " + blasterMac + ")");
                     if (result.displaced != null)
                         result.displaced.close();
-                    String queuedMsg;
-                    while ((queuedMsg = record.getMessageQueue().poll()) != null) {
-                        Log.e(TAG, "sending queued: " + queuedMsg);
-                        client.send(queuedMsg);
-                    }
+                    applyPending(client, player);
                     client.send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERREPLY + existingPlayerId);
                     sendAllGameInfo(existingPlayerId);
                     sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
@@ -1272,6 +1338,7 @@ public class TcpServer extends Service {
 
             PlayerRecord record = result.record;
             id = record.getPlayerId();
+            applyPending(client, player);
             client.send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERREPLY + id);
             Log.e(TAG, "network team is " + record.getTeam());
             InetAddress inetAddress = client.getInetAddress();

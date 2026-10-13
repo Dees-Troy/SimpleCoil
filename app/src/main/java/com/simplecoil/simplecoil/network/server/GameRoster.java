@@ -297,7 +297,7 @@ public final class GameRoster {
         for (PlayerRecord record : byId.values()) {
             record.points = 0;
             record.eliminated = 0;
-            record.messageQueue.clear();
+            record.lastAppliedSeq = 0;
         }
     }
 
@@ -426,6 +426,31 @@ public final class GameRoster {
             return Disconnect.REMOVED;
         }
         return Disconnect.KEPT;
+    }
+
+    /** What to do with a reliable message (reconnect design §3.4). */
+    public enum ReliableCheck {
+        /** New: apply it. */
+        APPLY,
+        /** Already applied (its ack was lost): drop it. */
+        DUPLICATE,
+        /** For another game, or the lobby: drop it. */
+        STALE,
+        /** The connection has not said hello: keep it unacknowledged; it comes back in the hello. */
+        NO_PLAYER
+    }
+
+    /**
+     * De-duplicates reliable message [seq] of game [gameId] from [connection]'s player. APPLY
+     * records it as applied, so the caller must apply it.
+     */
+    public synchronized ReliableCheck checkReliable(Connection connection, int seq, long gameId) {
+        PlayerRecord record = connection.player;
+        if (record == null) return ReliableCheck.NO_PLAYER;
+        if (phase == SessionPhase.LOBBY || gameId != this.gameId) return ReliableCheck.STALE;
+        if (seq <= record.lastAppliedSeq) return ReliableCheck.DUPLICATE;
+        record.lastAppliedSeq = seq;
+        return ReliableCheck.APPLY;
     }
 
     /**
