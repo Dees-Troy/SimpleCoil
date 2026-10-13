@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Items of the network and admin popup menus, which are built in code. -->
+    <item name="join_item" type="id" />
+    <item name="join_ip_item" type="id" />
+    <item name="player_name_item" type="id" />
+    <item name="switch_team_1_item" type="id" />
+    <item name="switch_team_2_item" type="id" />
+    <item name="switch_team_3_item" type="id" />
+    <item name="switch_team_4_item" type="id" />
+    <item name="team_mode_item" type="id" />
+    <item name="disable_network_item" type="id" />
     <item name="shuffle_teams_item" type="id" />
     <item name="stop_searching_item" type="id" />
 </resources>

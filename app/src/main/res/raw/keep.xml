@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The sound effects' license ships with the app although no code opens it. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@raw/gameburp_sfx_license" />
