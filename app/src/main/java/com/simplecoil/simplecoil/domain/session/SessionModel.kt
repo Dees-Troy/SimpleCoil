@@ -80,6 +80,9 @@ sealed interface SessionEffect {
     /** The blaster reports a new player id (already stored): redisplay the team. */
     data object PlayerIdReported : SessionEffect
 
+    /** The thumb (mode) button was held for a long press; it did not cycle the shot mode. */
+    data object ThumbLongPressed : SessionEffect
+
     /** The game must end (time ran out). */
     data object EndGameRequested : SessionEffect
 }

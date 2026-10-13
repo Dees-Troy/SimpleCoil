@@ -51,7 +51,7 @@ writes out so they don't overlap.
 | Byte | Meaning |
 |---|---|
 | 1 | The player ID the blaster is currently using. |
-| 2 | Buttons currently held (not used). |
+| 2 | Buttons currently held: `01` trigger, `02` reload, `04` thumb, `10` power, added together. Only the thumb bit is used. |
 | 3 | Low 4 bits: trigger counter. High 4 bits: reload button counter. |
 | 4 | Thumb button counter. |
 | 5 | Power button counter. |
@@ -75,7 +75,10 @@ connecting never looks like a press. What each counter does:
   not in a running game, it plays an "empty" sound. Several empty pulls in a row start a
   reload.
 - **Reload button:** starts a reload.
-- **Thumb button:** switches to the next allowed shot mode.
+- **Thumb button:** switches to the next allowed shot mode. The phone also watches the thumb
+  bit in byte 2. While the button shows as held, the mode change waits until it's released.
+  Holding it for 2 s is a long press: the shot mode stays the same, and when the player is
+  joined to a server, the scoreboard opens (or closes if it's already open).
 - **Power button:** turns recoil on or off, unless the server forces a recoil setting.
 
 ### Hits

@@ -347,6 +347,7 @@ class GameViewModel(
             SessionEffect.TeamSent -> saveTeamAndDisplay()
             SessionEffect.PlayerIdReported -> displayCurrentTeam()
             SessionEffect.EndGameRequested -> endGame()
+            SessionEffect.ThumbLongPressed -> toggleScoreboard()
             // Sounds and vibration are played app-side by SessionFeedback.
             is SessionEffect.Sound, SessionEffect.Vibrate -> Unit
         }
@@ -889,6 +890,12 @@ class GameViewModel(
         scoreboardVisible = true
         latestPlayerData?.let { screen?.showScoreboard(it) }
         if (net.useNetwork) net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_PLAYERDATAREQUEST))
+    }
+
+    /** Thumb button long press: opens or closes the scoreboard while joined to a server. */
+    private fun toggleScoreboard() {
+        if (!net.useNetwork || networkMenuType != NETWORK_TYPE_JOINED) return
+        if (scoreboardVisible) closeScoreboard() else openScoreboard()
     }
 
     private fun closeScoreboard() {

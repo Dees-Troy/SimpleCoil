@@ -104,6 +104,57 @@ class BlasterSessionEngineTest {
     }
 
     @Test
+    fun thumbHeld_shortPressCyclesShotModeOnRelease() {
+        h.connected()
+        h.telemetry(Packet().thumb(1).thumbHeld())
+        assertEquals(emptyList<String>(), h.rec.ble)
+        h.advance(500)
+        h.telemetry(Packet().thumb(1))
+        assertEquals(listOf("shotMode:$burst/0"), h.rec.ble)
+        assertTrue(h.effects.none { it == SessionEffect.ThumbLongPressed })
+    }
+
+    @Test
+    fun thumbHeld_countedOnRelease_cyclesShotModeOnce() {
+        h.connected()
+        h.telemetry(Packet().thumbHeld())
+        h.advance(300)
+        h.telemetry(Packet().thumb(1))
+        h.telemetry(Packet().thumb(1))
+        assertEquals(listOf("shotMode:$burst/0"), h.rec.ble)
+    }
+
+    @Test
+    fun thumbHeld_longPressEmitsOnceAndKeepsShotMode() {
+        h.connected()
+        h.telemetry(Packet().thumb(1).thumbHeld())
+        for (i in 1..30) {
+            h.advance(100)
+            h.telemetry(Packet().thumb(1).thumbHeld())
+        }
+        assertEquals(1, h.effects.count { it == SessionEffect.ThumbLongPressed })
+        // Released; a blaster that counts on release reports it in the release packet or the next.
+        h.telemetry(Packet().thumb(1))
+        h.telemetry(Packet().thumb(2))
+        assertEquals(emptyList<String>(), h.rec.ble)
+        assertEquals(single, h.state.shotMode)
+        // A later tap is a short press again.
+        h.telemetry(Packet().thumb(3))
+        assertEquals(listOf("shotMode:$burst/0"), h.rec.ble)
+    }
+
+    @Test
+    fun thumbHeld_justUnderLongPressIsAShortPress() {
+        h.connected()
+        h.telemetry(Packet().thumb(1).thumbHeld())
+        h.advance(BlasterSessionEngine.THUMB_LONG_PRESS_MILLIS - 1)
+        h.telemetry(Packet().thumb(1).thumbHeld())
+        h.telemetry(Packet().thumb(1))
+        assertTrue(h.effects.none { it == SessionEffect.ThumbLongPressed })
+        assertEquals(listOf("shotMode:$burst/0"), h.rec.ble)
+    }
+
+    @Test
     fun power_togglesRecoil_unlessServerForcesIt() {
         h.connected()
         h.telemetry(Packet().power(1))

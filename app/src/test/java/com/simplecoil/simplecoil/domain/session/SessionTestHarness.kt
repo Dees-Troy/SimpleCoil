@@ -124,6 +124,7 @@ class SessionTestHarness {
             (bytes[GattProtocolHandler.RECOIL_OFFSET_RELOAD_TRIGGER_COUNTER].toInt() and 0x0F) or ((n and 0x0F) shl 4))
         fun thumb(n: Int) = set(GattProtocolHandler.RECOIL_OFFSET_THUMB_COUNTER, n)
         fun power(n: Int) = set(GattProtocolHandler.RECOIL_OFFSET_POWER_COUNTER, n)
+        fun thumbHeld() = set(GattProtocolHandler.RECOIL_OFFSET_BUTTONS, GattProtocolHandler.RECOIL_BUTTON_THUMB)
         fun player(n: Int) = set(GattProtocolHandler.RECOIL_OFFSET_TEAM, n)
         fun battery(n: Int) = set(GattProtocolHandler.RECOIL_OFFSET_BATTERY_LEVEL, n)
         fun hit1(hitBy: Int, shotIdByte: Int) = set(GattProtocolHandler.RECOIL_OFFSET_HIT_BY1, hitBy)

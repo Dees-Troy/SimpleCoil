@@ -82,6 +82,14 @@ class BlasterSessionEngine(
     private var emptyTriggerCount = 0
     private var lastShotFired = 0L
 
+    // Thumb button hold, from the buttons-held byte. A press only cycles the shot mode once it is
+    // released short of a long press, so holding for the scoreboard leaves the shot mode alone.
+    private var thumbHeldSince = NOT_HELD
+    private var thumbLongPressed = false
+    private var thumbPressPending = false
+    /** A long press just ended: a thumb count in the next packet belongs to it, not a new press. */
+    private var thumbLongPressReleased = false
+
     // Reload
     private var reloading = RELOADING_ELIMINATED
 
@@ -453,6 +461,10 @@ class BlasterSessionEngine(
             lastReloadButtonCount = telemetry.reloadCounter
             lastThumbButtonCount = telemetry.thumbCounter
             lastPowerButtonCount = telemetry.powerCounter
+            thumbHeldSince = NOT_HELD
+            thumbLongPressed = false
+            thumbPressPending = false
+            thumbLongPressReleased = false
             setShotMode(currentShotMode)
             scope.launch {
                 delay(FIRST_PACKET_TEAM_DELAY_MILLIS)
@@ -479,11 +491,7 @@ class BlasterSessionEngine(
             lastReloadButtonCount = telemetry.reloadCounter
             if (shotsRemaining != config.fullReload) startReload()
         }
-        if (telemetry.thumbCounter != lastThumbButtonCount) {
-            lastThumbButtonCount = telemetry.thumbCounter
-            ShotModePolicy.nextOnThumb(currentShotMode, config.allowSingleShotMode, config.allowBurstShotMode,
-                config.allowAutoShotMode)?.let { setShotMode(it) }
-        }
+        processThumbButton(telemetry)
         if (telemetry.powerCounter != lastPowerButtonCount) {
             lastPowerButtonCount = telemetry.powerCounter
             val recoil = RecoilPolicy.onPowerButton(config.serverRecoilSetting, recoilEnabled)
@@ -541,6 +549,47 @@ class BlasterSessionEngine(
                 }
                 if (config.reloadOnEmpty && shotsRemaining.toInt() == 0 && config.gameState != Globals.GAME_STATE_NONE) startReload()
             }
+        }
+    }
+
+    /**
+     * Thumb button: a short press cycles the shot mode, a hold of [THUMB_LONG_PRESS_MILLIS] emits
+     * [SessionEffect.ThumbLongPressed] instead. A tap shorter than the telemetry interval may never
+     * show as held, so a count without a hold is still a short press.
+     */
+    private fun processThumbButton(telemetry: GattProtocolHandler.TelemetryData) {
+        val counted = telemetry.thumbCounter != lastThumbButtonCount
+        lastThumbButtonCount = telemetry.thumbCounter
+        val held = telemetry.buttonsHeld and GattProtocolHandler.RECOIL_BUTTON_THUMB != 0
+        var shortPress = false
+        if (held) {
+            thumbLongPressReleased = false
+            val now = clock()
+            if (thumbHeldSince == NOT_HELD) {
+                thumbHeldSince = now
+                thumbLongPressed = false
+                thumbPressPending = false
+            }
+            if (counted && !thumbLongPressed) thumbPressPending = true
+            if (!thumbLongPressed && now - thumbHeldSince >= THUMB_LONG_PRESS_MILLIS) {
+                thumbLongPressed = true
+                thumbPressPending = false
+                emit(SessionEffect.ThumbLongPressed)
+            }
+        } else if (thumbHeldSince != NOT_HELD) {
+            // Released: the blaster may count the press now rather than when it went down.
+            shortPress = !thumbLongPressed && (thumbPressPending || counted)
+            thumbLongPressReleased = thumbLongPressed && !counted
+            thumbHeldSince = NOT_HELD
+            thumbLongPressed = false
+            thumbPressPending = false
+        } else {
+            shortPress = counted && !thumbLongPressReleased
+            thumbLongPressReleased = false
+        }
+        if (shortPress) {
+            ShotModePolicy.nextOnThumb(currentShotMode, config.allowSingleShotMode, config.allowBurstShotMode,
+                config.allowAutoShotMode)?.let { setShotMode(it) }
         }
     }
 
@@ -630,6 +679,10 @@ class BlasterSessionEngine(
 
         /** Hit overlay length, also the shot-fired / hit message rate limit (§1.6: 400 ms). */
         const val HIT_ANIMATION_DURATION_MILLISECONDS = 400L
+
+        /** Holding the thumb (mode) button this long is a long press. */
+        const val THUMB_LONG_PRESS_MILLIS = 2000L
+        private const val NOT_HELD = -1L
 
         private const val SPAWN_TICK_MILLIS = 999L
         private const val COUNTDOWN_TICK_MILLIS = 1000L

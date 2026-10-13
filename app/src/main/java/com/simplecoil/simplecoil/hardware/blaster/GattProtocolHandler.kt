@@ -38,6 +38,12 @@ object GattProtocolHandler {
     const val RECOIL_OFFSET_SHOTS_REMAINING = 14
     const val RECOIL_OFFSET_STATUS = 15
 
+    // Bits of the buttons-held byte (RECOIL_OFFSET_BUTTONS)
+    const val RECOIL_BUTTON_TRIGGER = 0x01
+    const val RECOIL_BUTTON_RELOAD = 0x02
+    const val RECOIL_BUTTON_THUMB = 0x04
+    const val RECOIL_BUTTON_POWER = 0x10
+
     // Blaster types
     const val BLASTER_TYPE_RIFLE: Byte = 0x01
     const val BLASTER_TYPE_PISTOL: Byte = 0x02
@@ -51,7 +57,8 @@ object GattProtocolHandler {
     /**
      * A parsed telemetry packet. [shotId1]/[shotId2] are the shot ids (low three bits);
      * [rawShotIdByte1]/[rawShotIdByte2] are the unmasked bytes, which grenades use to carry their
-     * id (high nibble) and event (low nibble).
+     * id (high nibble) and event (low nibble). [buttonsHeld] is the buttons-held bitmask
+     * (RECOIL_BUTTON_*).
      */
     data class TelemetryData(
         @JvmField val playerId: Byte,
@@ -68,6 +75,7 @@ object GattProtocolHandler {
         @JvmField val status: Byte,
         @JvmField val rawShotIdByte1: Byte,
         @JvmField val rawShotIdByte2: Byte,
+        @JvmField val buttonsHeld: Int = 0,
     )
 
     /**
@@ -99,6 +107,7 @@ object GattProtocolHandler {
             status = data[RECOIL_OFFSET_STATUS],
             rawShotIdByte1 = rawShotIdByte1,
             rawShotIdByte2 = rawShotIdByte2,
+            buttonsHeld = data[RECOIL_OFFSET_BUTTONS].toInt() and 0xFF,
         )
     }
 
