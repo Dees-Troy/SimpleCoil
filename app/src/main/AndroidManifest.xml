@@ -67,7 +67,8 @@
             android:enabled="true" />
         <service
             android:name=".TcpClient"
-            android:enabled="true" />
+            android:enabled="true"
+            android:foregroundServiceType="connectedDevice" />
         <service
             android:name=".TcpServer"
             android:enabled="true"

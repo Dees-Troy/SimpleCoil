@@ -26,6 +26,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.ServiceInfo;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -222,7 +223,7 @@ public class TcpClient extends Service {
     public void startAsForeground(String statusText) {
         Notification notification = createPersistentNotification(statusText);
         try {
-            startForeground(NOTIFICATION_ID, notification);
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE);
         } catch (Exception e) {
             // Android 12+ refuses this while the app is in the background; play on without it.
             Log.w(TAG, "Could not start foreground: " + e.getMessage());
