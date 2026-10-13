@@ -16,23 +16,18 @@
 
 package com.simplecoil.simplecoil
 
-import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.os.IBinder
 import android.util.Log
-import androidx.core.content.ContextCompat
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
-import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.domain.team.TeamLayout
 import com.simplecoil.simplecoil.domain.session.SessionNetwork
 import com.simplecoil.simplecoil.network.ClientEvent
 import com.simplecoil.simplecoil.network.EventBus
-import com.simplecoil.simplecoil.network.GameUpdate
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,8 +39,8 @@ import org.json.JSONObject
 
 /**
  * The play screen's network session (R13/R14 transport): binds UDPListenerService and TcpClient,
- * turns their NETMSG_* broadcasts into [events], builds the TCP message strings, holds the
- * session's network flags and scores, and serves BlasterSessionEngine as its [SessionNetwork].
+ * exposes the client bus their events go to as [events], builds the TCP message strings, holds
+ * the session's network flags and scores, and serves BlasterSessionEngine as its [SessionNetwork].
  * The phone is always a client; the only server is DedicatedServerActivity.
  *
  * App-scoped; main thread unless noted.
@@ -76,11 +71,6 @@ class NetworkSessionGateway(
     /** Main thread only. */
     var teamScore = 0
 
-    private var receiverRegistered = false
-
-    /** DedicatedServerActivity owns the network; the play screen's broadcasts are not published. */
-    private var handedOff = false
-
     // ---------------------------------------------------------------------------------------
     // Service bindings
     // ---------------------------------------------------------------------------------------
@@ -91,7 +81,6 @@ class NetworkSessionGateway(
      * ServiceConnection per resume (B4).
      */
     fun bindServices() {
-        handedOff = false
         if (udpConnection == null) bindUdp() else startServiceSafely(Intent(context, UDPListenerService::class.java))
         if (tcpClientConnection == null) bindTcpClient() else startServiceSafely(Intent(context, TcpClient::class.java))
     }
@@ -133,7 +122,6 @@ class NetworkSessionGateway(
 
     /** Hands the network over to DedicatedServerActivity (what its launch button did). */
     fun releaseForDedicatedServer() {
-        handedOff = true
         tcpClient?.stopTcpClient() // takes its network notification down with it
         udpConnection?.let { context.unbindService(it) }
         tcpClientConnection?.let { context.unbindService(it) }
@@ -160,24 +148,6 @@ class NetworkSessionGateway(
             context.startService(intent)
         } catch (e: Exception) {
             Log.w(TAG, "Could not start service directly: " + e.message)
-        }
-    }
-
-    // ---------------------------------------------------------------------------------------
-    // Broadcasts → events
-    // ---------------------------------------------------------------------------------------
-
-    /** Starts listening for the NETMSG_* broadcasts. Idempotent. */
-    fun registerReceiver() {
-        if (receiverRegistered) return
-        ContextCompat.registerReceiver(context, receiver, intentFilter(), ContextCompat.RECEIVER_NOT_EXPORTED)
-        receiverRegistered = true
-    }
-
-    @androidx.annotation.VisibleForTesting
-    internal val receiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            if (!handedOff) toEvent(intent)?.let { emit(it) }
         }
     }
 
@@ -319,74 +289,6 @@ class NetworkSessionGateway(
             json.put(TcpServer.JSON_PLAYERID, playerId.toInt())
             json.put(TcpServer.JSON_REQUEST_TEAM_CHANGE, targetTeam)
             return jsonMessage(json)
-        }
-
-        /** Maps a NETMSG_* broadcast to its event, reading the extras with the activity's defaults. */
-        @JvmStatic
-        fun toEvent(intent: Intent): ClientEvent? = when (intent.action) {
-            NetMsg.NETMSG_SHOTFIRED -> ClientEvent.ShotFired
-            NetMsg.NETMSG_HIT -> ClientEvent.Hit(intent.getByteExtra(UDPListenerService.INTENT_PLAYERID, 0))
-            NetMsg.NETMSG_OUT -> ClientEvent.Out(intent.getByteExtra(UDPListenerService.INTENT_PLAYERID, 0))
-            NetMsg.NETMSG_ELIMINATED -> ClientEvent.Eliminated(intent.getByteExtra(UDPListenerService.INTENT_PLAYERID, 0))
-            NetMsg.NETMSG_TEAMELIMINATED -> ClientEvent.TeamEliminated
-            NetMsg.NETMSG_JOIN -> ClientEvent.Join
-            NetMsg.NETMSG_LEAVE -> ClientEvent.Leave
-            NetMsg.NETMSG_LISTPLAYERS -> ClientEvent.ListPlayers(
-                gameUpdate = if (intent.getBooleanExtra(NetMsg.INTENT_HASGAMEUPDATE, false)) {
-                    GameUpdate(
-                        score = intent.getIntExtra(NetMsg.INTENT_SCORE, 0),
-                        eliminations = intent.getIntExtra(NetMsg.INTENT_ELIMINATIONS, 0),
-                        teamScore = intent.getIntExtra(NetMsg.INTENT_TEAMSCORE, 0),
-                        timeRemaining = intent.getLongExtra(NetMsg.INTENT_TIMEREMAINING, -1),
-                    )
-                } else null,
-                gameState = if (intent.hasExtra(NetMsg.INTENT_GAMESTATE)) {
-                    intent.getIntExtra(NetMsg.INTENT_GAMESTATE, GameStateRepository.GAME_STATE_ELIMINATED)
-                } else null,
-                sessionPhase = if (intent.hasExtra(NetMsg.INTENT_SESSIONPHASE)) intent.getIntExtra(NetMsg.INTENT_SESSIONPHASE, 0) else null,
-                gameId = if (intent.hasExtra(NetMsg.INTENT_GAMEID)) intent.getLongExtra(NetMsg.INTENT_GAMEID, 0) else null,
-            )
-            NetMsg.NETMSG_PLAYERDATAUPDATE -> ClientEvent.PlayerDataUpdate(intent.getStringExtra(NetMsg.INTENT_PLAYERDATA))
-            NetMsg.NETMSG_STARTGAME -> ClientEvent.StartGame
-            NetMsg.NETMSG_ENDGAME -> ClientEvent.EndGame
-            NetMsg.NETMSG_ERROR -> ClientEvent.Error(intent.getStringExtra(UDPListenerService.INTENT_MESSAGE))
-            NetMsg.NETMSG_VERSIONERROR -> ClientEvent.VersionError
-            NetMsg.NETMSG_SAMETEAM -> ClientEvent.SameTeam
-            NetMsg.NETMSG_FAILEDTOJOIN -> ClientEvent.FailedToJoin
-            NetMsg.NETMSG_SERVERCANCEL -> ClientEvent.ServerCancel
-            NetMsg.NETMSG_SERVERREPLY -> ClientEvent.ServerReply(
-                if (intent.hasExtra(UDPListenerService.INTENT_PLAYERID)) intent.getByteExtra(UDPListenerService.INTENT_PLAYERID, 0) else null)
-            NetMsg.NETMSG_NETWORKCONNECTED -> ClientEvent.NetworkConnected
-            NetMsg.NETMSG_NETWORKDISCONNECTED -> ClientEvent.NetworkDisconnected
-            NetMsg.NETMSG_PLAYERSETTINGSUPDATE -> ClientEvent.PlayerSettingsUpdate
-            else -> null // NETMSG_SERVERCREATED was registered but never handled
-        }
-
-        @JvmStatic
-        fun intentFilter(): IntentFilter {
-            val intentFilter = IntentFilter()
-            intentFilter.addAction(NetMsg.NETMSG_SHOTFIRED)
-            intentFilter.addAction(NetMsg.NETMSG_HIT)
-            intentFilter.addAction(NetMsg.NETMSG_OUT)
-            intentFilter.addAction(NetMsg.NETMSG_ELIMINATED)
-            intentFilter.addAction(NetMsg.NETMSG_JOIN)
-            intentFilter.addAction(NetMsg.NETMSG_FAILEDTOJOIN)
-            intentFilter.addAction(NetMsg.NETMSG_LEAVE)
-            intentFilter.addAction(NetMsg.NETMSG_LISTPLAYERS)
-            intentFilter.addAction(NetMsg.NETMSG_PLAYERDATAUPDATE)
-            intentFilter.addAction(NetMsg.NETMSG_STARTGAME)
-            intentFilter.addAction(NetMsg.NETMSG_ENDGAME)
-            intentFilter.addAction(NetMsg.NETMSG_ERROR)
-            intentFilter.addAction(NetMsg.NETMSG_VERSIONERROR)
-            intentFilter.addAction(NetMsg.NETMSG_SAMETEAM)
-            intentFilter.addAction(NetMsg.NETMSG_SERVERCREATED)
-            intentFilter.addAction(NetMsg.NETMSG_SERVERCANCEL)
-            intentFilter.addAction(NetMsg.NETMSG_SERVERREPLY)
-            intentFilter.addAction(NetMsg.NETMSG_TEAMELIMINATED)
-            intentFilter.addAction(NetMsg.NETMSG_NETWORKCONNECTED)
-            intentFilter.addAction(NetMsg.NETMSG_NETWORKDISCONNECTED)
-            intentFilter.addAction(NetMsg.NETMSG_PLAYERSETTINGSUPDATE)
-            return intentFilter
         }
     }
 }

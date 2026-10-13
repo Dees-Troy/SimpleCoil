@@ -24,6 +24,8 @@ import android.util.Log;
 
 import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
+import com.simplecoil.simplecoil.network.ClientEvent;
+import com.simplecoil.simplecoil.network.EventBus;
 import com.simplecoil.simplecoil.network.discovery.ServerDiscoveryManager;
 
 import java.net.InetAddress;
@@ -41,10 +43,13 @@ public class UDPListenerService extends Service {
 
     private ServerDiscoveryManager mDiscoveryManager;
     private final IBinder mBinder = new LocalBinder();
+    /** Discovery's results for the play screen (the client role). */
+    private EventBus<ClientEvent> mClientEvents = new EventBus<>();
 
     @Override
     public void onCreate() {
         super.onCreate();
+        mClientEvents = ((SimpleCoilApp) getApplication()).getContainer().getClientEvents();
         mDiscoveryManager = new ServerDiscoveryManager(this);
         Log.i(TAG, "UDP Service initialized with ServerDiscoveryManager");
     }
@@ -91,8 +96,7 @@ public class UDPListenerService extends Service {
                 try {
                     InetAddress ipAddr = InetAddress.getByName(ipStr);
                     GameStateRepository.getInstance().setServerIP(ipAddr);
-                    Intent intent = new Intent(NetMsg.NETMSG_SERVERREPLY);
-                    sendBroadcast(intent);
+                    mClientEvents.publish(new ClientEvent.ServerReply(null));
                 } catch (UnknownHostException e) {
                     Log.e(TAG, "Failed to resolve server IP: " + ipStr, e);
                     sendFailedJoin();
@@ -117,8 +121,7 @@ public class UDPListenerService extends Service {
                 try {
                     GameStateRepository.getInstance().setServerIP(InetAddress.getByName(serverIP));
                     mDiscoveryManager.stopDiscovery();
-                    Intent intent = new Intent(NetMsg.NETMSG_SERVERREPLY);
-                    sendBroadcast(intent);
+                    mClientEvents.publish(new ClientEvent.ServerReply(null));
                 } catch (UnknownHostException e) {
                     Log.e(TAG, "Invalid discovered server IP: " + serverIP, e);
                     sendFailedJoin();
@@ -167,8 +170,7 @@ public class UDPListenerService extends Service {
     }
 
     private void sendFailedJoin() {
-        Intent intent = new Intent(NetMsg.NETMSG_FAILEDTOJOIN);
-        sendBroadcast(intent);
+        mClientEvents.publish(ClientEvent.FailedToJoin.INSTANCE);
     }
 
     @Override

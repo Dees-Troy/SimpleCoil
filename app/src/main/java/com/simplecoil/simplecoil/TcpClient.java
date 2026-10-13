@@ -47,6 +47,7 @@ import com.simplecoil.simplecoil.domain.team.TeamMode;
 import com.simplecoil.simplecoil.network.ClientEvent;
 import com.simplecoil.simplecoil.network.EventBus;
 import com.simplecoil.simplecoil.network.Frame;
+import com.simplecoil.simplecoil.network.GameUpdate;
 import com.simplecoil.simplecoil.network.FrameReader;
 import com.simplecoil.simplecoil.network.client.ClientOutbox;
 import com.simplecoil.simplecoil.network.client.ReconnectPolicy;
@@ -259,14 +260,6 @@ public class TcpClient extends Service {
         mWriter.shutdown();
     }
 
-    @Override
-    public void sendBroadcast(Intent intent) {
-        if (intent != null && intent.getPackage() == null) {
-            intent.setPackage(getPackageName());
-        }
-        super.sendBroadcast(intent);
-    }
-
     /** Queues [message] for the writer thread. Without a connection it is dropped. */
     public void sendTCPMessage(final String message) {
         mWriter.execute(new Runnable() {
@@ -401,7 +394,7 @@ public class TcpClient extends Service {
             try {
                 if (wasConnected) {
                     wasConnected = false;
-                    sendBroadcast(new Intent(NetMsg.NETMSG_NETWORKDISCONNECTED));
+                    mEvents.publish(ClientEvent.NetworkDisconnected.INSTANCE);
                 }
                 s = new Socket();
                 mSocket = s;
@@ -417,7 +410,7 @@ public class TcpClient extends Service {
                 sendPlayerInfo(rejoin);
                 wasConnected = true;
                 if (rejoin)
-                    sendBroadcast(new Intent(NetMsg.NETMSG_NETWORKCONNECTED));
+                    mEvents.publish(ClientEvent.NetworkConnected.INSTANCE);
                 rejoin = true;
                 mReconnectPolicy.onConnected();
                 while (keepListening) {
@@ -461,7 +454,7 @@ public class TcpClient extends Service {
             }
         }
         if (gaveUp && keepListening) {
-            sendBroadcast(new Intent(NetMsg.NETMSG_SERVERCANCEL));
+            mEvents.publish(ClientEvent.ServerCancel.INSTANCE);
         }
         Log.d(TAG, "Client stopping");
         // Under the startTcpClient lock so a client started right after this keeps its notification.
@@ -490,41 +483,30 @@ public class TcpClient extends Service {
             String message = frame.body;
             if (message.startsWith(NetMsg.NETMSG_ELIMINATED)) {
                 Byte id = parseId(message.substring(NetMsg.NETMSG_ELIMINATED.length()));
-                if (id != null) {
-                    Intent intent = new Intent(NetMsg.NETMSG_ELIMINATED);
-                    intent.putExtra(UDPListenerService.INTENT_PLAYERID, id);
-                    sendBroadcast(intent);
-                }
+                if (id != null)
+                    mEvents.publish(new ClientEvent.Eliminated(id));
             } else if (message.startsWith(NetMsg.NETMSG_HIT)) {
-                Intent intent = new Intent(NetMsg.NETMSG_HIT);
+                // Without an id the screen names player 0, as the broadcast's default did
                 Byte id = parseId(message.substring(NetMsg.NETMSG_HIT.length()));
-                if (id != null)
-                    intent.putExtra(UDPListenerService.INTENT_PLAYERID, id);
-                sendBroadcast(intent);
+                mEvents.publish(new ClientEvent.Hit(id != null ? id : 0));
             } else if (message.startsWith(NetMsg.NETMSG_OUT)) {
-                Intent intent = new Intent(NetMsg.NETMSG_OUT);
                 Byte id = parseId(message.substring(NetMsg.NETMSG_OUT.length()));
-                if (id != null)
-                    intent.putExtra(UDPListenerService.INTENT_PLAYERID, id);
-                sendBroadcast(intent);
+                mEvents.publish(new ClientEvent.Out(id != null ? id : 0));
             } else if (message.equals(NetMsg.NETMSG_SHOTFIRED)) {
-                sendBroadcast(new Intent(NetMsg.NETMSG_SHOTFIRED));
+                mEvents.publish(ClientEvent.ShotFired.INSTANCE);
             } else if (message.startsWith(NetMsg.NETMSG_SERVERREPLY)) {
-                Intent intent = new Intent(NetMsg.NETMSG_SERVERREPLY);
                 Byte assignedID = parseId(message.substring(NetMsg.NETMSG_SERVERREPLY.length()));
-                if (assignedID != null) {
+                if (assignedID != null)
                     PlayerRepository.getInstance().setPlayerID(assignedID);
-                    intent.putExtra(UDPListenerService.INTENT_PLAYERID, assignedID);
-                }
-                sendBroadcast(intent);
+                mEvents.publish(new ClientEvent.ServerReply(assignedID));
             } else if (message.equals(NetMsg.NETMSG_TEAMELIMINATED)) {
-                sendBroadcast(new Intent(NetMsg.NETMSG_TEAMELIMINATED));
+                mEvents.publish(ClientEvent.TeamEliminated.INSTANCE);
             } else if (message.equals(NetMsg.NETMSG_ENDGAME)) {
-                sendBroadcast(new Intent(NetMsg.NETMSG_ENDGAME));
+                mEvents.publish(ClientEvent.EndGame.INSTANCE);
             } else if (message.equals(NetMsg.NETMSG_STARTGAME)) {
-                sendBroadcast(new Intent(NetMsg.NETMSG_STARTGAME));
+                mEvents.publish(ClientEvent.StartGame.INSTANCE);
             } else if (message.equals(NetMsg.NETMSG_SERVERCANCEL)) {
-                sendBroadcast(new Intent(NetMsg.NETMSG_SERVERCANCEL));
+                mEvents.publish(ClientEvent.ServerCancel.INSTANCE);
                 return true;
             } else if (message.startsWith(NetMsg.NETMSG_ACK)) {
                 try {
@@ -533,12 +515,10 @@ public class TcpClient extends Service {
                     e.printStackTrace();
                 }
             } else if (message.startsWith(NetMsg.NETMSG_ERROR)) {
-                Intent intent = new Intent(NetMsg.NETMSG_ERROR);
-                intent.putExtra(UDPListenerService.INTENT_MESSAGE, message.substring(NetMsg.NETMSG_ERROR.length()));
-                sendBroadcast(intent);
+                mEvents.publish(new ClientEvent.Error(message.substring(NetMsg.NETMSG_ERROR.length())));
             }
         } else if (frame.kind == Frame.Kind.VERSION_ERROR) {
-            sendBroadcast(new Intent(NetMsg.NETMSG_VERSIONERROR));
+            mEvents.publish(ClientEvent.VersionError.INSTANCE);
             return true;
         } else {
             Log.d(TAG, "unknown tcp message received");
@@ -717,8 +697,6 @@ public class TcpClient extends Service {
         }
     }
 
-    // sendBroadcast() is overridden above to make every broadcast explicit (setPackage), which lint can't see.
-    @SuppressLint("UnsafeImplicitIntentLaunch")
     private void parseGameInfo(String message) {
         try {
             JSONObject game = new JSONObject(message);
@@ -770,9 +748,7 @@ public class TcpClient extends Service {
                 return;
             }
             if (game.has(TcpServer.JSON_PLAYERDATA)) {
-                Intent intent = new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE);
-                intent.putExtra(NetMsg.INTENT_PLAYERDATA, message);
-                sendBroadcast(intent);
+                mEvents.publish(new ClientEvent.PlayerDataUpdate(message));
                 return;
             }
             if (game.has(TcpServer.JSON_PLAYERSETTINGS)) {
@@ -834,7 +810,7 @@ public class TcpClient extends Service {
                     }
                 }
                 GameSettingsRepository.getInstance().setAllowPlayerSettings(game.getBoolean(TcpServer.JSON_ALLOWPLAYERSETTINGS));
-                sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERSETTINGSUPDATE));
+                mEvents.publish(ClientEvent.PlayerSettingsUpdate.INSTANCE);
             }
             if (game.has(TcpServer.JSON_PLAYERS)) {
                 synchronized (PlayerRepository.getInstance()) {
@@ -911,32 +887,28 @@ public class TcpClient extends Service {
                     GameSettingsRepository.getInstance().setAllowChooseTeams(allowChooseTeams);
                     GameSettingsRepository.getInstance().setAllowChooseTeams(allowChooseTeams);
                 }
-                Intent intent = new Intent(NetMsg.NETMSG_LISTPLAYERS);
+                Integer sessionPhase = null;
+                Long gameId = null;
                 if (game.has(TcpServer.JSON_SESSIONPHASE)) {
                     mSessionPhase = SessionPhase.fromWire(game.getInt(TcpServer.JSON_SESSIONPHASE));
                     mGameId = game.optLong(TcpServer.JSON_GAMEID, 0);
                     mOutbox.onGameId(mGameId); // a new game, or a reset: the old entries are void
-                    intent.putExtra(NetMsg.INTENT_SESSIONPHASE, mSessionPhase.wireValue);
-                    intent.putExtra(NetMsg.INTENT_GAMEID, mGameId);
+                    sessionPhase = mSessionPhase.wireValue;
+                    gameId = mGameId;
                 }
+                GameUpdate gameUpdate = null;
                 if (game.has(TcpServer.JSON_PLAYERGAMEUPDATE)) {
-                    intent.putExtra(NetMsg.INTENT_HASGAMEUPDATE, true);
                     JSONObject playerGameUpdate = game.getJSONObject(TcpServer.JSON_PLAYERGAMEUPDATE);
-                    intent.putExtra(NetMsg.INTENT_SCORE, playerGameUpdate.getInt(TcpServer.JSON_PLAYERPOINTS));
                     // D2: the server's count plus the eliminations it hasn't applied yet
                     int eliminations = mOutbox.reconcile(playerGameUpdate.getInt(TcpServer.JSON_PLAYERELIMINATED),
                             playerGameUpdate.optInt(TcpServer.JSON_ACKSEQ, 0));
-                    intent.putExtra(NetMsg.INTENT_ELIMINATIONS, eliminations);
-                    if (playerGameUpdate.has(TcpServer.JSON_TEAMPOINTS))
-                        intent.putExtra(NetMsg.INTENT_TEAMSCORE, playerGameUpdate.getInt(TcpServer.JSON_TEAMPOINTS));
-                    if (playerGameUpdate.has(TcpServer.JSON_TIMEREMAINING))
-                        intent.putExtra(NetMsg.INTENT_TIMEREMAINING, playerGameUpdate.getLong(TcpServer.JSON_TIMEREMAINING));
+                    // A missing team score is 0 and a missing time is -1 (no time limit)
+                    gameUpdate = new GameUpdate(playerGameUpdate.getInt(TcpServer.JSON_PLAYERPOINTS), eliminations,
+                            playerGameUpdate.optInt(TcpServer.JSON_TEAMPOINTS, 0),
+                            playerGameUpdate.optLong(TcpServer.JSON_TIMEREMAINING, -1));
                 }
-                if (game.has(TcpServer.JSON_GAMESTATE)) {
-                    int gameState = game.getInt(TcpServer.JSON_GAMESTATE);
-                    intent.putExtra(NetMsg.INTENT_GAMESTATE, gameState);
-                }
-                sendBroadcast(intent);
+                Integer gameState = game.has(TcpServer.JSON_GAMESTATE) ? game.getInt(TcpServer.JSON_GAMESTATE) : null;
+                mEvents.publish(new ClientEvent.ListPlayers(gameUpdate, gameState, sessionPhase, gameId));
             }
         } catch (JSONException e) {
             e.printStackTrace();

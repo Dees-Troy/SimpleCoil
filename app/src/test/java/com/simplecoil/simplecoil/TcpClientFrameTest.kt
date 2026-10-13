@@ -16,74 +16,38 @@
 
 package com.simplecoil.simplecoil
 
-import android.content.Intent
+import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.network.ClientEvent
 import com.simplecoil.simplecoil.network.EventBus
+import com.simplecoil.simplecoil.network.GameUpdate
+import com.simplecoil.simplecoil.network.server.SessionPhase
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.mockito.Mockito.mockConstruction
 
-/** TcpClient's handling of single frames from the server (network design §5.1, N5). */
+/**
+ * TcpClient's handling of single frames from the server (network design §5.1, N5), and the client
+ * events each one publishes (§6.5). The defaults the broadcasts' extras used to supply are now in
+ * the parsing code, so they are pinned here.
+ */
 class TcpClientFrameTest {
 
-    /** The actions of the intents [block] broadcasts. Intents are stubs here, so their constructors are recorded. */
-    private fun broadcastsDuring(block: (TcpClient) -> Unit): List<String?> {
-        val created = mutableListOf<Pair<Intent, String?>>()
-        val sent = mutableListOf<Intent>()
-        val client = object : TcpClient() {
-            override fun sendBroadcast(intent: Intent?) {
-                if (intent != null) sent += intent
-            }
-        }
-        mockConstruction(Intent::class.java) { mock, context ->
-            created += mock to context.arguments().firstOrNull() as String?
-        }.use { block(client) }
-        return sent.map { intent -> created.first { it.first === intent }.second }
-    }
+    private val mesg = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG
+    private val json = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON
+    private val repo = PlayerRepository.getInstance()
 
-    @Test
-    fun versionError_broadcastsTheVersionError_andEndsTheSession() {
-        // It used to throw in substring before reaching its branch
-        var ended = false
-        val actions = broadcastsDuring { ended = it.handleFrame(NetMsg.NETMSG_VERSIONERROR) }
-        assertTrue(ended)
-        assertEquals(listOf(NetMsg.NETMSG_VERSIONERROR), actions)
-    }
-
-    @Test
-    fun shortAndGarbageFrames_areIgnored() {
-        val actions = broadcastsDuring {
-            for (raw in listOf("", "Simple", TcpServer.TCPMESSAGE_PREFIX, TcpServer.TCPMESSAGE_PREFIX + "JS", "SimpleCoil:06MESGSTARTGAME"))
-                assertFalse(raw, it.handleFrame(raw))
-        }
-        assertEquals(emptyList<String?>(), actions)
-    }
-
-    @Test
-    fun eliminatedWithoutAnId_isIgnored() {
-        val prefix = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG
-        val actions = broadcastsDuring {
-            assertFalse(it.handleFrame(prefix + NetMsg.NETMSG_ELIMINATED))
-            assertFalse(it.handleFrame(prefix + NetMsg.NETMSG_ELIMINATED + "x"))
-            assertFalse(it.handleFrame(prefix + NetMsg.NETMSG_ELIMINATED + "7"))
-        }
-        assertEquals(listOf(NetMsg.NETMSG_ELIMINATED), actions)
-    }
-
-    @Test
-    fun serverCancel_endsTheSession() {
-        var ended = false
-        val actions = broadcastsDuring { ended = it.handleFrame(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_SERVERCANCEL) }
-        assertTrue(ended)
-        assertEquals(listOf(NetMsg.NETMSG_SERVERCANCEL), actions)
+    @After
+    fun tearDown() {
+        repo.gpsData.clear()
+        repo.playerID = 0
     }
 
     /** The client events [block] publishes. */
@@ -99,21 +63,112 @@ class TcpClientFrameTest {
         received
     }
 
+    /** The events one frame publishes. */
+    private fun eventsFor(raw: String): List<ClientEvent> = eventsDuring { it.handleFrame(raw) }
+
+    @Test
+    fun versionError_publishesTheVersionError_andEndsTheSession() {
+        // It used to throw in substring before reaching its branch
+        var ended = false
+        val events = eventsDuring { ended = it.handleFrame(NetMsg.NETMSG_VERSIONERROR) }
+        assertTrue(ended)
+        assertEquals(listOf(ClientEvent.VersionError), events)
+    }
+
+    @Test
+    fun shortAndGarbageFrames_areIgnored() {
+        val events = eventsDuring {
+            for (raw in listOf("", "Simple", TcpServer.TCPMESSAGE_PREFIX, TcpServer.TCPMESSAGE_PREFIX + "JS", "SimpleCoil:06MESGSTARTGAME"))
+                assertFalse(raw, it.handleFrame(raw))
+        }
+        assertEquals(emptyList<ClientEvent>(), events)
+    }
+
+    @Test
+    fun eliminatedWithoutAnId_isIgnored() {
+        val events = eventsDuring {
+            assertFalse(it.handleFrame(mesg + NetMsg.NETMSG_ELIMINATED))
+            assertFalse(it.handleFrame(mesg + NetMsg.NETMSG_ELIMINATED + "x"))
+            assertFalse(it.handleFrame(mesg + NetMsg.NETMSG_ELIMINATED + "7"))
+        }
+        assertEquals(listOf(ClientEvent.Eliminated(7)), events)
+    }
+
+    @Test
+    fun serverCancel_endsTheSession() {
+        var ended = false
+        val events = eventsDuring { ended = it.handleFrame(mesg + NetMsg.NETMSG_SERVERCANCEL) }
+        assertTrue(ended)
+        assertEquals(listOf(ClientEvent.ServerCancel), events)
+    }
+
+    @Test
+    fun commands_publishTheirEvents() {
+        assertEquals(listOf(ClientEvent.ShotFired), eventsFor(mesg + NetMsg.NETMSG_SHOTFIRED))
+        assertEquals(listOf(ClientEvent.TeamEliminated), eventsFor(mesg + NetMsg.NETMSG_TEAMELIMINATED))
+        assertEquals(listOf(ClientEvent.StartGame), eventsFor(mesg + NetMsg.NETMSG_STARTGAME))
+        assertEquals(listOf(ClientEvent.EndGame), eventsFor(mesg + NetMsg.NETMSG_ENDGAME))
+        assertEquals(listOf(ClientEvent.Error("Reset the game first")), eventsFor(mesg + NetMsg.NETMSG_ERROR + "Reset the game first"))
+        assertEquals(emptyList<ClientEvent>(), eventsFor(mesg + NetMsg.NETMSG_ACK + "3"))
+    }
+
+    @Test
+    fun hitAndOut_withoutAnId_namePlayerZero() {
+        assertEquals(listOf(ClientEvent.Hit(9)), eventsFor(mesg + NetMsg.NETMSG_HIT + "9"))
+        assertEquals(listOf(ClientEvent.Hit(0)), eventsFor(mesg + NetMsg.NETMSG_HIT))
+        assertEquals(listOf(ClientEvent.Out(17)), eventsFor(mesg + NetMsg.NETMSG_OUT + "17"))
+        assertEquals(listOf(ClientEvent.Out(0)), eventsFor(mesg + NetMsg.NETMSG_OUT + "x"))
+    }
+
+    @Test
+    fun serverReply_carriesTheAssignedId_whenThereIsOne() {
+        assertEquals(listOf(ClientEvent.ServerReply(3)), eventsFor(mesg + NetMsg.NETMSG_SERVERREPLY + "3"))
+        assertEquals(3.toByte(), repo.playerID)
+        assertEquals(listOf(ClientEvent.ServerReply(null)), eventsFor(mesg + NetMsg.NETMSG_SERVERREPLY))
+        assertEquals(3.toByte(), repo.playerID)
+    }
+
+    @Test
+    fun playerData_publishesTheWholeFrameBody() {
+        val body = """{"playerdata":[{"playerID":1,"playername":"Me","points":4,"eliminated":1}]}"""
+        assertEquals(listOf(ClientEvent.PlayerDataUpdate(body)), eventsFor(json + body))
+    }
+
+    /** A lobby game info as the server builds it, with [extra] JSON members appended. */
+    private fun gameInfo(extra: String = "") = json +
+        """{"players":[],"limits":{},"gamemode":2,"onlyserversettings":false,"playersettings":[],""" +
+        """"allowplayersettings":true$extra}"""
+
+    @Test
+    fun gameInfo_withoutUpdateOrState_publishesTheSettingsThenAnEmptyListPlayers() {
+        assertEquals(listOf(ClientEvent.PlayerSettingsUpdate, ClientEvent.ListPlayers(null, null)), eventsFor(gameInfo()))
+    }
+
+    @Test
+    fun gameInfo_withAGameUpdate_defaultsTheMissingTeamScoreAndTime() {
+        val events = eventsFor(gameInfo(""","gamestate":${GameStateRepository.GAME_STATE_RUNNING},""" +
+            """"playergameupdate":{"points":4,"eliminated":2,"ackseq":0}"""))
+        assertEquals(listOf(ClientEvent.PlayerSettingsUpdate,
+            ClientEvent.ListPlayers(GameUpdate(4, 2, 0, -1), GameStateRepository.GAME_STATE_RUNNING)), events)
+    }
+
+    @Test
+    fun gameInfo_carriesTheGameUpdate_phaseAndGameId() {
+        val events = eventsFor(gameInfo(""","gamestate":${GameStateRepository.GAME_STATE_RUNNING},""" +
+            """"sessionphase":${SessionPhase.RUNNING.wireValue},"gameid":418873301,""" +
+            """"playergameupdate":{"points":4,"eliminated":2,"teampoints":9,"timeremaining":120,"ackseq":0}"""))
+        assertEquals(ClientEvent.ListPlayers(GameUpdate(4, 2, 9, 120), GameStateRepository.GAME_STATE_RUNNING,
+            SessionPhase.RUNNING.wireValue, 418873301), events.last())
+    }
+
     @Test
     fun gpsUpdate_storesThePositions_andPublishesGpsData() {
-        val json = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON
-        val repo = PlayerRepository.getInstance()
         repo.playerID = 1
-        try {
-            val events = eventsDuring {
-                it.handleFrame(json + """{"gpsupdate":[{"playerID":3,"team":1,"gpslongitude":4.5,"gpslatitude":6.5}]}""")
-                it.handleFrame(json + """{"gpsupdate":[{"playerID":1,"team":1,"gpslongitude":0,"gpslatitude":0}],"gpsfullupdate":true}""")
-            }
-            assertEquals(listOf(ClientEvent.GpsData(false), ClientEvent.GpsData(true)), events)
-            assertTrue(repo.gpsData.isEmpty()) // the full update replaced everything, and we are player 1
-        } finally {
-            repo.gpsData.clear()
-            repo.playerID = 0
+        val events = eventsDuring {
+            it.handleFrame(json + """{"gpsupdate":[{"playerID":3,"team":1,"gpslongitude":4.5,"gpslatitude":6.5}]}""")
+            it.handleFrame(json + """{"gpsupdate":[{"playerID":1,"team":1,"gpslongitude":0,"gpslatitude":0}],"gpsfullupdate":true}""")
         }
+        assertEquals(listOf(ClientEvent.GpsData(false), ClientEvent.GpsData(true)), events)
+        assertTrue(repo.gpsData.isEmpty()) // the full update replaced everything, and we are player 1
     }
 }

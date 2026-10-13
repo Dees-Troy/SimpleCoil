@@ -22,7 +22,6 @@ import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.network.ClientEvent
-import com.simplecoil.simplecoil.network.GameUpdate
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -41,7 +40,6 @@ import org.mockito.Mockito.mock
 import org.mockito.Mockito.times
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
-import org.mockito.Mockito.`when`
 
 /**
  * The network session's wire strings are a compatibility surface (other phones and dedicated
@@ -99,58 +97,6 @@ class NetworkSessionGatewayTest {
         val g = gateway(client)
         g.sendPlayerGrenade()
         verify(client).sendPlayerGrenade()
-    }
-
-    private fun intent(action: String): Intent = mock(Intent::class.java).also { `when`(it.action).thenReturn(action) }
-
-    @Test
-    fun broadcasts_mapToEventsWithTheActivitysDefaults() {
-        val hit = intent(NetMsg.NETMSG_HIT)
-        `when`(hit.getByteExtra(UDPListenerService.INTENT_PLAYERID, 0)).thenReturn(9)
-        assertEquals(ClientEvent.Hit(9), NetworkSessionGateway.toEvent(hit))
-
-        val reply = intent(NetMsg.NETMSG_SERVERREPLY)
-        assertEquals(ClientEvent.ServerReply(null), NetworkSessionGateway.toEvent(reply))
-        `when`(reply.hasExtra(UDPListenerService.INTENT_PLAYERID)).thenReturn(true)
-        `when`(reply.getByteExtra(UDPListenerService.INTENT_PLAYERID, 0)).thenReturn(3)
-        assertEquals(ClientEvent.ServerReply(3), NetworkSessionGateway.toEvent(reply))
-
-        val list = intent(NetMsg.NETMSG_LISTPLAYERS)
-        assertEquals(ClientEvent.ListPlayers(null, null), NetworkSessionGateway.toEvent(list))
-        `when`(list.getBooleanExtra(NetMsg.INTENT_HASGAMEUPDATE, false)).thenReturn(true)
-        `when`(list.getIntExtra(NetMsg.INTENT_SCORE, 0)).thenReturn(4)
-        `when`(list.getIntExtra(NetMsg.INTENT_ELIMINATIONS, 0)).thenReturn(2)
-        `when`(list.getIntExtra(NetMsg.INTENT_TEAMSCORE, 0)).thenReturn(9)
-        `when`(list.getLongExtra(NetMsg.INTENT_TIMEREMAINING, -1)).thenReturn(120)
-        `when`(list.hasExtra(NetMsg.INTENT_GAMESTATE)).thenReturn(true)
-        `when`(list.getIntExtra(NetMsg.INTENT_GAMESTATE, GameStateRepository.GAME_STATE_ELIMINATED)).thenReturn(GameStateRepository.GAME_STATE_RUNNING)
-        assertEquals(ClientEvent.ListPlayers(GameUpdate(4, 2, 9, 120), GameStateRepository.GAME_STATE_RUNNING), NetworkSessionGateway.toEvent(list))
-        `when`(list.hasExtra(NetMsg.INTENT_SESSIONPHASE)).thenReturn(true)
-        `when`(list.getIntExtra(NetMsg.INTENT_SESSIONPHASE, 0)).thenReturn(2)
-        `when`(list.hasExtra(NetMsg.INTENT_GAMEID)).thenReturn(true)
-        `when`(list.getLongExtra(NetMsg.INTENT_GAMEID, 0)).thenReturn(418873301)
-        assertEquals(ClientEvent.ListPlayers(GameUpdate(4, 2, 9, 120), GameStateRepository.GAME_STATE_RUNNING, 2, 418873301),
-            NetworkSessionGateway.toEvent(list))
-
-        val error = intent(NetMsg.NETMSG_ERROR)
-        `when`(error.getStringExtra(UDPListenerService.INTENT_MESSAGE)).thenReturn("boom")
-        assertEquals(ClientEvent.Error("boom"), NetworkSessionGateway.toEvent(error))
-
-        assertNull(NetworkSessionGateway.toEvent(intent(NetMsg.NETMSG_SERVERCREATED)))
-        assertEquals(ClientEvent.EndGame, NetworkSessionGateway.toEvent(intent(NetMsg.NETMSG_ENDGAME)))
-    }
-
-    @Test
-    fun everyFilteredActionIsKnown() {
-        val actions = listOf(NetMsg.NETMSG_SHOTFIRED, NetMsg.NETMSG_HIT, NetMsg.NETMSG_OUT, NetMsg.NETMSG_ELIMINATED,
-            NetMsg.NETMSG_JOIN, NetMsg.NETMSG_FAILEDTOJOIN, NetMsg.NETMSG_LEAVE, NetMsg.NETMSG_LISTPLAYERS,
-            NetMsg.NETMSG_PLAYERDATAUPDATE, NetMsg.NETMSG_STARTGAME, NetMsg.NETMSG_ENDGAME, NetMsg.NETMSG_ERROR,
-            NetMsg.NETMSG_VERSIONERROR, NetMsg.NETMSG_SAMETEAM, NetMsg.NETMSG_SERVERCANCEL, NetMsg.NETMSG_SERVERREPLY,
-            NetMsg.NETMSG_TEAMELIMINATED, NetMsg.NETMSG_NETWORKCONNECTED, NetMsg.NETMSG_NETWORKDISCONNECTED,
-            NetMsg.NETMSG_PLAYERSETTINGSUPDATE)
-        for (action in actions) {
-            assert(NetworkSessionGateway.toEvent(intent(action)) != null) { action }
-        }
     }
 
     @Test
@@ -228,22 +174,5 @@ class NetworkSessionGatewayTest {
         g.updatePlayerData("garbage")
         scope.testScheduler.runCurrent()
         assertEquals(2, events.filterIsInstance<ClientEvent.PlayerData>().size)
-    }
-
-    @Test
-    fun broadcastsAreNotPublishedWhileTheDedicatedServerOwnsTheNetwork() {
-        val scope = TestScope()
-        val context = mock(Context::class.java)
-        val g = NetworkSessionGateway(context, scope, settings, players)
-        val events = mutableListOf<ClientEvent>()
-        scope.backgroundScope.launch(UnconfinedTestDispatcher(scope.testScheduler)) { g.events.collect { events += it } }
-        val receiver = g.receiver
-
-        receiver.onReceive(context, intent(NetMsg.NETMSG_STARTGAME))
-        g.releaseForDedicatedServer()
-        receiver.onReceive(context, intent(NetMsg.NETMSG_STARTGAME))
-        g.bindServices()
-        receiver.onReceive(context, intent(NetMsg.NETMSG_ENDGAME))
-        assertEquals(listOf(ClientEvent.StartGame, ClientEvent.EndGame), events)
     }
 }
