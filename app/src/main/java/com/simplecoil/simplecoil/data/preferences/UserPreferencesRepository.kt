@@ -67,6 +67,18 @@ class UserPreferencesRepository(private val prefs: SharedPreferences) : SessionP
             .putInt(LIMIT_LIVES, livesLimit)
             .apply()
 
+    /** The starting timer in seconds; the dedicated server's. */
+    fun startTime(default: Int): Int = prefs.getInt(START_TIME, default)
+    fun saveStartTime(seconds: Int) = prefs.edit().putInt(START_TIME, seconds).apply()
+
+    /** The dedicated server's GPS relay mode (GameSettingsRepository.GPS_*). */
+    fun gpsMode(default: Int): Int = prefs.getInt(GPS_MODE, default)
+    fun saveGpsMode(mode: Int) = prefs.edit().putInt(GPS_MODE, mode).apply()
+
+    /** The dedicated server lets players pick their own team. */
+    fun allowChooseTeams(): Boolean = prefs.getBoolean(ALLOW_CHOOSE_TEAMS, true)
+    fun saveAllowChooseTeams(allow: Boolean) = prefs.edit().putBoolean(ALLOW_CHOOSE_TEAMS, allow).apply()
+
     fun deviceAddress(): String = prefs.getString(DEVICE_ADDRESS, "") ?: ""
     fun saveDeviceAddress(address: String) = prefs.edit().putString(DEVICE_ADDRESS, address).apply()
 
@@ -85,5 +97,7 @@ class UserPreferencesRepository(private val prefs: SharedPreferences) : SessionP
         const val LIMIT_LIVES = "LivesLimit"
         const val LIMIT_SCORE = "ScoreLimit"
         const val DEVICE_ADDRESS = "DeviceAddress"
+        const val GPS_MODE = "GPSMode"
+        const val ALLOW_CHOOSE_TEAMS = "AllowChooseTeams"
     }
 }

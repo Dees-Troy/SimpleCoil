@@ -23,7 +23,6 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
-import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -78,8 +77,6 @@ import java.util.concurrent.TimeUnit;
 public class DedicatedServerActivity extends AppCompatActivity implements PopupMenu.OnMenuItemClickListener {
     private static final String TAG = "DEDSRV";
 
-    private static final String PREF_GPS_MODE = "GPSMode";
-    private static final String PREF_ALLOW_CHOOSE_TEAMS = "AllowChooseTeams";
 
     private TextView mServerIPTV = null;
     private Chronometer mGameTimer = null;
@@ -102,7 +99,6 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     private CountDownTimer mGameCountdownTimer = null;
     private CountDownTimer mSpawnTimer = null;
 
-    private SharedPreferences sharedPreferences = null;
     private UserPreferencesRepository mPreferences = null;
 
     private DedicatedServerViewModel mViewModel = null;
@@ -277,24 +273,23 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 confirmReset();
             }
         });
-        sharedPreferences = getSharedPreferences(FullscreenActivity.PREF_NAME, Context.MODE_PRIVATE);
-        mPreferences = new UserPreferencesRepository(sharedPreferences);
+        mPreferences = new UserPreferencesRepository(this);
         mViewModel.setTeamMode(mPreferences.teamMode());
         int gameLimit = GameSettingsRepository.GAME_LIMIT_NONE;
-        GameSettingsRepository.getInstance().setTimeLimit(sharedPreferences.getInt(FullscreenActivity.PREF_LIMIT_TIME, 0));
+        GameSettingsRepository.getInstance().setTimeLimit(mPreferences.timeLimit());
         if (GameSettingsRepository.getInstance().getTimeLimit() != 0)
             gameLimit += GameSettingsRepository.GAME_LIMIT_TIME;
-        GameSettingsRepository.getInstance().setLivesLimit(sharedPreferences.getInt(FullscreenActivity.PREF_LIMIT_LIVES, 0));
+        GameSettingsRepository.getInstance().setLivesLimit(mPreferences.livesLimit());
         if (GameSettingsRepository.getInstance().getLivesLimit() != 0)
             gameLimit += GameSettingsRepository.GAME_LIMIT_LIVES;
-        GameSettingsRepository.getInstance().setScoreLimit(sharedPreferences.getInt(FullscreenActivity.PREF_LIMIT_SCORE, 0));
+        GameSettingsRepository.getInstance().setScoreLimit(mPreferences.scoreLimit());
         if (GameSettingsRepository.getInstance().getScoreLimit() != 0)
             gameLimit += GameSettingsRepository.GAME_LIMIT_SCORE;
         GameSettingsRepository.getInstance().setGameLimit(gameLimit);
         setGameLimit();
-        GameSettingsRepository.getInstance().setStartTime(sharedPreferences.getInt(FullscreenActivity.PREF_START_TIME, (int) GameSettingsRepository.START_TIME_SECONDS));
+        GameSettingsRepository.getInstance().setStartTime(mPreferences.startTime((int) GameSettingsRepository.START_TIME_SECONDS));
         GameSettingsRepository.getInstance().setStartTime(GameSettingsRepository.getInstance().getStartTime());
-        GameSettingsRepository.getInstance().setGpsMode(sharedPreferences.getInt(PREF_GPS_MODE, GameSettingsRepository.GPS_ALL));
+        GameSettingsRepository.getInstance().setGpsMode(mPreferences.gpsMode(GameSettingsRepository.GPS_ALL));
         setGPSMode(GameSettingsRepository.getInstance().getGpsMode());
         mAllowJoinSwitch = findViewById(R.id.allow_join_switch);
         GameSettingsRepository.getInstance().setAllowJoinInProgress(mAllowJoinSwitch.isChecked());
@@ -316,7 +311,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         }));
         mAllowChooseTeamsSwitch = findViewById(R.id.allow_choose_teams_switch);
         if (mAllowChooseTeamsSwitch != null) {
-            boolean allowChooseTeams = sharedPreferences.getBoolean(PREF_ALLOW_CHOOSE_TEAMS, true);
+            boolean allowChooseTeams = mPreferences.allowChooseTeams();
             GameSettingsRepository.getInstance().setAllowChooseTeams(allowChooseTeams);
             GameSettingsRepository.getInstance().setAllowChooseTeams(allowChooseTeams);
             mAllowChooseTeamsSwitch.setChecked(allowChooseTeams);
@@ -325,9 +320,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                     boolean isChecked = mAllowChooseTeamsSwitch.isChecked();
                     GameSettingsRepository.getInstance().setAllowChooseTeams(isChecked);
                     GameSettingsRepository.getInstance().setAllowChooseTeams(isChecked);
-                    SharedPreferences.Editor editor = sharedPreferences.edit();
-                    editor.putBoolean(PREF_ALLOW_CHOOSE_TEAMS, isChecked);
-                    editor.apply();
+                    mPreferences.saveAllowChooseTeams(isChecked);
                     if (mTcpServer != null) {
                         mTcpServer.sendAllGameInfo(TcpServer.SEND_ALL);
                     }
@@ -409,12 +402,6 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         super.sendBroadcast(intent);
     }
 
-    private void savePreference(String prefName, int prefValue) {
-        SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putInt(prefName, prefValue);
-        editor.apply();
-    }
-
     /** The operator picked a team mode: reset a finished game, change it, save it and renumber the players. */
     private void applyTeamMode(TeamMode mode) {
         resetIfPostGame();
@@ -477,7 +464,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             else
                 mGPSModeButton.setText(R.string.gps_mode_all);
         }
-        savePreference(PREF_GPS_MODE, mode);
+        mPreferences.saveGpsMode(mode);
         if (mTcpServer != null)
             mTcpServer.sendAllGameInfo(TcpServer.SEND_ALL);
     }
@@ -587,11 +574,8 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         if (gameLimits.isEmpty())
             gameLimits = getString(R.string.dedicated_unlimited);
         mGameLimitTV.setText(gameLimits);
-        SharedPreferences.Editor editor = sharedPreferences.edit();
-        editor.putInt(FullscreenActivity.PREF_LIMIT_TIME, GameSettingsRepository.getInstance().getTimeLimit());
-        editor.putInt(FullscreenActivity.PREF_LIMIT_SCORE, GameSettingsRepository.getInstance().getScoreLimit());
-        editor.putInt(FullscreenActivity.PREF_LIMIT_LIVES, GameSettingsRepository.getInstance().getLivesLimit());
-        editor.apply();
+        mPreferences.saveLimits(GameSettingsRepository.getInstance().getTimeLimit(), GameSettingsRepository.getInstance().getScoreLimit(),
+                GameSettingsRepository.getInstance().getLivesLimit());
         if (mTcpServer != null)
             mTcpServer.sendAllGameInfo(TcpServer.SEND_ALL);
     }
@@ -616,7 +600,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         }
         resetIfPostGame();
         GameSettingsRepository.getInstance().setStartTime(time);
-        savePreference(FullscreenActivity.PREF_START_TIME, (int) time);
+        mPreferences.saveStartTime((int) time);
         if (mTcpServer != null)
             mTcpServer.sendAllGameInfo(TcpServer.SEND_ALL);
     }

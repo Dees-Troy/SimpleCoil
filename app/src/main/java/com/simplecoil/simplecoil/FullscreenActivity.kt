@@ -31,7 +31,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.journeyapps.barcodescanner.CaptureActivity
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
-import com.simplecoil.simplecoil.data.preferences.UserPreferencesRepository
 import com.simplecoil.simplecoil.databinding.ActivityFullscreenBinding
 import com.simplecoil.simplecoil.hardware.blaster.BlasterSupport
 import com.simplecoil.simplecoil.ui.game.CompositeGameScreen
@@ -200,12 +199,5 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
 
     companion object {
         private const val TAG = "scmain"
-
-        // Still read by DedicatedServerActivity.
-        const val PREF_NAME = UserPreferencesRepository.PREF_NAME
-        const val PREF_START_TIME = UserPreferencesRepository.START_TIME
-        const val PREF_LIMIT_TIME = UserPreferencesRepository.LIMIT_TIME
-        const val PREF_LIMIT_LIVES = UserPreferencesRepository.LIMIT_LIVES
-        const val PREF_LIMIT_SCORE = UserPreferencesRepository.LIMIT_SCORE
     }
 }

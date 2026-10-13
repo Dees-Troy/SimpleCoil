@@ -102,4 +102,26 @@ class UserPreferencesRepositoryTest {
         order.verify(editor).putString("DeviceAddress", "AA:BB:CC:DD:EE:FF")
         verify(editor, org.mockito.Mockito.times(7)).apply()
     }
+
+    @Test
+    fun dedicatedServerSettings_useTheKeysTheServerScreenAlwaysUsed() {
+        // S13: these were raw SharedPreferences writes in DedicatedServerActivity
+        `when`(prefs.getInt(anyString(), anyInt())).thenAnswer { it.getArgument<Int>(1) }
+        `when`(prefs.getBoolean(anyString(), anyBoolean())).thenAnswer { it.getArgument<Boolean>(1) }
+        repo.startTime(10)
+        repo.gpsMode(2)
+        repo.allowChooseTeams()
+        verify(prefs).getInt("StartTime", 10)
+        verify(prefs).getInt("GPSMode", 2)
+        verify(prefs).getBoolean("AllowChooseTeams", true)
+
+        repo.saveStartTime(15)
+        repo.saveGpsMode(1)
+        repo.saveAllowChooseTeams(false)
+        val order = inOrder(editor)
+        order.verify(editor).putInt("StartTime", 15)
+        order.verify(editor).putInt("GPSMode", 1)
+        order.verify(editor).putBoolean("AllowChooseTeams", false)
+        verify(editor, org.mockito.Mockito.times(3)).apply()
+    }
 }
