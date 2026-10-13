@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Android 12+ backup and device-to-device transfer: the "SimpleCoil" preferences (player name
+    and id, game settings, the dedicated server's settings and the saved blaster) and nothing else.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="sharedpref" path="SimpleCoil.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="sharedpref" path="SimpleCoil.xml" />
+    </device-transfer>
+</data-extraction-rules>
