@@ -18,26 +18,39 @@ package com.simplecoil.simplecoil.network.server;
 
 import android.util.Log;
 
+import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * One per accepted socket. Has no game state. Keyed in {@link GameRoster} by its connection id,
  * which comes from the accept counter and never changes.
+ *
+ * <p>Every frame goes out through one writer thread, in the order it was sent (N1). Sending never
+ * blocks the caller (N2): a peer that stops reading fills a bounded queue, and the connection is
+ * closed once the queue is full, which the reader then handles as a drop.
  */
 public final class Connection {
     private static final String TAG = "TCPServer";
     private static final String PING = "ping";
+    /** Frames waiting to be written; more than two minutes of game and GPS traffic (Q1). */
+    public static final int MAX_QUEUED_FRAMES = 256;
+    /** Queued after the last frame by {@link #closeAfterPending()}. Compared by identity. */
+    private static final String CLOSE = new String("close");
 
     private final int connectionId;
-    private final Object outLock = new Object();
     private final Socket socket;
     private volatile DataInputStream in;
-    private DataOutputStream out;
+    private final BlockingQueue<String> queue = new ArrayBlockingQueue<>(MAX_QUEUED_FRAMES);
+    private volatile boolean open;
+    private boolean closed;
+    private Thread writer;
     /** The player this connection speaks for; null until its hello is processed. */
     volatile PlayerRecord player;
     private final AtomicInteger noReadCount = new AtomicInteger(0);
@@ -47,12 +60,22 @@ public final class Connection {
         this.connectionId = connectionId;
         this.socket = socket;
         if (socket == null) return;
+        final DataOutputStream out;
         try {
             in = new DataInputStream(socket.getInputStream());
-            out = new DataOutputStream(socket.getOutputStream());
+            out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
         } catch (IOException e) {
-            e.printStackTrace();
+            Log.w(TAG, "Could not open connection " + connectionId, e);
+            return;
         }
+        open = true;
+        writer = new Thread(new Runnable() {
+            public void run() {
+                writeLoop(out);
+            }
+        }, "sc-write-" + connectionId);
+        writer.setDaemon(true);
+        writer.start();
     }
 
     public int getConnectionId() {
@@ -67,26 +90,42 @@ public final class Connection {
         return socket != null ? socket.getInetAddress() : null;
     }
 
-    /** Writes [message]; false if the connection is closed or the write failed. */
+    /**
+     * Queues [message] for the writer and returns at once. False if the connection is closed, or
+     * its queue was full: the connection is then closed.
+     */
     public boolean send(String message) {
-        synchronized (outLock) {
-            if (out == null) return false;
-            try {
-                out.writeUTF(message);
-                out.flush();
-                if (!message.equals(PING))
-                    Log.i(TAG, "sent(" + connectionId + "): " + message);
-                return true;
-            } catch (IOException e) {
-                e.printStackTrace();
-                return false;
-            }
-        }
+        if (!open) return false;
+        if (queue.offer(message)) return true;
+        Log.w(TAG, "Connection " + connectionId + " is not reading; closing it");
+        close();
+        return false;
     }
 
     public boolean isOpen() {
-        synchronized (outLock) {
-            return out != null;
+        return open;
+    }
+
+    /** Writes the queued frames, in order, until the connection closes. */
+    private void writeLoop(DataOutputStream out) {
+        try {
+            while (open) {
+                String message = queue.take();
+                if (message == CLOSE)
+                    break;
+                out.writeUTF(message);
+                if (queue.isEmpty())
+                    out.flush();
+                if (!message.equals(PING))
+                    Log.i(TAG, "sent(" + connectionId + "): " + message);
+            }
+            out.flush();
+        } catch (InterruptedException e) {
+            // closed
+        } catch (IOException e) {
+            if (open) Log.w(TAG, "Write to connection " + connectionId + " failed", e);
+        } finally {
+            close();
         }
     }
 
@@ -111,14 +150,25 @@ public final class Connection {
         noReadCount.set(0);
     }
 
+    /** Closes the connection once the frames queued so far have been written. */
+    public void closeAfterPending() {
+        if (!open) return;
+        if (!queue.offer(CLOSE))
+            close();
+    }
+
+    /** Closes the socket now. Frames still queued are dropped. */
     public void close() {
-        synchronized (outLock) {
-            if (socket == null) return;
-            try { socket.close(); } catch (IOException e) {/*do nothing*/}
-            try { if (in != null) in.close(); } catch (IOException e) {/*do nothing*/}
-            try { if (out != null) out.close(); } catch (IOException e) {/*do nothing*/}
+        synchronized (this) {
+            if (closed) return;
+            closed = true;
+            open = false;
             in = null;
-            out = null;
         }
+        if (socket == null) return;
+        try { socket.close(); } catch (IOException e) {/*do nothing*/}
+        if (writer != null && writer != Thread.currentThread())
+            writer.interrupt();
+        queue.clear();
     }
 }

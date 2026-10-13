@@ -226,17 +226,11 @@ public class TcpServer extends Service {
 
     private final IBinder mBinder = new LocalBinder();
 
+    /** Queues [message] for every connection. Never blocks: each connection has its own writer (N1, N2). */
     public void sendTCPMessageAll(final String message) {
-        if (mRoster.isEmpty())
-            return;
-        Thread sendThread = containedThread(new Runnable() {
-            public void run() {
-                for (Connection connection : mRoster.connections()) {
-                    connection.send(message);
-                }
-            }
-        });
-        sendThread.start();
+        for (Connection connection : mRoster.connections()) {
+            connection.send(message);
+        }
     }
 
     /**
@@ -250,37 +244,22 @@ public class TcpServer extends Service {
     }
 
     private void sendTCPMessageID(final String message, final byte playerID) {
-        if (mRoster.isEmpty())
-            return;
-        Thread sendThread = containedThread(new Runnable() {
-            public void run() {
-                PlayerRecord record = mRoster.record(playerID);
-                if (record != null)
-                    sendToPlayer(record, message);
-            }
-        });
-        sendThread.start();
+        PlayerRecord record = mRoster.record(playerID);
+        if (record != null)
+            sendToPlayer(record, message);
     }
 
     private void sendTCPMessageTeam(final String message, final byte playerID, final boolean includePlayer) {
-        if (mRoster.isEmpty())
+        PlayerRecord player = mRoster.record(playerID);
+        if (player == null)
             return;
-        Thread sendThread = containedThread(new Runnable() {
-            public void run() {
-                PlayerRecord player = mRoster.record(playerID);
-                if (player == null)
-                    return;
-                int team = player.getTeam();
-                Log.e(TAG, "team is " + team);
-                if (includePlayer)
-                    sendToPlayer(player, message);
-                for (PlayerRecord record : mRoster.recordsOnTeam(team)) {
-                    if (record != player)
-                        sendToPlayer(record, message);
-                }
-            }
-        });
-        sendThread.start();
+        int team = player.getTeam();
+        if (includePlayer)
+            sendToPlayer(player, message);
+        for (PlayerRecord record : mRoster.recordsOnTeam(team)) {
+            if (record != player)
+                sendToPlayer(record, message);
+        }
     }
 
     public void resetScores() {
@@ -404,7 +383,7 @@ public class TcpServer extends Service {
                 Connection connection = mRoster.kick(playerID);
                 if (connection != null) {
                     connection.send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERCANCEL);
-                    connection.close();
+                    connection.closeAfterPending();
                 }
                 mGPSIntervalCount.set(SEND_ALL_GPS_INTERVAL);
                 sendPlayerData(SEND_ALL);
@@ -514,18 +493,13 @@ public class TcpServer extends Service {
                 game.put(JSON_PLAYERGAMEUPDATE, playerGameUpdate);
                 final String idMessage = TCPMESSAGE_PREFIX + TCPPREFIX_JSON + game.toString();
 
-                Thread sendThread = containedThread(new Runnable() {
-                    public void run() {
-                        for (Connection connection : mRoster.connections()) {
-                            PlayerRecord player = connection.getPlayer();
-                            if (player != null && player.getPlayerId() == id)
-                                connection.send(idMessage);
-                            else
-                                connection.send(allMessage);
-                        }
-                    }
-                });
-                sendThread.start();
+                for (Connection connection : mRoster.connections()) {
+                    PlayerRecord player = connection.getPlayer();
+                    if (player != null && player.getPlayerId() == id)
+                        connection.send(idMessage);
+                    else
+                        connection.send(allMessage);
+                }
             }
         } catch (JSONException e) {
             e.printStackTrace();
@@ -1021,6 +995,10 @@ public class TcpServer extends Service {
                                     Log.d(TAG, "unknown tcp message received");
                                 }
                             }
+                        } else if (!client.isOpen()) {
+                            // Closed by its writer: a write failed, or it stopped reading and its queue filled up
+                            removeClient(client);
+                            break;
                         } else {
                             int count = client.incrementNoReadCount();
                             if (client.isOpen() && count >= 35) {
@@ -1044,7 +1022,7 @@ public class TcpServer extends Service {
                 sleep(sleepTime);
             }
             for (Connection connection : mRoster.connections()) {
-                connection.close();
+                connection.closeAfterPending(); // after a SERVERCANCEL sent just before the stop
             }
         }
 
@@ -1330,7 +1308,7 @@ public class TcpServer extends Service {
                 case REFUSED_IN_PROGRESS:
                     Log.d(TAG, "Rejecting client " + client.getConnectionId() + " (MAC: " + blasterMac + ") - Game in progress and allowJoin is false.");
                     client.send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ERROR + "Cannot join game in progress due to server settings.");
-                    client.close();
+                    client.closeAfterPending();
                     mRoster.removeConnection(client);
                     return;
                 case FULL:

@@ -601,4 +601,49 @@ class TcpServerLoopbackTest {
         b.mesg(NetMsg.NETMSG_SHOTFIRED)
         b.awaitMesg(NetMsg.NETMSG_SHOTFIRED)
     }
+
+    // ------------------------------------------------------------------------------------------
+    // Writer queues (network design §5.4)
+    // ------------------------------------------------------------------------------------------
+
+    @Test
+    fun messagesToOneClient_arriveInEachSendersOrder() {
+        // N1: every send used to start its own thread, so two sends could arrive swapped.
+        val (a, _) = join("Alpha", "AA:00")
+        val senders = listOf("x", "y").map { name ->
+            Thread { repeat(300) { server.sendTCPMessageAll("$name$it") } }
+        }
+        senders.forEach { it.start() }
+        senders.forEach { it.join() }
+        awaitTrue { a.received.count { it.startsWith("x") || it.startsWith("y") } == 600 }
+        for (name in listOf("x", "y")) {
+            assertEquals((0 until 300).map { "$name$it" }, a.received.filter { it.startsWith(name) })
+        }
+    }
+
+    @Test
+    fun aClientThatNeverReads_isClosedWhenItsQueueFills_andNobodyElseWaits() {
+        // N2: a blocking write to a client in a dead zone used to stall the whole server.
+        val (a, idA) = join("Alpha", "AA:00")
+        val stuck = java.net.Socket("127.0.0.1", TcpServer.TCP_SERVER_PORT) // never reads
+        try {
+            awaitTrue { server.roster.connectionCount() == 2 }
+            // Batches the reading client keeps up with; the stuck one's socket buffers, then its queue, fill up.
+            val big = "z".repeat(60_000)
+            var sent = 0
+            while (server.roster.connectionCount() == 2 && sent < 2_000) {
+                val startedAt = System.nanoTime()
+                repeat(100) { server.sendTCPMessageAll(big) }
+                assertTrue("sending blocked", (System.nanoTime() - startedAt) / 1_000_000 < 1_000)
+                sent += 100
+                awaitTrue(5_000, "batch to reach the reading client") { a.received.count { it == big } == sent }
+            }
+            awaitTrue(5_000, "the stuck connection to be dropped") { server.roster.connectionCount() == 1 }
+            assertNotNull(score(idA))
+            a.mesg(NetMsg.NETMSG_SHOTFIRED)
+            a.awaitMesg(NetMsg.NETMSG_SHOTFIRED)
+        } finally {
+            stuck.close()
+        }
+    }
 }
