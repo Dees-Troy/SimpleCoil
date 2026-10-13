@@ -198,16 +198,6 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
         startActivity(Intent(this, DedicatedServerActivity::class.java))
     }
 
-    /** Called by the scoreboard adapter for a team header. */
-    fun showTeamRatioDialog() {
-        vm.onTeamRatiosRequested()
-    }
-
-    /** Called by the scoreboard adapter's kick action. */
-    fun kickPlayerFromAdmin(playerID: Byte) {
-        vm.onKickPlayer(playerID)
-    }
-
     companion object {
         private const val TAG = "scmain"
 

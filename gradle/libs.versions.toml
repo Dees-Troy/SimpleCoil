@@ -17,6 +17,7 @@ kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-t
 androidx-lifecycle-viewmodel-ktx = { module = "androidx.lifecycle:lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
 androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
 androidx-activity-ktx = { module = "androidx.activity:activity-ktx", version = "1.13.0" }
+androidx-recyclerview = { module = "androidx.recyclerview:recyclerview", version = "1.2.1" }
 junit = { module = "junit:junit", version = "4.13.2" }
 mockito-core = { module = "org.mockito:mockito-core", version = "5.24.0" }
 # Real org.json for JVM tests (android.jar only has stubs)

@@ -25,8 +25,8 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.os.bundleOf
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.ViewModelProvider
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.simplecoil.simplecoil.PlayerDisplayData
-import com.simplecoil.simplecoil.PlayerDisplayDataListAdapter
 import com.simplecoil.simplecoil.PlayerSettingsAlertDialog
 import com.simplecoil.simplecoil.R
 import com.simplecoil.simplecoil.SimpleCoilApp
@@ -37,6 +37,8 @@ import com.simplecoil.simplecoil.databinding.PlayerDataDialogBinding
 import com.simplecoil.simplecoil.databinding.PlayerNameDialogBinding
 import com.simplecoil.simplecoil.databinding.ServerIpDialogBinding
 import com.simplecoil.simplecoil.databinding.TeamRatioDialogBinding
+import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardAdapter
+import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardRows
 
 /*
  * The play screen's dialogs as DialogFragments, so they survive recreation. Each one is built
@@ -243,7 +245,7 @@ class PlayerSettingsDialog : GameDialogFragment() {
 
 /** The scoreboard; GameViewModel pushes new data into it while it is open. */
 class ScoreboardDialog : GameDialogFragment() {
-    private var adapter: PlayerDisplayDataListAdapter? = null
+    private var adapter: ScoreboardAdapter? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -255,9 +257,14 @@ class ScoreboardDialog : GameDialogFragment() {
         val activity = requireActivity()
         val binding = PlayerDataDialogBinding.inflate(activity.layoutInflater)
         val players = vm.scoreboardPlayers ?: arrayOfNulls(GameSettingsRepository.MAX_PLAYER_ID + 2)
-        val adapter = PlayerDisplayDataListAdapter(activity, players, true)
+        val adapter = ScoreboardAdapter(isClient = true, listener = object : ScoreboardAdapter.Listener {
+            override fun onTeamHeaderClicked() = vm.onTeamRatiosRequested()
+            override fun onKickClicked(playerId: Byte) = vm.onKickPlayer(playerId)
+        })
         this.adapter = adapter
+        binding.playerList.layoutManager = LinearLayoutManager(activity)
         binding.playerList.adapter = adapter
+        setData(players)
         return alertBuilder()
             .setNegativeButton(R.string.ok) { dialog, _ -> dialog.cancel() }
             .setView(binding.root)
@@ -265,7 +272,7 @@ class ScoreboardDialog : GameDialogFragment() {
     }
 
     fun setData(players: Array<PlayerDisplayData?>) {
-        adapter?.setData(players)
+        adapter?.submitList(ScoreboardRows.build(players, vm.scoreboardContext()))
     }
 
     override fun onDismiss(dialog: DialogInterface) {

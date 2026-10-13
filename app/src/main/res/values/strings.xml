@@ -153,6 +153,11 @@
     <string name="player_list_points_label">Score</string>
     <string name="player_list_eliminated_label">Eliminated</string>
     <string name="player_list_team_header">TEAM %1$d (Limit %2$d/%3$d) Score: %4$d</string>
+    <string name="scoreboard_players_header">PLAYERS</string>
+    <string name="scoreboard_edit_ratio">Tap to edit ratio</string>
+    <string name="scoreboard_number">%1$d</string>
+    <string name="scoreboard_connected">Connected</string>
+    <string name="scoreboard_disconnected">Disconnected</string>
 
     <string name="player_settings_title">Player Settings</string>
     <string name="player_settings_id_title">Player Settings (%1$d)</string>

@@ -184,9 +184,9 @@
             android:text="@string/dedicated_allow_choose_teams"
             android:textColor="#FFFFFF"/>
 
-        <ListView
+        <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/player_list"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_below="@id/allow_choose_teams_switch" />
     </RelativeLayout>

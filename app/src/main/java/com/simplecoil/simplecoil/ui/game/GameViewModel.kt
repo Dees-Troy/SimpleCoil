@@ -45,6 +45,7 @@ import com.simplecoil.simplecoil.hardware.blaster.BleConnectionManager
 import com.simplecoil.simplecoil.hardware.blaster.GattProtocolHandler
 import com.simplecoil.simplecoil.hardware.blaster.QrPairingPayload
 import com.simplecoil.simplecoil.network.server.SessionPhase
+import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardContext
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -122,6 +123,16 @@ class GameViewModel(
 
     /** The latest scoreboard data, if any arrived yet. */
     val scoreboardPlayers: Array<PlayerDisplayData?>? get() = latestPlayerData
+
+    /** How the scoreboard dialog groups and labels the players. */
+    fun scoreboardContext() = ScoreboardContext(
+        layout = settingsRepo.teamLayout,
+        gameLimit = settingsRepo.gameLimit,
+        livesLimit = settingsRepo.livesLimit,
+        isClient = true,
+        selfId = playerRepo.playerID,
+        isAdmin = playerRepo.isAdmin,
+    )
 
     init {
         viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) { blasterEvents.collect { onBlasterEvent(it) } }

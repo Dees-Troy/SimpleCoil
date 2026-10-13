@@ -35,6 +35,8 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.simplecoil.simplecoil.data.model.PlayerSettings;
 import com.simplecoil.simplecoil.data.preferences.UserPreferencesRepository;
@@ -43,6 +45,9 @@ import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.domain.team.TeamMode;
 import com.simplecoil.simplecoil.network.server.SessionPhase;
+import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardAdapter;
+import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardContext;
+import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardRows;
 import com.simplecoil.simplecoil.ui.server.DedicatedServerViewModel;
 import android.util.Log;
 import android.widget.EditText;
@@ -53,11 +58,9 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.WindowManager;
-import android.widget.AdapterView;
 import android.widget.Button;
 import android.widget.Chronometer;
 import android.widget.EditText;
-import android.widget.ListView;
 import android.widget.PopupMenu;
 import android.widget.RadioButton;
 import android.widget.Switch;
@@ -88,7 +91,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     private Switch mAllowJoinSwitch = null;
     private Switch mOnlyServerSettingsSwitch = null;
     private Switch mAllowChooseTeamsSwitch = null;
-    private ListView mPlayerDisplayList = null;
+    private RecyclerView mPlayerDisplayList = null;
 
     private CountDownTimer mGameCountdownTimer = null;
     private CountDownTimer mSpawnTimer = null;
@@ -99,7 +102,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     private DedicatedServerViewModel mViewModel = null;
 
     private PlayerDisplayData[] mPlayerDisplayData = new PlayerDisplayData[GameSettingsRepository.MAX_PLAYER_ID + 2];
-    PlayerDisplayDataListAdapter mPlayerDisplayListAdapter = null;
+    private ScoreboardAdapter mPlayerDisplayListAdapter = null;
 
     // Code to manage Service lifecycle.
     private ServiceConnection mUDPServiceConnection = null;
@@ -326,28 +329,30 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
 
-        getPlayerDisplayData();
-        mPlayerDisplayListAdapter = new PlayerDisplayDataListAdapter(DedicatedServerActivity.this, mPlayerDisplayData, false);
-        mPlayerDisplayList = findViewById(R.id.player_list);
-        mPlayerDisplayList.setAdapter(mPlayerDisplayListAdapter);
-        mPlayerDisplayList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+        mPlayerDisplayListAdapter = new ScoreboardAdapter(false, new ScoreboardAdapter.Listener() {
+            @Override
+            public void onTeamHeaderClicked() {
+                showTeamRatioDialog();
+            }
 
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                if (mPlayerDisplayListAdapter != null) {
-                    PlayerDisplayDataListAdapter.DisplayRow row = mPlayerDisplayListAdapter.getDisplayRow(position);
-                    if (row != null && row.type == PlayerDisplayDataListAdapter.DisplayRow.TYPE_TEAM_HEADER && row.teamNumber > 0) {
-                        showTeamRatioDialog();
-                        return;
-                    }
-                }
-                byte playerID = mPlayerDisplayListAdapter.getPlayerID(position);
+            @Override
+            public void onPlayerClicked(byte playerID) {
                 if (playerID <= 0)
                     return;
                 PlayerSettingsAlertDialog dialog = new PlayerSettingsAlertDialog(DedicatedServerActivity.this);
                 dialog.setServer(playerID, mTcpServer);
                 dialog.show();
             }
+
+            @Override
+            public void onKickClicked(byte playerID) {
+                kickPlayerFromAdmin(playerID);
+            }
         });
+        mPlayerDisplayList = findViewById(R.id.player_list);
+        mPlayerDisplayList.setLayoutManager(new LinearLayoutManager(this));
+        mPlayerDisplayList.setAdapter(mPlayerDisplayListAdapter);
+        getPlayerDisplayData();
         mViewModel.getPhaseLiveData().observe(this, this::renderPhase);
     }
 
@@ -949,9 +954,11 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             }
         }
         if (mPlayerDisplayListAdapter != null) {
-            mPlayerDisplayListAdapter.setData(mPlayerDisplayData);
-            if (mPlayerDisplayList != null)
-                mPlayerDisplayList.setAdapter(mPlayerDisplayListAdapter);
+            GameSettingsRepository settings = GameSettingsRepository.getInstance();
+            ScoreboardContext context = new ScoreboardContext(settings.getTeamLayout(), settings.getGameLimit(),
+                    settings.getLivesLimit(), false, repo.getPlayerID(), repo.isAdmin());
+            // A diffed update keeps the scroll position (S10)
+            mPlayerDisplayListAdapter.submitList(ScoreboardRows.INSTANCE.build(mPlayerDisplayData, context));
         }
     }
 

@@ -7,7 +7,7 @@
     android:background="#080808"
     android:padding="8dp" >
 
-    <ListView
+    <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/player_list"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
