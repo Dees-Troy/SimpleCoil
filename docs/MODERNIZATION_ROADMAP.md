@@ -1,6 +1,6 @@
 # SimpleCoil Modernization Roadmap (after V2 refactor)
 
-Status: **Stage 0 and Stage 1 DONE in code (2026-10-13); Stage 1 device checks pending; Stage 2 next.** All four documents are approved and their decisions resolved.
+Status: **Stages 0–2 DONE in code (2026-10-13); Stage 1 and Stage 2 device checks pending; Stage 3 next.** All four documents are approved and their decisions resolved.
 Branch audited: `V2-refactor` @ `b460c02`. The on-device checklists in `REFACTOR_DESIGN.md` §6.5 and
 `STATE_CONSOLIDATION_DESIGN.md` §8.6 have been completed.
 Date: 2026-10-13
@@ -101,6 +101,38 @@ switch tint (step 6), the launcher's themed icon, and the full BLE + QR + networ
 - **Network Phase 2**: the `ClientEvent` / `ServerEvent` buses, and the deletion of the broadcast plumbing. This
   includes `MapFragment`'s three GPS broadcasts (network Q4).
 - **Dedicated server step 6**: `ServerGameClock`, hosted by the server, built on the Stage 1 dispatcher.
+
+**Done in code (2026-10-13), one commit per step; device checks pending.** 512 unit tests pass, `assembleDebug` is
+green, and `lintDebug` is unchanged (0 errors, 26 warnings).
+
+- **Network Phase 2:** `EventBus`, `ClientEvent` / `ServerEvent` and the container's two buses `e8fd869`; the map's
+  three GPS broadcasts (`GpsData`, `GpsSettingChanged`, `sendLocation`) `759cd09`; `TcpClient` and discovery publish
+  `ClientEvent`s, and the gateway's receiver and `handedOff` are deleted `366adf9`; `TcpServer` and the beacon publish
+  `ServerEvent`s, which the server screen collects `9423a85`; `NetMsg` keeps only wire strings `fef63f3`. No
+  `sendBroadcast` is left in the app.
+- **Dedicated server step 6:** `ServerGameClock` `f36a7e1` (S2).
+
+Notes:
+
+- `ServerEvent` has no `Error` or `ServerCancelled`, unlike the sketch in network §6.1. The server screen only ever
+  received `ERROR` and `SERVERCANCEL` from `TcpClient`, through the shared action strings (N8), so they had no server
+  producer. The time-expired toast is its own event, `TimeExpired`, and the clock reports its state with
+  `ClockChanged`. `ServerCreated` carries the address the screen shows.
+- `ClientEvent.Join`, `Leave` and `SameTeam` are kept but have no producer: only the dedicated server sent `JOIN` and
+  `LEAVE`, and `SAMETEAM` was never sent. They can go with Phase 3's `ClientMessageHandler`.
+- The Java screens collect through `EventBus.observe(owner, state, listener)`, on `Dispatchers.Main` (network §6.2).
+  The server screen and the map collect while resumed, as their receivers were registered. `GameViewModel` keeps
+  collecting for its whole lifetime.
+- `ClockState` (dedicated server §5.2) lives with `ServerGameClock` in `network/server`. The screen draws the clock
+  from its timestamps and reads it again when it binds, so a recreated screen shows the right time; `ServerSnapshot`
+  (Stage 4) will carry it.
+- `TcpServerLoopbackTest` now asserts `ServerEvent`s, and a time-limit test ends a game on the server with no screen.
+  The client's producer tests are in `TcpClientFrameTest`. Bus ordering: `EventBusTest` (generic, so one test covers
+  both buses).
+
+Device checks still to run (on top of Stage 1's): the network smoke test (`NETWORK_STACK_DESIGN.md` §9.1); the
+dedicated server screen's join/leave/start/end/reset updates and the GPS map (network §6.5); and dedicated server §10
+item 1 for the clock (a timed game ends on time with the screen closed, and the clock is right after reopening it).
 
 ### Stage 3 — Kotlin network stack
 
