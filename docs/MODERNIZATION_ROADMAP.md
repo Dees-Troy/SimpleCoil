@@ -1,6 +1,6 @@
 # SimpleCoil Modernization Roadmap (after V2 refactor)
 
-Status: **Stage 0 DONE (2026-10-13); Stage 1 next.** All four documents are approved and their decisions resolved.
+Status: **Stage 0 and Stage 1 DONE in code (2026-10-13); Stage 1 device checks pending; Stage 2 next.** All four documents are approved and their decisions resolved.
 Branch audited: `V2-refactor` @ `b460c02`. The on-device checklists in `REFACTOR_DESIGN.md` §6.5 and
 `STATE_CONSOLIDATION_DESIGN.md` §8.6 have been completed.
 Date: 2026-10-13
@@ -58,6 +58,43 @@ errors.
 - **Dedicated server steps 1–5**: the scoreboard on `RecyclerView`, `GameLimitRules` / `TeamSizes` (and the 0-limit
   fix), host-agnostic dialogs, `PlayerSettingsDialog`, settings through `UserPreferencesRepository`.
 - **Platform steps 1–7**: manifest and `configChanges`, backup rules, the lint cleanup, `SwitchCompat`, R8.
+
+**Done in code (2026-10-13), one commit per step; device checks pending.** 495 unit tests pass, `assembleRelease`
+runs R8 with no warnings, and `lintDebug` is down from 215 warnings to 26 (0 errors).
+
+- **Network Phase 1:** `FrameReader` and the client's liveness `d29c8b4` (N4); per-connection writer queues
+  `b0f7469` (N1, N2); per-connection readers and the `sc-server` dispatcher `dbd18a0` (N2, N3, N6, N7); the client's
+  queued close `7ab8180` (N11). Follow-up `43f3757`: the GPS relay ticks with a fixed delay, as the `Handler` did
+  (`scheduleAtFixedRate` would burst after a frozen process; lint `DiscouragedApi`).
+- **App container steps 1–3:** `AppContainer` `3061bd6`, constructible repositories and the install shim `0489a6a`,
+  injected `GameViewModel` / `NetworkSessionGateway` `2e1dadb`.
+- **Dedicated server steps 1–5:** `RecyclerView` scoreboard `f61b7d8` (S10); `GameLimitRules` / `TeamSizes` `b772909`
+  and the S9 fix `7377818`; shared dialogs through the Fragment Result API `a287a7b`; `PlayerSettingsForm` /
+  `PlayerSettingsDialog` `f5c60e2` (S8 kept, S12 fixed); server settings through `UserPreferencesRepository` `38f4704`
+  (S13).
+- **Platform steps 2–7** (step 1 was Stage 0): shadowed dialog style `07b0237`; manifest orientation and
+  `configChanges` `c37e8ee`; backup rules `210772c`; lint cleanup `75ceead` (DefaultLocale), `49d5e43` (SetTextI18n),
+  `ea0607e` (HardcodedText), `943137c` (Autofill, LabelFor, ContentDescription), `907bc6c` (UseKtx), `5563d2d`
+  (PluralsCandidate), `7a48d5d` (UnusedResources), `81c9a04` (ObsoleteSdkInt, InlinedApi), `80141e8` (CheckResult),
+  `c66569c` (MonochromeLauncherIcon), `c99a050` (one-offs); `SwitchCompat` `5e6a31f`; R8 `c873ec4`.
+
+Notes:
+
+- Running every server command on one dispatcher also serializes a team switch with the settings save that follows
+  it, so S11 no longer races. `applyPlayerSettings` (dedicated server step 7) still makes it one operation.
+- The play screen's numbers now use the locale's digits (a `%1$d` resource); the clock (`ClockFormat`, `Locale.US`)
+  and the dialogs' number fields stay ASCII, because the fields are parsed back.
+- `network_menu.xml` was never inflated; its item ids moved to `ids.xml`.
+- Left for later, as planned: `Overdraw` (8) and `RelativeOverlap` (5) need visual checks; `WifiManagerPotentialLeak`
+  goes with network Phase 3; `LockedOrientationActivity` is intentional; the map-owned warnings wait for the map
+  work. The rest go into the Stage 5 baseline.
+
+Device checks still to run before Stage 2 builds on this: the network smoke test (`NETWORK_STACK_DESIGN.md` §9.1,
+with items 4 and 7 for Phase 1); the BLE and network smoke tests for app container step 2 (object identity); the
+dedicated-server checks for steps 1 and 3 (scroll position kept, dialogs) and §10 items 5 and 7; and the platform
+checks: dialogs look identical (step 2), Chromebook resize mid-game (step 3), `bmgr` backup and restore (step 4),
+switch tint (step 6), the launcher's themed icon, and the full BLE + QR + network smoke on the R8 release APK
+(step 7).
 
 ### Stage 2 — events and the server clock
 
