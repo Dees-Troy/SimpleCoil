@@ -362,7 +362,6 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     protected void onPause() {
         super.onPause();
         unregisterReceiver(mServerUpdateReceiver);
-        GameSettingsRepository.getInstance().setUseGPS(false);
     }
 
     @Override
