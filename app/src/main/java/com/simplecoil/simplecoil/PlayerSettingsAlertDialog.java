@@ -482,24 +482,23 @@ public class PlayerSettingsAlertDialog extends AlertDialog implements PopupMenu.
 
     @Override
     public boolean onMenuItemClick(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.firing_mode_outdoor_no_cone_item:
-                if (!isServer)
-                    Globals.getInstance().mCurrentFiringMode = Globals.FIRING_MODE_OUTDOOR_NO_CONE;
-                mFiringModeButton.setText(R.string.firing_mode_outdoor_no_cone);
-                return true;
-            case R.id.firing_mode_outdoor_with_cone_item:
-                if (!isServer)
-                    Globals.getInstance().mCurrentFiringMode = Globals.FIRING_MODE_OUTDOOR_WITH_CONE;
-                mFiringModeButton.setText(R.string.firing_mode_outdoor_with_cone);
-                return true;
-            case R.id.firing_mode_indoor_no_cone_item:
-                if (!isServer)
-                    Globals.getInstance().mCurrentFiringMode = Globals.FIRING_MODE_INDOOR_NO_CONE;
-                mFiringModeButton.setText(R.string.firing_mode_indoor_no_cone);
-                return true;
-            default:
-                return false;
+        int id = item.getItemId();
+        if (id == R.id.firing_mode_outdoor_no_cone_item) {
+            if (!isServer)
+                Globals.getInstance().mCurrentFiringMode = Globals.FIRING_MODE_OUTDOOR_NO_CONE;
+            mFiringModeButton.setText(R.string.firing_mode_outdoor_no_cone);
+            return true;
+        } else if (id == R.id.firing_mode_outdoor_with_cone_item) {
+            if (!isServer)
+                Globals.getInstance().mCurrentFiringMode = Globals.FIRING_MODE_OUTDOOR_WITH_CONE;
+            mFiringModeButton.setText(R.string.firing_mode_outdoor_with_cone);
+            return true;
+        } else if (id == R.id.firing_mode_indoor_no_cone_item) {
+            if (!isServer)
+                Globals.getInstance().mCurrentFiringMode = Globals.FIRING_MODE_INDOOR_NO_CONE;
+            mFiringModeButton.setText(R.string.firing_mode_indoor_no_cone);
+            return true;
         }
+        return false;
     }
 }

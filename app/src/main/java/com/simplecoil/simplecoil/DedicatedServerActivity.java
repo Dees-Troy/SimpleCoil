@@ -404,58 +404,57 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
 
     @Override
     public boolean onMenuItemClick(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.game_mode_2teams_item:
-                resetIfPostGame();
-                Globals.getInstance().mGameMode = Globals.GAME_MODE_2TEAMS;
-                Globals.getInstance().resetDefaultTeamSizes();
-                mGameModeButton.setText(R.string.game_mode_2teams);
-                savePreference(FullscreenActivity.PREF_GAME_MODE, Globals.getInstance().mGameMode);
-                setGPSMode(Globals.getInstance().mGPSMode);
-                if (mTcpServer != null) {
-                    mTcpServer.rebalanceAllPlayers(false);
-                }
-                getPlayerDisplayData();
-                return true;
-            case R.id.game_mode_4teams_item:
-                resetIfPostGame();
-                Globals.getInstance().mGameMode = Globals.GAME_MODE_4TEAMS;
-                Globals.getInstance().resetDefaultTeamSizes();
-                mGameModeButton.setText(R.string.game_mode_4teams);
-                savePreference(FullscreenActivity.PREF_GAME_MODE, Globals.getInstance().mGameMode);
-                setGPSMode(Globals.getInstance().mGPSMode);
-                if (mTcpServer != null) {
-                    mTcpServer.rebalanceAllPlayers(false);
-                }
-                getPlayerDisplayData();
-                return true;
-            case R.id.game_mode_ffa_item:
-                resetIfPostGame();
-                Globals.getInstance().mGameMode = Globals.GAME_MODE_FFA;
-                Globals.getInstance().resetDefaultTeamSizes();
-                mGameModeButton.setText(R.string.game_mode_ffa);
-                savePreference(FullscreenActivity.PREF_GAME_MODE, Globals.getInstance().mGameMode);
-                setGPSMode(Globals.getInstance().mGPSMode);
-                if (mTcpServer != null) {
-                    mTcpServer.rebalanceAllPlayers(false);
-                }
-                getPlayerDisplayData();
-                return true;
-            case R.id.gps_mode_disabled:
-                resetIfPostGame();
-                setGPSMode(Globals.GPS_DISABLED);
-                return true;
-            case R.id.gps_mode_teammate:
-                resetIfPostGame();
-                setGPSMode(Globals.GPS_TEAMMATE);
-                return true;
-            case R.id.gps_mode_all:
-                resetIfPostGame();
-                setGPSMode(Globals.GPS_ALL);
-                return true;
-            default:
-                return false;
+        int id = item.getItemId();
+        if (id == R.id.game_mode_2teams_item) {
+            resetIfPostGame();
+            Globals.getInstance().mGameMode = Globals.GAME_MODE_2TEAMS;
+            Globals.getInstance().resetDefaultTeamSizes();
+            mGameModeButton.setText(R.string.game_mode_2teams);
+            savePreference(FullscreenActivity.PREF_GAME_MODE, Globals.getInstance().mGameMode);
+            setGPSMode(Globals.getInstance().mGPSMode);
+            if (mTcpServer != null) {
+                mTcpServer.rebalanceAllPlayers(false);
+            }
+            getPlayerDisplayData();
+            return true;
+        } else if (id == R.id.game_mode_4teams_item) {
+            resetIfPostGame();
+            Globals.getInstance().mGameMode = Globals.GAME_MODE_4TEAMS;
+            Globals.getInstance().resetDefaultTeamSizes();
+            mGameModeButton.setText(R.string.game_mode_4teams);
+            savePreference(FullscreenActivity.PREF_GAME_MODE, Globals.getInstance().mGameMode);
+            setGPSMode(Globals.getInstance().mGPSMode);
+            if (mTcpServer != null) {
+                mTcpServer.rebalanceAllPlayers(false);
+            }
+            getPlayerDisplayData();
+            return true;
+        } else if (id == R.id.game_mode_ffa_item) {
+            resetIfPostGame();
+            Globals.getInstance().mGameMode = Globals.GAME_MODE_FFA;
+            Globals.getInstance().resetDefaultTeamSizes();
+            mGameModeButton.setText(R.string.game_mode_ffa);
+            savePreference(FullscreenActivity.PREF_GAME_MODE, Globals.getInstance().mGameMode);
+            setGPSMode(Globals.getInstance().mGPSMode);
+            if (mTcpServer != null) {
+                mTcpServer.rebalanceAllPlayers(false);
+            }
+            getPlayerDisplayData();
+            return true;
+        } else if (id == R.id.gps_mode_disabled) {
+            resetIfPostGame();
+            setGPSMode(Globals.GPS_DISABLED);
+            return true;
+        } else if (id == R.id.gps_mode_teammate) {
+            resetIfPostGame();
+            setGPSMode(Globals.GPS_TEAMMATE);
+            return true;
+        } else if (id == R.id.gps_mode_all) {
+            resetIfPostGame();
+            setGPSMode(Globals.GPS_ALL);
+            return true;
         }
+        return false;
     }
 
     private void setGPSMode(int mode) {

@@ -123,8 +123,14 @@ open class BluetoothLeService : Service() {
 
     private var eventSink: GattEventSink = FlowEventSink()
 
-    /** Runs the protocol delays (§1.6) on the main thread, as the Handlers this replaced did. */
-    private var scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    /**
+     * Runs the protocol delays (§1.6) on the main thread, as the Handlers this replaced did.
+     * Created on first use so constructing the service (as JVM tests do) doesn't resolve
+     * Dispatchers.Main.
+     */
+    private val defaultScope by lazy { CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate) }
+    private var scopeOverride: CoroutineScope? = null
+    private val scope: CoroutineScope get() = scopeOverride ?: defaultScope
 
     @Suppress("unused") // kept for debugging, as before
     private var connectionState = STATE_DISCONNECTED
@@ -267,7 +273,7 @@ open class BluetoothLeService : Service() {
     internal fun attachForTest(gatt: GattIo?, eventSink: GattEventSink?, scope: CoroutineScope) {
         this.gatt = gatt
         if (eventSink != null) this.eventSink = eventSink
-        this.scope = scope
+        scopeOverride = scope
     }
 
     inner class LocalBinder : Binder() {
