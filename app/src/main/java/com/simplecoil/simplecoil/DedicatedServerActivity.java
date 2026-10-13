@@ -23,7 +23,6 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
-import android.content.pm.ActivityInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
@@ -175,7 +174,6 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         fm.setFragmentResultListener(TeamRatioDialog.REQUEST_KEY, this,
                 (key, result) -> onTeamSizesEntered(TeamRatioDialog.sizes(result)));
         setContentView(R.layout.activity_dedicated_server);
-        this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         PlayerRepository.getInstance().setPlayerID((byte) 0);
         GameStateRepository.getInstance().setGameState(GameStateRepository.GAME_STATE_NONE);
 
