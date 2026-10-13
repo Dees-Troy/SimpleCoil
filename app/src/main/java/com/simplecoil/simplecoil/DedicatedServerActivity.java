@@ -48,11 +48,14 @@ import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.domain.rules.GameLimitRules;
 import com.simplecoil.simplecoil.domain.rules.LimitKind;
 import com.simplecoil.simplecoil.domain.rules.Limits;
+import com.simplecoil.simplecoil.domain.team.TeamLayout;
 import com.simplecoil.simplecoil.domain.team.TeamMode;
 import com.simplecoil.simplecoil.network.server.SessionPhase;
 import com.simplecoil.simplecoil.ui.dialogs.GameLimitDialog;
 import com.simplecoil.simplecoil.ui.dialogs.StartingTimerDialog;
 import com.simplecoil.simplecoil.ui.dialogs.TeamRatioDialog;
+import com.simplecoil.simplecoil.ui.playersettings.PlayerSettingsDialog;
+import com.simplecoil.simplecoil.ui.playersettings.PlayerSettingsValues;
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardAdapter;
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardContext;
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardRows;
@@ -171,6 +174,8 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 (key, result) -> onGameLimitEntered(GameLimitDialog.text(result), GameLimitDialog.kind(result)));
         fm.setFragmentResultListener(StartingTimerDialog.REQUEST_KEY, this,
                 (key, result) -> onStartingTimerEntered(StartingTimerDialog.text(result)));
+        fm.setFragmentResultListener(PlayerSettingsDialog.REQUEST_KEY, this,
+                (key, result) -> onPlayerSettingsSaved(PlayerSettingsDialog.result(result)));
         fm.setFragmentResultListener(TeamRatioDialog.REQUEST_KEY, this,
                 (key, result) -> onTeamSizesEntered(TeamRatioDialog.sizes(result)));
         setContentView(R.layout.activity_dedicated_server);
@@ -347,11 +352,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
 
             @Override
             public void onPlayerClicked(byte playerID) {
-                if (playerID <= 0)
-                    return;
-                PlayerSettingsAlertDialog dialog = new PlayerSettingsAlertDialog(DedicatedServerActivity.this);
-                dialog.setServer(playerID, mTcpServer);
-                dialog.show();
+                showPlayerSettings(playerID);
             }
 
             @Override
@@ -501,6 +502,56 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             settings.setGameLimit(limits.getGameLimit());
             setGameLimit();
         }
+    }
+
+    /** The player settings dialog for network player [playerID]. */
+    private void showPlayerSettings(byte playerID) {
+        if (playerID <= 0)
+            return;
+        PlayerSettings settings = PlayerRepository.getInstance().getPlayerSettings().get(playerID);
+        PlayerSettingsValues values = PlayerSettingsValues.of(settings != null ? settings : new PlayerSettings());
+        TeamLayout layout = GameSettingsRepository.getInstance().getTeamLayout();
+        int teamCount = layout.getMode().isFreeForAll() ? 0 : layout.getMode().teamCount;
+        int team = layout.teamOf(playerID);
+        int indexInTeam = teamCount == 0 ? playerID : playerID - layout.teamStartId(team) + 1;
+        showDialog(PlayerSettingsDialog.server(playerID, values, teamCount, team, indexInTeam), PlayerSettingsDialog.REQUEST_KEY);
+    }
+
+    /** The player settings dialog's result: kick, or store the settings, move the player and send them. */
+    private void onPlayerSettingsSaved(PlayerSettingsDialog.Result result) {
+        byte playerID = result.getPlayerId();
+        if (result.getKick()) {
+            kickPlayerFromAdmin(playerID);
+            return;
+        }
+        PlayerSettingsValues values = result.getValues();
+        if (values == null)
+            return;
+        PlayerRepository repo = PlayerRepository.getInstance();
+        synchronized (repo) {
+            PlayerSettings playerSettings = repo.getPlayerSettings().get(playerID);
+            if (playerSettings == null) {
+                playerSettings = new PlayerSettings();
+                repo.getPlayerSettings().put(playerID, playerSettings);
+            }
+            values.applyTo(playerSettings);
+        }
+        byte targetPlayerID = playerID;
+        if (result.getTargetTeam() != 0) {
+            byte newPlayerID = repo.findOpenPlayerIDOnTeam(result.getTargetTeam());
+            if (newPlayerID == 0) {
+                Toast.makeText(this, getString(R.string.error_team_full, result.getTargetTeam()), Toast.LENGTH_SHORT).show();
+            } else if (mTcpServer != null) {
+                mTcpServer.switchPlayerTeam(playerID, newPlayerID);
+                targetPlayerID = newPlayerID;
+            }
+        }
+        if (mTcpServer != null) {
+            mTcpServer.sendPlayerSettings(targetPlayerID, result.getApplyToAll(), result.getApplyToTeam(),
+                    GameSettingsRepository.getInstance().isAllowPlayerSettings());
+        }
+        mViewModel.updatePlayerCount();
+        getPlayerDisplayData();
     }
 
     /** Shows [dialog] unless one is already showing under [tag] or the state is saved. */

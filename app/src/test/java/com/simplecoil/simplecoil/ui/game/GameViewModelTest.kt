@@ -463,6 +463,17 @@ class GameViewModelTest {
         verify(screen, times(2)).showPlayerName("Tester")
     }
 
+    @Test
+    fun localPlayerSettings_areKeptSentAndApplied() {
+        val values = vm.localPlayerSettings().copy(health = 40, shots = 12, damage = -2)
+        vm.onLocalSettingsSaved(values)
+        assertEquals(40, settings.fullHealth)
+        assertEquals(12.toByte(), settings.fullReload)
+        assertEquals(-2, settings.damage)
+        verify(client).sendPlayerSettings()
+        verify(screen).showPlayerSettings(40, 12.toByte(), 2)
+    }
+
     private fun emitNetwork(event: NetworkEvent) {
         net.emit(event)
         scope.testScheduler.runCurrent()

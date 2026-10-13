@@ -49,6 +49,7 @@ import com.simplecoil.simplecoil.hardware.blaster.BleConnectionManager
 import com.simplecoil.simplecoil.hardware.blaster.GattProtocolHandler
 import com.simplecoil.simplecoil.hardware.blaster.QrPairingPayload
 import com.simplecoil.simplecoil.network.server.SessionPhase
+import com.simplecoil.simplecoil.ui.playersettings.PlayerSettingsValues
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardContext
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -470,6 +471,16 @@ class GameViewModel(
             return
         }
         screen?.showLocalPlayerSettings()
+    }
+
+    /** The local player's settings, for the player settings dialog. */
+    fun localPlayerSettings() = PlayerSettingsValues.of(settingsRepo)
+
+    /** The player settings dialog's OK: keep them, tell the server, and apply them. */
+    fun onLocalSettingsSaved(values: PlayerSettingsValues) {
+        values.applyTo(settingsRepo)
+        net.tcpClient?.sendPlayerSettings()
+        updatePlayerSettings()
     }
 
     fun onFiringModeSelected(firingMode: Int) {

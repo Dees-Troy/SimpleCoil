@@ -24,7 +24,6 @@ import androidx.core.os.bundleOf
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.simplecoil.simplecoil.PlayerDisplayData
-import com.simplecoil.simplecoil.PlayerSettingsAlertDialog
 import com.simplecoil.simplecoil.R
 import com.simplecoil.simplecoil.SimpleCoilApp
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
@@ -128,19 +127,6 @@ class ServerIpDialog : GameDialogFragment() {
 
     companion object {
         fun newInstance(suggestion: String) = ServerIpDialog().apply { arguments = bundleOf(ARG_TEXT to suggestion) }
-    }
-}
-
-/** The local player's settings. */
-class PlayerSettingsDialog : GameDialogFragment() {
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        val dialog = PlayerSettingsAlertDialog(requireActivity())
-        dialog.setLocal(vm.tcpClient)
-        return dialog
-    }
-
-    companion object {
-        fun local() = PlayerSettingsDialog().apply { arguments = Bundle() }
     }
 }
 

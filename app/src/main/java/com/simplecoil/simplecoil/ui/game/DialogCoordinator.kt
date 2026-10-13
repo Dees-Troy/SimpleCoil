@@ -36,6 +36,7 @@ import com.simplecoil.simplecoil.domain.session.SessionToast
 import com.simplecoil.simplecoil.domain.team.TeamMode
 import com.simplecoil.simplecoil.ui.dialogs.GameLimitDialog
 import com.simplecoil.simplecoil.ui.dialogs.TeamRatioDialog
+import com.simplecoil.simplecoil.ui.playersettings.PlayerSettingsDialog
 
 /**
  * Dialogs, toasts and popup menus of the play screen ([GameDialogs]), moved from
@@ -72,6 +73,9 @@ class DialogCoordinator(
         }
         fm.setFragmentResultListener(TeamRatioDialog.REQUEST_KEY, activity) { _, result ->
             vm.onTeamSizesEntered(TeamRatioDialog.sizes(result).map { it.toString() })
+        }
+        fm.setFragmentResultListener(PlayerSettingsDialog.REQUEST_KEY, activity) { _, result ->
+            PlayerSettingsDialog.result(result).values?.let { vm.onLocalSettingsSaved(it) }
         }
         // Bring restored dialogs in line with the view model (it may have outlived them, or not).
         if (vm.disconnectDialogShowing) showDisconnectDialog() else remove(TAG_DISCONNECTED)
@@ -295,7 +299,7 @@ class DialogCoordinator(
 
     override fun showTeamRatioDialog(numTeams: Int, sizes: IntArray) = show(TAG_TEAM_RATIO) { TeamRatioDialog.newInstance(numTeams, sizes) }
 
-    override fun showLocalPlayerSettings() = show(TAG_PLAYER_SETTINGS) { PlayerSettingsDialog.local() }
+    override fun showLocalPlayerSettings() = show(TAG_PLAYER_SETTINGS) { PlayerSettingsDialog.local(vm.localPlayerSettings()) }
 
     override fun showScoreboard(players: Array<PlayerDisplayData?>) {
         if (activity.isFinishing || activity.isDestroyed) return
