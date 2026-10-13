@@ -69,7 +69,6 @@ class TcpServerLoopbackTest {
         clients.forEach { it.close() }
         server.stopTcpServer()
         LoopbackClient.awaitPortFree()
-        Thread.sleep(200) // the client thread sees keepListening = false within one poll
         GameStateRepository.getInstance().gameState = GameStateRepository.GAME_STATE_NONE
         PlayerRepository.getInstance().clearAllPlayers()
     }
@@ -645,5 +644,74 @@ class TcpServerLoopbackTest {
         } finally {
             stuck.close()
         }
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Readers and the dispatcher (network design §5.3, §5.5)
+    // ------------------------------------------------------------------------------------------
+
+    /** A raw client that says hello, then sends half of a frame and goes silent. */
+    private fun joinAndStallMidFrame(name: String, mac: String): java.net.Socket {
+        val socket = java.net.Socket("127.0.0.1", TcpServer.TCP_SERVER_PORT)
+        val out = java.io.DataOutputStream(socket.getOutputStream())
+        val hello = org.json.JSONObject().put(TcpServer.JSON_PLAYERID, 0).put(TcpServer.JSON_PLAYERNAME, name).put(TcpServer.JSON_BLASTER_MAC, mac)
+        out.writeUTF(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + hello)
+        out.write(byteArrayOf(0, 100))
+        out.write("SimpleCoil".toByteArray())
+        out.flush()
+        return socket
+    }
+
+    @Test
+    fun aPeerStalledMidFrame_isDroppedAfterTheSilenceLimit_andNobodyElseWaits() {
+        // N3: the one read loop used to block in readUTF until TCP gave up.
+        val (a, _) = join("Alpha", "AA:00")
+        val stalled = joinAndStallMidFrame("Stalled", "SS:00")
+        try {
+            val stalledAt = System.nanoTime()
+            awaitTrue { server.roster.connectionCount() == 2 && server.roster.records().size == 2 }
+            a.mesg(NetMsg.NETMSG_SHOTFIRED)
+            a.awaitMesg(NetMsg.NETMSG_SHOTFIRED, 500)
+            awaitTrue(6_000, "the stalled peer to be dropped") { server.roster.connectionCount() == 1 }
+            val droppedAfter = (System.nanoTime() - stalledAt) / 1_000_000
+            assertTrue("dropped after $droppedAfter ms", droppedAfter in 3_300..3_900)
+        } finally {
+            stalled.close()
+        }
+    }
+
+    @Test
+    fun thirtyTwoPlayers_oneStalledMidFrame_everyEliminationIsAppliedAndAcknowledgedQuickly() {
+        val joined = (1..31).map { join("P$it", "00:$it") }
+        val stalled = joinAndStallMidFrame("Stalled", "SS:00")
+        try {
+            awaitTrue { server.roster.records().size == 32 }
+            assertTrue(server.startGame())
+            joined.forEach { (client, _) -> client.awaitMesg(NetMsg.NETMSG_STARTGAME) }
+            val gameId = server.roster.gameId()
+            joined.forEachIndexed { index, (client, _) ->
+                val shooter = joined[(index + 1) % joined.size].second
+                val outbox = ClientOutbox()
+                outbox.onGameId(gameId)
+                val sentAt = System.nanoTime()
+                client.reliable(outbox, NetMsg.NETMSG_ELIMINATED + shooter)
+                client.awaitMesg(NetMsg.NETMSG_ACK, 500)
+                assertTrue((System.nanoTime() - sentAt) / 1_000_000 < 500)
+            }
+            joined.forEach { (_, id) -> assertEquals(1, score(id)!!.eliminated) }
+        } finally {
+            stalled.close()
+        }
+    }
+
+    @Test
+    fun aStopAndAnImmediateStart_servesAgain() {
+        // N6: the old accept loop held the port for up to a second, so the new server failed to bind.
+        server.stopTcpServer()
+        server.startTcpServer()
+        awaitTrue(1_000, "server socket") { server.isAccepting }
+        val (a, _) = join("Alpha", "AA:00")
+        a.mesg(NetMsg.NETMSG_SHOTFIRED)
+        a.awaitMesg(NetMsg.NETMSG_SHOTFIRED)
     }
 }

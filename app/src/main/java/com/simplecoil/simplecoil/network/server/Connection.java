@@ -18,15 +18,15 @@ package com.simplecoil.simplecoil.network.server;
 
 import android.util.Log;
 
+import com.simplecoil.simplecoil.network.FrameReader;
+
 import java.io.BufferedOutputStream;
-import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * One per accepted socket. Has no game state. Keyed in {@link GameRoster} by its connection id,
@@ -46,14 +46,14 @@ public final class Connection {
 
     private final int connectionId;
     private final Socket socket;
-    private volatile DataInputStream in;
+    /** Used by the connection's reader thread only. */
+    private FrameReader reader;
     private final BlockingQueue<String> queue = new ArrayBlockingQueue<>(MAX_QUEUED_FRAMES);
     private volatile boolean open;
     private boolean closed;
     private Thread writer;
     /** The player this connection speaks for; null until its hello is processed. */
     volatile PlayerRecord player;
-    private final AtomicInteger noReadCount = new AtomicInteger(0);
 
     /** [socket] may be null (tests): the connection then has no streams and sends nothing. */
     public Connection(int connectionId, Socket socket) {
@@ -62,7 +62,7 @@ public final class Connection {
         if (socket == null) return;
         final DataOutputStream out;
         try {
-            in = new DataInputStream(socket.getInputStream());
+            reader = new FrameReader(socket.getInputStream());
             out = new DataOutputStream(new BufferedOutputStream(socket.getOutputStream()));
         } catch (IOException e) {
             Log.w(TAG, "Could not open connection " + connectionId, e);
@@ -129,25 +129,22 @@ public final class Connection {
         }
     }
 
-    /** Bytes ready to read; 0 once closed. */
-    public int available() throws IOException {
-        DataInputStream input = in;
-        return input != null ? input.available() : 0;
+    /**
+     * The next complete frame, or null if the socket's read timeout came first. For the
+     * connection's reader thread only.
+     *
+     * @throws java.io.IOException when the connection is closed or broken
+     */
+    public String poll() throws IOException {
+        FrameReader input = reader;
+        if (input == null || !open) throw new IOException("closed");
+        return input.poll();
     }
 
-    public String readUTF() throws IOException {
-        DataInputStream input = in;
-        if (input == null) throw new IOException("closed");
-        return input.readUTF();
-    }
-
-    /** Polls without data since the last read. */
-    public int incrementNoReadCount() {
-        return noReadCount.incrementAndGet();
-    }
-
-    public void resetNoReadCount() {
-        noReadCount.set(0);
+    /** Milliseconds since the peer last sent a byte. */
+    public long silenceMillis() {
+        FrameReader input = reader;
+        return input != null ? input.silenceMillis() : 0;
     }
 
     /** Closes the connection once the frames queued so far have been written. */
@@ -163,7 +160,6 @@ public final class Connection {
             if (closed) return;
             closed = true;
             open = false;
-            in = null;
         }
         if (socket == null) return;
         try { socket.close(); } catch (IOException e) {/*do nothing*/}
