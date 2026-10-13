@@ -1,7 +1,6 @@
 # SimpleCoil Modernization Roadmap (after V2 refactor)
 
-Status: **APPROVED (2026-10-13).** All four documents are approved and their decisions resolved. Implementation
-starts in a new session, at Stage 0.
+Status: **Stage 0 DONE (2026-10-13); Stage 1 next.** All four documents are approved and their decisions resolved.
 Branch audited: `V2-refactor` @ `b460c02`. The on-device checklists in `REFACTOR_DESIGN.md` §6.5 and
 `STATE_CONSOLIDATION_DESIGN.md` §8.6 have been completed.
 Date: 2026-10-13
@@ -33,6 +32,22 @@ verified on devices before the next step.
 | GPS relay switched off by `onPause` (H3), null-server crashes (H4), empty-field crash in player settings (H5) | Dedicated server §4 | Crashes and silent feature loss |
 | `TcpClient` foreground service type (after the logcat check) | Platform §2 | Probably never foreground on Android 14+ |
 | `Frame` parser + exception containment (N5) | Network §5.1–5.2 | One malformed frame crashes the server; `VERSIONERROR` crashes the client |
+
+**Done (2026-10-13), one commit per fix: H1 `d35c022`, H2 `4291e3e`, H3 `b5343a1`, H4 `d530ce8`, H5 `94f5fbd`,
+`TcpClient` type `505db43`, `Frame` `c6363fc`, containment `dee497a`.** 459 unit tests pass and `lintDebug` has 0
+errors.
+
+- The `TcpClient` logcat check was skipped (no Android 14+ device was attached). The type is required from
+  `targetSdk` 34 regardless.
+- `TcpClient`'s per-frame handling moved into `handleFrame` so the `VERSIONERROR` path is unit-tested. An
+  `ELIMINATED` without a valid id is now logged and skipped instead of crashing.
+- No server message still throws after the `Frame` fix, so the §5.2 containment is defense in depth: the hostile-frame
+  loopback test passes on the code before it too.
+- **Added during Stage 0 (`29c678d`):** Android 17 makes local network access a runtime permission
+  (`ACCESS_LOCAL_NETWORK`). Without it the dedicated server's traffic failed with EPERM and no client could connect.
+  The Dedicated server and Use network buttons now ask for it (required) and for notifications (optional) through
+  `BlePermissionController`. Verified on an Android 17 device: hosting, joining a server and connecting a blaster.
+- The device checks for H1–H5 (dedicated server §10 items 1, 4 and 5) were waived by the owner as low priority.
 
 ### Stage 1 — independent foundations (can run in parallel)
 
