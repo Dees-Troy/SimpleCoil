@@ -56,6 +56,7 @@ public class TcpServer extends Service {
     // Amount of time to sleep before checking if data is available. Lower is more responsive but may gobble up more CPU time
     public static final int TCP_DEDICATED_READ_WAIT_MS = 100;
     public static final String TCP_SERVER_PING = "ping";
+    private static final String ADMIN_PREFIX = "ADMIN_";
 
     public static final String TCPMESSAGE_PREFIX = NetMsg.MESSAGE_PREFIX + NetMsg.NETWORK_VERSION;
     public static final String TCPPREFIX_MESG = "MESG";
@@ -966,6 +967,9 @@ public class TcpServer extends Service {
                                             sendTCPMessageTeam(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_TEAMELIMINATED, playerIdOf(client), false, true);
                                         } else if (message.equals(NetMsg.NETMSG_PLAYERDATAREQUEST)) {
                                             sendPlayerData(playerIdOf(client));
+                                        } else if (isAdminCommand(message) && !isAdmin(client)) {
+                                            // D14: only players the server operator made admins may run the game
+                                            Log.w(TAG, "Ignoring '" + message + "' from non-admin client " + client.getConnectionId());
                                         } else if (message.equals(NetMsg.NETMSG_STARTGAME) || message.startsWith(NetMsg.NETMSG_ADMIN_STARTGAME)) {
                                             Log.d(TAG, "TcpServer received STARTGAME / ADMIN_STARTGAME command: '" + message + "'");
                                             if (!startGame() && mRoster.phase() == SessionPhase.POST_GAME)
@@ -1092,6 +1096,20 @@ public class TcpServer extends Service {
             }
         }
 
+        /** Messages that run the game: every ADMIN_* message, and a plain STARTGAME. */
+        private boolean isAdminCommand(String message) {
+            return message.equals(NetMsg.NETMSG_STARTGAME) || message.startsWith(ADMIN_PREFIX);
+        }
+
+        /** The server operator gave this player admin rights in its player settings. */
+        private boolean isAdmin(Connection client) {
+            PlayerRecord player = client.getPlayer();
+            if (player == null)
+                return false;
+            Globals.PlayerSettings settings = Globals.getInstance().mPlayerSettings.get(player.getPlayerId());
+            return settings != null && settings.isAdmin;
+        }
+
         private byte playerIdOf(Connection client) {
             PlayerRecord player = client.getPlayer();
             return player != null ? player.getPlayerId() : 0;
@@ -1187,9 +1205,7 @@ public class TcpServer extends Service {
                     if (player.has(JSON_RECOIL_SETTING)) {
                         settings.recoilSetting = player.getInt(JSON_RECOIL_SETTING);
                     }
-                    if (player.has(JSON_IS_ADMIN)) {
-                        settings.isAdmin = player.getBoolean(JSON_IS_ADMIN);
-                    }
+                    // JSON_IS_ADMIN is ignored: only the server operator grants admin rights (D14)
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }

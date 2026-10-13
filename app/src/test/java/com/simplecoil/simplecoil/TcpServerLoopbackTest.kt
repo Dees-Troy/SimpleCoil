@@ -84,6 +84,13 @@ class TcpServerLoopbackTest {
 
     private fun score(id: Int) = server.getScore(id.toByte())
 
+    /** What the operator's player settings dialog does for the admin switch. */
+    private fun makeAdmin(id: Int) {
+        val settings = Globals.PlayerSettings()
+        settings.isAdmin = true
+        Globals.getInstance().mPlayerSettings[id.toByte()] = settings
+    }
+
     private fun awaitDisconnected(id: Int) =
         awaitTrue(6000, "player $id to show as disconnected") { score(id)?.isConnected == false }
 
@@ -266,7 +273,8 @@ class TcpServerLoopbackTest {
 
     @Test
     fun startAfterAGame_isRefusedWithAnError() {
-        val (clientA, _, _) = endedGameWithBravoAway()
+        val (clientA, idA, _) = endedGameWithBravoAway()
+        makeAdmin(idA)
         assertFalse(server.startGame())
         clientA.mesg(NetMsg.NETMSG_STARTGAME)
         assertEquals(NetMsg.NETMSG_ERROR + "Reset the game first", clientA.awaitMesg(NetMsg.NETMSG_ERROR))
@@ -299,11 +307,63 @@ class TcpServerLoopbackTest {
 
     @Test
     fun adminGameModeAfterAGame_resetsFirst() {
-        val (clientA, _, idB) = endedGameWithBravoAway()
+        val (clientA, idA, idB) = endedGameWithBravoAway()
+        makeAdmin(idA)
         clientA.mesg(NetMsg.NETMSG_ADMIN_GAMEMODE + Globals.GAME_MODE_4TEAMS)
         awaitTrue { server.sessionPhase == SessionPhase.LOBBY }
         awaitTrue { Globals.getInstance().mGameMode == Globals.GAME_MODE_4TEAMS }
         assertNull(score(idB))
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // D14: admin commands
+    // ------------------------------------------------------------------------------------------
+
+    @Test
+    fun adminCommandsFromANonAdmin_areIgnored() {
+        val (a, idA) = join("Alpha", "AA:00")
+        val (_, idB) = join("Bravo", "BB:00")
+        a.mesg(NetMsg.NETMSG_STARTGAME)
+        a.mesg(NetMsg.NETMSG_ADMIN_STARTGAME)
+        a.mesg(NetMsg.NETMSG_ADMIN_KICK + idB)
+        a.mesg(NetMsg.NETMSG_ADMIN_GAMEMODE + Globals.GAME_MODE_FFA)
+        a.mesg(NetMsg.NETMSG_PLAYERDATAREQUEST) // processed after the others
+        a.awaitJson(TcpServer.JSON_PLAYERDATA)
+        assertEquals(SessionPhase.LOBBY, server.sessionPhase)
+        assertNotNull(score(idB))
+        assertEquals(Globals.GAME_MODE_2TEAMS, Globals.getInstance().mGameMode)
+
+        // A client can't make itself an admin through its player settings either.
+        val settings = org.json.JSONObject()
+        settings.put(TcpServer.JSON_PLAYERSETTINGS, true)
+        settings.put(TcpServer.JSON_PLAYERID, idA)
+        settings.put(TcpServer.JSON_HEALTH, 20)
+        settings.put(TcpServer.JSON_RELOAD_SHOTS, 30)
+        settings.put(TcpServer.JSON_RELOAD_TIME, 1500)
+        settings.put(TcpServer.JSON_RELOAD_ON_EMPTY, false)
+        settings.put(TcpServer.JSON_SPAWN_TIME, 10)
+        settings.put(TcpServer.JSON_DAMAGE, -1)
+        settings.put(TcpServer.JSON_SHOT_MODE_SINGLE, true)
+        settings.put(TcpServer.JSON_SHOT_MODE_BURST3, true)
+        settings.put(TcpServer.JSON_SHOT_MODE_AUTO, true)
+        settings.put(TcpServer.JSON_FIRING_MODE, 0)
+        settings.put(TcpServer.JSON_IS_ADMIN, true)
+        a.json(settings)
+        awaitTrue { Globals.getInstance().mPlayerSettings[idA.toByte()] != null }
+        assertFalse(Globals.getInstance().mPlayerSettings[idA.toByte()]!!.isAdmin)
+    }
+
+    @Test
+    fun adminCommandsFromAnAdmin_run() {
+        val (a, idA) = join("Alpha", "AA:00")
+        join("Bravo", "BB:00")
+        makeAdmin(idA)
+        a.mesg(NetMsg.NETMSG_ADMIN_STARTGAME)
+        a.awaitMesg(NetMsg.NETMSG_STARTGAME)
+        assertEquals(SessionPhase.RUNNING, server.sessionPhase)
+        a.mesg(NetMsg.NETMSG_ADMIN_ENDGAME)
+        a.awaitMesg(NetMsg.NETMSG_ENDGAME)
+        assertEquals(SessionPhase.POST_GAME, server.sessionPhase)
     }
 
     @Test
