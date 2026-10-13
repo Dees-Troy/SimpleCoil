@@ -247,6 +247,65 @@ class TcpServerLoopbackTest {
         assertNotNull(score(idA))
     }
 
+    // ------------------------------------------------------------------------------------------
+    // Reset
+    // ------------------------------------------------------------------------------------------
+
+    private fun endedGameWithBravoAway(): Triple<LoopbackClient, Int, Int> {
+        val (a, b) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
+        val (clientA, idA) = a
+        val (clientB, idB) = b
+        clientA.mesg(NetMsg.NETMSG_ELIMINATED + idB)
+        awaitTrue { score(idB)?.points == 1 }
+        clientB.close()
+        awaitDisconnected(idB)
+        server.endGame()
+        clientA.awaitMesg(NetMsg.NETMSG_ENDGAME)
+        return Triple(clientA, idA, idB)
+    }
+
+    @Test
+    fun startAfterAGame_isRefusedWithAnError() {
+        val (clientA, _, _) = endedGameWithBravoAway()
+        assertFalse(server.startGame())
+        clientA.mesg(NetMsg.NETMSG_STARTGAME)
+        assertEquals(NetMsg.NETMSG_ERROR + "Reset the game first", clientA.awaitMesg(NetMsg.NETMSG_ERROR))
+        assertEquals(SessionPhase.POST_GAME, server.sessionPhase)
+    }
+
+    @Test
+    fun resetSession_removesTheAwayPlayer_zeroesScores_andOnlyWorksOnce() {
+        val (clientA, idA, idB) = endedGameWithBravoAway()
+        assertTrue(server.resetSession())
+        assertFalse(server.resetIfPostGame())
+        assertEquals(SessionPhase.LOBBY, server.sessionPhase)
+        assertNull(score(idB))
+        assertEquals(0, score(idA)!!.eliminated)
+        assertFalse(server.roster.isCached("AA:00"))
+        // The clients hear about it.
+        awaitTrue { clientA.lastJson(TcpServer.JSON_PLAYERS)?.getInt(TcpServer.JSON_GAMESTATE) == Globals.GAME_STATE_NONE }
+        assertTrue(server.startGame())
+    }
+
+    @Test
+    fun resetIfPostGame_doesNothingInTheLobbyOrDuringAGame() {
+        join("Alpha", "AA:00")
+        join("Bravo", "BB:00")
+        assertFalse(server.resetIfPostGame())
+        server.startGame()
+        assertFalse(server.resetIfPostGame())
+        assertEquals(SessionPhase.RUNNING, server.sessionPhase)
+    }
+
+    @Test
+    fun adminGameModeAfterAGame_resetsFirst() {
+        val (clientA, _, idB) = endedGameWithBravoAway()
+        clientA.mesg(NetMsg.NETMSG_ADMIN_GAMEMODE + Globals.GAME_MODE_4TEAMS)
+        awaitTrue { server.sessionPhase == SessionPhase.LOBBY }
+        awaitTrue { Globals.getInstance().mGameMode == Globals.GAME_MODE_4TEAMS }
+        assertNull(score(idB))
+    }
+
     @Test
     fun startGame_syncsGameStateRepository() {
         // D8: GameStateRepository always said "not running".

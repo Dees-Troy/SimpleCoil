@@ -42,6 +42,7 @@ import androidx.core.content.ContextCompat;
 import androidx.lifecycle.ViewModelProvider;
 
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
+import com.simplecoil.simplecoil.network.server.SessionPhase;
 import com.simplecoil.simplecoil.ui.server.DedicatedServerViewModel;
 import android.util.Log;
 import android.widget.EditText;
@@ -84,6 +85,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     private Button mGPSModeButton = null;
     private Button mEndGameButton = null;
     private Button mStartGameButton = null;
+    private Button mResetGameButton = null;
     private TextView mGameLimitTV = null;
     private TextView mGameStatusTV = null;
     private Switch mAllowJoinSwitch = null;
@@ -142,6 +144,8 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             public void onServiceConnected(ComponentName componentName, IBinder service) {
                 mTcpServer = ((TcpServer.LocalBinder) service).getService();
                 mTcpServer.startTcpServer();
+                mViewModel.setPhase(mTcpServer.getSessionPhase());
+                getPlayerDisplayData();
             }
 
             @Override
@@ -241,7 +245,12 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 }
             }));
         }
-        sharedPreferences = getSharedPreferences(FullscreenActivity.PREF_NAME, Context.MODE_PRIVATE);
+        mResetGameButton = findViewById(R.id.reset_game_button);
+        mResetGameButton.setOnClickListener(new View.OnClickListener() {
+            public void onClick(View v) {
+                confirmReset();
+            }
+        });        sharedPreferences = getSharedPreferences(FullscreenActivity.PREF_NAME, Context.MODE_PRIVATE);
         Globals.getInstance().mGameMode = sharedPreferences.getInt(FullscreenActivity.PREF_GAME_MODE, Globals.GAME_MODE_2TEAMS);
         if (Globals.getInstance().mGameMode == Globals.GAME_MODE_2TEAMS)
             mGameModeButton.setText(R.string.game_mode_2teams);
@@ -265,11 +274,11 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         setGPSMode(Globals.getInstance().mGPSMode);
         mAllowJoinSwitch = findViewById(R.id.allow_join_switch);
         GameSettingsRepository.getInstance().setAllowJoinInProgress(mAllowJoinSwitch.isChecked());
+        // Whether a new player may join a running game is enforced at the TCP hello. The discovery
+        // beacon stays on so a player whose app restarted mid-game can find the server again.
         mAllowJoinSwitch.setOnClickListener((new View.OnClickListener() {
             public void onClick(View v) {
                 GameSettingsRepository.getInstance().setAllowJoinInProgress(mAllowJoinSwitch.isChecked());
-                if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE)
-                    mUDPListenerService.allowJoin(mAllowJoinSwitch.isChecked());
             }
         }));
         mOnlyServerSettingsSwitch = findViewById(R.id.only_server_settings_switch);
@@ -320,6 +329,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 @Override
                 public void onClick(View v) {
                     if (mTcpServer != null) {
+                        resetIfPostGame();
                         mTcpServer.rebalanceAllPlayers(true);
                         Toast.makeText(DedicatedServerActivity.this, "Teams Sorted & Randomized!", Toast.LENGTH_SHORT).show();
                     }
@@ -344,6 +354,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 dialog.show();
             }
         });
+        mViewModel.getPhaseLiveData().observe(this, this::renderPhase);
     }
 
     @Override
@@ -395,6 +406,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     public boolean onMenuItemClick(MenuItem item) {
         switch (item.getItemId()) {
             case R.id.game_mode_2teams_item:
+                resetIfPostGame();
                 Globals.getInstance().mGameMode = Globals.GAME_MODE_2TEAMS;
                 Globals.getInstance().resetDefaultTeamSizes();
                 mGameModeButton.setText(R.string.game_mode_2teams);
@@ -406,6 +418,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 getPlayerDisplayData();
                 return true;
             case R.id.game_mode_4teams_item:
+                resetIfPostGame();
                 Globals.getInstance().mGameMode = Globals.GAME_MODE_4TEAMS;
                 Globals.getInstance().resetDefaultTeamSizes();
                 mGameModeButton.setText(R.string.game_mode_4teams);
@@ -417,6 +430,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 getPlayerDisplayData();
                 return true;
             case R.id.game_mode_ffa_item:
+                resetIfPostGame();
                 Globals.getInstance().mGameMode = Globals.GAME_MODE_FFA;
                 Globals.getInstance().resetDefaultTeamSizes();
                 mGameModeButton.setText(R.string.game_mode_ffa);
@@ -428,12 +442,15 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 getPlayerDisplayData();
                 return true;
             case R.id.gps_mode_disabled:
+                resetIfPostGame();
                 setGPSMode(Globals.GPS_DISABLED);
                 return true;
             case R.id.gps_mode_teammate:
+                resetIfPostGame();
                 setGPSMode(Globals.GPS_TEAMMATE);
                 return true;
             case R.id.gps_mode_all:
+                resetIfPostGame();
                 setGPSMode(Globals.GPS_ALL);
                 return true;
             default:
@@ -518,6 +535,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                                     dialog.dismiss();
                                     return;
                                 }
+                                resetIfPostGame();
                                 int gameLimit = Globals.getInstance().mGameLimit;
                                 if (gameLimitTime.isChecked()) {
                                     if ((gameLimit & Globals.GAME_LIMIT_TIME) == 0)
@@ -595,7 +613,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     }
 
     public void showTeamRatioDialog() {
-        if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE) {
+        if (mTcpServer != null && mTcpServer.getSessionPhase() == SessionPhase.RUNNING) {
             Toast.makeText(this, "Cannot edit team ratios while a game is in progress", Toast.LENGTH_SHORT).show();
             return;
         }
@@ -687,6 +705,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                     return;
                 }
 
+                resetIfPostGame();
                 Globals.getInstance().setTeamSizes(newSizes);
                 if (mTcpServer != null) {
                     mTcpServer.rebalanceAllPlayers(false);
@@ -697,19 +716,59 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         });
     }
 
-    private void startGame() {
-        Log.d(TAG, "DedicatedServerActivity.startGame called. mGameState=" + Globals.getInstance().mGameState);
-        Globals.getInstance().mGameState = Globals.GAME_STATE_RUNNING;
-        mStartGameButton.setEnabled(false);
-        mGameModeButton.setEnabled(false);
-        mGameLimitButton.setEnabled(false);
-        mGPSModeButton.setEnabled(false);
+    /**
+     * Changing a game setting after a game resets first (reconnect design §3.1.1). The change is
+     * the intent, so there is no confirmation, only a toast.
+     */
+    private void resetIfPostGame() {
+        if (mTcpServer != null && mTcpServer.resetIfPostGame())
+            Toast.makeText(this, R.string.dedicated_game_reset_toast, Toast.LENGTH_SHORT).show();
+    }
+
+    /** Reset button: confirm, since it drops players who may be about to walk back in. */
+    private void confirmReset() {
+        int disconnected = 0;
+        for (PlayerDisplayData player : mPlayerDisplayData) {
+            if (player != null && !player.isConnected) disconnected++;
+        }
+        new AlertDialog.Builder(this, R.style.Theme_AppCompat_DayNight_Dialog_Alert)
+                .setMessage(getString(R.string.dedicated_reset_confirm, disconnected))
+                .setPositiveButton(R.string.reset_game_button, new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int id) {
+                        if (mTcpServer != null)
+                            mTcpServer.resetSession();
+                    }
+                })
+                .setNegativeButton(R.string.cancel, null)
+                .show();
+    }
+
+    /** Buttons and status for the server's session phase (reconnect design §3.1). */
+    private void renderPhase(SessionPhase phase) {
+        boolean running = phase == SessionPhase.RUNNING;
+        boolean postGame = phase == SessionPhase.POST_GAME;
+        // Reset takes Start's place after a game. Invisible, not gone: other views are laid out against Start.
+        mStartGameButton.setVisibility(phase == SessionPhase.LOBBY ? View.VISIBLE : View.INVISIBLE);
+        mStartGameButton.setEnabled(phase == SessionPhase.LOBBY);
+        mResetGameButton.setVisibility(postGame ? View.VISIBLE : View.INVISIBLE);
+        mEndGameButton.setEnabled(running);
+        mGameModeButton.setEnabled(!running);
+        mGameLimitButton.setEnabled(!running);
+        mGPSModeButton.setEnabled(!running);
         Button shuffleTeamsBtn = findViewById(R.id.shuffle_teams_button);
-        if (shuffleTeamsBtn != null) shuffleTeamsBtn.setEnabled(false);
-        mGameStatusTV.setText(R.string.dedicated_game_running);
+        if (shuffleTeamsBtn != null) shuffleTeamsBtn.setEnabled(!running);
+        if (running)
+            mGameStatusTV.setText(R.string.dedicated_game_running);
+        else if (postGame)
+            mGameStatusTV.setText(R.string.dedicated_game_over);
+        else
+            mGameStatusTV.setText(R.string.dedicated_game_waiting);
+    }
+
+    private void onGameStarted() {
+        Log.d(TAG, "DedicatedServerActivity.onGameStarted called. mGameState=" + Globals.getInstance().mGameState);
+        mViewModel.setPhase(SessionPhase.RUNNING);
         GameSettingsRepository.getInstance().setAllowJoinInProgress(mAllowJoinSwitch.isChecked());
-        mUDPListenerService.allowJoin(mAllowJoinSwitch.isChecked());
-        mEndGameButton.setEnabled(true);
         if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_TIME) != 0) {
             startGameCountdown();
         } else {
@@ -728,20 +787,10 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         getPlayerDisplayData();
     }
 
-    private void endGame() {
-        Log.d(TAG, "DedicatedServerActivity.endGame called. mGameState=" + Globals.getInstance().mGameState);
-        Globals.getInstance().mGameState = Globals.GAME_STATE_NONE;
+    private void onGameEnded() {
+        Log.d(TAG, "DedicatedServerActivity.onGameEnded called. mGameState=" + Globals.getInstance().mGameState);
+        mViewModel.setPhase(SessionPhase.POST_GAME);
         mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, Globals.getPlayerCount(true)));
-        mStartGameButton.setEnabled(true);
-        mGameModeButton.setEnabled(true);
-        mGameLimitButton.setEnabled(true);
-        mGPSModeButton.setEnabled(true);
-        Button shuffleTeamsBtn = findViewById(R.id.shuffle_teams_button);
-        if (shuffleTeamsBtn != null) shuffleTeamsBtn.setEnabled(true);
-        mGameStatusTV.setText(R.string.dedicated_game_waiting);
-        //mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, 0));
-        mUDPListenerService.allowJoin(true);
-        mEndGameButton.setEnabled(false);
         mGameTimer.stop();
         if (mSpawnTimer != null) {
             mSpawnTimer.cancel();
@@ -765,15 +814,19 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             final String action = intent.getAction();
             Log.d(TAG, "mServerUpdateReceiver onReceive action=" + action);
             if (NetMsg.NETMSG_JOIN.equals(action) || NetMsg.NETMSG_LEAVE.equals(action)) {
+                // The server ends the game itself when the last but one player leaves.
                 mViewModel.updatePlayerCount();
                 mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, Globals.getPlayerCount(true)));
-                if (Globals.getInstance().mGameMode == Globals.GAME_MODE_FFA && Globals.getInstance().mGameState != Globals.GAME_STATE_NONE && NetMsg.NETMSG_LEAVE.equals(action) && Globals.getPlayerCount(true) <= 1)
-                    endGame(); // Everyone else is out so game is over - this only works in FFA because we don't keep track of who and how many people are on each team
                 getPlayerDisplayData();
             } else if (NetMsg.NETMSG_STARTGAME.equals(action)) {
-                startGame();
+                onGameStarted();
             } else if (NetMsg.NETMSG_ENDGAME.equals(action)) {
-                endGame();
+                onGameEnded();
+            } else if (NetMsg.NETMSG_SESSIONRESET.equals(action)) {
+                mViewModel.setPhase(SessionPhase.LOBBY);
+                mViewModel.updatePlayerCount();
+                mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, Globals.getPlayerCount(true)));
+                getPlayerDisplayData();
             } else if (NetMsg.NETMSG_ERROR.equals(action)) {
                 String errorMessage = intent.getStringExtra(UDPListenerService.INTENT_MESSAGE);
                 if (errorMessage != null && !errorMessage.isEmpty()) {
@@ -820,6 +873,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         intentFilter.addAction(NetMsg.NETMSG_SERVERCREATED);
         intentFilter.addAction(NetMsg.NETMSG_SERVERCANCEL);
         intentFilter.addAction(NetMsg.NETMSG_PLAYERDATAUPDATE);
+        intentFilter.addAction(NetMsg.NETMSG_SESSIONRESET);
         return intentFilter;
     }
 

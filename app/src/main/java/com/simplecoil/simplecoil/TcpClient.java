@@ -337,6 +337,10 @@ public class TcpClient extends Service {
                                 } else if (message.equals(NetMsg.NETMSG_SERVERCANCEL)) {
                                     sendBroadcast(new Intent(NetMsg.NETMSG_SERVERCANCEL));
                                     break;
+                                } else if (message.startsWith(NetMsg.NETMSG_ERROR)) {
+                                    Intent intent = new Intent(NetMsg.NETMSG_ERROR);
+                                    intent.putExtra(UDPListenerService.INTENT_MESSAGE, message.substring(NetMsg.NETMSG_ERROR.length()));
+                                    sendBroadcast(intent);
                                 }
                             } else if (message.startsWith(NetMsg.NETMSG_VERSIONERROR)) {
                                 sendBroadcast(new Intent(NetMsg.NETMSG_VERSIONERROR));

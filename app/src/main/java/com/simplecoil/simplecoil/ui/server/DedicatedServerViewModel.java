@@ -27,6 +27,7 @@ import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.network.discovery.ServerDiscoveryManager;
+import com.simplecoil.simplecoil.network.server.SessionPhase;
 
 import java.net.InetAddress;
 
@@ -50,6 +51,7 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
     private final MutableLiveData<Boolean> allowJoinLiveData = new MutableLiveData<>();
     private final MutableLiveData<Boolean> onlyServerSettingsLiveData = new MutableLiveData<>();
     private final MutableLiveData<Boolean> allowChooseTeamsLiveData = new MutableLiveData<>();
+    private final MutableLiveData<SessionPhase> phaseLiveData = new MutableLiveData<>(SessionPhase.LOBBY);
 
     public DedicatedServerViewModel(@NonNull Application application) {
         this(
@@ -145,6 +147,11 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
         allowChooseTeamsLiveData.postValue(settingsRepo.isAllowChooseTeams());
     }
 
+    /** The server's session phase, from its STARTGAME / ENDGAME / SESSIONRESET broadcasts. Main thread. */
+    public void setPhase(SessionPhase phase) {
+        phaseLiveData.setValue(phase);
+    }
+
     public void updatePlayerCount() {
         playerCountLiveData.postValue(playerRepo.getPlayerCount(true));
     }
@@ -178,4 +185,5 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
     public LiveData<Boolean> getAllowJoinLiveData() { return allowJoinLiveData; }
     public LiveData<Boolean> getOnlyServerSettingsLiveData() { return onlyServerSettingsLiveData; }
     public LiveData<Boolean> getAllowChooseTeamsLiveData() { return allowChooseTeamsLiveData; }
+    public LiveData<SessionPhase> getPhaseLiveData() { return phaseLiveData; }
 }

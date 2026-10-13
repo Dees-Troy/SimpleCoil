@@ -159,6 +159,7 @@ class GameRosterTest {
         roster.startGame()
         roster.onEliminated(ca, 17)
         roster.endGame()
+        roster.reset()
         roster.startGame()
         assertTrue(roster.isCached("AA"))
         assertFalse(roster.isCached(""))
@@ -246,15 +247,38 @@ class GameRosterTest {
     }
 
     @Test
-    fun startAfterAGame_resetsFirst() {
-        val (ca, a) = join("Alpha", "AA")
+    fun start_isRefusedAfterAGameUntilReset() {
+        join("Alpha", "AA")
         join("Bravo", "BB")
         roster.startGame()
-        roster.onDisconnect(ca)
-        roster.endGame()
-        assertTrue(roster.startGame())
-        assertNull(roster.record(a.playerId))
         assertFalse(roster.startGame()) // already running
+        roster.endGame()
+        assertFalse(roster.startGame()) // Q8: reset first
+        assertEquals(SessionPhase.POST_GAME, roster.phase())
+        roster.reset()
+        assertTrue(roster.startGame())
+    }
+
+    @Test
+    fun rebalanceAfterAGame_runsOnTheResetRoster_likeTheSameRebalanceInTheLobby() {
+        // §3.1.1: game mode, team sizes and sort reset first; the rebalance then sees only the
+        // connected players and the cache is empty.
+        val (_, _) = join("Alpha", "AA")
+        val (cb, _) = join("Bravo", "BB")
+        val (_, _) = join("Charlie", "CC")
+        val (_, _) = join("Delta", "DD")
+        roster.startGame()
+        roster.onDisconnect(cb)
+        roster.endGame()
+        roster.reset()
+        val afterGame = roster.rebalance(false).assigned.map { it.name to it.playerId }
+
+        setUp()
+        join("Alpha", "AA")
+        join("Charlie", "CC", requestedId = 2)
+        join("Delta", "DD", requestedId = 18)
+        val inLobby = roster.rebalance(false).assigned.map { it.name to it.playerId }
+        assertEquals(inLobby, afterGame)
     }
 
     @Test

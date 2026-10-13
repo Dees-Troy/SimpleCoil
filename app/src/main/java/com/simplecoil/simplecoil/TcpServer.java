@@ -211,10 +211,11 @@ public class TcpServer extends Service {
         mRoster.resetScores();
     }
 
-    public void startGame() {
+    /** Starts a game from the lobby. False if not in the lobby (after a game, reset first) or nobody is there. */
+    public boolean startGame() {
         Log.d(TAG, "TcpServer.startGame called. Clients: " + mRoster.size());
         if (!mRoster.startGame())
-            return;
+            return false;
         syncGameState();
 
         Thread sendThread = new Thread(new Runnable() {
@@ -230,6 +231,7 @@ public class TcpServer extends Service {
             }
         });
         sendThread.start();
+        return true;
     }
 
     /**
@@ -258,11 +260,14 @@ public class TcpServer extends Service {
     }
 
     /**
-     * After a game: removes the disconnected players, zeroes the scores, forgets the game's
-     * roster and returns to the lobby. Returns false (and does nothing) outside POST_GAME.
+     * Reset (reconnect design §3.1), POST_GAME → LOBBY: removes the disconnected players, zeroes
+     * the scores, forgets the game's roster, then tells the clients and broadcasts
+     * NETMSG_SESSIONRESET locally. Returns false (and does nothing) outside POST_GAME, so a
+     * duplicate or late reset is harmless. Safe on the main thread: the sending happens on a
+     * worker thread.
      */
-    public boolean resetIfPostGame() {
-        java.util.List<PlayerRecord> removed;
+    public boolean resetSession() {
+        List<PlayerRecord> removed;
         acquirePlayerMapSemaphores();
         try {
             removed = mRoster.reset();
@@ -274,10 +279,24 @@ public class TcpServer extends Service {
         Log.d(TAG, "Session reset: removed " + removed.size() + " disconnected players");
         syncGameState();
         mGPSIntervalCount.set(SEND_ALL_GPS_INTERVAL);
-        sendPlayerData(SEND_ALL);
-        sendAllGameInfo(SEND_ALL);
-        sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+        Thread sendThread = new Thread(new Runnable() {
+            public void run() {
+                sendPlayerData(SEND_ALL);
+                sendAllGameInfo(SEND_ALL);
+                sendBroadcast(new Intent(NetMsg.NETMSG_SESSIONRESET));
+                sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+            }
+        });
+        sendThread.start();
         return true;
+    }
+
+    /**
+     * Changing the game mode, team sizes, game limits or GPS mode, or sorting teams, after a game
+     * resets first (§3.1.1). Call it before applying the change; true if it reset.
+     */
+    public boolean resetIfPostGame() {
+        return resetSession();
     }
 
     public SessionPhase getSessionPhase() {
@@ -361,7 +380,7 @@ public class TcpServer extends Service {
             Log.w(TAG, "rebalanceAllPlayers: Game is running, skipping team rebalance!");
             return;
         }
-        resetIfPostGame();
+        resetIfPostGame(); // the roster renumbers only in the lobby
         Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -949,7 +968,8 @@ public class TcpServer extends Service {
                                             sendPlayerData(playerIdOf(client));
                                         } else if (message.equals(NetMsg.NETMSG_STARTGAME) || message.startsWith(NetMsg.NETMSG_ADMIN_STARTGAME)) {
                                             Log.d(TAG, "TcpServer received STARTGAME / ADMIN_STARTGAME command: '" + message + "'");
-                                            startGame();
+                                            if (!startGame() && mRoster.phase() == SessionPhase.POST_GAME)
+                                                client.send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ERROR + "Reset the game first");
                                         } else if (message.equals(NetMsg.NETMSG_ENDGAME) || message.startsWith(NetMsg.NETMSG_ADMIN_ENDGAME)) {
                                             Log.d(TAG, "TcpServer received ENDGAME / ADMIN_ENDGAME command: '" + message + "'");
                                             if (message.startsWith(NetMsg.NETMSG_ADMIN_ENDGAME)) {
@@ -963,13 +983,19 @@ public class TcpServer extends Service {
                                             }
                                         } else if (message.startsWith(NetMsg.NETMSG_ADMIN_SORTTEAMS)) {
                                             Log.d(TAG, "TcpServer received ADMIN_SORTTEAMS command: '" + message + "'");
-                                            rebalanceAllPlayers(true);
+                                            if (!mRoster.isRunning()) {
+                                                resetIfPostGame();
+                                                rebalanceAllPlayers(true);
+                                            }
                                         } else if (message.startsWith(NetMsg.NETMSG_ADMIN_GAMEMODE)) {
                                             Log.d(TAG, "TcpServer received ADMIN_GAMEMODE command: '" + message + "'");
                                             try {
                                                 int mode = Integer.parseInt(message.substring(NetMsg.NETMSG_ADMIN_GAMEMODE.length()).trim());
-                                                Globals.getInstance().mGameMode = mode;
-                                                rebalanceAllPlayers(false);
+                                                if (!mRoster.isRunning()) {
+                                                    resetIfPostGame();
+                                                    Globals.getInstance().mGameMode = mode;
+                                                    rebalanceAllPlayers(false);
+                                                }
                                             } catch (Exception e) {
                                                 e.printStackTrace();
                                             }
@@ -983,7 +1009,7 @@ public class TcpServer extends Service {
                                             }
                                         } else if (message.startsWith(NetMsg.NETMSG_ADMIN_TEAMSIZES)) {
                                             Log.d(TAG, "TcpServer received ADMIN_TEAMSIZES command: '" + message + "'");
-                                            if (Globals.getInstance().mGameState == Globals.GAME_STATE_NONE) {
+                                            if (!mRoster.isRunning()) {
                                                 try {
                                                     String sizesStr = message.substring(NetMsg.NETMSG_ADMIN_TEAMSIZES.length()).trim();
                                                     String[] parts = sizesStr.split(",");
@@ -994,6 +1020,7 @@ public class TcpServer extends Service {
                                                         sum += newSizes[i];
                                                     }
                                                     if (sum == Globals.MAX_PLAYER_ID) {
+                                                        resetIfPostGame();
                                                         Globals.getInstance().setTeamSizes(newSizes);
                                                         rebalanceAllPlayers(false);
                                                     }

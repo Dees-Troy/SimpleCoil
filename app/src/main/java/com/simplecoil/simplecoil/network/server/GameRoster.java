@@ -222,13 +222,13 @@ public final class GameRoster {
     // ---------------------------------------------------------------------------------------
 
     /**
-     * Starts a game: scores to 0 and every player with a MAC into the roster cache. After a game
-     * it resets first. False (and nothing changes) during a game or if nobody is there.
+     * Starts a game from the lobby: scores to 0 and every player with a MAC into the roster
+     * cache. False (and nothing changes) outside the lobby (after a game, reset first) or if
+     * nobody is there.
      */
     public synchronized boolean startGame() {
-        if (phase == SessionPhase.RUNNING) return false;
+        if (phase != SessionPhase.LOBBY) return false;
         if (connections.isEmpty() && byId.isEmpty()) return false;
-        if (phase == SessionPhase.POST_GAME) resetLocked();
         phase = SessionPhase.RUNNING;
         resetScoresLocked();
         cacheByMac.clear();

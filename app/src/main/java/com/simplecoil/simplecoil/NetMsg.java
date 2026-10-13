@@ -46,6 +46,8 @@ public class NetMsg {
     public static final String NETMSG_NETWORKCONNECTED = "NETWORKCONNECTED";
     public static final String NETMSG_NETWORKDISCONNECTED = "NETWORKDISCONNECTED";
     public static final String NETMSG_PLAYERSETTINGSUPDATE = "PLAYERSETTINGSUPDATE";
+    // Local broadcast only: the dedicated server's session was reset to the lobby
+    public static final String NETMSG_SESSIONRESET = "SESSIONRESET";
     public static final String NETMSG_ADMIN_STARTGAME = "ADMIN_STARTGAME";
     public static final String NETMSG_ADMIN_ENDGAME = "ADMIN_ENDGAME";
     public static final String NETMSG_ADMIN_GAMEMODE = "ADMIN_GAMEMODE";

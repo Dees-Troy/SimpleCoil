@@ -128,6 +128,10 @@
     <string name="dedicated_limit_separator">, </string>
     <string name="dedicated_game_running">Game Running</string>
     <string name="dedicated_game_waiting">Waiting to Start</string>
+    <string name="dedicated_game_over">Game over. Players can still reconnect. Tap Reset for a new game.</string>
+    <string name="reset_game_button">Reset</string>
+    <string name="dedicated_reset_confirm">Reset scores and remove %1$d disconnected players?</string>
+    <string name="dedicated_game_reset_toast">Game reset</string>
     <string name="dedicated_allow_join">Allow players to join after game has started?</string>
     <string name="dedicated_server_settings_only">Only allow server settings?</string>
     <string name="gps_mode_disabled">GPS Disabled</string>

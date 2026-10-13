@@ -132,6 +132,16 @@
             android:text="@string/start_game_button" />
 
         <Button
+            android:id="@+id/reset_game_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_below="@id/gps_mode_button"
+            android:visibility="invisible"
+            android:text="@string/reset_game_button" />
+
+        <Button
             android:id="@+id/end_game_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
