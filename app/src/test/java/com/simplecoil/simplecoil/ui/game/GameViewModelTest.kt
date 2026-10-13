@@ -118,7 +118,7 @@ class GameViewModelTest {
         GameSettingsRepository.getInstance().isOnlyServerSettings = false
         PlayerRepository.getInstance().isAdmin = false
         PlayerRepository.getInstance().playerName = "Tester"
-        engine = BlasterSessionEngine(rec, RepositoryGameConfig, rec, scope, clock = { scope.testScheduler.currentTime })
+        engine = BlasterSessionEngine(rec, RepositoryGameConfig(GameSettingsRepository.getInstance(), PlayerRepository.getInstance(), GameStateRepository.getInstance()), rec, scope, clock = { scope.testScheduler.currentTime })
         net = NetworkSessionGateway(mock(Context::class.java), scope)
         udp = mock(UDPListenerService::class.java)
         client = mock(TcpClient::class.java)

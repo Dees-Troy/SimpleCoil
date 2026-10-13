@@ -60,13 +60,14 @@ interface GameConfig {
     fun grenadePairing(grenadeId: Int): Int
 }
 
-object RepositoryGameConfig : GameConfig {
-    private val settings get() = GameSettingsRepository.getInstance()
-    private val players get() = PlayerRepository.getInstance()
-
+class RepositoryGameConfig(
+    private val settings: GameSettingsRepository,
+    private val players: PlayerRepository,
+    private val state: GameStateRepository,
+) : GameConfig {
     override var gameState: Int
-        get() = GameStateRepository.getInstance().gameState
-        set(value) { GameStateRepository.getInstance().gameState = value }
+        get() = state.gameState
+        set(value) { state.gameState = value }
     override var playerId: Byte
         get() = players.playerID
         set(value) { players.playerID = value }

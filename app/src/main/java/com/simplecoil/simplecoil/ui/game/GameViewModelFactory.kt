@@ -28,14 +28,16 @@ import com.simplecoil.simplecoil.SimpleCoilApp
 
 /** Builds [GameViewModel] from the application container. */
 class GameViewModelFactory(private val app: SimpleCoilApp) : ViewModelProvider.Factory {
+    private val container get() = app.container
+
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T = GameViewModel(
-        engine = app.sessionEngine,
-        net = app.networkGateway,
-        ble = app.bleConnectionManager,
-        blasterEvents = app.bleDeviceRepository.events,
-        prefs = app.userPreferences,
-        sounds = app.soundEffects,
+        engine = container.sessionEngine,
+        net = container.networkGateway,
+        ble = container.bleConnectionManager,
+        blasterEvents = container.bleDeviceRepository.events,
+        prefs = container.userPreferences,
+        sounds = container.soundEffects,
         wifiConnected = { isWifiConnected(app) },
         broadcastGpsSetting = { app.sendBroadcast(Intent(NetMsg.NETMSG_GPSSETTING).setPackage(app.packageName)) },
     ) as T
