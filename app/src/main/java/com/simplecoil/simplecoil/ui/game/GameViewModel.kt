@@ -20,10 +20,8 @@ import android.bluetooth.BluetoothAdapter
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.simplecoil.simplecoil.GameUpdate
 import com.simplecoil.simplecoil.NameGenerator
 import com.simplecoil.simplecoil.NetMsg
-import com.simplecoil.simplecoil.NetworkEvent
 import com.simplecoil.simplecoil.NetworkSessionGateway
 import com.simplecoil.simplecoil.PlayerDisplayData
 import com.simplecoil.simplecoil.ProfanityFilter
@@ -48,6 +46,8 @@ import com.simplecoil.simplecoil.hardware.blaster.BleConnectionEvent
 import com.simplecoil.simplecoil.hardware.blaster.BleConnectionManager
 import com.simplecoil.simplecoil.hardware.blaster.GattProtocolHandler
 import com.simplecoil.simplecoil.hardware.blaster.QrPairingPayload
+import com.simplecoil.simplecoil.network.ClientEvent
+import com.simplecoil.simplecoil.network.GameUpdate
 import com.simplecoil.simplecoil.network.server.SessionPhase
 import com.simplecoil.simplecoil.ui.playersettings.PlayerSettingsValues
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardContext
@@ -143,7 +143,7 @@ class GameViewModel(
         viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) { blasterEvents.collect { onBlasterEvent(it) } }
         viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) { ble.events.collect { onConnectionEvent(it) } }
         viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) { engine.effects.collect { onSessionEffect(it) } }
-        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) { net.events.collect { onNetworkEvent(it) } }
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) { net.events.collect { onClientEvent(it) } }
     }
 
     // ---------------------------------------------------------------------------------------
@@ -943,62 +943,62 @@ class GameViewModel(
     // NETMSG_* (D4: handled for the screen's whole lifetime)
     // ---------------------------------------------------------------------------------------
 
-    private fun onNetworkEvent(event: NetworkEvent) {
+    private fun onClientEvent(event: ClientEvent) {
         when (event) {
-            NetworkEvent.UdpServiceConnected -> if (engine.isCommunicating) autoStartServerScan()
-            NetworkEvent.UdpServiceDisconnected -> {
+            ClientEvent.UdpServiceConnected -> if (engine.isCommunicating) autoStartServerScan()
+            ClientEvent.UdpServiceDisconnected -> {
                 ready = false
                 setReady(false)
                 if (gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) endGame()
             }
-            is NetworkEvent.PlayerData -> {
+            is ClientEvent.PlayerData -> {
                 // Scoreboard parsed off the main thread (scores already updated)
                 screen?.showScore(net.score)
                 screen?.showTeamScore(net.teamScore)
                 updateScoreboardData(event.players)
             }
-            NetworkEvent.ShotFired -> {
+            ClientEvent.ShotFired -> {
                 engine.onRemoteShotFired() // Keeps us from spamming shots fired messages
                 screen?.showShotsFired()
             }
-            is NetworkEvent.Hit -> screen?.showHitOtherPlayer(false, playerName(event.playerId))
-            is NetworkEvent.Out -> screen?.showHitOtherPlayer(true, playerName(event.playerId))
-            is NetworkEvent.Eliminated -> onEliminatedSomeone(event.playerId)
-            NetworkEvent.TeamEliminated -> {
+            is ClientEvent.Hit -> screen?.showHitOtherPlayer(false, playerName(event.playerId))
+            is ClientEvent.Out -> screen?.showHitOtherPlayer(true, playerName(event.playerId))
+            is ClientEvent.Eliminated -> onEliminatedSomeone(event.playerId)
+            ClientEvent.TeamEliminated -> {
                 // Increase team score in team games
                 net.teamScore = net.teamScore + 1
                 screen?.showTeamScore(net.teamScore)
                 if (!net.useNetwork && (settingsRepo.gameLimit and GameSettingsRepository.GAME_LIMIT_SCORE) != 0 && net.teamScore >= settingsRepo.scoreLimit) endGame()
             }
-            NetworkEvent.Join, NetworkEvent.Leave -> {
+            ClientEvent.Join, ClientEvent.Leave -> {
                 screen?.showPlayerCount(playerRepo.getPlayerCount(false))
                 // Everyone else is out so game is over - this only works in FFA because we don't
                 // keep track of who and how many people are on each team
                 if (settingsRepo.teamMode.isFreeForAll && gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE &&
-                    event == NetworkEvent.Leave && playerRepo.getPlayerCount(false) <= 1) endGame()
+                    event == ClientEvent.Leave && playerRepo.getPlayerCount(false) <= 1) endGame()
             }
-            is NetworkEvent.ListPlayers -> onListPlayers(event)
-            is NetworkEvent.PlayerDataUpdate -> displayPlayerData(event.json)
-            NetworkEvent.StartGame -> {
+            is ClientEvent.ListPlayers -> onListPlayers(event)
+            is ClientEvent.PlayerDataUpdate -> displayPlayerData(event.json)
+            ClientEvent.StartGame -> {
                 closeScoreboard()
                 if (gameStateRepo.gameState == GameStateRepository.GAME_STATE_NONE) startGame()
             }
-            NetworkEvent.EndGame -> if (gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) endGame()
-            is NetworkEvent.Error -> {
+            ClientEvent.EndGame -> if (gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) endGame()
+            is ClientEvent.Error -> {
                 val message = event.message
                 if (!message.isNullOrEmpty()) screen?.showText(message) else Log.d(TAG, "No error message given")
             }
-            NetworkEvent.VersionError -> {
+            ClientEvent.VersionError -> {
                 screen?.showMessage(GameMessage.UDP_VERSION_ERROR)
                 ready = false
                 setReady()
             }
-            NetworkEvent.SameTeam -> {
+            ClientEvent.SameTeam -> {
                 screen?.showMessage(GameMessage.SAME_ID_ERROR)
                 ready = false
                 setReady()
             }
-            NetworkEvent.FailedToJoin -> {
+            ClientEvent.FailedToJoin -> {
                 Log.d(TAG, "NETMSG_FAILEDTOJOIN received. mUseNetwork=" + net.useNetwork + ", mNetworkMenuType=" + networkMenuType)
                 if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINING) {
                     viewModelScope.launch {
@@ -1011,7 +1011,7 @@ class GameViewModel(
                     }
                 }
             }
-            NetworkEvent.ServerCancel -> {
+            ClientEvent.ServerCancel -> {
                 cancelServerSearchTimeout()
                 if (gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) {
                     endGame()
@@ -1026,7 +1026,7 @@ class GameViewModel(
                 setTeam()
                 screen?.showMessage(GameMessage.KICKED_BY_SERVER)
             }
-            is NetworkEvent.ServerReply -> {
+            is ClientEvent.ServerReply -> {
                 cancelServerSearchTimeout()
                 val assigned = event.assignedPlayerId
                 if (assigned != null && assigned.toInt() != 0) {
@@ -1038,13 +1038,14 @@ class GameViewModel(
                 net.startTcpClient()
                 setNetworkMenu(NETWORK_TYPE_JOINED)
             }
-            NetworkEvent.NetworkConnected -> {
+            ClientEvent.NetworkConnected -> {
                 cancelServerSearchTimeout()
                 screen?.showNetworkConnected(true)
                 if (ready && net.useNetwork) setNetworkMenu(NETWORK_TYPE_JOINED)
             }
-            NetworkEvent.NetworkDisconnected -> screen?.showNetworkConnected(false)
-            NetworkEvent.PlayerSettingsUpdate -> updatePlayerSettings()
+            ClientEvent.NetworkDisconnected -> screen?.showNetworkConnected(false)
+            ClientEvent.PlayerSettingsUpdate -> updatePlayerSettings()
+            is ClientEvent.GpsData, ClientEvent.GpsSettingChanged -> Unit // the map's
         }
     }
 
@@ -1065,7 +1066,7 @@ class GameViewModel(
         }
     }
 
-    private fun onListPlayers(event: NetworkEvent.ListPlayers) {
+    private fun onListPlayers(event: ClientEvent.ListPlayers) {
         if (!ready) return
         net.udp!!.endScanning()
         screen?.showPlayerCount(playerRepo.getPlayerCount(false))

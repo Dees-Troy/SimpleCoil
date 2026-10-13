@@ -19,7 +19,6 @@ package com.simplecoil.simplecoil.ui.game
 import android.content.Context
 import android.content.ServiceConnection
 import android.content.SharedPreferences
-import com.simplecoil.simplecoil.NetworkEvent
 import com.simplecoil.simplecoil.NetworkSessionGateway
 import com.simplecoil.simplecoil.PlayerDisplayData
 import com.simplecoil.simplecoil.TcpClient
@@ -38,6 +37,7 @@ import com.simplecoil.simplecoil.hardware.audio.SoundEffectPlayer
 import com.simplecoil.simplecoil.hardware.blaster.BlasterEvent
 import com.simplecoil.simplecoil.hardware.blaster.BlasterManager
 import com.simplecoil.simplecoil.hardware.blaster.BleConnectionManager
+import com.simplecoil.simplecoil.network.ClientEvent
 import com.simplecoil.simplecoil.network.server.SessionPhase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -298,7 +298,7 @@ class GameViewModelTest {
         val order = inOrder(udp)
         order.verify(udp, times(2)).joinServer()
 
-        emitNetwork(NetworkEvent.ServerReply(7))
+        emitNetwork(ClientEvent.ServerReply(7))
         assertEquals(7.toByte(), players.playerID)
         assertEquals(GameViewModel.NETWORK_TYPE_JOINED, vm.networkMenuType)
         verify(screen).showNetworkButton(NetworkButton.CONNECTED)
@@ -319,7 +319,7 @@ class GameViewModelTest {
         gameState.gameState = GameStateRepository.GAME_STATE_NONE
         vm.onNetworkButtonPressed()
         vm.onNetworkMenuEntry(NetworkMenuEntry.Join)
-        emitNetwork(NetworkEvent.ServerReply(7))
+        emitNetwork(ClientEvent.ServerReply(7))
         assertEquals(GameViewModel.NETWORK_TYPE_JOINED, vm.networkMenuType)
         vm.onTeamModePressed()
         verify(screen, times(1)).showTeamModeMenu()
@@ -347,10 +347,10 @@ class GameViewModelTest {
     @Test
     fun serverStartsAndEndsGame_networkGameShowsScoreboardAtTheEnd() {
         net.useNetwork = true
-        emitNetwork(NetworkEvent.StartGame)
+        emitNetwork(ClientEvent.StartGame)
         verify(screen).showGameStarted(true, false, false)
         verify(udp).startGame()
-        emitNetwork(NetworkEvent.EndGame)
+        emitNetwork(ClientEvent.EndGame)
         assertEquals(GameStateRepository.GAME_STATE_NONE, gameState.gameState)
         verify(client).sendTCPMessage("SimpleCoil:07MESGPLAYERDATAREQUEST")
     }
@@ -359,7 +359,7 @@ class GameViewModelTest {
     fun eliminatingSomeone_scoresAndTellsTheTeam() {
         net.useNetwork = true
         players.playerID = 1
-        emitNetwork(NetworkEvent.Eliminated(2))
+        emitNetwork(ClientEvent.Eliminated(2))
         assertEquals(1, net.score)
         assertEquals(1, net.teamScore)
         verify(screen).showScore(1)
@@ -371,7 +371,7 @@ class GameViewModelTest {
     fun localScoreLimit_endsTheGame() {
         vm.onGameLimitEntered("1", LimitKind.SCORE)
         vm.onStartGamePressed()
-        emitNetwork(NetworkEvent.Eliminated(2))
+        emitNetwork(ClientEvent.Eliminated(2))
         assertEquals(GameStateRepository.GAME_STATE_NONE, gameState.gameState)
     }
 
@@ -379,7 +379,7 @@ class GameViewModelTest {
     fun serverCancel_kicksBackToLobby() {
         vm.onNetworkButtonPressed()
         vm.onNetworkMenuEntry(NetworkMenuEntry.Join)
-        emitNetwork(NetworkEvent.ServerCancel)
+        emitNetwork(ClientEvent.ServerCancel)
         assertFalse(vm.ready)
         assertEquals(GameViewModel.NETWORK_TYPE_ENABLED, vm.networkMenuType)
         verify(screen).showMessage(GameMessage.KICKED_BY_SERVER, 0)
@@ -398,11 +398,11 @@ class GameViewModelTest {
     private fun joinServer() {
         vm.onNetworkButtonPressed()
         vm.onNetworkMenuEntry(NetworkMenuEntry.Join)
-        emitNetwork(NetworkEvent.ServerReply(7))
+        emitNetwork(ClientEvent.ServerReply(7))
     }
 
     private fun serverPhase(phase: SessionPhase, gameId: Long? = 42) =
-        emitNetwork(NetworkEvent.ListPlayers(null, null, phase.wireValue, if (phase == SessionPhase.LOBBY) null else gameId))
+        emitNetwork(ClientEvent.ListPlayers(null, null, phase.wireValue, if (phase == SessionPhase.LOBBY) null else gameId))
 
     @Test
     fun adminActions_followTheServerPhase_andResetTakesStartGamesPlace() {
@@ -426,7 +426,7 @@ class GameViewModelTest {
         serverPhase(SessionPhase.POST_GAME)
         val away = PlayerDisplayData().apply { isConnected = false }
         val here = PlayerDisplayData().apply { isConnected = true }
-        emitNetwork(NetworkEvent.PlayerData(arrayOf(null, here, away)))
+        emitNetwork(ClientEvent.PlayerData(arrayOf(null, here, away)))
         vm.onAdminAction(AdminAction.RESET_GAME)
         verify(screen).confirmReset(1)
         verify(client, never()).sendTCPMessage("SimpleCoil:07MESGADMIN_RESET")
@@ -474,7 +474,7 @@ class GameViewModelTest {
         verify(screen).showPlayerSettings(40, 12.toByte(), 2)
     }
 
-    private fun emitNetwork(event: NetworkEvent) {
+    private fun emitNetwork(event: ClientEvent) {
         net.emit(event)
         scope.testScheduler.runCurrent()
     }

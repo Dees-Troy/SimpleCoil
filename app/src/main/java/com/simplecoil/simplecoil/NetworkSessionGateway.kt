@@ -30,61 +30,17 @@ import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.domain.team.TeamLayout
 import com.simplecoil.simplecoil.domain.session.SessionNetwork
+import com.simplecoil.simplecoil.network.ClientEvent
+import com.simplecoil.simplecoil.network.EventBus
+import com.simplecoil.simplecoil.network.GameUpdate
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONException
 import org.json.JSONObject
-
-/** Score update from the server, carried by NETMSG_LISTPLAYERS. */
-data class GameUpdate(val score: Int, val eliminations: Int, val teamScore: Int, val timeRemaining: Long)
-
-/** The NETMSG_* broadcasts the play screen handles, with their extras, plus service lifecycle. */
-sealed interface NetworkEvent {
-    data object ShotFired : NetworkEvent
-    data class Hit(val playerId: Byte) : NetworkEvent
-    data class Out(val playerId: Byte) : NetworkEvent
-    data class Eliminated(val playerId: Byte) : NetworkEvent
-    data object TeamEliminated : NetworkEvent
-    data object Join : NetworkEvent
-    data object Leave : NetworkEvent
-
-    /**
-     * [gameUpdate] when INTENT_HASGAMEUPDATE; [gameState] when INTENT_GAMESTATE is present;
-     * [sessionPhase] (SessionPhase.wireValue) and [gameId] when the server sent them.
-     */
-    data class ListPlayers(
-        val gameUpdate: GameUpdate?,
-        val gameState: Int?,
-        val sessionPhase: Int? = null,
-        val gameId: Long? = null,
-    ) : NetworkEvent
-    data class PlayerDataUpdate(val json: String?) : NetworkEvent
-    data object StartGame : NetworkEvent
-    data object EndGame : NetworkEvent
-    data class Error(val message: String?) : NetworkEvent
-    data object VersionError : NetworkEvent
-    data object SameTeam : NetworkEvent
-    data object FailedToJoin : NetworkEvent
-    data object ServerCancel : NetworkEvent
-
-    /** [assignedPlayerId] when the reply carries one. */
-    data class ServerReply(val assignedPlayerId: Byte?) : NetworkEvent
-    data object NetworkConnected : NetworkEvent
-    data object NetworkDisconnected : NetworkEvent
-    data object PlayerSettingsUpdate : NetworkEvent
-
-    data object UdpServiceConnected : NetworkEvent
-    data object UdpServiceDisconnected : NetworkEvent
-
-    /** Scoreboard parsed from player data JSON; indexed by player id. Scores are already updated. */
-    class PlayerData(val players: Array<PlayerDisplayData?>) : NetworkEvent
-}
 
 /**
  * The play screen's network session (R13/R14 transport): binds UDPListenerService and TcpClient,
@@ -100,12 +56,11 @@ class NetworkSessionGateway(
     private val settings: GameSettingsRepository,
     private val players: PlayerRepository,
     private val parseDispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val bus: EventBus<ClientEvent> = EventBus(name = "ClientEvents"),
 ) : SessionNetwork {
 
-    private val _events = MutableSharedFlow<NetworkEvent>(extraBufferCapacity = 64)
-
-    /** Network broadcasts and service lifecycle, in order. Not replayed. */
-    val events: SharedFlow<NetworkEvent> = _events.asSharedFlow()
+    /** The client bus: network events and service lifecycle, in order. Not replayed. */
+    val events: SharedFlow<ClientEvent> = bus.events
 
     var udp: UDPListenerService? = null
         private set
@@ -145,11 +100,11 @@ class NetworkSessionGateway(
         val connection = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, service: IBinder) {
                 udp = (service as UDPListenerService.LocalBinder).service
-                emit(NetworkEvent.UdpServiceConnected)
+                emit(ClientEvent.UdpServiceConnected)
             }
 
             override fun onServiceDisconnected(name: ComponentName?) {
-                emit(NetworkEvent.UdpServiceDisconnected)
+                emit(ClientEvent.UdpServiceDisconnected)
                 udp = null
             }
         }
@@ -235,7 +190,7 @@ class NetworkSessionGateway(
 
     /**
      * Parses player data JSON off the main thread, then on the main thread raises the local
-     * player's score to its points, sets the team score and emits [NetworkEvent.PlayerData].
+     * player's score to its points, sets the team score and emits [ClientEvent.PlayerData].
      *
      * B7: the scores used to be written from the parsing thread while the main thread also wrote
      * them.
@@ -250,7 +205,7 @@ class NetworkSessionGateway(
                 val myTeamIdx = layout.teamOf(players.playerID) - 1
                 if (myTeamIdx in 0..3) teamScore = parsed.teamPoints[myTeamIdx]
             }
-            emit(NetworkEvent.PlayerData(parsed.players))
+            emit(ClientEvent.PlayerData(parsed.players))
         }
     }
 
@@ -290,8 +245,8 @@ class NetworkSessionGateway(
     }
 
     @androidx.annotation.VisibleForTesting
-    internal fun emit(event: NetworkEvent) {
-        if (!_events.tryEmit(event)) Log.w(TAG, "Dropped $event")
+    internal fun emit(event: ClientEvent) {
+        bus.publish(event)
     }
 
     companion object {
@@ -363,15 +318,15 @@ class NetworkSessionGateway(
 
         /** Maps a NETMSG_* broadcast to its event, reading the extras with the activity's defaults. */
         @JvmStatic
-        fun toEvent(intent: Intent): NetworkEvent? = when (intent.action) {
-            NetMsg.NETMSG_SHOTFIRED -> NetworkEvent.ShotFired
-            NetMsg.NETMSG_HIT -> NetworkEvent.Hit(intent.getByteExtra(UDPListenerService.INTENT_PLAYERID, 0))
-            NetMsg.NETMSG_OUT -> NetworkEvent.Out(intent.getByteExtra(UDPListenerService.INTENT_PLAYERID, 0))
-            NetMsg.NETMSG_ELIMINATED -> NetworkEvent.Eliminated(intent.getByteExtra(UDPListenerService.INTENT_PLAYERID, 0))
-            NetMsg.NETMSG_TEAMELIMINATED -> NetworkEvent.TeamEliminated
-            NetMsg.NETMSG_JOIN -> NetworkEvent.Join
-            NetMsg.NETMSG_LEAVE -> NetworkEvent.Leave
-            NetMsg.NETMSG_LISTPLAYERS -> NetworkEvent.ListPlayers(
+        fun toEvent(intent: Intent): ClientEvent? = when (intent.action) {
+            NetMsg.NETMSG_SHOTFIRED -> ClientEvent.ShotFired
+            NetMsg.NETMSG_HIT -> ClientEvent.Hit(intent.getByteExtra(UDPListenerService.INTENT_PLAYERID, 0))
+            NetMsg.NETMSG_OUT -> ClientEvent.Out(intent.getByteExtra(UDPListenerService.INTENT_PLAYERID, 0))
+            NetMsg.NETMSG_ELIMINATED -> ClientEvent.Eliminated(intent.getByteExtra(UDPListenerService.INTENT_PLAYERID, 0))
+            NetMsg.NETMSG_TEAMELIMINATED -> ClientEvent.TeamEliminated
+            NetMsg.NETMSG_JOIN -> ClientEvent.Join
+            NetMsg.NETMSG_LEAVE -> ClientEvent.Leave
+            NetMsg.NETMSG_LISTPLAYERS -> ClientEvent.ListPlayers(
                 gameUpdate = if (intent.getBooleanExtra(NetMsg.INTENT_HASGAMEUPDATE, false)) {
                     GameUpdate(
                         score = intent.getIntExtra(NetMsg.INTENT_SCORE, 0),
@@ -386,19 +341,19 @@ class NetworkSessionGateway(
                 sessionPhase = if (intent.hasExtra(NetMsg.INTENT_SESSIONPHASE)) intent.getIntExtra(NetMsg.INTENT_SESSIONPHASE, 0) else null,
                 gameId = if (intent.hasExtra(NetMsg.INTENT_GAMEID)) intent.getLongExtra(NetMsg.INTENT_GAMEID, 0) else null,
             )
-            NetMsg.NETMSG_PLAYERDATAUPDATE -> NetworkEvent.PlayerDataUpdate(intent.getStringExtra(NetMsg.INTENT_PLAYERDATA))
-            NetMsg.NETMSG_STARTGAME -> NetworkEvent.StartGame
-            NetMsg.NETMSG_ENDGAME -> NetworkEvent.EndGame
-            NetMsg.NETMSG_ERROR -> NetworkEvent.Error(intent.getStringExtra(UDPListenerService.INTENT_MESSAGE))
-            NetMsg.NETMSG_VERSIONERROR -> NetworkEvent.VersionError
-            NetMsg.NETMSG_SAMETEAM -> NetworkEvent.SameTeam
-            NetMsg.NETMSG_FAILEDTOJOIN -> NetworkEvent.FailedToJoin
-            NetMsg.NETMSG_SERVERCANCEL -> NetworkEvent.ServerCancel
-            NetMsg.NETMSG_SERVERREPLY -> NetworkEvent.ServerReply(
+            NetMsg.NETMSG_PLAYERDATAUPDATE -> ClientEvent.PlayerDataUpdate(intent.getStringExtra(NetMsg.INTENT_PLAYERDATA))
+            NetMsg.NETMSG_STARTGAME -> ClientEvent.StartGame
+            NetMsg.NETMSG_ENDGAME -> ClientEvent.EndGame
+            NetMsg.NETMSG_ERROR -> ClientEvent.Error(intent.getStringExtra(UDPListenerService.INTENT_MESSAGE))
+            NetMsg.NETMSG_VERSIONERROR -> ClientEvent.VersionError
+            NetMsg.NETMSG_SAMETEAM -> ClientEvent.SameTeam
+            NetMsg.NETMSG_FAILEDTOJOIN -> ClientEvent.FailedToJoin
+            NetMsg.NETMSG_SERVERCANCEL -> ClientEvent.ServerCancel
+            NetMsg.NETMSG_SERVERREPLY -> ClientEvent.ServerReply(
                 if (intent.hasExtra(UDPListenerService.INTENT_PLAYERID)) intent.getByteExtra(UDPListenerService.INTENT_PLAYERID, 0) else null)
-            NetMsg.NETMSG_NETWORKCONNECTED -> NetworkEvent.NetworkConnected
-            NetMsg.NETMSG_NETWORKDISCONNECTED -> NetworkEvent.NetworkDisconnected
-            NetMsg.NETMSG_PLAYERSETTINGSUPDATE -> NetworkEvent.PlayerSettingsUpdate
+            NetMsg.NETMSG_NETWORKCONNECTED -> ClientEvent.NetworkConnected
+            NetMsg.NETMSG_NETWORKDISCONNECTED -> ClientEvent.NetworkDisconnected
+            NetMsg.NETMSG_PLAYERSETTINGSUPDATE -> ClientEvent.PlayerSettingsUpdate
             else -> null // NETMSG_SERVERCREATED was registered but never handled
         }
 

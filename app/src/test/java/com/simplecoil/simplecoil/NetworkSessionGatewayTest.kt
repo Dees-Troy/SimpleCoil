@@ -21,6 +21,8 @@ import android.content.Intent
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.network.ClientEvent
+import com.simplecoil.simplecoil.network.GameUpdate
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -105,16 +107,16 @@ class NetworkSessionGatewayTest {
     fun broadcasts_mapToEventsWithTheActivitysDefaults() {
         val hit = intent(NetMsg.NETMSG_HIT)
         `when`(hit.getByteExtra(UDPListenerService.INTENT_PLAYERID, 0)).thenReturn(9)
-        assertEquals(NetworkEvent.Hit(9), NetworkSessionGateway.toEvent(hit))
+        assertEquals(ClientEvent.Hit(9), NetworkSessionGateway.toEvent(hit))
 
         val reply = intent(NetMsg.NETMSG_SERVERREPLY)
-        assertEquals(NetworkEvent.ServerReply(null), NetworkSessionGateway.toEvent(reply))
+        assertEquals(ClientEvent.ServerReply(null), NetworkSessionGateway.toEvent(reply))
         `when`(reply.hasExtra(UDPListenerService.INTENT_PLAYERID)).thenReturn(true)
         `when`(reply.getByteExtra(UDPListenerService.INTENT_PLAYERID, 0)).thenReturn(3)
-        assertEquals(NetworkEvent.ServerReply(3), NetworkSessionGateway.toEvent(reply))
+        assertEquals(ClientEvent.ServerReply(3), NetworkSessionGateway.toEvent(reply))
 
         val list = intent(NetMsg.NETMSG_LISTPLAYERS)
-        assertEquals(NetworkEvent.ListPlayers(null, null), NetworkSessionGateway.toEvent(list))
+        assertEquals(ClientEvent.ListPlayers(null, null), NetworkSessionGateway.toEvent(list))
         `when`(list.getBooleanExtra(NetMsg.INTENT_HASGAMEUPDATE, false)).thenReturn(true)
         `when`(list.getIntExtra(NetMsg.INTENT_SCORE, 0)).thenReturn(4)
         `when`(list.getIntExtra(NetMsg.INTENT_ELIMINATIONS, 0)).thenReturn(2)
@@ -122,20 +124,20 @@ class NetworkSessionGatewayTest {
         `when`(list.getLongExtra(NetMsg.INTENT_TIMEREMAINING, -1)).thenReturn(120)
         `when`(list.hasExtra(NetMsg.INTENT_GAMESTATE)).thenReturn(true)
         `when`(list.getIntExtra(NetMsg.INTENT_GAMESTATE, GameStateRepository.GAME_STATE_ELIMINATED)).thenReturn(GameStateRepository.GAME_STATE_RUNNING)
-        assertEquals(NetworkEvent.ListPlayers(GameUpdate(4, 2, 9, 120), GameStateRepository.GAME_STATE_RUNNING), NetworkSessionGateway.toEvent(list))
+        assertEquals(ClientEvent.ListPlayers(GameUpdate(4, 2, 9, 120), GameStateRepository.GAME_STATE_RUNNING), NetworkSessionGateway.toEvent(list))
         `when`(list.hasExtra(NetMsg.INTENT_SESSIONPHASE)).thenReturn(true)
         `when`(list.getIntExtra(NetMsg.INTENT_SESSIONPHASE, 0)).thenReturn(2)
         `when`(list.hasExtra(NetMsg.INTENT_GAMEID)).thenReturn(true)
         `when`(list.getLongExtra(NetMsg.INTENT_GAMEID, 0)).thenReturn(418873301)
-        assertEquals(NetworkEvent.ListPlayers(GameUpdate(4, 2, 9, 120), GameStateRepository.GAME_STATE_RUNNING, 2, 418873301),
+        assertEquals(ClientEvent.ListPlayers(GameUpdate(4, 2, 9, 120), GameStateRepository.GAME_STATE_RUNNING, 2, 418873301),
             NetworkSessionGateway.toEvent(list))
 
         val error = intent(NetMsg.NETMSG_ERROR)
         `when`(error.getStringExtra(UDPListenerService.INTENT_MESSAGE)).thenReturn("boom")
-        assertEquals(NetworkEvent.Error("boom"), NetworkSessionGateway.toEvent(error))
+        assertEquals(ClientEvent.Error("boom"), NetworkSessionGateway.toEvent(error))
 
         assertNull(NetworkSessionGateway.toEvent(intent(NetMsg.NETMSG_SERVERCREATED)))
-        assertEquals(NetworkEvent.EndGame, NetworkSessionGateway.toEvent(intent(NetMsg.NETMSG_ENDGAME)))
+        assertEquals(ClientEvent.EndGame, NetworkSessionGateway.toEvent(intent(NetMsg.NETMSG_ENDGAME)))
     }
 
     @Test
@@ -210,14 +212,14 @@ class NetworkSessionGatewayTest {
         val parse = StandardTestDispatcher(scope.testScheduler)
         val g = NetworkSessionGateway(mock(Context::class.java), scope, settings, players, parse)
         g.score = 2
-        val events = mutableListOf<NetworkEvent>()
+        val events = mutableListOf<ClientEvent>()
         scope.backgroundScope.launch(UnconfinedTestDispatcher(scope.testScheduler)) { g.events.collect { events += it } }
 
         g.updatePlayerData(playerJson)
         assertEquals(2, g.score) // nothing written before parsing completes
         scope.testScheduler.runCurrent()
         assertEquals(4, g.score)
-        assertEquals(1, events.filterIsInstance<NetworkEvent.PlayerData>().size)
+        assertEquals(1, events.filterIsInstance<ClientEvent.PlayerData>().size)
 
         g.updatePlayerData("""{"playerdata":[{"playerID":1,"playername":"Me","points":3,"eliminated":0}]}""")
         scope.testScheduler.runCurrent()
@@ -225,7 +227,7 @@ class NetworkSessionGatewayTest {
         g.updatePlayerData("")
         g.updatePlayerData("garbage")
         scope.testScheduler.runCurrent()
-        assertEquals(2, events.filterIsInstance<NetworkEvent.PlayerData>().size)
+        assertEquals(2, events.filterIsInstance<ClientEvent.PlayerData>().size)
     }
 
     @Test
@@ -233,7 +235,7 @@ class NetworkSessionGatewayTest {
         val scope = TestScope()
         val context = mock(Context::class.java)
         val g = NetworkSessionGateway(context, scope, settings, players)
-        val events = mutableListOf<NetworkEvent>()
+        val events = mutableListOf<ClientEvent>()
         scope.backgroundScope.launch(UnconfinedTestDispatcher(scope.testScheduler)) { g.events.collect { events += it } }
         val receiver = g.receiver
 
@@ -242,6 +244,6 @@ class NetworkSessionGatewayTest {
         receiver.onReceive(context, intent(NetMsg.NETMSG_STARTGAME))
         g.bindServices()
         receiver.onReceive(context, intent(NetMsg.NETMSG_ENDGAME))
-        assertEquals(listOf(NetworkEvent.StartGame, NetworkEvent.EndGame), events)
+        assertEquals(listOf(ClientEvent.StartGame, ClientEvent.EndGame), events)
     }
 }

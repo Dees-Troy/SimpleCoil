@@ -33,6 +33,9 @@ import com.simplecoil.simplecoil.hardware.audio.SoundEffectPlayer
 import com.simplecoil.simplecoil.hardware.blaster.BlasterManager
 import com.simplecoil.simplecoil.hardware.blaster.BleConnectionManager
 import com.simplecoil.simplecoil.hardware.blaster.BleDeviceRepository
+import com.simplecoil.simplecoil.network.ClientEvent
+import com.simplecoil.simplecoil.network.EventBus
+import com.simplecoil.simplecoil.network.ServerEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 
@@ -106,8 +109,16 @@ class AppContainer(private val app: Application) {
         PlayerRepository.install(players)
     }
 
-    /** Network services, NETMSG_* events and the network session state (R13/R14). */
+    // Network
+
+    /** What the network client and discovery report to the play screen and the map (network design §6). */
+    val clientEvents = EventBus<ClientEvent>(name = "ClientEvents")
+
+    /** What the dedicated server reports to its screen. */
+    val serverEvents = EventBus<ServerEvent>(name = "ServerEvents")
+
+    /** Network services, client events and the network session state (R13/R14). */
     val networkGateway: NetworkSessionGateway by lazy {
-        NetworkSessionGateway(app, appScope, settings, players).also { it.registerReceiver() }
+        NetworkSessionGateway(app, appScope, settings, players, bus = clientEvents).also { it.registerReceiver() }
     }
 }
