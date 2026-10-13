@@ -22,6 +22,7 @@ import android.content.ServiceConnection
 import com.simplecoil.simplecoil.Globals
 import com.simplecoil.simplecoil.NetworkEvent
 import com.simplecoil.simplecoil.NetworkSessionGateway
+import com.simplecoil.simplecoil.PlayerDisplayData
 import com.simplecoil.simplecoil.TcpClient
 import com.simplecoil.simplecoil.UDPListenerService
 import com.simplecoil.simplecoil.data.preferences.UserPreferencesRepository
@@ -33,6 +34,7 @@ import com.simplecoil.simplecoil.hardware.audio.SoundEffectPlayer
 import com.simplecoil.simplecoil.hardware.blaster.BlasterEvent
 import com.simplecoil.simplecoil.hardware.blaster.BlasterManager
 import com.simplecoil.simplecoil.hardware.blaster.BleConnectionManager
+import com.simplecoil.simplecoil.network.server.SessionPhase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -167,7 +169,7 @@ class GameViewModelTest {
         vm.onEndGameConfirmed()
         assertEquals(Globals.GAME_STATE_NONE, Globals.getInstance().mGameState)
         verify(screen).showGameEnded(false, false)
-        verify(client, never()).sendTCPMessage("SimpleCoil:06MESGPLAYERDATAREQUEST") // no scoreboard after a local game
+        verify(client, never()).sendTCPMessage("SimpleCoil:07MESGPLAYERDATAREQUEST") // no scoreboard after a local game
     }
 
     @Test
@@ -319,7 +321,7 @@ class GameViewModelTest {
         verify(udp).startGame()
         emitNetwork(NetworkEvent.EndGame)
         assertEquals(Globals.GAME_STATE_NONE, Globals.getInstance().mGameState)
-        verify(client).sendTCPMessage("SimpleCoil:06MESGPLAYERDATAREQUEST")
+        verify(client).sendTCPMessage("SimpleCoil:07MESGPLAYERDATAREQUEST")
     }
 
     @Test
@@ -330,7 +332,7 @@ class GameViewModelTest {
         assertEquals(1, net.score)
         assertEquals(1, net.teamScore)
         verify(screen).showScore(1)
-        verify(client).sendTCPMessage("SimpleCoil:06MESGTEAMELIMINATED")
+        verify(client).sendTCPMessage("SimpleCoil:07MESGTEAMELIMINATED")
         assertEquals(listOf(SessionSound.SCORE), sounds)
     }
 
@@ -359,14 +361,69 @@ class GameViewModelTest {
         assertFalse(vm.onTeamSizesEntered(listOf("10", "10")))
         verify(screen).showMessage(GameMessage.RATIOS_TOTAL, 20)
         assertTrue(vm.onTeamSizesEntered(listOf("20", "12")))
-        verify(client).sendTCPMessage("SimpleCoil:06MESGADMIN_TEAMSIZES20,12")
+        verify(client).sendTCPMessage("SimpleCoil:07MESGADMIN_TEAMSIZES20,12")
+    }
+
+    private fun joinServer() {
+        vm.onNetworkButtonPressed()
+        vm.onNetworkMenuEntry(NetworkMenuEntry.Join)
+        emitNetwork(NetworkEvent.ServerReply(7))
+    }
+
+    private fun serverPhase(phase: SessionPhase, gameId: Long? = 42) =
+        emitNetwork(NetworkEvent.ListPlayers(null, null, phase.wireValue, if (phase == SessionPhase.LOBBY) null else gameId))
+
+    @Test
+    fun adminActions_followTheServerPhase_andResetTakesStartGamesPlace() {
+        joinServer()
+        val settings = listOf(AdminAction.TWO_TEAMS, AdminAction.FOUR_TEAMS, AdminAction.FREE_FOR_ALL, AdminAction.SHUFFLE_TEAMS)
+        assertEquals(listOf(AdminAction.START_GAME) + settings, vm.adminActions())
+        serverPhase(SessionPhase.RUNNING)
+        assertEquals(listOf(AdminAction.END_GAME), vm.adminActions())
+        serverPhase(SessionPhase.POST_GAME)
+        assertEquals(listOf(AdminAction.RESET_GAME) + settings, vm.adminActions())
+        serverPhase(SessionPhase.POST_GAME) // unchanged: no rebuild
+        verify(screen, times(2)).rebuildAdminMenu()
+        serverPhase(SessionPhase.LOBBY) // the server was reset (Q13)
+        assertEquals(listOf(AdminAction.START_GAME) + settings, vm.adminActions())
+        verify(screen, times(3)).rebuildAdminMenu()
     }
 
     @Test
-    fun adminActions_dependOnGameState() {
-        assertEquals(AdminAction.START_GAME, vm.adminActions().first())
-        vm.onStartGamePressed()
-        assertEquals(listOf(AdminAction.END_GAME), vm.adminActions())
+    fun resetGame_confirmsWithTheDisconnectedCount_thenSendsAdminReset() {
+        joinServer()
+        serverPhase(SessionPhase.POST_GAME)
+        val away = PlayerDisplayData().apply { isConnected = false }
+        val here = PlayerDisplayData().apply { isConnected = true }
+        emitNetwork(NetworkEvent.PlayerData(arrayOf(null, here, away)))
+        vm.onAdminAction(AdminAction.RESET_GAME)
+        verify(screen).confirmReset(1)
+        verify(client, never()).sendTCPMessage("SimpleCoil:07MESGADMIN_RESET")
+        vm.onResetConfirmed()
+        verify(client).sendTCPMessage("SimpleCoil:07MESGADMIN_RESET")
+    }
+
+    @Test
+    fun gameModeAndSortAfterAGame_sendTheUsualAdminMessages() {
+        joinServer()
+        serverPhase(SessionPhase.POST_GAME)
+        vm.onAdminAction(AdminAction.FREE_FOR_ALL)
+        vm.onAdminAction(AdminAction.SHUFFLE_TEAMS)
+        verify(client).sendTCPMessage("SimpleCoil:07MESGADMIN_GAMEMODE" + Globals.GAME_MODE_FFA)
+        verify(client).sendTCPMessage("SimpleCoil:07MESGADMIN_SORTTEAMS")
+        verify(screen, never()).confirmReset(org.mockito.ArgumentMatchers.anyInt())
+    }
+
+    @Test
+    fun serverResetAfterAGame_zeroesTheShownScore() {
+        joinServer()
+        serverPhase(SessionPhase.POST_GAME)
+        net.score = 5
+        net.teamScore = 7
+        serverPhase(SessionPhase.LOBBY)
+        assertEquals(0, net.score)
+        assertEquals(0, net.teamScore)
+        verify(screen).showTeamScore(0)
     }
 
     @Test

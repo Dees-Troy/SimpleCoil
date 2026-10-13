@@ -31,6 +31,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -104,6 +105,9 @@ public final class GameRoster {
 
     private int nextConnectionId = 0;
     private SessionPhase phase = SessionPhase.LOBBY;
+    /** The current game, from its start until the reset; 0 in the lobby. */
+    private long gameId = 0;
+    private final Random random = new Random();
     private final Map<Byte, PlayerRecord> byId = new TreeMap<>();
     private final Map<String, PlayerRecord> cacheByMac = new HashMap<>();
     private final Map<Integer, Connection> connections = new LinkedHashMap<>();
@@ -118,6 +122,7 @@ public final class GameRoster {
     public synchronized void clear() {
         nextConnectionId = 0;
         phase = SessionPhase.LOBBY;
+        gameId = 0;
         byId.clear();
         cacheByMac.clear();
         connections.clear();
@@ -209,6 +214,11 @@ public final class GameRoster {
         return phase;
     }
 
+    /** The current game's id; 0 in the lobby. */
+    public synchronized long gameId() {
+        return gameId;
+    }
+
     public synchronized boolean isRunning() {
         return phase == SessionPhase.RUNNING;
     }
@@ -230,6 +240,7 @@ public final class GameRoster {
         if (phase != SessionPhase.LOBBY) return false;
         if (connections.isEmpty() && byId.isEmpty()) return false;
         phase = SessionPhase.RUNNING;
+        gameId = 1 + random.nextInt(Integer.MAX_VALUE - 1);
         resetScoresLocked();
         cacheByMac.clear();
         for (PlayerRecord record : byId.values()) {
@@ -273,6 +284,7 @@ public final class GameRoster {
         repo.purgeDisconnectedPlayers(remainingIds);
         resetScoresLocked();
         cacheByMac.clear();
+        gameId = 0;
         phase = SessionPhase.LOBBY;
         return removed;
     }

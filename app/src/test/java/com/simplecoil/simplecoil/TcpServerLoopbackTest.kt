@@ -106,7 +106,9 @@ class TcpServerLoopbackTest {
         assertEquals(17, idB) // the second player goes to team 2
         val info = b.awaitJson(TcpServer.JSON_PLAYERS)
         assertEquals(Globals.GAME_STATE_NONE, info.getInt(TcpServer.JSON_GAMESTATE))
-        assertTrue(info.getBoolean(TcpServer.JSON_DEDICATED))
+        assertFalse(info.has("dedicatedserver")) // every server is dedicated (v07)
+        assertEquals(SessionPhase.LOBBY.wireValue, info.getInt(TcpServer.JSON_SESSIONPHASE))
+        assertFalse(info.has(TcpServer.JSON_GAMEID))
         assertTrue(info.has(TcpServer.JSON_PLAYERGAMEUPDATE)) // the joiner gets its own update
         awaitTrue { score(idA)?.isConnected == true && score(idB)?.isConnected == true }
         assertEquals("Alpha", PlayerRepository.getInstance().getPlayerName(idA.toByte()))
@@ -351,6 +353,39 @@ class TcpServerLoopbackTest {
         a.json(settings)
         awaitTrue { Globals.getInstance().mPlayerSettings[idA.toByte()] != null }
         assertFalse(Globals.getInstance().mPlayerSettings[idA.toByte()]!!.isAdmin)
+    }
+
+    @Test
+    fun gameInfo_carriesThePhaseAndGameId_andPlayerDataTheConnection() {
+        val (a, b) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
+        val (clientA, _) = a
+        awaitTrue { clientA.lastJson(TcpServer.JSON_PLAYERS)?.getInt(TcpServer.JSON_SESSIONPHASE) == SessionPhase.RUNNING.wireValue }
+        val gameId = clientA.lastJson(TcpServer.JSON_PLAYERS)!!.getLong(TcpServer.JSON_GAMEID)
+        assertEquals(server.roster.gameId(), gameId)
+        assertTrue(gameId != 0L)
+        b.first.close()
+        awaitDisconnected(b.second)
+        server.endGame()
+        clientA.awaitMesg(NetMsg.NETMSG_ENDGAME)
+        val players = clientA.awaitJson(TcpServer.JSON_PLAYERDATA).getJSONArray(TcpServer.JSON_PLAYERDATA)
+        val bravo = (0 until players.length()).map { players.getJSONObject(it) }.first { it.getInt(TcpServer.JSON_PLAYERID) == b.second }
+        assertFalse(bravo.getBoolean(TcpServer.JSON_CONNECTED))
+    }
+
+    @Test
+    fun adminReset_resetsOnlyForAnAdmin() {
+        val (clientA, idA, idB) = endedGameWithBravoAway()
+        val before = clientA.received.size
+        clientA.mesg(NetMsg.NETMSG_ADMIN_RESET)
+        clientA.mesg(NetMsg.NETMSG_PLAYERDATAREQUEST) // answered after the reset was handled
+        awaitTrue { clientA.received.drop(before).any { it.contains(TcpServer.JSON_PLAYERDATA) } }
+        assertEquals(SessionPhase.POST_GAME, server.sessionPhase)
+        makeAdmin(idA)
+        clientA.mesg(NetMsg.NETMSG_ADMIN_RESET)
+        awaitTrue { server.sessionPhase == SessionPhase.LOBBY }
+        assertNull(score(idB))
+        awaitTrue { clientA.lastJson(TcpServer.JSON_PLAYERS)?.getInt(TcpServer.JSON_SESSIONPHASE) == SessionPhase.LOBBY.wireValue }
+        assertFalse(clientA.lastJson(TcpServer.JSON_PLAYERS)!!.has(TcpServer.JSON_GAMEID))
     }
 
     @Test

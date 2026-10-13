@@ -49,6 +49,8 @@ class DialogCoordinator(
     private val fm get() = activity.supportFragmentManager
     private val appContext get() = activity.applicationContext
     private var networkPopup: PopupMenu? = null
+    private var adminPopup: PopupMenu? = null
+    private var adminAnchor: View? = null
 
     /** Dialog shows that waited for the activity to start again, by tag. */
     private val pending = LinkedHashMap<String, () -> Unit>()
@@ -102,6 +104,8 @@ class DialogCoordinator(
     // ---------------------------------------------------------------------------------------
 
     override fun confirmEndGame() = show(TAG_END_GAME) { EndGameConfirmDialog() }
+
+    override fun confirmReset(disconnectedPlayers: Int) = show(TAG_RESET) { ResetConfirmDialog.newInstance(disconnectedPlayers) }
 
     override fun showSessionToast(toast: SessionToast) {
         when (toast) {
@@ -218,6 +222,7 @@ class DialogCoordinator(
                 AdminAction.FOUR_TEAMS -> R.string.game_mode_4teams
                 AdminAction.FREE_FOR_ALL -> R.string.game_mode_ffa
                 AdminAction.SHUFFLE_TEAMS -> R.string.shuffle_teams_button
+                AdminAction.RESET_GAME -> R.string.reset_game_admin
             }
             popup.menu.add(0, action.ordinal, order, title)
             order += 10
@@ -227,7 +232,20 @@ class DialogCoordinator(
             vm.onAdminAction(AdminAction.entries[item.itemId])
             true
         }
+        popup.setOnDismissListener {
+            if (adminPopup === popup) adminPopup = null
+        }
+        adminPopup = popup
+        adminAnchor = anchor
         popup.show()
+    }
+
+    override fun rebuildAdminMenu() {
+        val open = adminPopup ?: return
+        val anchor = adminAnchor ?: return
+        adminPopup = null
+        open.dismiss()
+        if (!activity.isFinishing && !activity.isDestroyed) showAdminMenu(anchor)
     }
 
     override fun onMenuItemClick(item: MenuItem): Boolean {
@@ -282,6 +300,7 @@ class DialogCoordinator(
         private const val TAG = "scmain"
         private const val TAG_DISCONNECTED = "blasterDisconnected"
         private const val TAG_END_GAME = "endGame"
+        private const val TAG_RESET = "resetGame"
         private const val TAG_PLAYER_NAME = "playerName"
         private const val TAG_SERVER_IP = "serverIp"
         private const val TAG_GAME_LIMIT = "gameLimit"

@@ -41,6 +41,7 @@ import com.simplecoil.simplecoil.hardware.blaster.BleConnectionEvent
 import com.simplecoil.simplecoil.hardware.blaster.BleConnectionManager
 import com.simplecoil.simplecoil.hardware.blaster.GattProtocolHandler
 import com.simplecoil.simplecoil.hardware.blaster.QrPairingPayload
+import com.simplecoil.simplecoil.network.server.SessionPhase
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -93,6 +94,9 @@ class GameViewModel(
     @Volatile var ready = false
         private set
     var networkMenuType = NETWORK_TYPE_ENABLED
+        private set
+    /** The server's session phase, from its game info; drives the admin menu (§3.7.1). */
+    var serverPhase = SessionPhase.LOBBY
         private set
     private var autoScanStarted = false
     private var resumed = false
@@ -591,7 +595,7 @@ class GameViewModel(
         val searching = net.useNetwork && networkMenuType == NETWORK_TYPE_JOINING
         screen?.showPreGameButtons(PreGameButtons(
             ready = ready,
-            startVisible = !(g.mOnlyServerSettings || connectedClient),
+            startVisible = !(g.mOnlyServerSettings || connectedClient || serverPhase == SessionPhase.POST_GAME),
             startEnabled = !searching,
             serverSettingsOnly = g.mOnlyServerSettings,
         ))
@@ -722,6 +726,7 @@ class GameViewModel(
             if (sendPlayerLeft) net.tcpClient?.leaveServer()
             net.udp?.stopListen()
             net.tcpClient?.stopTcpClient()
+            serverPhase = SessionPhase.LOBBY
             screen?.showNotReady()
             setNetworkMenu(NETWORK_TYPE_ENABLED)
             screen?.setPlayerDataButtonVisible(false)
@@ -790,12 +795,13 @@ class GameViewModel(
     // Admin
     // ---------------------------------------------------------------------------------------
 
+    /** The admin menu for the server's phase: Reset takes Start Game's place after a game. */
     fun adminActions(): List<AdminAction> {
-        Log.d(TAG, "showAdminControlsMenu: current mGameState=" + g.mGameState)
-        return if (g.mGameState == Globals.GAME_STATE_NONE) {
-            listOf(AdminAction.START_GAME, AdminAction.TWO_TEAMS, AdminAction.FOUR_TEAMS, AdminAction.FREE_FOR_ALL, AdminAction.SHUFFLE_TEAMS)
-        } else {
-            listOf(AdminAction.END_GAME)
+        Log.d(TAG, "showAdminControlsMenu: serverPhase=$serverPhase")
+        return when (serverPhase) {
+            SessionPhase.LOBBY -> listOf(AdminAction.START_GAME, AdminAction.TWO_TEAMS, AdminAction.FOUR_TEAMS, AdminAction.FREE_FOR_ALL, AdminAction.SHUFFLE_TEAMS)
+            SessionPhase.RUNNING -> listOf(AdminAction.END_GAME)
+            SessionPhase.POST_GAME -> listOf(AdminAction.RESET_GAME, AdminAction.TWO_TEAMS, AdminAction.FOUR_TEAMS, AdminAction.FREE_FOR_ALL, AdminAction.SHUFFLE_TEAMS)
         }
     }
 
@@ -815,7 +821,13 @@ class GameViewModel(
             AdminAction.FOUR_TEAMS -> changeAdminGameMode(Globals.GAME_MODE_4TEAMS)
             AdminAction.FREE_FOR_ALL -> changeAdminGameMode(Globals.GAME_MODE_FFA)
             AdminAction.SHUFFLE_TEAMS -> client?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_SORTTEAMS))
+            AdminAction.RESET_GAME -> screen?.confirmReset(latestPlayerData?.count { it != null && !it.isConnected } ?: 0)
         }
+    }
+
+    /** The admin confirmed the reset. Game mode and sort after a game need no confirmation: the server resets first. */
+    fun onResetConfirmed() {
+        net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_RESET))
     }
 
     private fun changeAdminGameMode(mode: Int) {
@@ -1040,6 +1052,7 @@ class GameViewModel(
             if (ip.startsWith("/")) ip = ip.substring(1)
             screen?.showConnectedToServer(ip)
         }
+        event.sessionPhase?.let { onServerPhase(SessionPhase.fromWire(it)) }
         event.gameUpdate?.let { applyGameUpdate(it) }
         event.gameState?.let { serverGameState ->
             if (serverGameState != Globals.GAME_STATE_ELIMINATED) {
@@ -1052,6 +1065,19 @@ class GameViewModel(
             }
         }
         updatePreGameButtonVisibilities()
+    }
+
+    private fun onServerPhase(phase: SessionPhase) {
+        if (phase == serverPhase) return
+        if (serverPhase == SessionPhase.POST_GAME && phase == SessionPhase.LOBBY) {
+            // The server was reset: the last game's score is gone.
+            net.score = 0
+            net.teamScore = 0
+            screen?.showScore(0)
+            screen?.showTeamScore(0)
+        }
+        serverPhase = phase
+        screen?.rebuildAdminMenu()
     }
 
     private fun applyGameUpdate(update: GameUpdate) {

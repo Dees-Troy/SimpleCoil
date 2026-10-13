@@ -81,6 +81,23 @@ class EndGameConfirmDialog : GameDialogFragment() {
             .create()
 }
 
+/** An admin asked to reset the server after a game. */
+class ResetConfirmDialog : GameDialogFragment() {
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
+        AlertDialog.Builder(requireContext())
+            .setMessage(getString(R.string.dedicated_reset_confirm, requireArguments().getInt(ARG_DISCONNECTED)))
+            .setPositiveButton(R.string.reset_game_button) { _, _ -> vm.onResetConfirmed() }
+            .setNegativeButton(R.string.cancel) { dialog, _ -> dialog.dismiss() }
+            .create()
+
+    companion object {
+        private const val ARG_DISCONNECTED = "disconnected"
+
+        fun newInstance(disconnectedPlayers: Int) =
+            ResetConfirmDialog().apply { arguments = bundleOf(ARG_DISCONNECTED to disconnectedPlayers) }
+    }
+}
+
 class PlayerNameDialog : GameDialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         isCancelable = false

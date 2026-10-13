@@ -50,8 +50,16 @@ sealed interface NetworkEvent {
     data object Join : NetworkEvent
     data object Leave : NetworkEvent
 
-    /** [gameUpdate] when INTENT_HASGAMEUPDATE; [gameState] when INTENT_GAMESTATE is present. */
-    data class ListPlayers(val gameUpdate: GameUpdate?, val gameState: Int?) : NetworkEvent
+    /**
+     * [gameUpdate] when INTENT_HASGAMEUPDATE; [gameState] when INTENT_GAMESTATE is present;
+     * [sessionPhase] (SessionPhase.wireValue) and [gameId] when the server sent them.
+     */
+    data class ListPlayers(
+        val gameUpdate: GameUpdate?,
+        val gameState: Int?,
+        val sessionPhase: Int? = null,
+        val gameId: Long? = null,
+    ) : NetworkEvent
     data class PlayerDataUpdate(val json: String?) : NetworkEvent
     data object StartGame : NetworkEvent
     data object EndGame : NetworkEvent
@@ -312,6 +320,7 @@ class NetworkSessionGateway(
                         if (teamIdx in 0..3) teamPoints[teamIdx] += playerData.points
                     }
                     playerData.eliminated = player.getInt(TcpServer.JSON_PLAYERELIMINATED)
+                    playerData.isConnected = player.optBoolean(TcpServer.JSON_CONNECTED, true)
                     val settings = Globals.getInstance().mPlayerSettings[playerData.playerID]
                     if (settings == null) {
                         playerData.overrideLives = false
@@ -372,6 +381,8 @@ class NetworkSessionGateway(
                 gameState = if (intent.hasExtra(NetMsg.INTENT_GAMESTATE)) {
                     intent.getIntExtra(NetMsg.INTENT_GAMESTATE, Globals.GAME_STATE_ELIMINATED)
                 } else null,
+                sessionPhase = if (intent.hasExtra(NetMsg.INTENT_SESSIONPHASE)) intent.getIntExtra(NetMsg.INTENT_SESSIONPHASE, 0) else null,
+                gameId = if (intent.hasExtra(NetMsg.INTENT_GAMEID)) intent.getLongExtra(NetMsg.INTENT_GAMEID, 0) else null,
             )
             NetMsg.NETMSG_PLAYERDATAUPDATE -> NetworkEvent.PlayerDataUpdate(intent.getStringExtra(NetMsg.INTENT_PLAYERDATA))
             NetMsg.NETMSG_STARTGAME -> NetworkEvent.StartGame

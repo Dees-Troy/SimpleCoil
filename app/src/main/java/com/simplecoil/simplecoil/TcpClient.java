@@ -37,6 +37,7 @@ import androidx.core.content.ContextCompat;
 
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
+import com.simplecoil.simplecoil.network.server.SessionPhase;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -66,6 +67,10 @@ public class TcpClient extends Service {
 
     private static volatile boolean keepListening = false;
     private static volatile boolean isListening = false;
+
+    /** The server's session phase and game id, from the latest game info. */
+    private volatile SessionPhase mSessionPhase = SessionPhase.LOBBY;
+    private volatile long mGameId = 0;
 
     private final Object mOutLock = new Object();
     private DataOutputStream out = null;
@@ -713,11 +718,25 @@ public class TcpClient extends Service {
                     int gameState = game.getInt(TcpServer.JSON_GAMESTATE);
                     intent.putExtra(NetMsg.INTENT_GAMESTATE, gameState);
                 }
+                if (game.has(TcpServer.JSON_SESSIONPHASE)) {
+                    mSessionPhase = SessionPhase.fromWire(game.getInt(TcpServer.JSON_SESSIONPHASE));
+                    mGameId = game.optLong(TcpServer.JSON_GAMEID, 0);
+                    intent.putExtra(NetMsg.INTENT_SESSIONPHASE, mSessionPhase.wireValue);
+                    intent.putExtra(NetMsg.INTENT_GAMEID, mGameId);
+                }
                 sendBroadcast(intent);
             }
         } catch (JSONException e) {
             e.printStackTrace();
         }
+    }
+
+    public SessionPhase getSessionPhase() {
+        return mSessionPhase;
+    }
+
+    public long getGameId() {
+        return mGameId;
     }
 
     private final BroadcastReceiver mGPSUpdateReceiver = new BroadcastReceiver() {

@@ -20,7 +20,7 @@ package com.simplecoil.simplecoil;
 
 public class NetMsg {
     public static final String MESSAGE_PREFIX = "SimpleCoil:";
-    public static final String NETWORK_VERSION = "06";
+    public static final String NETWORK_VERSION = "07";
 
     // All of these messages are straightforward and contain no extra data
     public static final String NETMSG_SHOTFIRED = "SHOTFIRED";
@@ -54,6 +54,7 @@ public class NetMsg {
     public static final String NETMSG_ADMIN_SORTTEAMS = "ADMIN_SORTTEAMS";
     public static final String NETMSG_ADMIN_KICK = "ADMIN_KICK";
     public static final String NETMSG_ADMIN_TEAMSIZES = "ADMIN_TEAMSIZES";
+    public static final String NETMSG_ADMIN_RESET = "ADMIN_RESET";
 
     // When players join a game in progress, the server can send the player updates on appropriate values.
     // These items are intent extras.
@@ -63,6 +64,9 @@ public class NetMsg {
     public static final String INTENT_ELIMINATIONS = "ELIMINATIONS";
     public static final String INTENT_TIMEREMAINING = "TIMEREMAINING";
     public static final String INTENT_GAMESTATE = "GAMESTATE";
+    // The server's session phase (SessionPhase.wireValue) and current game id, from every game info.
+    public static final String INTENT_SESSIONPHASE = "SESSIONPHASE";
+    public static final String INTENT_GAMEID = "GAMEID";
 
     public static final String INTENT_LONGITUDE = "longitude";
     public static final String INTENT_LATITUDE = "latitude";

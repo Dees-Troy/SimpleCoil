@@ -46,7 +46,7 @@ sealed interface NetworkMenuEntry {
 }
 
 /** Entries of the admin popup menu. */
-enum class AdminAction { START_GAME, END_GAME, TWO_TEAMS, FOUR_TEAMS, FREE_FOR_ALL, SHUFFLE_TEAMS }
+enum class AdminAction { START_GAME, END_GAME, TWO_TEAMS, FOUR_TEAMS, FREE_FOR_ALL, SHUFFLE_TEAMS, RESET_GAME }
 
 /** The team line. */
 sealed interface TeamDisplay {
@@ -126,6 +126,10 @@ interface GameDialogs {
     fun dismissDisconnectDialog()
     fun showBlasterType(rifle: Boolean, address: String)
     fun confirmEndGame()
+    /** Ask before an admin resets the server; [disconnectedPlayers] would be removed. */
+    fun confirmReset(disconnectedPlayers: Int)
+    /** Rebuild the admin popup from [GameViewModel.adminActions] if it is open. */
+    fun rebuildAdminMenu()
     fun showSessionToast(toast: SessionToast)
     fun showMessage(message: GameMessage, arg: Int = 0)
     fun showText(text: String)

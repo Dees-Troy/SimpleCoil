@@ -24,6 +24,8 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -45,15 +47,16 @@ class NetworkSessionGatewayTest {
 
     @Test
     fun messageFormat_isPrefixVersionMesgPayload() {
-        assertEquals("SimpleCoil:06MESGHIT2", NetworkSessionGateway.message(NetMsg.NETMSG_HIT + 2.toByte()))
-        assertEquals("SimpleCoil:06MESGOUT32", NetworkSessionGateway.message(NetMsg.NETMSG_OUT + 32.toByte()))
-        assertEquals("SimpleCoil:06MESGSHOTFIRED", NetworkSessionGateway.message(NetMsg.NETMSG_SHOTFIRED))
-        assertEquals("SimpleCoil:06MESGELIMINATED7", NetworkSessionGateway.message(NetMsg.NETMSG_ELIMINATED + 7.toByte()))
-        assertEquals("SimpleCoil:06MESGTEAMELIMINATED", NetworkSessionGateway.message(NetMsg.NETMSG_TEAMELIMINATED))
-        assertEquals("SimpleCoil:06MESGPLAYERDATAREQUEST", NetworkSessionGateway.message(NetMsg.NETMSG_PLAYERDATAREQUEST))
-        assertEquals("SimpleCoil:06MESGSTARTGAME", NetworkSessionGateway.message(NetMsg.NETMSG_STARTGAME))
-        assertEquals("SimpleCoil:06MESGADMIN_GAMEMODE4", NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_GAMEMODE + 4))
-        assertEquals("SimpleCoil:06MESGADMIN_TEAMSIZES16,16", NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_TEAMSIZES + "16,16"))
+        assertEquals("SimpleCoil:07MESGHIT2", NetworkSessionGateway.message(NetMsg.NETMSG_HIT + 2.toByte()))
+        assertEquals("SimpleCoil:07MESGOUT32", NetworkSessionGateway.message(NetMsg.NETMSG_OUT + 32.toByte()))
+        assertEquals("SimpleCoil:07MESGSHOTFIRED", NetworkSessionGateway.message(NetMsg.NETMSG_SHOTFIRED))
+        assertEquals("SimpleCoil:07MESGELIMINATED7", NetworkSessionGateway.message(NetMsg.NETMSG_ELIMINATED + 7.toByte()))
+        assertEquals("SimpleCoil:07MESGTEAMELIMINATED", NetworkSessionGateway.message(NetMsg.NETMSG_TEAMELIMINATED))
+        assertEquals("SimpleCoil:07MESGPLAYERDATAREQUEST", NetworkSessionGateway.message(NetMsg.NETMSG_PLAYERDATAREQUEST))
+        assertEquals("SimpleCoil:07MESGSTARTGAME", NetworkSessionGateway.message(NetMsg.NETMSG_STARTGAME))
+        assertEquals("SimpleCoil:07MESGADMIN_GAMEMODE4", NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_GAMEMODE + 4))
+        assertEquals("SimpleCoil:07MESGADMIN_TEAMSIZES16,16", NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_TEAMSIZES + "16,16"))
+        assertEquals("SimpleCoil:07MESGADMIN_RESET", NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_RESET))
     }
 
     private fun gateway(client: TcpClient? = mock(TcpClient::class.java)) =
@@ -67,10 +70,10 @@ class NetworkSessionGatewayTest {
         g.sendOut(3)
         g.sendShotFired()
         g.sendEliminated(4)
-        verify(client).sendTCPMessage("SimpleCoil:06MESGHIT2")
-        verify(client).sendTCPMessage("SimpleCoil:06MESGOUT3")
-        verify(client).sendTCPMessage("SimpleCoil:06MESGSHOTFIRED")
-        verify(client).sendTCPMessage("SimpleCoil:06MESGELIMINATED4", true)
+        verify(client).sendTCPMessage("SimpleCoil:07MESGHIT2")
+        verify(client).sendTCPMessage("SimpleCoil:07MESGOUT3")
+        verify(client).sendTCPMessage("SimpleCoil:07MESGSHOTFIRED")
+        verify(client).sendTCPMessage("SimpleCoil:07MESGELIMINATED4", true)
     }
 
     @Test
@@ -113,6 +116,12 @@ class NetworkSessionGatewayTest {
         `when`(list.hasExtra(NetMsg.INTENT_GAMESTATE)).thenReturn(true)
         `when`(list.getIntExtra(NetMsg.INTENT_GAMESTATE, Globals.GAME_STATE_ELIMINATED)).thenReturn(Globals.GAME_STATE_RUNNING)
         assertEquals(NetworkEvent.ListPlayers(GameUpdate(4, 2, 9, 120), Globals.GAME_STATE_RUNNING), NetworkSessionGateway.toEvent(list))
+        `when`(list.hasExtra(NetMsg.INTENT_SESSIONPHASE)).thenReturn(true)
+        `when`(list.getIntExtra(NetMsg.INTENT_SESSIONPHASE, 0)).thenReturn(2)
+        `when`(list.hasExtra(NetMsg.INTENT_GAMEID)).thenReturn(true)
+        `when`(list.getLongExtra(NetMsg.INTENT_GAMEID, 0)).thenReturn(418873301)
+        assertEquals(NetworkEvent.ListPlayers(GameUpdate(4, 2, 9, 120), Globals.GAME_STATE_RUNNING, 2, 418873301),
+            NetworkSessionGateway.toEvent(list))
 
         val error = intent(NetMsg.NETMSG_ERROR)
         `when`(error.getStringExtra(UDPListenerService.INTENT_MESSAGE)).thenReturn("boom")
@@ -166,7 +175,7 @@ class NetworkSessionGatewayTest {
     // ------------------------------------------------------------------------------------------
 
     private val playerJson = """{"playerdata":[
-        {"playerID":1,"playername":"Me","points":4,"eliminated":1},
+        {"playerID":1,"playername":"Me","points":4,"eliminated":1,"connected":false},
         {"playerID":2,"playername":"Mate","points":3,"eliminated":0},
         {"playerID":17,"playername":"Them","points":6,"eliminated":2}]}"""
 
@@ -178,6 +187,8 @@ class NetworkSessionGatewayTest {
         assertNotNull(parsed)
         parsed!!
         assertEquals("Me", parsed.players[1]!!.playerName)
+        assertFalse(parsed.players[1]!!.isConnected)
+        assertTrue(parsed.players[2]!!.isConnected) // absent means connected
         assertEquals(6, parsed.players[17]!!.points)
         assertEquals(4, parsed.myPoints)
         val t1 = Globals.getInstance().calcNetworkTeam(1) - 1

@@ -23,5 +23,5 @@ public class PlayerDisplayData {
     int eliminated;
     boolean overrideLives;
     int lives;
-    boolean isConnected;
+    public boolean isConnected;
 }

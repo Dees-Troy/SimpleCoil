@@ -74,10 +74,12 @@ public class TcpServer extends Service {
     public static final String JSON_GAMEMODE = "gamemode";
     public static final String JSON_TEAMSIZES = "teamsizes";
     public static final String JSON_REJOIN = "rejoin";
-    public static final String JSON_DEDICATED = "dedicatedserver";
     public static final String JSON_USEGPS = "usegps";
     public static final String JSON_TEAM = "team";
     public static final String JSON_GAMESTATE = "gamestate";
+    public static final String JSON_SESSIONPHASE = "sessionphase";
+    public static final String JSON_GAMEID = "gameid";
+    public static final String JSON_CONNECTED = "connected";
     public static final String JSON_ONLY_SERVER_SETTINGS = "onlyserversettings";
     public static final String JSON_ALLOW_CHOOSE_TEAMS = "allowchooseteams";
     public static final String JSON_REQUEST_TEAM_CHANGE = "requestteamchange";
@@ -445,7 +447,10 @@ public class TcpServer extends Service {
             game.put(JSON_GAMESTATE, Globals.getInstance().mGameState);
             if (Globals.getInstance().mGameState != Globals.GAME_STATE_NONE && (Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_TIME) != 0)
                 game.put(JSON_TIMEREMAINING, Globals.getInstance().mServerGameTimeRemaining);
-            game.put(JSON_DEDICATED, true);
+            SessionPhase phase = mRoster.phase();
+            game.put(JSON_SESSIONPHASE, phase.wireValue);
+            if (phase != SessionPhase.LOBBY)
+                game.put(JSON_GAMEID, mRoster.gameId());
             if (Globals.getInstance().mUseGPS)
                 game.put(JSON_USEGPS, Globals.getInstance().mGPSMode);
             game.put(JSON_ALLOWPLAYERSETTINGS, Globals.getInstance().mAllowPlayerSettings);
@@ -557,35 +562,6 @@ public class TcpServer extends Service {
         }, GPS_UPDATE_INTERVAL);
     }
 
-    public String getPlayerDataJson() {
-        try {
-            JSONArray players = new JSONArray();
-            if (Globals.getInstance().mTeamIPMap != null) {
-                for (Map.Entry<Byte, InetAddress> entry : Globals.getInstance().mTeamIPMap.entrySet()) {
-                    JSONObject player = new JSONObject();
-                    player.put(JSON_PLAYERNAME, Globals.getInstance().getPlayerName(entry.getKey()));
-                    player.put(JSON_PLAYERID, entry.getKey());
-                    player.put(JSON_PLAYERIP, entry.getValue().toString());
-                    ScoreData scoreData = getScore(entry.getKey());
-                    if (scoreData != null) {
-                        player.put(JSON_PLAYERPOINTS, scoreData.points);
-                        player.put(JSON_PLAYERELIMINATED, scoreData.eliminated);
-                    } else {
-                        player.put(JSON_PLAYERPOINTS, 0);
-                        player.put(JSON_PLAYERELIMINATED, 0);
-                    }
-                    players.put(player);
-                }
-            }
-            JSONObject game = new JSONObject();
-            game.put(JSON_PLAYERDATA, players);
-            return game.toString();
-        } catch (Exception e) {
-            e.printStackTrace();
-            return "";
-        }
-    }
-
     public void sendPlayerData(int playerID) {
         if (mRoster.isEmpty() || Globals.getInstance().mTeamIPMap == null || Globals.getInstance().mTeamIPMap.size() == 0)
             return;
@@ -600,6 +576,7 @@ public class TcpServer extends Service {
                 if (scoreData != null) {
                     player.put(JSON_PLAYERPOINTS, scoreData.points);
                     player.put(JSON_PLAYERELIMINATED, scoreData.eliminated);
+                    player.put(JSON_CONNECTED, scoreData.isConnected);
                 } else {
                     player.put(JSON_PLAYERPOINTS, 0);
                     player.put(JSON_PLAYERELIMINATED, 0);
@@ -985,6 +962,9 @@ public class TcpServer extends Service {
                                                     endGame();
                                                 break;
                                             }
+                                        } else if (message.startsWith(NetMsg.NETMSG_ADMIN_RESET)) {
+                                            Log.d(TAG, "TcpServer received ADMIN_RESET command: '" + message + "'");
+                                            resetSession();
                                         } else if (message.startsWith(NetMsg.NETMSG_ADMIN_SORTTEAMS)) {
                                             Log.d(TAG, "TcpServer received ADMIN_SORTTEAMS command: '" + message + "'");
                                             if (!mRoster.isRunning()) {
