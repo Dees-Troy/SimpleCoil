@@ -69,6 +69,7 @@ import java.net.Socket;
 import java.net.UnknownHostException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Executors;
 
 public class TcpClient extends Service {
@@ -79,8 +80,10 @@ public class TcpClient extends Service {
     /** No byte from the server for this long: the connection is dead. */
     static final long SILENCE_DROP_MS = 3500;
 
-    private static volatile boolean keepListening = false;
-    private static volatile boolean isListening = false;
+    private volatile boolean keepListening = false;
+    private volatile boolean isListening = false;
+    /** The connected socket; closed by a queued close (N11). */
+    private volatile Socket mSocket = null;
 
     /** The server's session phase and game id, from the latest game info. */
     private volatile SessionPhase mSessionPhase = SessionPhase.LOBBY;
@@ -394,6 +397,7 @@ public class TcpClient extends Service {
                     sendBroadcast(new Intent(NetMsg.NETMSG_NETWORKDISCONNECTED));
                 }
                 s = new Socket();
+                mSocket = s;
                 bindToWifi(s);
                 s.connect(new InetSocketAddress(GameStateRepository.getInstance().getServerIP(), TcpServer.TCP_SERVER_PORT), CONNECTION_TIMEOUT_MS);
                 s.setSoTimeout(TcpServer.TCP_DEDICATED_READ_WAIT_MS);
@@ -443,6 +447,7 @@ public class TcpClient extends Service {
                     try { if (out != null) out.close(); } catch (Exception e) { /* ignored */ }
                     out = null;
                 }
+                mSocket = null;
                 try { if (s != null) s.close(); } catch (Exception e) { /* ignored */ }
                 try { if (is != null) is.close(); } catch (Exception e) { /* ignored */ }
                 try { if (os != null) os.close(); } catch (Exception e) { /* ignored */ }
@@ -654,26 +659,42 @@ public class TcpClient extends Service {
         }
     }
 
+    /**
+     * Stops the client once everything sent so far has been written: the stop is queued on the
+     * writer, behind the frames already there (N11).
+     */
     public void stopTcpClient() {
-        sleep(75); // Make sure that the end game message gets sent before we close down the socket
-        keepListening = false;
-        wakeRetry();
+        try {
+            mWriter.execute(new Runnable() {
+                public void run() {
+                    stopNow();
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            stopNow(); // the service is gone, and its writer with it
+        }
     }
 
+    private void stopNow() {
+        keepListening = false;
+        wakeRetry();
+        Socket socket = mSocket;
+        if (socket != null) {
+            try {
+                socket.close(); // the reader stops at once
+            } catch (IOException e) {
+                // already closed
+            }
+        }
+    }
+
+    /** Tells the server we are leaving, then stops: LEAVE is the last frame written. */
     public void leaveServer() {
         mOutbox.clear();
         if (keepListening) {
             String message = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_LEAVE;
             sendTCPMessage(message);
             stopTcpClient();
-        }
-    }
-
-    private void sleep(long millis) {
-        try {
-            Thread.sleep(millis);
-        } catch (Exception e) {
-            e.printStackTrace();
         }
     }
 

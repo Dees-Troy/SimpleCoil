@@ -18,6 +18,7 @@ package com.simplecoil.simplecoil
 
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import org.json.JSONObject
+import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -26,6 +27,8 @@ import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.EOFException
+import java.net.InetAddress
+import java.net.ServerSocket
 
 /** TcpClient writes on one thread, in the order sent (D3), over an in-memory stream. */
 class TcpClientWriterTest {
@@ -93,5 +96,38 @@ class TcpClientWriterTest {
         assertEquals("ELIMINATED3", envelope.getString(TcpServer.JSON_RMSG))
         assertEquals(1, envelope.getInt(TcpServer.JSON_SEQ))
         assertEquals(1, client.outbox.pending().size)
+    }
+
+    @Test
+    fun leaveServer_writesLeaveLast_thenCloses_withoutBlockingTheCaller() {
+        // N11: stopTcpClient slept 75 ms on the main thread and hoped LEAVE had gone out by then.
+        LoopbackClient.awaitPortFree()
+        GameStateRepository.getInstance().serverIP = InetAddress.getByName("127.0.0.1")
+        PlayerRepository.getInstance().pairedGrenadeID = 0
+        ServerSocket(TcpServer.TCP_SERVER_PORT).use { server ->
+            server.soTimeout = 5_000
+            val client = object : TcpClient() {
+                override fun startAsForeground(statusText: String?) {} // notifications are stubs here
+            }
+            client.startTcpClient()
+            val socket = server.accept()
+            socket.soTimeout = 5_000
+            val input = DataInputStream(socket.getInputStream())
+            input.readUTF() // the hello
+            val chatter = (0 until 50).map { NetworkSessionGateway.message(NetMsg.NETMSG_SHOTFIRED) }
+            chatter.forEach { client.sendTCPMessage(it) }
+            val startedAt = System.nanoTime()
+            client.leaveServer()
+            assertTrue((System.nanoTime() - startedAt) / 1_000_000 < 50)
+
+            val frames = mutableListOf<String>()
+            try {
+                while (true) frames += input.readUTF()
+            } catch (e: EOFException) {
+                // the client closed its socket
+            }
+            assertEquals(chatter + NetworkSessionGateway.message(NetMsg.NETMSG_LEAVE), frames)
+            socket.close()
+        }
     }
 }
