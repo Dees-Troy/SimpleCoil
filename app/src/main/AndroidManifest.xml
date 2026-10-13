@@ -75,6 +75,7 @@
         <activity
             android:name=".DedicatedServerActivity"
             android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|keyboard|keyboardHidden|navigation|locale|layoutDirection"
             android:label="@string/title_activity_dedicated_server"
             android:theme="@style/AppTheme.NoActionBar"></activity>
     </application>

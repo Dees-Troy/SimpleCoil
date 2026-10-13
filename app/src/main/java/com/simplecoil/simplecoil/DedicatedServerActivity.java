@@ -367,15 +367,19 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // Kick everyone; the server's client thread closes their sockets once it stops.
-        if (mTcpServer != null)
-            mTcpServer.sendTCPMessageAll(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_SERVERCANCEL);
-        if (mUDPListenerService != null)
-            mUDPListenerService.stopListen();
+        // Only an operator leaving the screen ends the session; a recreation the manifest's
+        // configChanges don't cover must not kick every player (S1).
+        if (isFinishing()) {
+            // Kick everyone; the server's client thread closes their sockets once it stops.
+            if (mTcpServer != null)
+                mTcpServer.sendTCPMessageAll(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_SERVERCANCEL);
+            if (mUDPListenerService != null)
+                mUDPListenerService.stopListen();
+            if (mTcpServer != null)
+                mTcpServer.stopTcpServer();
+        }
         if (mUDPServiceConnection != null)
             unbindService(mUDPServiceConnection);
-        if (mTcpServer != null)
-            mTcpServer.stopTcpServer();
         if (mTcpServerServiceConnection != null)
             unbindService(mTcpServerServiceConnection);
     }
