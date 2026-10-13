@@ -33,6 +33,7 @@ import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.simplecoil.simplecoil.data.preferences.UserPreferencesRepository
 import com.simplecoil.simplecoil.databinding.ActivityFullscreenBinding
+import com.simplecoil.simplecoil.hardware.blaster.BlasterSupport
 import com.simplecoil.simplecoil.ui.game.CompositeGameScreen
 import com.simplecoil.simplecoil.ui.game.DialogCoordinator
 import com.simplecoil.simplecoil.ui.game.GameNavigator
@@ -65,6 +66,7 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
     private lateinit var renderer: GameScreenRenderer
     private lateinit var dialogs: DialogCoordinator
     private lateinit var permissions: BlePermissionController
+    private var serverOnly = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,7 +78,8 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
                 moveTaskToBack(true)
             }
         })
-        renderer = GameScreenRenderer(binding, WindowController(window), lifecycleScope)
+        serverOnly = BlasterSupport.isServerOnly(packageManager)
+        renderer = GameScreenRenderer(binding, WindowController(window), lifecycleScope, serverOnly)
         vm = ViewModelProvider(this, GameViewModelFactory(application as SimpleCoilApp))[GameViewModel::class.java]
         dialogs = DialogCoordinator(this, vm, binding.useNetworkButton, binding.teamModeButton)
         vm.screen = CompositeGameScreen(renderer, dialogs, this)
@@ -178,6 +181,8 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
     // ---------------------------------------------------------------------------------------
 
     override fun requestConnect() {
+        // No blaster here, so no Bluetooth prompts (e.g. from the adapter turning on).
+        if (serverOnly) return
         if (GameViewModel.TEST_NETWORK) {
             renderer.showPlayScreen()
             return

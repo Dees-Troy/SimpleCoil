@@ -30,6 +30,8 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Handles LAN Server Discovery using lightweight UDP broadcast beacons.
@@ -87,7 +89,29 @@ public class ServerDiscoveryManager {
         }
     }
 
-    public InetAddress getBroadcastAddress() {
+    /**
+     * The subnet broadcast from the Wi-Fi DHCP info, plus the limited broadcast 255.255.255.255.
+     * On a Chromebook the app sits behind NAT and the DHCP info describes the container's internal
+     * subnet, so the subnet broadcast may never reach the LAN.
+     */
+    private List<InetAddress> getBroadcastAddresses() {
+        List<InetAddress> addresses = new ArrayList<>();
+        InetAddress subnet = getSubnetBroadcastAddress();
+        if (subnet != null) {
+            addresses.add(subnet);
+        }
+        try {
+            InetAddress limited = InetAddress.getByAddress(new byte[]{(byte) 255, (byte) 255, (byte) 255, (byte) 255});
+            if (!addresses.contains(limited)) {
+                addresses.add(limited);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to build limited broadcast address", e);
+        }
+        return addresses;
+    }
+
+    private InetAddress getSubnetBroadcastAddress() {
         if (mWifiManager == null) {
             mWifiManager = (WifiManager) mContext.getSystemService(Context.WIFI_SERVICE);
         }
@@ -173,8 +197,7 @@ public class ServerDiscoveryManager {
     }
 
     private void sendBeaconPacket(String serverName) {
-        InetAddress broadcastAddr = getBroadcastAddress();
-        if (broadcastAddr != null) {
+        for (InetAddress broadcastAddr : getBroadcastAddresses()) {
             sendBeaconPacketTo(broadcastAddr, serverName);
         }
     }
@@ -278,17 +301,17 @@ public class ServerDiscoveryManager {
     }
 
     private void sendDiscoveryQuery() {
-        InetAddress broadcastAddr = getBroadcastAddress();
-        if (broadcastAddr == null) return;
-        try {
-            byte[] buf = DISCOVER_MSG.getBytes();
-            DatagramPacket packet = new DatagramPacket(buf, buf.length, broadcastAddr, DISCOVERY_PORT);
-            DatagramSocket socket = new DatagramSocket();
-            socket.setBroadcast(true);
-            socket.send(packet);
-            socket.close();
-        } catch (IOException e) {
-            Log.e(TAG, "Error sending discovery query", e);
+        for (InetAddress broadcastAddr : getBroadcastAddresses()) {
+            try {
+                byte[] buf = DISCOVER_MSG.getBytes();
+                DatagramPacket packet = new DatagramPacket(buf, buf.length, broadcastAddr, DISCOVERY_PORT);
+                DatagramSocket socket = new DatagramSocket();
+                socket.setBroadcast(true);
+                socket.send(packet);
+                socket.close();
+            } catch (IOException e) {
+                Log.e(TAG, "Error sending discovery query to " + broadcastAddr.getHostAddress(), e);
+            }
         }
     }
 

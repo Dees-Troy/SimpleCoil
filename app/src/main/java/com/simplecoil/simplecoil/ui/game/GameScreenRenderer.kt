@@ -44,6 +44,8 @@ class GameScreenRenderer(
     private val b: ActivityFullscreenBinding,
     private val window: WindowController,
     private val scope: CoroutineScope,
+    /** No blaster on this device (a Chromebook): the connect screen shows only the dedicated server. */
+    private val serverOnly: Boolean = false,
 ) : GameView {
 
     private val context get() = b.root.context
@@ -57,6 +59,11 @@ class GameScreenRenderer(
     override fun showConnectScreen(reconnectVisible: Boolean) {
         b.playLayout.visibility = View.GONE
         b.connectLayout.visibility = View.VISIBLE
+        if (serverOnly) {
+            b.connectWeaponButton.visibility = View.GONE
+            b.connectQrWeaponButton.visibility = View.GONE
+            b.connectStatusTv.visibility = View.GONE
+        }
         setReconnectVisible(reconnectVisible)
     }
 
@@ -66,7 +73,7 @@ class GameScreenRenderer(
     }
 
     override fun setReconnectVisible(visible: Boolean) {
-        b.reconnectWeaponButton.visibility = if (visible) View.VISIBLE else View.GONE
+        b.reconnectWeaponButton.visibility = if (visible && !serverOnly) View.VISIBLE else View.GONE
     }
 
     override fun setConnectButtonsEnabled(enabled: Boolean) {

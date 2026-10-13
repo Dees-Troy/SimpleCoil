@@ -2,14 +2,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-    Declare this required feature if you want to make the app available to BLE-capable
-    devices only.  If you want to make your app available to devices that don't support BLE,
-    you should omit this in the manifest.  Instead, determine BLE capability by using
-    PackageManager.hasSystemFeature(FEATURE_BLUETOOTH_LE)
+    BLE is optional so the app installs on Chromebooks to run the dedicated server. Without BLE
+    (or on a Chromebook) the connect screen hides the blaster options; see BlasterSupport.
     -->
     <uses-feature
         android:name="android.hardware.bluetooth_le"
-        android:required="true" />
+        android:required="false" />
+    <!-- Many Chromebooks have no touchscreen; without this Play would filter them out. -->
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
 
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
