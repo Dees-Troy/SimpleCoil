@@ -292,7 +292,8 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         mOnlyServerSettingsSwitch.setOnClickListener((new View.OnClickListener() {
             public void onClick(View v) {
                 GameSettingsRepository.getInstance().setOnlyServerSettings(mOnlyServerSettingsSwitch.isChecked());
-                mTcpServer.sendAllGameInfo(TcpServer.SEND_ALL);
+                if (mTcpServer != null)
+                    mTcpServer.sendAllGameInfo(TcpServer.SEND_ALL);
             }
         }));
         mAllowChooseTeamsSwitch = findViewById(R.id.allow_choose_teams_switch);
@@ -971,7 +972,8 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             public void onFinish() {
                 Log.d(TAG, "Game time ended!");
                 Toast.makeText(getApplicationContext(), getString(R.string.dialog_game_time_expired), Toast.LENGTH_SHORT).show();
-                mTcpServer.endGame();
+                if (mTcpServer != null)
+                    mTcpServer.endGame();
                 GameStateRepository.getInstance().setServerGameTimeRemaining(0);
             }
         }.start();
