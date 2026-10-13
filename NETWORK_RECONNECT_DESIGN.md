@@ -675,9 +675,11 @@ Every step is its own commit. Each one passed `./gradlew testDebugUnitTest assem
 
 ### 9.2 Known gap
 
-The client reports only eliminations by an opponent (`BlasterSessionEngine` skips self and friendly-fire kills). Those
-unreported eliminations are still counted locally, so a snapshot can give their lives back. This predates the design.
-It is not covered by Q5, which is about messages that were queued.
+Friendly fire from a teammate's blaster does no damage in a network game (`HitResolver`), so it never eliminates
+anyone. Grenade hits skip that filter, and the shooter is taken to be the player the grenade is paired with. An
+elimination by your own grenade or a teammate's is therefore counted on the phone, but `BlasterSessionEngine` doesn't
+send `ELIMINATED` for a self or teammate kill. On a reconnect, the snapshot from the server then gives that life back.
+This predates the design and is not part of Q5.
 
 ### 9.3 Pending
 
