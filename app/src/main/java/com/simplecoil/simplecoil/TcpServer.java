@@ -124,6 +124,7 @@ public class TcpServer extends Service {
     public static final String JSON_ALLOWPLAYERSETTINGS = "allowplayersettings";
 
     private static volatile boolean keepListening = false;
+    private volatile boolean mAccepting = false;
     private Semaphore mClientDataSemaphore = new Semaphore(1);
     private volatile Map<Integer, ClientData> mClientData = null;
     private static volatile boolean mGPSRunning = false;
@@ -1150,6 +1151,7 @@ public class TcpServer extends Service {
         try {
             ss = new ServerSocket(TCP_SERVER_PORT);
             ss.setSoTimeout(1000);
+            mAccepting = true;
             Socket s = null;
             Log.d(TAG, "TCP Server listening");
             while (keepListening) {
@@ -1184,6 +1186,7 @@ public class TcpServer extends Service {
         } catch (IOException e) {
             e.printStackTrace();
         } finally {
+            mAccepting = false;
             if (ss != null) {
                 try {
                     ss.close();
@@ -2020,6 +2023,11 @@ public class TcpServer extends Service {
 
     public void stopTcpServer() {
         keepListening = false;
+    }
+
+    /** The server socket is open (tests wait for it). */
+    boolean isAccepting() {
+        return mAccepting;
     }
 
     private void sleep(long millis) {
