@@ -596,7 +596,8 @@ public class TcpServer extends Service {
         if (mGPSRunning) return;
         mGPSRunning = true;
         mGPSIntervalCount.set(0);
-        mGPSTick = mGPSTimer.scheduleAtFixedRate(new Runnable() {
+        // Fixed delay, like the Handler it replaces: a frozen process must not catch up with a burst of ticks
+        mGPSTick = mGPSTimer.scheduleWithFixedDelay(new Runnable() {
             public void run() {
                 runOnDispatcher(new Runnable() {
                     public void run() {
