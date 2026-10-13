@@ -17,6 +17,7 @@
 package com.simplecoil.simplecoil.network
 
 import com.simplecoil.simplecoil.PlayerDisplayData
+import com.simplecoil.simplecoil.network.server.ClockState
 
 /** Score update from the server, carried by [ClientEvent.ListPlayers]. */
 data class GameUpdate(val score: Int, val eliminations: Int, val teamScore: Int, val timeRemaining: Long)
@@ -86,4 +87,10 @@ sealed interface ServerEvent {
 
     /** The discovery beacon is up; the server listens on [ip]. */
     data class ServerCreated(val ip: String) : ServerEvent
+
+    /** The game clock moved to [state]. */
+    data class ClockChanged(val state: ClockState) : ServerEvent
+
+    /** The time limit ran out; the game is ending. */
+    data object TimeExpired : ServerEvent
 }

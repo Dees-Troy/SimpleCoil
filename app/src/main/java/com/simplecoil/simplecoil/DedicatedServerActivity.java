@@ -23,7 +23,6 @@ import android.content.ServiceConnection;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
-import android.os.CountDownTimer;
 import android.os.IBinder;
 import android.os.SystemClock;
 import androidx.appcompat.app.AlertDialog;
@@ -48,6 +47,7 @@ import com.simplecoil.simplecoil.domain.session.ClockFormat;
 import com.simplecoil.simplecoil.domain.team.TeamLayout;
 import com.simplecoil.simplecoil.domain.team.TeamMode;
 import com.simplecoil.simplecoil.network.ServerEvent;
+import com.simplecoil.simplecoil.network.server.ClockState;
 import com.simplecoil.simplecoil.network.server.SessionPhase;
 import com.simplecoil.simplecoil.ui.dialogs.GameLimitDialog;
 import com.simplecoil.simplecoil.ui.dialogs.StartingTimerDialog;
@@ -94,8 +94,14 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     private SwitchCompat mAllowChooseTeamsSwitch = null;
     private RecyclerView mPlayerDisplayList = null;
 
-    private CountDownTimer mGameCountdownTimer = null;
-    private CountDownTimer mSpawnTimer = null;
+    /** The server's game clock, as last rendered. */
+    private ClockState mClockState = ClockState.Idle.INSTANCE;
+    /** Redraws a timed game's countdown once a second while it counts. */
+    private final Runnable mCountdownTicker = new Runnable() {
+        public void run() {
+            showCountdown();
+        }
+    };
 
     private UserPreferencesRepository mPreferences = null;
 
@@ -147,6 +153,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 mTcpServer.startTcpServer();
                 mTcpServer.startAsForeground();
                 mViewModel.setPhase(mTcpServer.getSessionPhase());
+                renderClock(mTcpServer.getClockState());
                 getPlayerDisplayData();
             }
 
@@ -370,6 +377,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        mGameCountDownTV.removeCallbacks(mCountdownTicker);
         // Only an operator leaving the screen ends the session; a recreation the manifest's
         // configChanges don't cover must not kick every player (S1).
         if (isFinishing()) {
@@ -680,21 +688,6 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         Log.d(TAG, "DedicatedServerActivity.onGameStarted called. mGameState=" + GameStateRepository.getInstance().getGameState());
         mViewModel.setPhase(SessionPhase.RUNNING);
         GameSettingsRepository.getInstance().setAllowJoinInProgress(mAllowJoinSwitch.isChecked());
-        if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_TIME) != 0) {
-            startGameCountdown();
-        } else {
-            mSpawnTimer = new CountDownTimer(GameSettingsRepository.getInstance().getStartTime() * 1000, 999) {
-
-                public void onTick(long millisUntilFinished) {
-                    // Do nothing
-                }
-
-                public void onFinish() {
-                    mGameTimer.setBase(SystemClock.elapsedRealtime());
-                    mGameTimer.start();
-                }
-            }.start();
-        }
         getPlayerDisplayData();
     }
 
@@ -702,21 +695,37 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         Log.d(TAG, "DedicatedServerActivity.onGameEnded called. mGameState=" + GameStateRepository.getInstance().getGameState());
         mViewModel.setPhase(SessionPhase.POST_GAME);
         mNetworkPlayerCountTV.setText(quantity(R.plurals.network_player_count, PlayerRepository.getInstance().getPlayerCount(true)));
-        mGameTimer.stop();
-        if (mSpawnTimer != null) {
-            mSpawnTimer.cancel();
-            mSpawnTimer = null;
-        }
-        if (mGameCountdownTimer != null) {
-            mGameCountdownTimer.cancel();
-            mGameCountdownTimer = null;
-        }
-        GameStateRepository.getInstance().setServerGameTimeRemaining(0);
-        if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_TIME) != 0 && mGameCountDownTV != null) {
-            String display = ClockFormat.minutes(GameSettingsRepository.getInstance().getTimeLimit());
-            mGameCountDownTV.setText(display);
-        }
         getPlayerDisplayData();
+    }
+
+    /**
+     * Shows the server's game clock (S2: the server keeps the time; this only draws it). A timed
+     * game counts its time limit plus the starting timer down; an untimed one runs the
+     * chronometer from the end of the starting timer.
+     */
+    private void renderClock(ClockState state) {
+        mClockState = state;
+        mGameCountDownTV.removeCallbacks(mCountdownTicker);
+        if (state instanceof ClockState.Counting) {
+            showCountdown();
+        } else if (state instanceof ClockState.Elapsed) {
+            mGameTimer.setBase(((ClockState.Elapsed) state).getStartedAtElapsed());
+            mGameTimer.start();
+        } else if (state == ClockState.Idle.INSTANCE) {
+            mGameTimer.stop();
+            if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_TIME) != 0)
+                mGameCountDownTV.setText(ClockFormat.minutes(GameSettingsRepository.getInstance().getTimeLimit()));
+        }
+    }
+
+    private void showCountdown() {
+        if (!(mClockState instanceof ClockState.Counting))
+            return;
+        long millisLeft = Math.max(0, ((ClockState.Counting) mClockState).getEndsAtElapsed() - SystemClock.elapsedRealtime());
+        long minutes = TimeUnit.MILLISECONDS.toMinutes(millisLeft);
+        mGameCountDownTV.setText(ClockFormat.minutesSeconds(minutes, TimeUnit.MILLISECONDS.toSeconds(millisLeft) - TimeUnit.MINUTES.toSeconds(minutes)));
+        if (millisLeft > 0)
+            mGameCountDownTV.postDelayed(mCountdownTicker, 1000 - millisLeft % 1000 + 1);
     }
 
     private void onServerEvent(ServerEvent event) {
@@ -740,6 +749,10 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         } else if (event instanceof ServerEvent.PlayerDataChanged) {
             mViewModel.updatePlayerCount();
             getPlayerDisplayData();
+        } else if (event instanceof ServerEvent.ClockChanged) {
+            renderClock(((ServerEvent.ClockChanged) event).getState());
+        } else if (event == ServerEvent.TimeExpired.INSTANCE) {
+            Toast.makeText(getApplicationContext(), getString(R.string.dialog_game_time_expired), Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -797,29 +810,4 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             mPlayerDisplayListAdapter.submitList(ScoreboardRows.INSTANCE.build(mPlayerDisplayData, context));
         }
     }
-
-    private void startGameCountdown() {
-        if (mGameCountdownTimer != null)
-            mGameCountdownTimer.cancel();
-        mGameCountdownTimer = new CountDownTimer((GameSettingsRepository.getInstance().getTimeLimit() * 60 * 1000) + (GameSettingsRepository.getInstance().getStartTime() * 1000), 1000) {
-
-            public void onTick(long millisUntilFinished) {
-                String display = ClockFormat.minutesSeconds(
-                        TimeUnit.MILLISECONDS.toMinutes(millisUntilFinished),
-                        TimeUnit.MILLISECONDS.toSeconds(millisUntilFinished) - TimeUnit.MINUTES.toSeconds(
-                                TimeUnit.MILLISECONDS.toMinutes(millisUntilFinished)));
-                mGameCountDownTV.setText(display);
-                GameStateRepository.getInstance().setServerGameTimeRemaining(millisUntilFinished / 1000);
-            }
-
-            public void onFinish() {
-                Log.d(TAG, "Game time ended!");
-                Toast.makeText(getApplicationContext(), getString(R.string.dialog_game_time_expired), Toast.LENGTH_SHORT).show();
-                if (mTcpServer != null)
-                    mTcpServer.endGame();
-                GameStateRepository.getInstance().setServerGameTimeRemaining(0);
-            }
-        }.start();
-    }
-
 }

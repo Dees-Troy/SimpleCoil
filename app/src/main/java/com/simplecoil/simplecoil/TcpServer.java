@@ -27,6 +27,7 @@ import android.content.pm.ServiceInfo;
 import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.SystemClock;
 import android.util.Log;
 
 import androidx.annotation.VisibleForTesting;
@@ -44,9 +45,11 @@ import com.simplecoil.simplecoil.domain.team.TeamMode;
 import com.simplecoil.simplecoil.network.EventBus;
 import com.simplecoil.simplecoil.network.Frame;
 import com.simplecoil.simplecoil.network.ServerEvent;
+import com.simplecoil.simplecoil.network.server.ClockState;
 import com.simplecoil.simplecoil.network.server.Connection;
 import com.simplecoil.simplecoil.network.server.GameRoster;
 import com.simplecoil.simplecoil.network.server.PlayerRecord;
+import com.simplecoil.simplecoil.network.server.ServerGameClock;
 import com.simplecoil.simplecoil.network.server.SessionPhase;
 
 import org.json.JSONArray;
@@ -71,6 +74,11 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import kotlin.Unit;
+import kotlin.jvm.functions.Function0;
+import kotlin.jvm.functions.Function1;
+import kotlinx.coroutines.ExecutorsKt;
 
 public class TcpServer extends Service {
     private static final String TAG = "TCPServer";
@@ -175,7 +183,20 @@ public class TcpServer extends Service {
     /** Where the server's events go: the app's server bus once created (a private one in tests). */
     private EventBus<ServerEvent> mEvents = new EventBus<>();
 
+    /** Enforces the time limit (dedicated server design §5.3); touched only on the dispatcher. */
+    private final ServerGameClock mClock;
+
     public TcpServer() {
+        this(new Function0<Long>() {
+            public Long invoke() {
+                return SystemClock.elapsedRealtime();
+            }
+        });
+    }
+
+    /** [clock]: monotonic milliseconds that count deep sleep. */
+    @VisibleForTesting
+    TcpServer(Function0<Long> clock) {
         mDispatcher = Executors.newSingleThreadExecutor(new ThreadFactory() {
             @Override
             public Thread newThread(Runnable r) {
@@ -193,6 +214,20 @@ public class TcpServer extends Service {
                 return thread;
             }
         });
+        mClock = new ServerGameClock(ExecutorsKt.from(mDispatcher), clock, GameStateRepository.getInstance(),
+                new Function1<ClockState, Unit>() {
+                    public Unit invoke(ClockState state) {
+                        mEvents.publish(new ServerEvent.ClockChanged(state));
+                        return Unit.INSTANCE;
+                    }
+                },
+                new Function0<Unit>() {
+                    public Unit invoke() {
+                        mEvents.publish(ServerEvent.TimeExpired.INSTANCE);
+                        endGame();
+                        return Unit.INSTANCE;
+                    }
+                });
     }
 
     @Override
@@ -372,6 +407,9 @@ public class TcpServer extends Service {
         sendAllGameInfo(SEND_ALL);
         mEvents.publish(ServerEvent.GameStarted.INSTANCE);
         mEvents.publish(new ServerEvent.PlayerDataChanged(null));
+        GameSettingsRepository settings = GameSettingsRepository.getInstance();
+        boolean timed = (settings.getGameLimit() & GameSettingsRepository.GAME_LIMIT_TIME) != 0;
+        mClock.start(timed ? Integer.valueOf(settings.getTimeLimit()) : null, settings.getStartTime());
         return true;
     }
 
@@ -386,6 +424,7 @@ public class TcpServer extends Service {
                 if (!mRoster.endGame())
                     return;
                 syncGameState();
+                mClock.stop();
                 sendPlayerData(SEND_ALL);
                 sendTCPMessageAll(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ENDGAME);
                 // after ENDGAME, so the clients have ended the game before they see game state NONE;
@@ -418,6 +457,7 @@ public class TcpServer extends Service {
             return false;
         Log.d(TAG, "Session reset: removed " + removed.size() + " disconnected players");
         syncGameState();
+        mClock.stop();
         mGPSIntervalCount.set(SEND_ALL_GPS_INTERVAL);
         sendPlayerData(SEND_ALL);
         sendAllGameInfo(SEND_ALL);
@@ -1560,15 +1600,25 @@ public class TcpServer extends Service {
             connection.closeAfterPending(); // after a SERVERCANCEL sent just before the stop
         }
         stopGPSRelay();
+        runOnDispatcher(new Runnable() {
+            public void run() {
+                mClock.stop();
+            }
+        });
         stopAsForeground();
     }
 
-    /** The server socket is open (tests wait for it). */
+    /** The game clock, for the screen to render (any thread). */
+    public ClockState getClockState() {
+        return mClock.getState();
+    }
+
     @VisibleForTesting
     void setEventsForTest(EventBus<ServerEvent> events) {
         mEvents = events;
     }
 
+    /** The server socket is open (tests wait for it). */
     boolean isAccepting() {
         return mAccepting;
     }

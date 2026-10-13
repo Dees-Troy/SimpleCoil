@@ -25,6 +25,7 @@ import com.simplecoil.simplecoil.domain.team.TeamMode
 import com.simplecoil.simplecoil.network.EventBus
 import com.simplecoil.simplecoil.network.ServerEvent
 import com.simplecoil.simplecoil.network.client.ClientOutbox
+import com.simplecoil.simplecoil.network.server.ClockState
 import com.simplecoil.simplecoil.network.server.SessionPhase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -58,6 +59,10 @@ class TcpServerLoopbackTest {
     private val events = mutableListOf<ServerEvent>()
     private val eventScope = CoroutineScope(Job() + Dispatchers.Unconfined)
 
+    /** Added to the server's clock: time jumps forward without waiting for it. */
+    @Volatile
+    private var clockOffset = 0L
+
     @Before
     fun setUp() {
         GameStateRepository.getInstance().gameState = GameStateRepository.GAME_STATE_NONE
@@ -71,7 +76,7 @@ class TcpServerLoopbackTest {
         PlayerRepository.getInstance().setPlayerID(0)
         PlayerRepository.getInstance().clearAllPlayers()
         LoopbackClient.awaitPortFree()
-        server = TcpServer()
+        server = TcpServer { System.nanoTime() / 1_000_000 + clockOffset }
         val bus = EventBus<ServerEvent>()
         eventScope.launch(start = CoroutineStart.UNDISPATCHED) { bus.events.collect { synchronized(events) { events += it } } }
         server.setEventsForTest(bus)
@@ -161,8 +166,8 @@ class TcpServerLoopbackTest {
 
     private fun eventsSoFar(): List<ServerEvent> = synchronized(events) { events.toList() }
 
-    /** The events other than PlayerDataChanged, which follows nearly every change. */
-    private fun sessionEvents() = eventsSoFar().filter { it !is ServerEvent.PlayerDataChanged }
+    /** The events other than PlayerDataChanged, which follows nearly every change, and the clock's. */
+    private fun sessionEvents() = eventsSoFar().filter { it !is ServerEvent.PlayerDataChanged && it !is ServerEvent.ClockChanged }
 
     @Test
     fun serverEvents_followTheSession() {
@@ -180,6 +185,29 @@ class TcpServerLoopbackTest {
         awaitTrue { score(idA) == null && ServerEvent.PlayerLeft in sessionEvents() }
         assertEquals(listOf(ServerEvent.PlayerJoined, ServerEvent.PlayerJoined, ServerEvent.GameStarted,
             ServerEvent.GameEnded, ServerEvent.SessionReset, ServerEvent.PlayerLeft), sessionEvents())
+    }
+
+    @Test
+    fun timeLimit_theServerEndsTheGame_andTellsTheClients() {
+        GameSettingsRepository.getInstance().gameLimit = GameSettingsRepository.GAME_LIMIT_TIME
+        GameSettingsRepository.getInstance().timeLimit = 1
+        GameSettingsRepository.getInstance().startTime = 5
+        try {
+            val (a, _) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00").first()
+            awaitTrue { server.clockState is ClockState.Counting }
+            awaitTrue { GameStateRepository.getInstance().serverGameTimeRemaining in 60..65 }
+            clockOffset += 65_000
+            a.awaitMesg(NetMsg.NETMSG_ENDGAME)
+            awaitTrue { server.clockState == ClockState.Idle }
+            assertEquals(SessionPhase.POST_GAME, server.sessionPhase)
+            assertEquals(0, GameStateRepository.getInstance().serverGameTimeRemaining)
+            awaitTrue { ServerEvent.GameEnded in sessionEvents() }
+            val events = sessionEvents()
+            assertTrue(events.toString(), events.indexOf(ServerEvent.TimeExpired) in 0 until events.indexOf(ServerEvent.GameEnded))
+        } finally {
+            GameSettingsRepository.getInstance().gameLimit = GameSettingsRepository.GAME_LIMIT_NONE
+            GameSettingsRepository.getInstance().startTime = GameSettingsRepository.START_TIME_SECONDS
+        }
     }
 
     @Test
