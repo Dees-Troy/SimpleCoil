@@ -17,8 +17,8 @@
 package com.simplecoil.simplecoil.ui.game
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.content.ServiceConnection
+import android.content.SharedPreferences
 import com.simplecoil.simplecoil.NetworkEvent
 import com.simplecoil.simplecoil.NetworkSessionGateway
 import com.simplecoil.simplecoil.PlayerDisplayData
@@ -28,6 +28,7 @@ import com.simplecoil.simplecoil.data.preferences.UserPreferencesRepository
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.domain.rules.LimitKind
 import com.simplecoil.simplecoil.domain.session.BlasterSessionEngine
 import com.simplecoil.simplecoil.domain.session.Recorder
 import com.simplecoil.simplecoil.domain.session.RepositoryGameConfig
@@ -194,13 +195,13 @@ class GameViewModelTest {
 
     @Test
     fun gameLimit_parsesAndRejectsTooHigh() {
-        vm.onGameLimitEntered("10", GameViewModel.LimitKind.TIME)
+        vm.onGameLimitEntered("10", LimitKind.TIME)
         assertEquals(GameSettingsRepository.GAME_LIMIT_TIME, settings.gameLimit)
         assertEquals(10, prefs.values["TimeLimit"])
         verify(screen).showGameLimit(10, false, null)
-        vm.onGameLimitEntered("101", GameViewModel.LimitKind.LIVES)
+        vm.onGameLimitEntered("101", LimitKind.LIVES)
         verify(screen).showMessage(GameMessage.LIMIT_TOO_HIGH, 0)
-        vm.onGameLimitEntered("abc", GameViewModel.LimitKind.LIVES)
+        vm.onGameLimitEntered("abc", LimitKind.LIVES)
         assertEquals(GameSettingsRepository.GAME_LIMIT_TIME, settings.gameLimit)
     }
 
@@ -368,7 +369,7 @@ class GameViewModelTest {
 
     @Test
     fun localScoreLimit_endsTheGame() {
-        vm.onGameLimitEntered("1", GameViewModel.LimitKind.SCORE)
+        vm.onGameLimitEntered("1", LimitKind.SCORE)
         vm.onStartGamePressed()
         emitNetwork(NetworkEvent.Eliminated(2))
         assertEquals(GameStateRepository.GAME_STATE_NONE, gameState.gameState)

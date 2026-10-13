@@ -37,6 +37,7 @@ import com.simplecoil.simplecoil.databinding.PlayerDataDialogBinding
 import com.simplecoil.simplecoil.databinding.PlayerNameDialogBinding
 import com.simplecoil.simplecoil.databinding.ServerIpDialogBinding
 import com.simplecoil.simplecoil.databinding.TeamRatioDialogBinding
+import com.simplecoil.simplecoil.domain.rules.LimitKind
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardAdapter
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardRows
 
@@ -170,9 +171,9 @@ class GameLimitDialog : GameDialogFragment() {
             .setView(binding.root)
             .setPositiveButton(R.string.ok) { dialog, _ ->
                 val kind = when {
-                    time.isChecked -> GameViewModel.LimitKind.TIME
-                    lives.isChecked -> GameViewModel.LimitKind.LIVES
-                    else -> GameViewModel.LimitKind.SCORE
+                    time.isChecked -> LimitKind.TIME
+                    lives.isChecked -> LimitKind.LIVES
+                    else -> LimitKind.SCORE
                 }
                 vm.onGameLimitEntered(binding.gameLimitEt.text.toString(), kind)
                 dialog.dismiss()

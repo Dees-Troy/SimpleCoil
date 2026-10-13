@@ -32,6 +32,10 @@ import com.simplecoil.simplecoil.data.preferences.UserPreferencesRepository
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.domain.rules.GameLimitRules
+import com.simplecoil.simplecoil.domain.rules.LimitKind
+import com.simplecoil.simplecoil.domain.rules.Limits
+import com.simplecoil.simplecoil.domain.rules.TeamSizes
 import com.simplecoil.simplecoil.domain.session.BlasterSessionEngine
 import com.simplecoil.simplecoil.domain.session.SessionEffect
 import com.simplecoil.simplecoil.domain.session.SessionSound
@@ -504,38 +508,22 @@ class GameViewModel(
         screen?.showGameLimitDialog(net.useNetwork)
     }
 
-    enum class LimitKind { TIME, LIVES, SCORE }
-
     fun onGameLimitEntered(text: String, kind: LimitKind) {
-        if (text.isEmpty()) return
-        val limit = try {
-            Integer.parseInt(text)
-        } catch (ignored: Exception) {
-            return
-        }
-        if (limit > 100) {
-            screen?.showMessage(GameMessage.LIMIT_TOO_HIGH)
-            return
-        }
-        var gameLimit = settingsRepo.gameLimit
-        when (kind) {
-            LimitKind.TIME -> {
-                if ((gameLimit and GameSettingsRepository.GAME_LIMIT_TIME) == 0) gameLimit += GameSettingsRepository.GAME_LIMIT_TIME
-                else if (limit <= 0) gameLimit -= GameSettingsRepository.GAME_LIMIT_TIME
-                settingsRepo.timeLimit = limit
+        val current = Limits(settingsRepo.gameLimit, settingsRepo.timeLimit, settingsRepo.livesLimit, settingsRepo.scoreLimit)
+        when (val result = GameLimitRules.apply(current, kind, text)) {
+            GameLimitRules.Result.Ignored -> return
+            GameLimitRules.Result.TooHigh -> {
+                screen?.showMessage(GameMessage.LIMIT_TOO_HIGH)
+                return
             }
-            LimitKind.LIVES -> {
-                if ((gameLimit and GameSettingsRepository.GAME_LIMIT_LIVES) == 0) gameLimit += GameSettingsRepository.GAME_LIMIT_LIVES
-                else if (limit <= 0) gameLimit -= GameSettingsRepository.GAME_LIMIT_LIVES
-                settingsRepo.livesLimit = limit
-            }
-            LimitKind.SCORE -> {
-                if ((gameLimit and GameSettingsRepository.GAME_LIMIT_SCORE) == 0) gameLimit += GameSettingsRepository.GAME_LIMIT_SCORE
-                else if (limit <= 0) gameLimit -= GameSettingsRepository.GAME_LIMIT_SCORE
-                settingsRepo.scoreLimit = limit
+            is GameLimitRules.Result.Applied -> {
+                val limits = result.limits
+                settingsRepo.timeLimit = limits.timeLimit
+                settingsRepo.livesLimit = limits.livesLimit
+                settingsRepo.scoreLimit = limits.scoreLimit
+                settingsRepo.gameLimit = limits.gameLimit
             }
         }
-        settingsRepo.gameLimit = gameLimit
         setGameLimit()
     }
 
@@ -889,21 +877,16 @@ class GameViewModel(
 
     /** Team sizes entered in the ratio dialog. Returns true when accepted (close the dialog). */
     fun onTeamSizesEntered(texts: List<String>): Boolean {
-        val newSizes = IntArray(texts.size)
-        var total = 0
-        for ((i, raw) in texts.withIndex()) {
-            val text = raw.trim()
-            val value = text.toIntOrNull()
-            if (text.isEmpty() || value == null || value <= 0) {
+        val newSizes = when (val result = TeamSizes.validate(texts)) {
+            TeamSizes.Result.BelowOne -> {
                 screen?.showMessage(GameMessage.RATIOS_MIN_ONE)
                 return false
             }
-            newSizes[i] = value
-            total += value
-        }
-        if (total != GameSettingsRepository.MAX_PLAYER_ID.toInt()) {
-            screen?.showMessage(GameMessage.RATIOS_TOTAL, total)
-            return false
+            is TeamSizes.Result.WrongTotal -> {
+                screen?.showMessage(GameMessage.RATIOS_TOTAL, result.total)
+                return false
+            }
+            is TeamSizes.Result.Valid -> result.sizes
         }
         settingsRepo.setTeamSizes(newSizes)
         net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_ADMIN_TEAMSIZES + newSizes.joinToString(",")))

@@ -43,6 +43,10 @@ import com.simplecoil.simplecoil.data.preferences.UserPreferencesRepository;
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
+import com.simplecoil.simplecoil.domain.rules.GameLimitRules;
+import com.simplecoil.simplecoil.domain.rules.LimitKind;
+import com.simplecoil.simplecoil.domain.rules.Limits;
+import com.simplecoil.simplecoil.domain.rules.TeamSizes;
 import com.simplecoil.simplecoil.domain.team.TeamMode;
 import com.simplecoil.simplecoil.network.server.SessionPhase;
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardAdapter;
@@ -67,6 +71,8 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class DedicatedServerActivity extends AppCompatActivity implements PopupMenu.OnMenuItemClickListener {
@@ -513,45 +519,22 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 .setPositiveButton(R.string.ok,
                         new DialogInterface.OnClickListener() {
                             public void onClick(DialogInterface dialog,int id) {
-                                if (gameLimitET.getText().toString().isEmpty()) {
-                                    dialog.dismiss();
-                                    return;
-                                }
-                                Integer limit = 0;
-                                try {
-                                    limit = Integer.parseInt(gameLimitET.getText().toString());
-                                } catch (Exception ignored) {
-                                    dialog.dismiss();
-                                    return;
-                                }
-                                if (limit > 100) {
+                                LimitKind kind = gameLimitTime.isChecked() ? LimitKind.TIME
+                                        : gameLimitLives.isChecked() ? LimitKind.LIVES : LimitKind.SCORE;
+                                GameSettingsRepository settings = GameSettingsRepository.getInstance();
+                                Limits current = new Limits(settings.getGameLimit(), settings.getTimeLimit(), settings.getLivesLimit(), settings.getScoreLimit());
+                                GameLimitRules.Result result = GameLimitRules.INSTANCE.apply(current, kind, gameLimitET.getText().toString());
+                                if (result instanceof GameLimitRules.Result.TooHigh) {
                                     Toast.makeText(getApplicationContext(), getString(R.string.error_limit_too_high), Toast.LENGTH_SHORT).show();
-                                    dialog.dismiss();
-                                    return;
+                                } else if (result instanceof GameLimitRules.Result.Applied) {
+                                    resetIfPostGame();
+                                    Limits limits = ((GameLimitRules.Result.Applied) result).getLimits();
+                                    settings.setTimeLimit(limits.getTimeLimit());
+                                    settings.setLivesLimit(limits.getLivesLimit());
+                                    settings.setScoreLimit(limits.getScoreLimit());
+                                    settings.setGameLimit(limits.getGameLimit());
+                                    setGameLimit();
                                 }
-                                resetIfPostGame();
-                                int gameLimit = GameSettingsRepository.getInstance().getGameLimit();
-                                if (gameLimitTime.isChecked()) {
-                                    if ((gameLimit & GameSettingsRepository.GAME_LIMIT_TIME) == 0)
-                                        gameLimit += GameSettingsRepository.GAME_LIMIT_TIME;
-                                    else if (limit <= 0)
-                                        gameLimit -= GameSettingsRepository.GAME_LIMIT_TIME;
-                                    GameSettingsRepository.getInstance().setTimeLimit(limit);
-                                } else if (gameLimitLives.isChecked()) {
-                                    if ((gameLimit & GameSettingsRepository.GAME_LIMIT_LIVES) == 0)
-                                        gameLimit += GameSettingsRepository.GAME_LIMIT_LIVES;
-                                    else if (limit <= 0)
-                                        gameLimit -= GameSettingsRepository.GAME_LIMIT_LIVES;
-                                    GameSettingsRepository.getInstance().setLivesLimit(limit);
-                                } else {
-                                    if ((gameLimit & GameSettingsRepository.GAME_LIMIT_SCORE) == 0)
-                                        gameLimit += GameSettingsRepository.GAME_LIMIT_SCORE;
-                                    else if (limit <= 0)
-                                        gameLimit -= GameSettingsRepository.GAME_LIMIT_SCORE;
-                                    GameSettingsRepository.getInstance().setScoreLimit(limit);
-                                }
-                                GameSettingsRepository.getInstance().setGameLimit(gameLimit);
-                                setGameLimit();
                                 dialog.dismiss();
                             }
                         })
@@ -714,40 +697,21 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         alertDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                EditText[] editTexts = new EditText[]{team1ET, team2ET, team3ET, team4ET};
-                int[] newSizes = new int[numTeams];
-                boolean invalidInput = false;
-                int totalEnteredSum = 0;
-
-                for (int i = 0; i < numTeams; i++) {
-                    String text = editTexts[i].getText().toString().trim();
-                    if (text.isEmpty()) {
-                        invalidInput = true;
-                        break;
-                    }
-                    try {
-                        int val = Integer.parseInt(text);
-                        if (val <= 0) {
-                            invalidInput = true;
-                            break;
-                        }
-                        newSizes[i] = val;
-                        totalEnteredSum += val;
-                    } catch (NumberFormatException e) {
-                        invalidInput = true;
-                        break;
-                    }
+                List<String> texts = new ArrayList<>();
+                for (EditText editText : new EditText[]{team1ET, team2ET, team3ET, team4ET}) {
+                    texts.add(editText.getText().toString());
                 }
-
-                if (invalidInput) {
+                TeamSizes.Result result = TeamSizes.INSTANCE.validate(texts, numTeams);
+                if (result instanceof TeamSizes.Result.BelowOne) {
                     Toast.makeText(DedicatedServerActivity.this, "Team limits must be at least 1 player slot", Toast.LENGTH_SHORT).show();
                     return;
                 }
-
-                if (totalEnteredSum != GameSettingsRepository.MAX_PLAYER_ID) {
+                if (result instanceof TeamSizes.Result.WrongTotal) {
+                    int totalEnteredSum = ((TeamSizes.Result.WrongTotal) result).getTotal();
                     Toast.makeText(DedicatedServerActivity.this, "Total player slots across all teams must equal " + GameSettingsRepository.MAX_PLAYER_ID + " (current sum: " + totalEnteredSum + ")", Toast.LENGTH_LONG).show();
                     return;
                 }
+                int[] newSizes = ((TeamSizes.Result.Valid) result).getSizes();
 
                 resetIfPostGame();
                 GameSettingsRepository.getInstance().setTeamSizes(newSizes);
