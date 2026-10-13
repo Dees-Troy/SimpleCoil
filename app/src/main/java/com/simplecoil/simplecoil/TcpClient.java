@@ -31,6 +31,7 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
 
+import androidx.annotation.VisibleForTesting;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.ServiceCompat;
 import androidx.core.content.ContextCompat;
@@ -57,6 +58,9 @@ import java.net.UnknownHostException;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class TcpClient extends Service {
     private static final String TAG = "TCPClient";
@@ -74,7 +78,12 @@ public class TcpClient extends Service {
 
     private final Object mOutLock = new Object();
     private DataOutputStream out = null;
-    private Queue<String> messageQueue;
+    private final Queue<String> messageQueue = new ConcurrentLinkedQueue<>();
+    /**
+     * Every write goes through this one thread, in the order sent (D3). Thread-per-message used
+     * to let queued eliminations overtake the hello they followed.
+     */
+    private final ExecutorService mWriter = Executors.newSingleThreadExecutor();
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -155,6 +164,7 @@ public class TcpClient extends Service {
     public void onDestroy() {
         super.onDestroy();
         unregisterReceiver(mGPSUpdateReceiver);
+        mWriter.shutdown();
     }
 
     @Override
@@ -169,43 +179,54 @@ public class TcpClient extends Service {
         sendTCPMessage(message, false);
     }
 
+    /** Queues [message] for the writer thread; with [queueMessage], keeps it for the next connection if it can't be written. */
     public void sendTCPMessage(final String message, final boolean queueMessage) {
+        mWriter.execute(new Runnable() {
+            public void run() {
+                write(message, queueMessage);
+            }
+        });
+    }
+
+    private void write(String message, boolean queueMessage) {
         synchronized (mOutLock) {
             if (out == null) {
                 Log.d(TAG, "Writer is null");
-                if (queueMessage && messageQueue != null) {
+                if (queueMessage) {
                     Log.e(TAG, "queuing: " + message);
                     messageQueue.add(message);
                 }
                 return;
             }
-        }
-        Thread sendThread = new Thread(new Runnable() {
-            public void run() {
-                synchronized (mOutLock) {
-                    if (out == null) {
-                        if (queueMessage && messageQueue != null) {
-                            Log.e(TAG, "queuing: " + message);
-                            messageQueue.add(message);
-                        }
-                        return;
-                    }
-                    try {
-                        out.writeUTF(message);
-                        out.flush();
-                        if (!message.equals(TCP_CLIENT_PONG))
-                            Log.i(TAG, "sent: " + message);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                        if (queueMessage && messageQueue != null) {
-                            Log.e(TAG, "queuing: " + message);
-                            messageQueue.add(message);
-                        }
-                    }
+            try {
+                out.writeUTF(message);
+                out.flush();
+                if (!message.equals(TCP_CLIENT_PONG))
+                    Log.i(TAG, "sent: " + message);
+            } catch (IOException e) {
+                e.printStackTrace();
+                if (queueMessage) {
+                    Log.e(TAG, "queuing: " + message);
+                    messageQueue.add(message);
                 }
             }
-        });
-        sendThread.start();
+        }
+    }
+
+    @VisibleForTesting
+    void attachOutputForTest(DataOutputStream output) {
+        synchronized (mOutLock) {
+            out = output;
+        }
+    }
+
+    /** Waits until everything sent so far has been written (or queued). */
+    @VisibleForTesting
+    void awaitWritesForTest() throws ExecutionException, InterruptedException {
+        mWriter.submit(new Runnable() {
+            public void run() {
+            }
+        }).get();
     }
 
     synchronized void startTcpClient() {
@@ -237,11 +258,7 @@ public class TcpClient extends Service {
         } finally {
             Globals.getInstance().mGPSDataSemaphore.release();
         }
-        if (messageQueue == null) {
-            messageQueue = new ConcurrentLinkedQueue<>();
-        } else {
-            messageQueue.clear();
-        }
+        messageQueue.clear();
         keepListening = true;
         isListening = true;
         Log.d(TAG, "Starting client...");
@@ -404,15 +421,18 @@ public class TcpClient extends Service {
             playerInfo.put(TcpServer.JSON_PLAYERNAMECHANGE, Globals.getInstance().mPlayerName);
             String message = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + playerInfo.toString();
             sendTCPMessage(message);
-            if (messageQueue != null) {
-                String queuedMsg;
-                while ((queuedMsg = messageQueue.poll()) != null) {
-                    Log.e(TAG, "sending queued: " + queuedMsg);
-                    sendTCPMessage(queuedMsg);
-                }
-            }
+            flushQueue();
         } catch (JSONException e) {
             e.printStackTrace();
+        }
+    }
+
+    /** Sends the messages kept while disconnected, after whatever was sent before this call. */
+    private void flushQueue() {
+        String queuedMsg;
+        while ((queuedMsg = messageQueue.poll()) != null) {
+            Log.e(TAG, "sending queued: " + queuedMsg);
+            sendTCPMessage(queuedMsg, true);
         }
     }
 
@@ -430,13 +450,7 @@ public class TcpClient extends Service {
             }
             String message = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + playerInfo.toString();
             sendTCPMessage(message);
-            if (messageQueue != null) {
-                String queuedMsg;
-                while ((queuedMsg = messageQueue.poll()) != null) {
-                    Log.e(TAG, "sending queued: " + queuedMsg);
-                    sendTCPMessage(queuedMsg);
-                }
-            }
+            flushQueue();
         } catch (JSONException e) {
             e.printStackTrace();
         }
