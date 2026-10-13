@@ -1,6 +1,6 @@
 # SimpleCoil Platform, Release Build and UI Hygiene — Design Document
 
-Status: **APPROVED (2026-10-13).** All decisions in §10 are resolved. No source has been changed.
+Status: **APPROVED (2026-10-13); steps 1–7 IMPLEMENTED and verified on devices (roadmap Stages 0–1).** All decisions in §10 are resolved. Steps 8–9 remain.
 
 Revision 2 (2026-10-13): decisions recorded (§10). The dedicated server gets a two-pane landscape layout on large
 screens (Q1); the other questions take their recommended defaults.

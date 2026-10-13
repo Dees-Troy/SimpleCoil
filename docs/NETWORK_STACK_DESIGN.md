@@ -1,6 +1,6 @@
 # SimpleCoil Network Stack: I/O, Events and Kotlin — Design Document
 
-Status: **APPROVED (2026-10-13).** All decisions in §8 are resolved. No source has been changed.
+Status: **APPROVED (2026-10-13); Phases 1 and 2 IMPLEMENTED and verified on devices (roadmap Stages 1–2).** All decisions in §8 are resolved. Phase 3 is next.
 
 Revision 2 (2026-10-13): decisions recorded (§8). The wire stays JSON on org.json (Q2). `MapFragment`'s GPS broadcasts
 move in Phase 2 (Q4): the map work is waiting for this roadmap to finish, so nothing else will touch them first.

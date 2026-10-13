@@ -1,6 +1,6 @@
 # SimpleCoil Modernization Roadmap (after V2 refactor)
 
-Status: **Stages 0–2 DONE in code (2026-10-13); Stage 1 and Stage 2 device checks pending; Stage 3 next.** All four documents are approved and their decisions resolved.
+Status: **Stages 0–2 DONE (2026-10-13), device checks included; Stage 3 next.** All four documents are approved and their decisions resolved.
 Branch audited: `V2-refactor` @ `b460c02`. The on-device checklists in `REFACTOR_DESIGN.md` §6.5 and
 `STATE_CONSOLIDATION_DESIGN.md` §8.6 have been completed.
 Date: 2026-10-13
@@ -59,7 +59,7 @@ errors.
   fix), host-agnostic dialogs, `PlayerSettingsDialog`, settings through `UserPreferencesRepository`.
 - **Platform steps 1–7**: manifest and `configChanges`, backup rules, the lint cleanup, `SwitchCompat`, R8.
 
-**Done in code (2026-10-13), one commit per step; device checks pending.** 495 unit tests pass, `assembleRelease`
+**Done (2026-10-13), one commit per step; device checks passed.** 495 unit tests pass, `assembleRelease`
 runs R8 with no warnings, and `lintDebug` is down from 215 warnings to 26 (0 errors).
 
 - **Network Phase 1:** `FrameReader` and the client's liveness `d29c8b4` (N4); per-connection writer queues
@@ -89,7 +89,7 @@ Notes:
   goes with network Phase 3; `LockedOrientationActivity` is intentional; the map-owned warnings wait for the map
   work. The rest go into the Stage 5 baseline.
 
-Device checks still to run before Stage 2 builds on this: the network smoke test (`NETWORK_STACK_DESIGN.md` §9.1,
+Device checks (passed, 2026-10-13): the network smoke test (`NETWORK_STACK_DESIGN.md` §9.1,
 with items 4 and 7 for Phase 1); the BLE and network smoke tests for app container step 2 (object identity); the
 dedicated-server checks for steps 1 and 3 (scroll position kept, dialogs) and §10 items 5 and 7; and the platform
 checks: dialogs look identical (step 2), Chromebook resize mid-game (step 3), `bmgr` backup and restore (step 4),
@@ -102,7 +102,7 @@ switch tint (step 6), the launcher's themed icon, and the full BLE + QR + networ
   includes `MapFragment`'s three GPS broadcasts (network Q4).
 - **Dedicated server step 6**: `ServerGameClock`, hosted by the server, built on the Stage 1 dispatcher.
 
-**Done in code (2026-10-13), one commit per step; device checks pending.** 512 unit tests pass, `assembleDebug` is
+**Done (2026-10-13), one commit per step; device checks passed.** 512 unit tests pass, `assembleDebug` is
 green, and `lintDebug` is unchanged (0 errors, 26 warnings).
 
 - **Network Phase 2:** `EventBus`, `ClientEvent` / `ServerEvent` and the container's two buses `e8fd869`; the map's
@@ -130,7 +130,7 @@ Notes:
   The client's producer tests are in `TcpClientFrameTest`. Bus ordering: `EventBusTest` (generic, so one test covers
   both buses).
 
-Device checks still to run (on top of Stage 1's): the network smoke test (`NETWORK_STACK_DESIGN.md` §9.1); the
+Device checks (passed, 2026-10-13): the network smoke test (`NETWORK_STACK_DESIGN.md` §9.1); the
 dedicated server screen's join/leave/start/end/reset updates and the GPS map (network §6.5); and dedicated server §10
 item 1 for the clock (a timed game ends on time with the screen closed, and the clock is right after reopening it).
 
