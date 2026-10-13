@@ -45,9 +45,8 @@ object GameLimitRules {
             LimitKind.LIVES -> GameSettingsRepository.GAME_LIMIT_LIVES
             LimitKind.SCORE -> GameSettingsRepository.GAME_LIMIT_SCORE
         }
-        var gameLimit = current.gameLimit
-        if (gameLimit and flag == 0) gameLimit += flag
-        else if (limit <= 0) gameLimit -= flag
+        // A value above 0 turns the limit on; 0 or less turns it off (S9: 0 used to turn on a limit that was off)
+        val gameLimit = if (limit > 0) current.gameLimit or flag else current.gameLimit and flag.inv()
         return Result.Applied(
             when (kind) {
                 LimitKind.TIME -> current.copy(gameLimit = gameLimit, timeLimit = limit)

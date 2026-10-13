@@ -52,9 +52,10 @@ class GameLimitRulesTest {
     }
 
     @Test
-    fun zero_onALimitThatIsOff_turnsItOn() {
-        // S9, pinned as it is today: the limit <= 0 branch only clears a bit that was already set
-        assertEquals(Limits(GAME_LIMIT_TIME, 0, 5, 20), applied(none, LimitKind.TIME, "0"))
+    fun zero_onALimitThatIsOff_keepsItOff() {
+        // S9: it used to turn the limit on, so a 0-minute game ended right after the starting timer
+        assertEquals(Limits(GAME_LIMIT_NONE, 0, 5, 20), applied(none, LimitKind.TIME, "0"))
+        assertEquals(Limits(GAME_LIMIT_NONE, 10, 0, 20), applied(none, LimitKind.LIVES, "0"))
     }
 
     @Test
