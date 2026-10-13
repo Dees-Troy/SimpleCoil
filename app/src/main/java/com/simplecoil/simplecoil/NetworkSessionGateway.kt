@@ -129,7 +129,7 @@ class NetworkSessionGateway(
     fun bindServices() {
         handedOff = false
         if (udpConnection == null) bindUdp() else startServiceSafely(Intent(context, UDPListenerService::class.java))
-        if (tcpClientConnection == null) bindTcpClient() else startForegroundServiceSafely(Intent(context, TcpClient::class.java))
+        if (tcpClientConnection == null) bindTcpClient() else startServiceSafely(Intent(context, TcpClient::class.java))
         if (tcpServerConnection == null) bindTcpServer() else startServiceSafely(Intent(context, TcpServer::class.java))
     }
 
@@ -163,7 +163,8 @@ class NetworkSessionGateway(
         }
         tcpClientConnection = connection
         val intent = Intent(context, TcpClient::class.java)
-        startForegroundServiceSafely(intent)
+        // Not a foreground start: TcpClient only goes foreground while its connection runs.
+        startServiceSafely(intent)
         context.bindService(intent, connection, Context.BIND_AUTO_CREATE)
     }
 
@@ -186,6 +187,7 @@ class NetworkSessionGateway(
     /** Hands the network over to DedicatedServerActivity (what its launch button did). */
     fun releaseForDedicatedServer() {
         handedOff = true
+        tcpClient?.stopTcpClient() // takes its network notification down with it
         udpConnection?.let { context.unbindService(it) }
         tcpClientConnection?.let { context.unbindService(it) }
         tcpServerConnection?.let { context.unbindService(it) }
@@ -214,19 +216,6 @@ class NetworkSessionGateway(
             context.startService(intent)
         } catch (e: Exception) {
             Log.w(TAG, "Could not start service directly: " + e.message)
-        }
-    }
-
-    private fun startForegroundServiceSafely(intent: Intent) {
-        try {
-            ContextCompat.startForegroundService(context, intent)
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not start foreground service: " + e.message)
-            try {
-                context.startService(intent)
-            } catch (ex: Exception) {
-                Log.w(TAG, "Could not start service directly: " + ex.message)
-            }
         }
     }
 

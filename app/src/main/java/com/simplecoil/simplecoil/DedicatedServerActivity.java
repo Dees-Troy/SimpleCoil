@@ -365,11 +365,15 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        mTcpServer.sendTCPMessageAll(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_SERVERCANCEL);
-        mUDPListenerService.stopListen();
+        // Kick everyone; the server's client thread closes their sockets once it stops.
+        if (mTcpServer != null)
+            mTcpServer.sendTCPMessageAll(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_SERVERCANCEL);
+        if (mUDPListenerService != null)
+            mUDPListenerService.stopListen();
         if (mUDPServiceConnection != null)
             unbindService(mUDPServiceConnection);
-        mTcpServer.stopTcpServer();
+        if (mTcpServer != null)
+            mTcpServer.stopTcpServer();
         if (mTcpServerServiceConnection != null)
             unbindService(mTcpServerServiceConnection);
     }

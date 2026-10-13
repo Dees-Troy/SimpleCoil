@@ -32,6 +32,7 @@ import android.os.IBinder;
 import android.util.Log;
 
 import androidx.core.app.NotificationCompat;
+import androidx.core.app.ServiceCompat;
 import androidx.core.content.ContextCompat;
 
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
@@ -96,7 +97,6 @@ public class TcpClient extends Service {
     public void onCreate() {
         super.onCreate();
         createNotificationChannel();
-        startAsForeground("SimpleCoil Network Connected");
         ContextCompat.registerReceiver(this, mGPSUpdateReceiver, new IntentFilter(NetMsg.NETMSG_GPSLOCUPDATE), ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
@@ -132,9 +132,19 @@ public class TcpClient extends Service {
                 .build();
     }
 
+    /** Shows the network notification while the client is connected or rejoining. */
     public void startAsForeground(String statusText) {
         Notification notification = createPersistentNotification(statusText);
-        startForeground(NOTIFICATION_ID, notification);
+        try {
+            startForeground(NOTIFICATION_ID, notification);
+        } catch (Exception e) {
+            // Android 12+ refuses this while the app is in the background; play on without it.
+            Log.w(TAG, "Could not start foreground: " + e.getMessage());
+        }
+    }
+
+    private void stopAsForeground() {
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
     }
 
     @Override
@@ -205,6 +215,7 @@ public class TcpClient extends Service {
         }
         keepListening = true;
         isListening = true;
+        startAsForeground("SimpleCoil Network Connected");
         new Thread(new Runnable() {
             public void run() {
                 runTcpClient();
@@ -373,8 +384,12 @@ public class TcpClient extends Service {
             sendBroadcast(new Intent(NetMsg.NETMSG_SERVERCANCEL));
         }
         Log.d(TAG, "Client stopping");
-        keepListening = false;
-        isListening = false;
+        // Under the startTcpClient lock so a client started right after this keeps its notification.
+        synchronized (this) {
+            stopAsForeground();
+            keepListening = false;
+            isListening = false;
+        }
     }
 
     public void sendPlayerNameChange() {
