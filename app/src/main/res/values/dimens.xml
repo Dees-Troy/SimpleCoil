@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The window inset of the dialogs, as AppCompat's abc_dialog_padding_material. -->
+    <dimen name="dialog_inset">24dp</dimen>
+</resources>

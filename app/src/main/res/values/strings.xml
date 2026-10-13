@@ -12,7 +12,7 @@
     <string name="connect_status_connecting">Connecting&#8230;</string>
     <string name="connect_status_communicating">Communicating&#8230;</string>
     <string name="scan_qr_prompt">Scan Blaster QR Code</string>
-    <string name="network_searching_status">SEARCHING FOR SERVER...</string>
+    <string name="network_searching_status">SEARCHING FOR SERVER…</string>
     <string name="network_connected_status">CONNECTED (LEAVE)</string>
 
     <string name="team_label">TEAM</string>

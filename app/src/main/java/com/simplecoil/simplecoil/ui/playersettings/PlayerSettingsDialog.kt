@@ -56,6 +56,7 @@ class PlayerSettingsDialog : DialogFragment() {
         targetTeam = savedInstanceState?.getInt(STATE_TARGET_TEAM) ?: 0
 
         val builder = AlertDialog.Builder(requireContext(), R.style.AppDialogTheme)
+        @Suppress("UseGetLayoutInflater") // in the dialog's theme, as the AlertDialog subclass inflated it
         binding = PlayerSettingsDialogBinding.inflate(LayoutInflater.from(builder.context))
         show(initial)
         if (isServer) showServerControls(initial) else hideServerControls()

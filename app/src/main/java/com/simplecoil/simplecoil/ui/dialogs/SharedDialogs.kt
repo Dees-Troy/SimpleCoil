@@ -42,6 +42,7 @@ import com.simplecoil.simplecoil.domain.rules.TeamSizes
 /** A dialog in the app's dark dialog style. */
 abstract class AppDialogFragment : DialogFragment() {
     /** The dialogs' layouts were inflated with the application context; keep their look. */
+    @Suppress("UseGetLayoutInflater")
     protected val appInflater: LayoutInflater get() = LayoutInflater.from(requireContext().applicationContext)
 
     protected fun alertBuilder() = AlertDialog.Builder(requireContext(), R.style.AppDialogTheme)

@@ -102,7 +102,6 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
 
     @Override
     protected void onCleared() {
-        super.onCleared();
         gameStateRepo.removeListener(this);
         settingsRepo.removeTeamLayoutListener(teamLayoutListener);
         discoveryManager.stopBroadcastingBeacon();

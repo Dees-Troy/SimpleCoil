@@ -47,6 +47,7 @@ data class QrPairingPayload(val macAddress: String, val playerName: String) {
         }
 
         /** java.lang.String.trim() semantics (strips chars <= ' '), not Kotlin's Unicode-whitespace trim. */
+        @Suppress("TrimLambda") // Java's String.trim: every char up to ' ', not Kotlin's isWhitespace
         private fun String.javaTrim(): String = trim { it <= ' ' }
     }
 }
