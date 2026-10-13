@@ -132,18 +132,19 @@ class BlasterManagerGattTest {
 
     // Mockito matchers return null, which Kotlin rejects for BluetoothLeService's non-null
     // parameters; these register the matcher and hand Kotlin a value it accepts.
-    @Suppress("UNCHECKED_CAST")
+    @Suppress("UNCHECKED_CAST", "CheckResult") // the matcher is registered as a side effect
     private fun <T> anyOf(type: Class<T>): T {
         any(type)
         return null as T
     }
 
+    @Suppress("CheckResult")
     private fun <T> eqOf(value: T): T {
         eq(value)
         return value
     }
 
-    @Suppress("UNCHECKED_CAST")
+    @Suppress("UNCHECKED_CAST", "CheckResult")
     private fun <T> capture(captor: ArgumentCaptor<T>): T {
         captor.capture()
         return null as T

@@ -134,7 +134,7 @@ class BluetoothLeServiceGattTest {
 
     // Mockito's any() returns null, which Kotlin rejects for GattIo's non-null parameters; this
     // registers the matcher and hands Kotlin a value it accepts.
-    @Suppress("UNCHECKED_CAST")
+    @Suppress("UNCHECKED_CAST", "CheckResult") // the matcher is registered as a side effect
     private fun <T> anyOf(type: Class<T>): T {
         any(type)
         return null as T
