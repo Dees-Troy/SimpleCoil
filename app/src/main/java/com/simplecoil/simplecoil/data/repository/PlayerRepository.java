@@ -56,15 +56,39 @@ public class PlayerRepository {
     private volatile byte pairedGrenadeID = 0;
     private final int[] grenadePairings = new int[MAX_GRENADE_IDS];
 
-    private PlayerRepository() {
+    private final GameSettingsRepository settings;
+    private final GameStateRepository gameState;
+
+    public PlayerRepository(GameSettingsRepository settings, GameStateRepository gameState) {
+        this.settings = settings;
+        this.gameState = gameState;
         clearGrenadePairings();
     }
 
+    /**
+     * Makes [repo] the process's instance. Called once by AppContainer, before any component
+     * starts; fails if another instance was created first, so there is never a second copy of the
+     * state (APP_CONTAINER_DESIGN.md G4).
+     */
+    public static void install(PlayerRepository repo) {
+        synchronized (PlayerRepository.class) {
+            if (instance != null && instance != repo)
+                throw new IllegalStateException("PlayerRepository was created before install()");
+            instance = repo;
+        }
+    }
+
+    /**
+     * The process's instance; created lazily for JVM tests that have no application.
+     *
+     * @deprecated inject the instance from AppContainer instead.
+     */
+    @Deprecated
     public static PlayerRepository getInstance() {
         if (instance == null) {
             synchronized (PlayerRepository.class) {
                 if (instance == null) {
-                    instance = new PlayerRepository();
+                    instance = new PlayerRepository(GameSettingsRepository.getInstance(), GameStateRepository.getInstance());
                 }
             }
         }
@@ -176,7 +200,7 @@ public class PlayerRepository {
     }
 
     public synchronized void removePlayer(byte playerId) {
-        removePlayer(playerId, GameStateRepository.getInstance().isGameRunning());
+        removePlayer(playerId, gameState.isGameRunning());
     }
 
     public synchronized void removePlayer(byte playerId, boolean isGameRunning) {
@@ -333,7 +357,7 @@ public class PlayerRepository {
 
     /** The team [id] is on under the current team layout (see TeamLayout.teamOf). */
     public int calcNetworkTeam(byte id) {
-        return GameSettingsRepository.getInstance().getTeamLayout().teamOf(id);
+        return settings.getTeamLayout().teamOf(id);
     }
 
     public synchronized byte findAutoSortPlayerID() {
@@ -341,7 +365,7 @@ public class PlayerRepository {
     }
 
     public synchronized byte findAutoSortPlayerID(Set<Byte> additionalOccupiedIDs) {
-        TeamLayout layout = GameSettingsRepository.getInstance().getTeamLayout();
+        TeamLayout layout = settings.getTeamLayout();
         int maxPlayers = GameSettingsRepository.MAX_PLAYER_ID;
 
         boolean[] occupied = new boolean[maxPlayers + 1];
@@ -416,7 +440,7 @@ public class PlayerRepository {
     }
 
     public synchronized byte findOpenPlayerIDOnTeam(int targetTeam, Set<Byte> additionalOccupiedIDs) {
-        TeamLayout layout = GameSettingsRepository.getInstance().getTeamLayout();
+        TeamLayout layout = settings.getTeamLayout();
         int numTeams = layout.getMode().isFreeForAll() ? 2 : layout.getMode().teamCount;
         if (targetTeam < 1 || targetTeam > numTeams) {
             return 0;

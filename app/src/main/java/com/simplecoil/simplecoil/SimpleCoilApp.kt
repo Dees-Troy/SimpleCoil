@@ -26,6 +26,6 @@ class SimpleCoilApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        container = AppContainer(this)
+        container = AppContainer(this).also { it.installLegacySingletons() }
     }
 }

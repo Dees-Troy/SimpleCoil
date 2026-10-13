@@ -53,9 +53,9 @@ class AppContainer(private val app: Application) {
 
     // State
 
-    val settings: GameSettingsRepository = GameSettingsRepository.getInstance()
-    val gameState: GameStateRepository = GameStateRepository.getInstance()
-    val players: PlayerRepository = PlayerRepository.getInstance()
+    val settings = GameSettingsRepository()
+    val gameState = GameStateRepository()
+    val players = PlayerRepository(settings, gameState)
     val gameConfig: GameConfig = RepositoryGameConfig(settings, players, gameState)
 
     /** The player's saved settings ("SimpleCoil" preferences). */
@@ -95,6 +95,16 @@ class AppContainer(private val app: Application) {
     val soundEffects: SoundEffectPlayer get() = audioHaptics
 
     val haptics: HapticsPlayer get() = audioHaptics
+
+    /**
+     * Makes this container's repositories the ones getInstance() returns, for the code that
+     * doesn't take them through its constructor yet (APP_CONTAINER_DESIGN.md §3).
+     */
+    fun installLegacySingletons() {
+        GameSettingsRepository.install(settings)
+        GameStateRepository.install(gameState)
+        PlayerRepository.install(players)
+    }
 
     /** Network services, NETMSG_* events and the network session state (R13/R14). */
     val networkGateway: NetworkSessionGateway by lazy {

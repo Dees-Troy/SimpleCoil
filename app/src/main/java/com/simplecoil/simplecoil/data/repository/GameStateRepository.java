@@ -71,8 +71,27 @@ public class GameStateRepository {
         }
     }
 
-    private GameStateRepository() {}
+    public GameStateRepository() {}
 
+    /**
+     * Makes [repo] the process's instance. Called once by AppContainer, before any component
+     * starts; fails if another instance was created first, so there is never a second copy of the
+     * state (APP_CONTAINER_DESIGN.md G4).
+     */
+    public static void install(GameStateRepository repo) {
+        synchronized (GameStateRepository.class) {
+            if (instance != null && instance != repo)
+                throw new IllegalStateException("GameStateRepository was created before install()");
+            instance = repo;
+        }
+    }
+
+    /**
+     * The process's instance; created lazily for JVM tests that have no application.
+     *
+     * @deprecated inject the instance from AppContainer instead.
+     */
+    @Deprecated
     public static GameStateRepository getInstance() {
         if (instance == null) {
             synchronized (GameStateRepository.class) {
