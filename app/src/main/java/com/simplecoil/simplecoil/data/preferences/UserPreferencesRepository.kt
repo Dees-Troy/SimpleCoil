@@ -18,6 +18,7 @@ package com.simplecoil.simplecoil.data.preferences
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 import com.simplecoil.simplecoil.domain.session.SessionPreferences
 import com.simplecoil.simplecoil.domain.team.TeamMode
 
@@ -31,56 +32,56 @@ class UserPreferencesRepository(private val prefs: SharedPreferences) : SessionP
     constructor(context: Context) : this(context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE))
 
     fun playerName(default: String): String = prefs.getString(PLAYER_NAME, default) ?: default
-    fun savePlayerName(name: String) = prefs.edit().putString(PLAYER_NAME, name).apply()
+    fun savePlayerName(name: String) = prefs.edit { putString(PLAYER_NAME, name) }
 
     fun playerId(): Int = prefs.getInt(PLAYER_ID, 0)
     fun selectedPlayerId(): Int = prefs.getInt(SELECTED_PLAYER_ID, 0)
 
     /** The team buttons / server-assigned id: player id, selected id and team mode together. */
     fun savePlayerIdAndTeamMode(playerId: Int, teamMode: TeamMode) =
-        prefs.edit()
-            .putInt(PLAYER_ID, playerId)
-            .putInt(SELECTED_PLAYER_ID, playerId)
-            .putInt(TEAM_MODE, teamMode.wireValue)
-            .apply()
+        prefs.edit {
+            putInt(PLAYER_ID, playerId)
+            putInt(SELECTED_PLAYER_ID, playerId)
+            putInt(TEAM_MODE, teamMode.wireValue)
+        }
 
     fun firingMode(default: Int): Int = prefs.getInt(FIRING_MODE, default)
-    fun saveFiringMode(firingMode: Int) = prefs.edit().putInt(FIRING_MODE, firingMode).apply()
+    fun saveFiringMode(firingMode: Int) = prefs.edit { putInt(FIRING_MODE, firingMode) }
 
     fun shotMode(default: Int): Int = prefs.getInt(SHOT_MODE, default)
-    override fun saveShotMode(shotMode: Int) = prefs.edit().putInt(SHOT_MODE, shotMode).apply()
+    override fun saveShotMode(shotMode: Int) = prefs.edit { putInt(SHOT_MODE, shotMode) }
 
     fun recoilEnabled(): Boolean = prefs.getBoolean(RECOIL_ENABLED, true)
-    override fun saveRecoilEnabled(enabled: Boolean) = prefs.edit().putBoolean(RECOIL_ENABLED, enabled).apply()
+    override fun saveRecoilEnabled(enabled: Boolean) = prefs.edit { putBoolean(RECOIL_ENABLED, enabled) }
 
     /** Shared by the player screen and the dedicated server. */
     fun teamMode(): TeamMode = TeamMode.fromWireOrDefault(prefs.getInt(TEAM_MODE, TeamMode.DEFAULT.wireValue))
-    fun saveTeamMode(teamMode: TeamMode) = prefs.edit().putInt(TEAM_MODE, teamMode.wireValue).apply()
+    fun saveTeamMode(teamMode: TeamMode) = prefs.edit { putInt(TEAM_MODE, teamMode.wireValue) }
 
     fun timeLimit(): Int = prefs.getInt(LIMIT_TIME, 0)
     fun livesLimit(): Int = prefs.getInt(LIMIT_LIVES, 0)
     fun scoreLimit(): Int = prefs.getInt(LIMIT_SCORE, 0)
     fun saveLimits(timeLimit: Int, scoreLimit: Int, livesLimit: Int) =
-        prefs.edit()
-            .putInt(LIMIT_TIME, timeLimit)
-            .putInt(LIMIT_SCORE, scoreLimit)
-            .putInt(LIMIT_LIVES, livesLimit)
-            .apply()
+        prefs.edit {
+            putInt(LIMIT_TIME, timeLimit)
+            putInt(LIMIT_SCORE, scoreLimit)
+            putInt(LIMIT_LIVES, livesLimit)
+        }
 
     /** The starting timer in seconds; the dedicated server's. */
     fun startTime(default: Int): Int = prefs.getInt(START_TIME, default)
-    fun saveStartTime(seconds: Int) = prefs.edit().putInt(START_TIME, seconds).apply()
+    fun saveStartTime(seconds: Int) = prefs.edit { putInt(START_TIME, seconds) }
 
     /** The dedicated server's GPS relay mode (GameSettingsRepository.GPS_*). */
     fun gpsMode(default: Int): Int = prefs.getInt(GPS_MODE, default)
-    fun saveGpsMode(mode: Int) = prefs.edit().putInt(GPS_MODE, mode).apply()
+    fun saveGpsMode(mode: Int) = prefs.edit { putInt(GPS_MODE, mode) }
 
     /** The dedicated server lets players pick their own team. */
     fun allowChooseTeams(): Boolean = prefs.getBoolean(ALLOW_CHOOSE_TEAMS, true)
-    fun saveAllowChooseTeams(allow: Boolean) = prefs.edit().putBoolean(ALLOW_CHOOSE_TEAMS, allow).apply()
+    fun saveAllowChooseTeams(allow: Boolean) = prefs.edit { putBoolean(ALLOW_CHOOSE_TEAMS, allow) }
 
     fun deviceAddress(): String = prefs.getString(DEVICE_ADDRESS, "") ?: ""
-    fun saveDeviceAddress(address: String) = prefs.edit().putString(DEVICE_ADDRESS, address).apply()
+    fun saveDeviceAddress(address: String) = prefs.edit { putString(DEVICE_ADDRESS, address) }
 
     companion object {
         const val PREF_NAME = "SimpleCoil"

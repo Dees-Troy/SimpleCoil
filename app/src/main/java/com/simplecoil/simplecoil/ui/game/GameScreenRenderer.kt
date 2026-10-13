@@ -21,6 +21,7 @@ import android.graphics.drawable.AnimationDrawable
 import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.view.animation.AnimationUtils
+import androidx.core.view.isVisible
 import com.simplecoil.simplecoil.R
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.databinding.ActivityFullscreenBinding
@@ -336,7 +337,7 @@ class GameScreenRenderer(
     }
 
     override fun showShotsFired() {
-        if (b.shotsFiredIv.visibility == View.VISIBLE) return
+        if (b.shotsFiredIv.isVisible) return
         // Show the "shots fired" image
         b.shotsFiredIv.visibility = View.VISIBLE
         b.shotsFiredIv.startAnimation(AnimationUtils.loadAnimation(context.applicationContext, R.anim.fadeout))
