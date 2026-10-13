@@ -9,7 +9,7 @@
         android:id="@+id/team_ratio_instructions_tv"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Enter player limit/ratio for each team (e.g. 1 and 31 for 1:31 ratio). Total slots = 32."
+        android:text="@string/team_ratio_instructions"
         android:textColor="#FFFFFF"
         android:textSize="14sp"
         android:layout_marginBottom="12dp" />
@@ -25,7 +25,7 @@
         <TextView
             android:layout_width="100dp"
             android:layout_height="wrap_content"
-            android:text="Team 1:"
+            android:text="@string/team_ratio_team1"
             android:textColor="#FFFFFF"
             android:textSize="16sp" />
 
@@ -35,7 +35,7 @@
             android:layout_height="wrap_content"
             android:inputType="number"
             android:textColor="#FFFFFF"
-            android:hint="16" />
+            android:hint="@string/team_ratio_hint_two_teams" />
     </LinearLayout>
 
     <LinearLayout
@@ -49,7 +49,7 @@
         <TextView
             android:layout_width="100dp"
             android:layout_height="wrap_content"
-            android:text="Team 2:"
+            android:text="@string/team_ratio_team2"
             android:textColor="#FFFFFF"
             android:textSize="16sp" />
 
@@ -59,7 +59,7 @@
             android:layout_height="wrap_content"
             android:inputType="number"
             android:textColor="#FFFFFF"
-            android:hint="16" />
+            android:hint="@string/team_ratio_hint_two_teams" />
     </LinearLayout>
 
     <LinearLayout
@@ -74,7 +74,7 @@
         <TextView
             android:layout_width="100dp"
             android:layout_height="wrap_content"
-            android:text="Team 3:"
+            android:text="@string/team_ratio_team3"
             android:textColor="#FFFFFF"
             android:textSize="16sp" />
 
@@ -84,7 +84,7 @@
             android:layout_height="wrap_content"
             android:inputType="number"
             android:textColor="#FFFFFF"
-            android:hint="8" />
+            android:hint="@string/team_ratio_hint_four_teams" />
     </LinearLayout>
 
     <LinearLayout
@@ -99,7 +99,7 @@
         <TextView
             android:layout_width="100dp"
             android:layout_height="wrap_content"
-            android:text="Team 4:"
+            android:text="@string/team_ratio_team4"
             android:textColor="#FFFFFF"
             android:textSize="16sp" />
 
@@ -109,7 +109,7 @@
             android:layout_height="wrap_content"
             android:inputType="number"
             android:textColor="#FFFFFF"
-            android:hint="8" />
+            android:hint="@string/team_ratio_hint_four_teams" />
     </LinearLayout>
 
 </LinearLayout>

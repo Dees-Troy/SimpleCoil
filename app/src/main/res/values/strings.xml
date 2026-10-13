@@ -154,6 +154,16 @@
     <string name="player_list_eliminated_label">Eliminated</string>
     <string name="player_list_team_header">TEAM %1$d (Limit %2$d/%3$d) Score: %4$d</string>
     <string name="team_ratio_dialog_title">Configure Team Sizes</string>
+    <string name="team_ratio_instructions">Enter player limit/ratio for each team (e.g. 1 and 31 for 1:31 ratio). Total slots = 32.</string>
+    <string name="team_ratio_team1">Team 1:</string>
+    <string name="team_ratio_team2">Team 2:</string>
+    <string name="team_ratio_team3">Team 3:</string>
+    <string name="team_ratio_team4">Team 4:</string>
+    <string name="team_ratio_hint_two_teams">16</string>
+    <string name="team_ratio_hint_four_teams">8</string>
+    <string name="count_zero">0</string>
+    <string name="team_minus_button">-</string>
+    <string name="team_plus_button">+</string>
     <string name="team_ratio_min_one">Team limits must be at least 1 player slot</string>
     <string name="team_ratio_total">Total player slots across all teams must equal %1$d (current sum: %2$d)</string>
     <string name="scoreboard_players_header">PLAYERS</string>

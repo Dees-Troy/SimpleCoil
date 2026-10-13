@@ -146,7 +146,7 @@
             android:layout_alignParentBottom="true"
             android:layout_marginBottom="10dp"
             android:layout_marginStart="30dp"
-            android:text="0"
+            android:text="@string/count_zero"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
 
         <TextView
@@ -166,7 +166,7 @@
             android:layout_marginTop="35dp"
             android:layout_marginStart="15dp"
             android:visibility="invisible"
-            android:text="-" />
+            android:text="@string/team_minus_button" />
 
         <Button
             android:id="@+id/team_plus_button"
@@ -177,7 +177,7 @@
             android:layout_marginEnd="15dp"
             android:layout_alignParentEnd="true"
             android:visibility="invisible"
-            android:text="+" />
+            android:text="@string/team_plus_button" />
 
         <Button
             android:id="@+id/player_data_button"
@@ -215,7 +215,7 @@
             android:layout_below="@+id/shots_label_tv"
             android:layout_marginTop="0dp"
             android:layout_marginStart="30dp"
-            android:text="0"
+            android:text="@string/count_zero"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
 
         <ProgressBar
@@ -276,7 +276,7 @@
             android:layout_marginEnd="30dp"
             android:layout_alignParentEnd="true"
             android:visibility="gone"
-            android:text="0"
+            android:text="@string/count_zero"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
 
         <TextView
@@ -515,7 +515,7 @@
             android:layout_marginEnd="15dp"
             android:layout_marginBottom="10dp"
             android:layout_alignParentEnd="true"
-            android:text="0"
+            android:text="@string/count_zero"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
 
         <TextView
@@ -537,7 +537,7 @@
             android:layout_marginBottom="10dp"
             android:layout_alignParentEnd="true"
             android:layout_above="@id/score_label_tv"
-            android:text="0"
+            android:text="@string/count_zero"
             android:visibility="invisible"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
 
