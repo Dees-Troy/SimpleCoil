@@ -282,7 +282,7 @@ class BlasterSessionEngine(
         gameCountdown = null
         clearHitOverlay()
         val countdownText = if ((config.gameLimit and GameSettingsRepository.GAME_LIMIT_TIME) != 0) {
-            String.format("%02d:00", config.timeLimitMinutes)
+            ClockFormat.minutes(config.timeLimitMinutes.toLong())
         } else {
             (_state.value.clock as? GameClock.Stopped)?.countdownText
         }
@@ -447,7 +447,7 @@ class BlasterSessionEngine(
             onTick = { millisLeft ->
                 val minutes = millisLeft / 60_000
                 val seconds = millisLeft / 1000 - minutes * 60
-                _state.update { it.copy(clock = GameClock.Countdown(String.format("%02d:%02d", minutes, seconds))) }
+                _state.update { it.copy(clock = GameClock.Countdown(ClockFormat.minutesSeconds(minutes, seconds))) }
             },
             onFinish = {
                 Log.d(TAG, "Game time ended!")

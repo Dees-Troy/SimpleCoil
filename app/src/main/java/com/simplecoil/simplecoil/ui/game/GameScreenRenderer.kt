@@ -16,7 +16,6 @@
 
 package com.simplecoil.simplecoil.ui.game
 
-import android.annotation.SuppressLint
 import android.graphics.Color
 import android.graphics.drawable.AnimationDrawable
 import android.graphics.drawable.GradientDrawable
@@ -26,6 +25,7 @@ import com.simplecoil.simplecoil.R
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.databinding.ActivityFullscreenBinding
 import com.simplecoil.simplecoil.domain.session.BatteryLevelPolicy
+import com.simplecoil.simplecoil.domain.session.ClockFormat
 import com.simplecoil.simplecoil.domain.session.GameClock
 import com.simplecoil.simplecoil.domain.session.SessionState
 import com.simplecoil.simplecoil.domain.session.SpawnPhase
@@ -140,8 +140,7 @@ class GameScreenRenderer(
     override fun showGameLimit(timeLimitMinutes: Int?, livesLabel: Boolean, scoreLimit: Int?) {
         if (timeLimitMinutes != null) {
             b.gameCountdownTv.visibility = View.VISIBLE
-            @SuppressLint("DefaultLocale") val display = String.format("%02d:00", timeLimitMinutes)
-            b.gameCountdownTv.text = display
+            b.gameCountdownTv.text = ClockFormat.minutes(timeLimitMinutes.toLong())
             b.gameTimerChronometer.visibility = View.GONE
         } else {
             b.gameCountdownTv.visibility = View.GONE

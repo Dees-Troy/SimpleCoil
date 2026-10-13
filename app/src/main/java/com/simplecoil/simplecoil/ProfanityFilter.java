@@ -2,6 +2,7 @@ package com.simplecoil.simplecoil;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 
 public class ProfanityFilter {
@@ -21,7 +22,7 @@ public class ProfanityFilter {
         if (text == null || text.trim().isEmpty())
             return false;
 
-        String normalized = text.toLowerCase().replaceAll("[^a-z0-9]", " ");
+        String normalized = text.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", " ");
         String[] words = normalized.split("\\s+");
 
         for (String word : words) {

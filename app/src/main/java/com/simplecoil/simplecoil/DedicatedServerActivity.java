@@ -46,6 +46,7 @@ import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.domain.rules.GameLimitRules;
 import com.simplecoil.simplecoil.domain.rules.LimitKind;
 import com.simplecoil.simplecoil.domain.rules.Limits;
+import com.simplecoil.simplecoil.domain.session.ClockFormat;
 import com.simplecoil.simplecoil.domain.team.TeamLayout;
 import com.simplecoil.simplecoil.domain.team.TeamMode;
 import com.simplecoil.simplecoil.network.server.SessionPhase;
@@ -552,7 +553,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_TIME) != 0) {
             gameLimits += getString(R.string.dedicated_time_limit, GameSettingsRepository.getInstance().getTimeLimit());
             mGameCountDownTV.setVisibility(View.VISIBLE);
-            String display = String.format("%02d:00", GameSettingsRepository.getInstance().getTimeLimit());
+            String display = ClockFormat.minutes(GameSettingsRepository.getInstance().getTimeLimit());
             mGameCountDownTV.setText(display);
             mGameTimer.setVisibility(View.GONE);
         } else {
@@ -721,7 +722,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         }
         GameStateRepository.getInstance().setServerGameTimeRemaining(0);
         if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_TIME) != 0 && mGameCountDownTV != null) {
-            String display = String.format("%02d:00", GameSettingsRepository.getInstance().getTimeLimit());
+            String display = ClockFormat.minutes(GameSettingsRepository.getInstance().getTimeLimit());
             mGameCountDownTV.setText(display);
         }
         getPlayerDisplayData();
@@ -844,7 +845,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         mGameCountdownTimer = new CountDownTimer((GameSettingsRepository.getInstance().getTimeLimit() * 60 * 1000) + (GameSettingsRepository.getInstance().getStartTime() * 1000), 1000) {
 
             public void onTick(long millisUntilFinished) {
-                String display = ""+String.format("%02d:%02d",
+                String display = ClockFormat.minutesSeconds(
                         TimeUnit.MILLISECONDS.toMinutes(millisUntilFinished),
                         TimeUnit.MILLISECONDS.toSeconds(millisUntilFinished) - TimeUnit.MINUTES.toSeconds(
                                 TimeUnit.MILLISECONDS.toMinutes(millisUntilFinished)));
