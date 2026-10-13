@@ -173,6 +173,22 @@ class TcpServerLoopbackTest {
     }
 
     @Test
+    fun runningGame_teammateGrenadeKill_costsALife_withoutScoreOrNotifications() {
+        val (a, _, c) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00", "Charlie" to "CC:00")
+        val (clientA, idA) = a
+        val (clientC, idC) = c
+        assertEquals(Globals.getInstance().calcNetworkTeam(idA.toByte()), Globals.getInstance().calcNetworkTeam(idC.toByte()))
+        clientA.mesg(NetMsg.NETMSG_ELIMINATED + idC)
+        clientA.mesg(NetMsg.NETMSG_PLAYERDATAREQUEST) // answered after the elimination was handled
+        clientA.awaitJson(TcpServer.JSON_PLAYERDATA)
+        assertEquals(1, score(idA)!!.eliminated)
+        assertEquals(0, score(idC)!!.points)
+        Thread.sleep(200)
+        assertTrue(clientC.mesgs(NetMsg.NETMSG_ELIMINATED).isEmpty())
+        assertTrue(clientC.mesgs(NetMsg.NETMSG_TEAMELIMINATED).isEmpty())
+    }
+
+    @Test
     fun runningGame_dropKeepsTheScore_andTheSameMacRejoinsWithItsIdAndScore() {
         val (a, b) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
         val (clientA, idA) = a

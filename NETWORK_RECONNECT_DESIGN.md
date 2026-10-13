@@ -673,13 +673,15 @@ Every step is its own commit. Each one passed `./gradlew testDebugUnitTest assem
   `Globals`/`PlayerRepository` singletons. The test instead drives the server with `TcpClient.helloJson()`,
   `TcpClient.reliableJson()` and a real `ClientOutbox` over `LoopbackClient`.
 
-### 9.2 Known gap
+### 9.2 Own and teammate grenade kills
 
-Friendly fire from a teammate's blaster does no damage in a network game (`HitResolver`), so it never eliminates
-anyone. Grenade hits skip that filter, and the shooter is taken to be the player the grenade is paired with. An
-elimination by your own grenade or a teammate's is therefore counted on the phone, but `BlasterSessionEngine` doesn't
-send `ELIMINATED` for a self or teammate kill. On a reconnect, the snapshot from the server then gives that life back.
-This predates the design and is not part of Q5.
+Friendly fire from a teammate's blaster does no damage in a network game (`HitResolver`). Grenade hits skip that filter,
+and the shooter is taken to be the player the grenade is paired with. The client used to keep a kill by its own or a
+teammate's grenade to itself, so a reconnect snapshot gave that life back. Fixed after review (rule from the owner):
+the client now reports every elimination. The server always charges the victim: a life lost, or one elimination when no
+lives limit is set. The shooter scores only when it is neither the victim nor on the victim's team; in FFA only the
+victim's own grenade scores nothing. An uncredited kill sends no `ELIMINATED`/`TEAMELIMINATED` notifications and is not
+checked against the score limit. It is checked against the lives limit.
 
 ### 9.3 Pending
 

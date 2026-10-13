@@ -344,6 +344,36 @@ class GameRosterTest {
     }
 
     @Test
+    fun ownOrTeammateKill_costsTheVictimALife_butScoresNothing() {
+        val (ca, a) = join("Alpha", "AA") // 1, team 1
+        val (_, b) = join("Bravo", "BB") // 17, team 2
+        val (_, c) = join("Charlie", "CC") // 2, team 1
+        roster.startGame()
+        val teammate = roster.onEliminated(ca, c.playerId)
+        assertFalse(teammate.credited)
+        assertEquals(0, teammate.shooterPoints)
+        val own = roster.onEliminated(ca, a.playerId)
+        assertFalse(own.credited)
+        assertEquals(2, a.eliminated)
+        assertEquals(0, c.points)
+        assertEquals(0, a.points)
+        assertTrue(roster.onEliminated(ca, b.playerId).credited)
+        assertEquals(1, b.points)
+    }
+
+    @Test
+    fun freeForAll_onlyAnOwnKillScoresNothing() {
+        Globals.getInstance().mGameMode = Globals.GAME_MODE_FFA
+        val (ca, a) = join("Alpha", "AA")
+        val (_, b) = join("Bravo", "BB")
+        roster.startGame()
+        assertFalse(roster.onEliminated(ca, a.playerId).credited)
+        assertTrue(roster.onEliminated(ca, b.playerId).credited)
+        assertEquals(2, a.eliminated)
+        assertEquals(1, b.points)
+    }
+
+    @Test
     fun elimination_fromAConnectionWithoutHello_onlyCreditsTheShooter() {
         val (_, b) = join("Bravo", "BB")
         roster.startGame()

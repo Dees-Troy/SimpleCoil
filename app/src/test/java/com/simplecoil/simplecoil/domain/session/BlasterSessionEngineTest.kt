@@ -397,7 +397,7 @@ class BlasterSessionEngineTest {
     }
 
     @Test
-    fun teammateElimination_sendsNoEliminatedMessage() {
+    fun teammateElimination_isReportedToo_theServerDecidesTheScore() {
         h.config.fullHealth = 1
         h.config.teams[5] = 1
         h.config.teams[2] = 1
@@ -406,7 +406,7 @@ class BlasterSessionEngineTest {
         h.connected()
         h.startedAndSpawned()
         h.telemetry(Packet().hit1(0x08, 0x3D))
-        assertFalse(h.rec.net.any { it.startsWith("ELIMINATED") })
+        assertTrue(h.rec.net.contains("ELIMINATED2"))
     }
 
     @Test

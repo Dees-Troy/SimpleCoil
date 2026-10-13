@@ -67,12 +67,15 @@ public final class GameRoster {
     public static final class Elimination {
         public final byte victimId;
         public final byte shooterId;
-        /** The shooter's points after the kill; 0 if the shooter is unknown. */
+        /** The shooter scored: it is known, and is neither the victim nor on the victim's team. */
+        public final boolean credited;
+        /** The shooter's points after the kill; 0 if it didn't score. */
         public final int shooterPoints;
 
-        Elimination(byte victimId, byte shooterId, int shooterPoints) {
+        Elimination(byte victimId, byte shooterId, boolean credited, int shooterPoints) {
             this.victimId = victimId;
             this.shooterId = shooterId;
+            this.credited = credited;
             this.shooterPoints = shooterPoints;
         }
     }
@@ -454,17 +457,25 @@ public final class GameRoster {
     }
 
     /**
-     * The player behind [sender] was eliminated by [shooterId]. Counted during and after a game;
-     * null (ignored) in the lobby.
+     * The player behind [sender] was eliminated by [shooterId]. The victim always loses the life
+     * (or gains an elimination); the shooter scores unless it is the victim or a teammate (its
+     * own or a teammate's grenade). Counted during and after a game; null (ignored) in the lobby.
      */
     public synchronized Elimination onEliminated(Connection sender, byte shooterId) {
         if (phase == SessionPhase.LOBBY) return null;
         PlayerRecord victim = sender.player;
         if (victim != null) victim.eliminated++;
         PlayerRecord shooter = byId.get(shooterId);
-        int shooterPoints = 0;
-        if (shooter != null) shooterPoints = ++shooter.points;
-        return new Elimination(victim != null ? victim.playerId : 0, shooterId, shooterPoints);
+        boolean credited = shooter != null && (victim == null || !sameSide(shooter.playerId, victim.playerId));
+        int shooterPoints = credited ? ++shooter.points : 0;
+        return new Elimination(victim != null ? victim.playerId : 0, shooterId, credited, shooterPoints);
+    }
+
+    /** The same player, or teammates in a team game. */
+    private static boolean sameSide(byte a, byte b) {
+        if (a == b) return true;
+        Globals g = Globals.getInstance();
+        return g.mGameMode != Globals.GAME_MODE_FFA && g.calcNetworkTeam(a) == g.calcNetworkTeam(b);
     }
 
     /** Removes the player and closes nothing; returns its connection (send it SERVERCANCEL and close it). */

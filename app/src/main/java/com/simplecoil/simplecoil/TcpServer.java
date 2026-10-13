@@ -1093,6 +1093,12 @@ public class TcpServer extends Service {
                 sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
                 return;
             }
+            if (!elimination.credited) {
+                // Own or a teammate's grenade: a life lost, no score for anyone
+                sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+                checkLivesLimitEndGame();
+                return;
+            }
             int shooterScore = elimination.shooterPoints;
             sendTCPMessageID(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ELIMINATED + elimination.victimId, id);
             if (Globals.getInstance().mGameMode != Globals.GAME_MODE_FFA) {
