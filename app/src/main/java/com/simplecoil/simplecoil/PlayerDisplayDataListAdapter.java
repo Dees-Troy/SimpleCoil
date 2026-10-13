@@ -27,6 +27,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.Collections;
 
 public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData> {
 
@@ -62,6 +63,72 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
         notifyDataSetChanged();
     }
 
+    private static class TeamInfo {
+        int teamNumber;
+        int totalPoints;
+        int totalLivesRemaining;
+        int totalEliminations;
+        boolean livesLimitSet;
+        ArrayList<PlayerDisplayData> players = new ArrayList<>();
+    }
+
+    private boolean isLivesLimitSet(PlayerDisplayData p) {
+        if (p == null) return false;
+        if (p.overrideLives) {
+            return p.lives != 0;
+        }
+        return (Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_LIVES) != 0;
+    }
+
+    private int getLivesRemaining(PlayerDisplayData p) {
+        if (p == null) return 0;
+        if (p.overrideLives) {
+            if (p.lives != 0) {
+                return p.lives - p.eliminated;
+            }
+        } else if ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_LIVES) != 0) {
+            return Globals.getInstance().mLivesLimit - p.eliminated;
+        }
+        return 0;
+    }
+
+    private int comparePlayers(PlayerDisplayData p1, PlayerDisplayData p2) {
+        if (p1 == p2) return 0;
+        if (p1 == null) return 1;
+        if (p2 == null) return -1;
+
+        // 1. Score (highest first)
+        if (p1.points != p2.points) {
+            return Integer.compare(p2.points, p1.points);
+        }
+
+        // 2. Most lives remaining (if lives limit is set) OR least eliminations
+        boolean livesLimitSet1 = isLivesLimitSet(p1);
+        boolean livesLimitSet2 = isLivesLimitSet(p2);
+        if (livesLimitSet1 || livesLimitSet2) {
+            int livesRemaining1 = getLivesRemaining(p1);
+            int livesRemaining2 = getLivesRemaining(p2);
+            if (livesRemaining1 != livesRemaining2) {
+                return Integer.compare(livesRemaining2, livesRemaining1);
+            }
+        } else {
+            if (p1.eliminated != p2.eliminated) {
+                return Integer.compare(p1.eliminated, p2.eliminated);
+            }
+        }
+
+        // 3. Player name (case-insensitive)
+        String name1 = p1.playerName != null ? p1.playerName : "";
+        String name2 = p2.playerName != null ? p2.playerName : "";
+        int nameComp = name1.compareToIgnoreCase(name2);
+        if (nameComp != 0) {
+            return nameComp;
+        }
+
+        // 4. Player ID
+        return Integer.compare(p1.playerID & 0xFF, p2.playerID & 0xFF);
+    }
+
     private void updateDisplayRows() {
         displayRows.clear();
 
@@ -78,37 +145,89 @@ public class PlayerDisplayDataListAdapter extends ArrayAdapter<PlayerDisplayData
             teamHeader.teamNumber = 0;
             displayRows.add(teamHeader);
 
+            ArrayList<PlayerDisplayData> playerList = new ArrayList<>();
             for (int pId = 1; pId <= Globals.MAX_PLAYER_ID; pId++) {
                 if (data != null && pId < data.length && data[pId] != null) {
-                    DisplayRow pRow = new DisplayRow();
-                    pRow.type = DisplayRow.TYPE_PLAYER;
-                    pRow.playerID = (byte) pId;
-                    pRow.teamNumber = 0;
-                    pRow.indexInTeam = pId;
-                    displayRows.add(pRow);
+                    playerList.add(data[pId]);
                 }
+            }
+
+            Collections.sort(playerList, this::comparePlayers);
+
+            for (PlayerDisplayData p : playerList) {
+                DisplayRow pRow = new DisplayRow();
+                pRow.type = DisplayRow.TYPE_PLAYER;
+                pRow.playerID = p.playerID;
+                pRow.teamNumber = 0;
+                pRow.indexInTeam = p.playerID & 0xFF;
+                displayRows.add(pRow);
             }
         } else {
             int numTeams = (gameMode == Globals.GAME_MODE_4TEAMS) ? 4 : 2;
+            ArrayList<TeamInfo> teams = new ArrayList<>();
+
             for (int t = 1; t <= numTeams; t++) {
-                DisplayRow tHeader = new DisplayRow();
-                tHeader.type = DisplayRow.TYPE_TEAM_HEADER;
-                tHeader.teamNumber = t;
-                displayRows.add(tHeader);
+                TeamInfo teamInfo = new TeamInfo();
+                teamInfo.teamNumber = t;
 
                 int startID = Globals.getInstance().getTeamStartID(t);
                 int endID = Globals.getInstance().getTeamEndID(t);
-                int indexInTeam = 1;
-                for (int pId = startID; pId <= endID; pId++) {
-                    if (data != null && pId < data.length && data[pId] != null) {
-                        DisplayRow pRow = new DisplayRow();
-                        pRow.type = DisplayRow.TYPE_PLAYER;
-                        pRow.playerID = (byte) pId;
-                        pRow.teamNumber = t;
-                        pRow.indexInTeam = indexInTeam;
-                        displayRows.add(pRow);
+                if (data != null) {
+                    for (int pId = startID; pId <= endID; pId++) {
+                        if (pId < data.length && data[pId] != null) {
+                            PlayerDisplayData p = data[pId];
+                            teamInfo.players.add(p);
+                            teamInfo.totalPoints += p.points;
+                            teamInfo.totalEliminations += p.eliminated;
+                            if (isLivesLimitSet(p)) {
+                                teamInfo.livesLimitSet = true;
+                                teamInfo.totalLivesRemaining += getLivesRemaining(p);
+                            }
+                        }
                     }
-                    indexInTeam++;
+                }
+                teams.add(teamInfo);
+            }
+
+            Collections.sort(teams, (t1, t2) -> {
+                // 1. Team total score descending
+                if (t1.totalPoints != t2.totalPoints) {
+                    return Integer.compare(t2.totalPoints, t1.totalPoints);
+                }
+
+                // 2. Team lives remaining / eliminations
+                boolean livesLimit = t1.livesLimitSet || t2.livesLimitSet ||
+                        ((Globals.getInstance().mGameLimit & Globals.GAME_LIMIT_LIVES) != 0);
+                if (livesLimit) {
+                    if (t1.totalLivesRemaining != t2.totalLivesRemaining) {
+                        return Integer.compare(t2.totalLivesRemaining, t1.totalLivesRemaining);
+                    }
+                } else {
+                    if (t1.totalEliminations != t2.totalEliminations) {
+                        return Integer.compare(t1.totalEliminations, t2.totalEliminations);
+                    }
+                }
+
+                // 3. Team number ascending
+                return Integer.compare(t1.teamNumber, t2.teamNumber);
+            });
+
+            for (TeamInfo teamInfo : teams) {
+                DisplayRow tHeader = new DisplayRow();
+                tHeader.type = DisplayRow.TYPE_TEAM_HEADER;
+                tHeader.teamNumber = teamInfo.teamNumber;
+                displayRows.add(tHeader);
+
+                Collections.sort(teamInfo.players, this::comparePlayers);
+
+                int startID = Globals.getInstance().getTeamStartID(teamInfo.teamNumber);
+                for (PlayerDisplayData p : teamInfo.players) {
+                    DisplayRow pRow = new DisplayRow();
+                    pRow.type = DisplayRow.TYPE_PLAYER;
+                    pRow.playerID = p.playerID;
+                    pRow.teamNumber = teamInfo.teamNumber;
+                    pRow.indexInTeam = (p.playerID & 0xFF) - startID + 1;
+                    displayRows.add(pRow);
                 }
             }
         }
