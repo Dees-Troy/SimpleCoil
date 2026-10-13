@@ -65,7 +65,6 @@
     <string name="error_same_id">Two players are using the same ID!</string>
     <string name="error_udp_version">Network client version mismatch. Please update the app!</string>
     <string name="error_no_wifi">Wi-Fi must be connected!</string>
-    <string name="error_server_cancel">Server was canceled!</string>
     <string name="error_limit_too_high">Limit is too high!</string>
     <string name="dialog_game_time_expired">Time limit reached!</string>
     <string name="dialog_out_of_lives">Out of Lives!</string>

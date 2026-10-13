@@ -16,12 +16,9 @@
 
 package com.simplecoil.simplecoil;
 
-import android.content.BroadcastReceiver;
 import android.content.ComponentName;
-import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -32,9 +29,9 @@ import android.os.SystemClock;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SwitchCompat;
-import androidx.core.content.ContextCompat;
 import androidx.fragment.app.DialogFragment;
 import androidx.fragment.app.FragmentManager;
+import androidx.lifecycle.Lifecycle;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -50,6 +47,7 @@ import com.simplecoil.simplecoil.domain.rules.Limits;
 import com.simplecoil.simplecoil.domain.session.ClockFormat;
 import com.simplecoil.simplecoil.domain.team.TeamLayout;
 import com.simplecoil.simplecoil.domain.team.TeamMode;
+import com.simplecoil.simplecoil.network.ServerEvent;
 import com.simplecoil.simplecoil.network.server.SessionPhase;
 import com.simplecoil.simplecoil.ui.dialogs.GameLimitDialog;
 import com.simplecoil.simplecoil.ui.dialogs.StartingTimerDialog;
@@ -357,20 +355,16 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         mPlayerDisplayList.setAdapter(mPlayerDisplayListAdapter);
         getPlayerDisplayData();
         mViewModel.getPhaseLiveData().observe(this, this::renderPhase);
+        // While resumed, as the broadcast receiver it replaces was registered
+        ((SimpleCoilApp) getApplication()).getContainer().getServerEvents()
+                .observe(this, Lifecycle.State.RESUMED, this::onServerEvent);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        ContextCompat.registerReceiver(this, mServerUpdateReceiver, makeServerUpdateIntentFilter(), ContextCompat.RECEIVER_NOT_EXPORTED);
         setupUDPServiceConnection();
         setupTcpServerServiceConnection();
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        unregisterReceiver(mServerUpdateReceiver);
     }
 
     @Override
@@ -391,14 +385,6 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             unbindService(mUDPServiceConnection);
         if (mTcpServerServiceConnection != null)
             unbindService(mTcpServerServiceConnection);
-    }
-
-    @Override
-    public void sendBroadcast(Intent intent) {
-        if (intent != null && intent.getPackage() == null) {
-            intent.setPackage(getPackageName());
-        }
-        super.sendBroadcast(intent);
     }
 
     /** The operator picked a team mode: reset a finished game, change it, save it and renumber the players. */
@@ -733,47 +719,29 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         getPlayerDisplayData();
     }
 
-    private final BroadcastReceiver mServerUpdateReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-            Log.d(TAG, "mServerUpdateReceiver onReceive action=" + action);
-            if (NetMsg.NETMSG_JOIN.equals(action) || NetMsg.NETMSG_LEAVE.equals(action)) {
-                // The server ends the game itself when the last but one player leaves.
-                mViewModel.updatePlayerCount();
-                mNetworkPlayerCountTV.setText(quantity(R.plurals.network_player_count, PlayerRepository.getInstance().getPlayerCount(true)));
-                getPlayerDisplayData();
-            } else if (NetMsg.NETMSG_STARTGAME.equals(action)) {
-                onGameStarted();
-            } else if (NetMsg.NETMSG_ENDGAME.equals(action)) {
-                onGameEnded();
-            } else if (NetMsg.NETMSG_SESSIONRESET.equals(action)) {
-                mViewModel.setPhase(SessionPhase.LOBBY);
-                mViewModel.updatePlayerCount();
-                mNetworkPlayerCountTV.setText(quantity(R.plurals.network_player_count, PlayerRepository.getInstance().getPlayerCount(true)));
-                getPlayerDisplayData();
-            } else if (NetMsg.NETMSG_ERROR.equals(action)) {
-                String errorMessage = intent.getStringExtra(UDPListenerService.INTENT_MESSAGE);
-                if (errorMessage != null && !errorMessage.isEmpty()) {
-                    Toast.makeText(getApplicationContext(), errorMessage, Toast.LENGTH_SHORT).show();
-                } else {
-                    Log.d(TAG, "No error message given");
-                }
-            } else if (NetMsg.NETMSG_SERVERCREATED.equals(action)) {
-                // UDP service is listening
-                String ip = GameStateRepository.getInstance().getServerIP().toString();
-                if (ip.startsWith("/"))
-                    ip = ip.substring(1);
-                mServerIPTV.setText(getString(R.string.server_status_serving_on, ip));
-            } else if (NetMsg.NETMSG_SERVERCANCEL.equals(action)) {
-                mServerIPTV.setText("");
-                Toast.makeText(getApplicationContext(), getString(R.string.error_server_cancel), Toast.LENGTH_SHORT).show();
-            } else if (NetMsg.NETMSG_PLAYERDATAUPDATE.equals(action)) {
-                mViewModel.updatePlayerCount();
-                getPlayerDisplayData();
-            }
+    private void onServerEvent(ServerEvent event) {
+        Log.d(TAG, "onServerEvent " + event);
+        if (event == ServerEvent.PlayerJoined.INSTANCE || event == ServerEvent.PlayerLeft.INSTANCE) {
+            // The server ends the game itself when the last but one player leaves.
+            mViewModel.updatePlayerCount();
+            mNetworkPlayerCountTV.setText(quantity(R.plurals.network_player_count, PlayerRepository.getInstance().getPlayerCount(true)));
+            getPlayerDisplayData();
+        } else if (event == ServerEvent.GameStarted.INSTANCE) {
+            onGameStarted();
+        } else if (event == ServerEvent.GameEnded.INSTANCE) {
+            onGameEnded();
+        } else if (event == ServerEvent.SessionReset.INSTANCE) {
+            mViewModel.setPhase(SessionPhase.LOBBY);
+            mViewModel.updatePlayerCount();
+            mNetworkPlayerCountTV.setText(quantity(R.plurals.network_player_count, PlayerRepository.getInstance().getPlayerCount(true)));
+            getPlayerDisplayData();
+        } else if (event instanceof ServerEvent.ServerCreated) {
+            mServerIPTV.setText(getString(R.string.server_status_serving_on, ((ServerEvent.ServerCreated) event).getIp()));
+        } else if (event instanceof ServerEvent.PlayerDataChanged) {
+            mViewModel.updatePlayerCount();
+            getPlayerDisplayData();
         }
-    };
+    }
 
     /** The team mode button shows the current mode, whoever changed it (this screen or an admin). */
     private void showTeamMode(TeamMode mode) {
@@ -789,20 +757,6 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 mTeamModeButton.setText(R.string.team_mode_ffa);
                 break;
         }
-    }
-
-    private static IntentFilter makeServerUpdateIntentFilter() {
-        final IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(NetMsg.NETMSG_JOIN);
-        intentFilter.addAction(NetMsg.NETMSG_LEAVE);
-        intentFilter.addAction(NetMsg.NETMSG_STARTGAME);
-        intentFilter.addAction(NetMsg.NETMSG_ENDGAME);
-        intentFilter.addAction(NetMsg.NETMSG_ERROR);
-        intentFilter.addAction(NetMsg.NETMSG_SERVERCREATED);
-        intentFilter.addAction(NetMsg.NETMSG_SERVERCANCEL);
-        intentFilter.addAction(NetMsg.NETMSG_PLAYERDATAUPDATE);
-        intentFilter.addAction(NetMsg.NETMSG_SESSIONRESET);
-        return intentFilter;
     }
 
     private void getPlayerDisplayData() {

@@ -29,6 +29,7 @@ import android.os.Build;
 import android.os.IBinder;
 import android.util.Log;
 
+import androidx.annotation.VisibleForTesting;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.ServiceCompat;
 
@@ -40,7 +41,9 @@ import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.domain.team.TeamLayout;
 import com.simplecoil.simplecoil.domain.team.TeamMode;
+import com.simplecoil.simplecoil.network.EventBus;
 import com.simplecoil.simplecoil.network.Frame;
+import com.simplecoil.simplecoil.network.ServerEvent;
 import com.simplecoil.simplecoil.network.server.Connection;
 import com.simplecoil.simplecoil.network.server.GameRoster;
 import com.simplecoil.simplecoil.network.server.PlayerRecord;
@@ -169,6 +172,9 @@ public class TcpServer extends Service {
     private static final int SEND_ALL_GPS_INTERVAL = 20; // We will send all GPS data regardless of whether there was a GPS change every xx intervals
     private final AtomicInteger mGPSIntervalCount = new AtomicInteger(0);
 
+    /** Where the server's events go: the app's server bus once created (a private one in tests). */
+    private EventBus<ServerEvent> mEvents = new EventBus<>();
+
     public TcpServer() {
         mDispatcher = Executors.newSingleThreadExecutor(new ThreadFactory() {
             @Override
@@ -187,6 +193,12 @@ public class TcpServer extends Service {
                 return thread;
             }
         });
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        mEvents = ((SimpleCoilApp) getApplication()).getContainer().getServerEvents();
     }
 
     @Override
@@ -240,14 +252,6 @@ public class TcpServer extends Service {
     @Override
     public boolean onUnbind(Intent intent) {
         return super.onUnbind(intent);
-    }
-
-    @Override
-    public void sendBroadcast(Intent intent) {
-        if (intent != null && intent.getPackage() == null) {
-            intent.setPackage(getPackageName());
-        }
-        super.sendBroadcast(intent);
     }
 
     private static final int NOTIFICATION_ID = 1339;
@@ -363,11 +367,11 @@ public class TcpServer extends Service {
         if (!mRoster.startGame())
             return false;
         syncGameState();
-        // we want to make sure that we have sent the start game message to all clients before broadcasting that the game has started locally
+        // we want to make sure that we have sent the start game message to all clients before publishing that the game has started locally
         sendTCPMessageAll(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_STARTGAME);
         sendAllGameInfo(SEND_ALL);
-        sendBroadcast(new Intent(NetMsg.NETMSG_STARTGAME));
-        sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+        mEvents.publish(ServerEvent.GameStarted.INSTANCE);
+        mEvents.publish(new ServerEvent.PlayerDataChanged(null));
         return true;
     }
 
@@ -388,15 +392,15 @@ public class TcpServer extends Service {
                 // carries the POST_GAME phase, which swaps End Game for Reset in the admin menu
                 sendAllGameInfo(SEND_ALL);
                 PlayerRepository.getInstance().getGpsData().clear();
-                sendBroadcast(new Intent(NetMsg.NETMSG_ENDGAME));
+                mEvents.publish(ServerEvent.GameEnded.INSTANCE);
             }
         });
     }
 
     /**
      * Reset (reconnect design §3.1), POST_GAME → LOBBY: removes the disconnected players, zeroes
-     * the scores, forgets the game's roster, then tells the clients and broadcasts
-     * NETMSG_SESSIONRESET locally. Returns false (and does nothing) outside POST_GAME, so a
+     * the scores, forgets the game's roster, then tells the clients and publishes
+     * ServerEvent.SessionReset. Returns false (and does nothing) outside POST_GAME, so a
      * duplicate or late reset is harmless. Safe on the main thread: it waits for the dispatcher,
      * which never blocks.
      */
@@ -417,8 +421,8 @@ public class TcpServer extends Service {
         mGPSIntervalCount.set(SEND_ALL_GPS_INTERVAL);
         sendPlayerData(SEND_ALL);
         sendAllGameInfo(SEND_ALL);
-        sendBroadcast(new Intent(NetMsg.NETMSG_SESSIONRESET));
-        sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+        mEvents.publish(ServerEvent.SessionReset.INSTANCE);
+        mEvents.publish(new ServerEvent.PlayerDataChanged(null));
         return true;
     }
 
@@ -449,7 +453,7 @@ public class TcpServer extends Service {
                     record.getConnection().send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERREPLY + newPlayerID);
                 sendPlayerData(SEND_ALL);
                 sendAllGameInfo(SEND_ALL);
-                sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+                mEvents.publish(new ServerEvent.PlayerDataChanged(null));
             }
         });
     }
@@ -466,8 +470,8 @@ public class TcpServer extends Service {
                 mGPSIntervalCount.set(SEND_ALL_GPS_INTERVAL);
                 sendPlayerData(SEND_ALL);
                 sendAllGameInfo(SEND_ALL);
-                sendBroadcast(new Intent(NetMsg.NETMSG_LEAVE));
-                sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+                mEvents.publish(ServerEvent.PlayerLeft.INSTANCE);
+                mEvents.publish(new ServerEvent.PlayerDataChanged(null));
             }
         });
     }
@@ -492,7 +496,7 @@ public class TcpServer extends Service {
                 }
                 sendPlayerData(SEND_ALL);
                 sendAllGameInfo(SEND_ALL);
-                sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+                mEvents.publish(new ServerEvent.PlayerDataChanged(null));
             }
         });
     }
@@ -699,9 +703,7 @@ public class TcpServer extends Service {
                     connection.send(message);
                 }
             }
-            Intent broadcastIntent = new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE);
-            broadcastIntent.putExtra(NetMsg.INTENT_PLAYERDATA, game.toString());
-            sendBroadcast(broadcastIntent);
+            mEvents.publish(new ServerEvent.PlayerDataChanged(game.toString()));
         } catch (JSONException e) {
             e.printStackTrace();
         }
@@ -1231,12 +1233,12 @@ public class TcpServer extends Service {
             }
             if (!mRoster.isRunning()) {
                 sendPlayerData(SEND_ALL);
-                sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+                mEvents.publish(new ServerEvent.PlayerDataChanged(null));
                 return;
             }
             if (!elimination.credited) {
                 // Own or a teammate's grenade: a life lost, no score for anyone
-                sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+                mEvents.publish(new ServerEvent.PlayerDataChanged(null));
                 checkLivesLimitEndGame();
                 return;
             }
@@ -1247,7 +1249,7 @@ public class TcpServer extends Service {
                 // Send a message to all teammates about the score increase
                 sendTCPMessageTeam(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_TEAMELIMINATED, id, false);
             }
-            sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+            mEvents.publish(new ServerEvent.PlayerDataChanged(null));
             int scoreLimit = ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_SCORE) != 0 ? GameSettingsRepository.getInstance().getScoreLimit() : 0);
             if (scoreLimit != 0) {
                 if (layout.getMode().isFreeForAll()) {
@@ -1411,7 +1413,7 @@ public class TcpServer extends Service {
                     }
                 }
                 sendPlayerSettings((byte)SEND_ALL, false, true);
-                sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+                mEvents.publish(new ServerEvent.PlayerDataChanged(null));
                 return;
             }
             if (player.has(JSON_PLAYERNAMECHANGE)) {
@@ -1425,7 +1427,7 @@ public class TcpServer extends Service {
                 mRoster.onNameChange(client, playerName);
 
                 sendAllGameInfo(SEND_ALL);
-                sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+                mEvents.publish(new ServerEvent.PlayerDataChanged(null));
                 return;
             }
             mGPSIntervalCount.set(SEND_ALL_GPS_INTERVAL); // Send all GPS info because of the new client
@@ -1463,8 +1465,8 @@ public class TcpServer extends Service {
                     applyPending(client, player);
                     client.send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERREPLY + existingPlayerId);
                     sendAllGameInfo(existingPlayerId);
-                    sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
-                    sendBroadcast(new Intent(NetMsg.NETMSG_JOIN));
+                    mEvents.publish(new ServerEvent.PlayerDataChanged(null));
+                    mEvents.publish(ServerEvent.PlayerJoined.INSTANCE);
                     return;
                 }
                 default:
@@ -1480,7 +1482,7 @@ public class TcpServer extends Service {
             Log.d(TAG, "client " + client.getConnectionId() + " player '" + record.getName() + "' (" + id + ") found at " + (inetAddress != null ? inetAddress.toString() : "null"));
 
             sendAllGameInfo(id);
-            sendBroadcast(new Intent(NetMsg.NETMSG_JOIN));
+            mEvents.publish(ServerEvent.PlayerJoined.INSTANCE);
         }
 
         private void handleClientTeamChangeRequest(final Connection client, final int targetTeam) {
@@ -1519,7 +1521,7 @@ public class TcpServer extends Service {
             client.send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERREPLY + moved.getPlayerId());
             sendPlayerData(SEND_ALL);
             sendAllGameInfo(SEND_ALL);
-            sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+            mEvents.publish(new ServerEvent.PlayerDataChanged(null));
         }
 
         void removeClient(Connection client) {
@@ -1532,10 +1534,10 @@ public class TcpServer extends Service {
             if (result == GameRoster.Disconnect.REMOVED) {
                 mGPSIntervalCount.set(SEND_ALL_GPS_INTERVAL); // Force a full GPS update when someone leaves
                 sendAllGameInfo(SEND_ALL);
-                sendBroadcast(new Intent(NetMsg.NETMSG_LEAVE));
+                mEvents.publish(ServerEvent.PlayerLeft.INSTANCE);
             }
             client.close(); // a player kept during a game stays on the scoreboard, disconnected
-            sendBroadcast(new Intent(NetMsg.NETMSG_PLAYERDATAUPDATE));
+            mEvents.publish(new ServerEvent.PlayerDataChanged(null));
         }
     }
 
@@ -1562,6 +1564,11 @@ public class TcpServer extends Service {
     }
 
     /** The server socket is open (tests wait for it). */
+    @VisibleForTesting
+    void setEventsForTest(EventBus<ServerEvent> events) {
+        mEvents = events;
+    }
+
     boolean isAccepting() {
         return mAccepting;
     }

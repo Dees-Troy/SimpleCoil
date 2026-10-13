@@ -22,8 +22,16 @@ import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.domain.team.TeamMode
+import com.simplecoil.simplecoil.network.EventBus
+import com.simplecoil.simplecoil.network.ServerEvent
 import com.simplecoil.simplecoil.network.client.ClientOutbox
 import com.simplecoil.simplecoil.network.server.SessionPhase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -46,6 +54,10 @@ class TcpServerLoopbackTest {
     private lateinit var server: TcpServer
     private val clients = mutableListOf<LoopbackClient>()
 
+    /** The server's events, as published (collected on the publishing thread). */
+    private val events = mutableListOf<ServerEvent>()
+    private val eventScope = CoroutineScope(Job() + Dispatchers.Unconfined)
+
     @Before
     fun setUp() {
         GameStateRepository.getInstance().gameState = GameStateRepository.GAME_STATE_NONE
@@ -60,6 +72,9 @@ class TcpServerLoopbackTest {
         PlayerRepository.getInstance().clearAllPlayers()
         LoopbackClient.awaitPortFree()
         server = TcpServer()
+        val bus = EventBus<ServerEvent>()
+        eventScope.launch(start = CoroutineStart.UNDISPATCHED) { bus.events.collect { synchronized(events) { events += it } } }
+        server.setEventsForTest(bus)
         server.startTcpServer()
         awaitTrue(5000, "server socket") { server.isAccepting }
     }
@@ -68,6 +83,7 @@ class TcpServerLoopbackTest {
     fun tearDown() {
         clients.forEach { it.close() }
         server.stopTcpServer()
+        eventScope.cancel()
         LoopbackClient.awaitPortFree()
         GameStateRepository.getInstance().gameState = GameStateRepository.GAME_STATE_NONE
         PlayerRepository.getInstance().clearAllPlayers()
@@ -141,6 +157,29 @@ class TcpServerLoopbackTest {
         a.mesg(NetMsg.NETMSG_LEAVE)
         awaitTrue { score(idA) == null }
         assertNull(PlayerRepository.getInstance().teamIPMap[idA.toByte()])
+    }
+
+    private fun eventsSoFar(): List<ServerEvent> = synchronized(events) { events.toList() }
+
+    /** The events other than PlayerDataChanged, which follows nearly every change. */
+    private fun sessionEvents() = eventsSoFar().filter { it !is ServerEvent.PlayerDataChanged }
+
+    @Test
+    fun serverEvents_followTheSession() {
+        val (a, idA) = join("Alpha", "AA:00")
+        join("Bravo", "BB:00")
+        awaitTrue { sessionEvents().size == 2 }
+        assertTrue(server.startGame())
+        server.endGame()
+        awaitTrue(what = "game end") { ServerEvent.GameEnded in sessionEvents() }
+        // the final scores, as sent to the clients
+        val data = eventsSoFar().filterIsInstance<ServerEvent.PlayerDataChanged>().mapNotNull { it.json }
+        assertTrue(data.isNotEmpty() && data.last().contains(TcpServer.JSON_PLAYERDATA))
+        assertTrue(server.resetSession())
+        a.mesg(NetMsg.NETMSG_LEAVE)
+        awaitTrue { score(idA) == null && ServerEvent.PlayerLeft in sessionEvents() }
+        assertEquals(listOf(ServerEvent.PlayerJoined, ServerEvent.PlayerJoined, ServerEvent.GameStarted,
+            ServerEvent.GameEnded, ServerEvent.SessionReset, ServerEvent.PlayerLeft), sessionEvents())
     }
 
     @Test

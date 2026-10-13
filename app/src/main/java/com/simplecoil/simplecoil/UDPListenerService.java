@@ -26,6 +26,7 @@ import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.network.ClientEvent;
 import com.simplecoil.simplecoil.network.EventBus;
+import com.simplecoil.simplecoil.network.ServerEvent;
 import com.simplecoil.simplecoil.network.discovery.ServerDiscoveryManager;
 
 import java.net.InetAddress;
@@ -38,18 +39,19 @@ import java.net.UnknownHostException;
 public class UDPListenerService extends Service {
     private static final String TAG = "UDPSvc";
 
-    public static final String INTENT_PLAYERID = "playerid";
-    public static final String INTENT_MESSAGE = "message";
-
     private ServerDiscoveryManager mDiscoveryManager;
     private final IBinder mBinder = new LocalBinder();
     /** Discovery's results for the play screen (the client role). */
     private EventBus<ClientEvent> mClientEvents = new EventBus<>();
+    /** The beacon's start, for the dedicated server's screen (the server role). */
+    private EventBus<ServerEvent> mServerEvents = new EventBus<>();
 
     @Override
     public void onCreate() {
         super.onCreate();
-        mClientEvents = ((SimpleCoilApp) getApplication()).getContainer().getClientEvents();
+        AppContainer container = ((SimpleCoilApp) getApplication()).getContainer();
+        mClientEvents = container.getClientEvents();
+        mServerEvents = container.getServerEvents();
         mDiscoveryManager = new ServerDiscoveryManager(this);
         Log.i(TAG, "UDP Service initialized with ServerDiscoveryManager");
     }
@@ -67,8 +69,9 @@ public class UDPListenerService extends Service {
         if (myIp != null) {
             GameStateRepository.getInstance().setServerIP(myIp);
         }
-        Intent intent = new Intent(NetMsg.NETMSG_SERVERCREATED);
-        sendBroadcast(intent);
+        InetAddress serverIp = GameStateRepository.getInstance().getServerIP();
+        if (serverIp != null)
+            mServerEvents.publish(new ServerEvent.ServerCreated(serverIp.getHostAddress()));
     }
 
     public void cancelServer() {
@@ -188,13 +191,5 @@ public class UDPListenerService extends Service {
     @Override
     public IBinder onBind(Intent intent) {
         return mBinder;
-    }
-
-    @Override
-    public void sendBroadcast(Intent intent) {
-        if (intent != null && intent.getPackage() == null) {
-            intent.setPackage(getPackageName());
-        }
-        super.sendBroadcast(intent);
     }
 }
