@@ -34,6 +34,8 @@ import android.os.SystemClock;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
+import androidx.fragment.app.DialogFragment;
+import androidx.fragment.app.FragmentManager;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -46,33 +48,28 @@ import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.domain.rules.GameLimitRules;
 import com.simplecoil.simplecoil.domain.rules.LimitKind;
 import com.simplecoil.simplecoil.domain.rules.Limits;
-import com.simplecoil.simplecoil.domain.rules.TeamSizes;
 import com.simplecoil.simplecoil.domain.team.TeamMode;
 import com.simplecoil.simplecoil.network.server.SessionPhase;
+import com.simplecoil.simplecoil.ui.dialogs.GameLimitDialog;
+import com.simplecoil.simplecoil.ui.dialogs.StartingTimerDialog;
+import com.simplecoil.simplecoil.ui.dialogs.TeamRatioDialog;
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardAdapter;
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardContext;
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardRows;
 import com.simplecoil.simplecoil.ui.server.DedicatedServerViewModel;
 import android.util.Log;
-import android.widget.EditText;
-import android.widget.LinearLayout;
 import android.view.ContextThemeWrapper;
-import android.view.LayoutInflater;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.Chronometer;
-import android.widget.EditText;
 import android.widget.PopupMenu;
-import android.widget.RadioButton;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 public class DedicatedServerActivity extends AppCompatActivity implements PopupMenu.OnMenuItemClickListener {
@@ -169,6 +166,13 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        FragmentManager fm = getSupportFragmentManager();
+        fm.setFragmentResultListener(GameLimitDialog.REQUEST_KEY, this,
+                (key, result) -> onGameLimitEntered(GameLimitDialog.text(result), GameLimitDialog.kind(result)));
+        fm.setFragmentResultListener(StartingTimerDialog.REQUEST_KEY, this,
+                (key, result) -> onStartingTimerEntered(StartingTimerDialog.text(result)));
+        fm.setFragmentResultListener(TeamRatioDialog.REQUEST_KEY, this,
+                (key, result) -> onTeamSizesEntered(TeamRatioDialog.sizes(result)));
         setContentView(R.layout.activity_dedicated_server);
         this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         PlayerRepository.getInstance().setPlayerID((byte) 0);
@@ -478,74 +482,33 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     }
 
     private void requestGameLimit() {
-        LayoutInflater li = LayoutInflater.from(getApplicationContext());
-        View view = li.inflate(R.layout.game_limit_dialog, null);
+        showDialog(GameLimitDialog.newInstance(true), GameLimitDialog.REQUEST_KEY);
+    }
 
-        AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(this, R.style.Theme_AppCompat_DayNight_Dialog_Alert);
-        alertDialogBuilder.setView(view);
+    /** The game limit dialog's result. */
+    private void onGameLimitEntered(String text, LimitKind kind) {
+        GameSettingsRepository settings = GameSettingsRepository.getInstance();
+        Limits current = new Limits(settings.getGameLimit(), settings.getTimeLimit(), settings.getLivesLimit(), settings.getScoreLimit());
+        GameLimitRules.Result result = GameLimitRules.INSTANCE.apply(current, kind, text);
+        if (result instanceof GameLimitRules.Result.TooHigh) {
+            Toast.makeText(getApplicationContext(), getString(R.string.error_limit_too_high), Toast.LENGTH_SHORT).show();
+        } else if (result instanceof GameLimitRules.Result.Applied) {
+            resetIfPostGame();
+            Limits limits = ((GameLimitRules.Result.Applied) result).getLimits();
+            settings.setTimeLimit(limits.getTimeLimit());
+            settings.setLivesLimit(limits.getLivesLimit());
+            settings.setScoreLimit(limits.getScoreLimit());
+            settings.setGameLimit(limits.getGameLimit());
+            setGameLimit();
+        }
+    }
 
-        final EditText gameLimitET = view.findViewById(R.id.game_limit_et);
-        final RadioButton gameLimitTime = view.findViewById(R.id.game_limit_time_radio);
-        gameLimitTime.setChecked(true);
-        final RadioButton gameLimitLives = view.findViewById(R.id.game_limit_lives_radio);
-        gameLimitLives.setChecked(false);
-        final RadioButton gameLimitScore = view.findViewById(R.id.game_limit_score_radio);
-        gameLimitScore.setChecked(false);
-        gameLimitScore.setVisibility(View.VISIBLE);;
-        gameLimitTime.setOnClickListener((new View.OnClickListener() {
-            public void onClick(View v) {
-                gameLimitTime.setChecked(true);
-                gameLimitLives.setChecked(false);
-                gameLimitScore.setChecked(false);
-            }
-        }));
-        gameLimitLives.setOnClickListener((new View.OnClickListener() {
-            public void onClick(View v) {
-                gameLimitTime.setChecked(false);
-                gameLimitLives.setChecked(true);
-                gameLimitScore.setChecked(false);
-            }
-        }));
-        gameLimitScore.setOnClickListener((new View.OnClickListener() {
-            public void onClick(View v) {
-                gameLimitTime.setChecked(false);
-                gameLimitLives.setChecked(false);
-                gameLimitScore.setChecked(true);
-            }
-        }));
-
-        alertDialogBuilder
-                .setCancelable(false)
-                .setPositiveButton(R.string.ok,
-                        new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog,int id) {
-                                LimitKind kind = gameLimitTime.isChecked() ? LimitKind.TIME
-                                        : gameLimitLives.isChecked() ? LimitKind.LIVES : LimitKind.SCORE;
-                                GameSettingsRepository settings = GameSettingsRepository.getInstance();
-                                Limits current = new Limits(settings.getGameLimit(), settings.getTimeLimit(), settings.getLivesLimit(), settings.getScoreLimit());
-                                GameLimitRules.Result result = GameLimitRules.INSTANCE.apply(current, kind, gameLimitET.getText().toString());
-                                if (result instanceof GameLimitRules.Result.TooHigh) {
-                                    Toast.makeText(getApplicationContext(), getString(R.string.error_limit_too_high), Toast.LENGTH_SHORT).show();
-                                } else if (result instanceof GameLimitRules.Result.Applied) {
-                                    resetIfPostGame();
-                                    Limits limits = ((GameLimitRules.Result.Applied) result).getLimits();
-                                    settings.setTimeLimit(limits.getTimeLimit());
-                                    settings.setLivesLimit(limits.getLivesLimit());
-                                    settings.setScoreLimit(limits.getScoreLimit());
-                                    settings.setGameLimit(limits.getGameLimit());
-                                    setGameLimit();
-                                }
-                                dialog.dismiss();
-                            }
-                        })
-                .setNegativeButton(R.string.cancel,
-                        new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog,int id) {
-                                dialog.cancel();
-                            }
-                        });
-        AlertDialog alertDialog = alertDialogBuilder.create();
-        alertDialog.show();
+    /** Shows [dialog] unless one is already showing under [tag] or the state is saved. */
+    private void showDialog(DialogFragment dialog, String tag) {
+        FragmentManager fm = getSupportFragmentManager();
+        if (fm.isStateSaved() || fm.findFragmentByTag(tag) != null)
+            return;
+        dialog.show(fm, tag);
     }
 
     private void setGameLimit() {
@@ -583,53 +546,28 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     }
 
     private void requestStartingTimer() {
-        LayoutInflater li = LayoutInflater.from(getApplicationContext());
-        View view = li.inflate(R.layout.starting_timer_dialog, null);
+        showDialog(StartingTimerDialog.newInstance(GameSettingsRepository.getInstance().getStartTime()), StartingTimerDialog.REQUEST_KEY);
+    }
 
-        AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(this, R.style.Theme_AppCompat_DayNight_Dialog_Alert);
-        alertDialogBuilder.setView(view);
-
-        final EditText startingTimerET = view.findViewById(R.id.starting_timer_et);
-        startingTimerET.setText(String.valueOf(GameSettingsRepository.getInstance().getStartTime()));
-
-        alertDialogBuilder
-                .setCancelable(false)
-                .setPositiveButton(R.string.ok,
-                        new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog, int id) {
-                                if (startingTimerET.getText().toString().isEmpty()) {
-                                    dialog.dismiss();
-                                    return;
-                                }
-                                long time;
-                                try {
-                                    time = Long.parseLong(startingTimerET.getText().toString());
-                                } catch (Exception ignored) {
-                                    dialog.dismiss();
-                                    return;
-                                }
-                                if (time > 1000) {
-                                    Toast.makeText(getApplicationContext(), getString(R.string.error_limit_too_high), Toast.LENGTH_SHORT).show();
-                                    dialog.dismiss();
-                                    return;
-                                }
-                                resetIfPostGame();
-                                GameSettingsRepository.getInstance().setStartTime(time);
-                                GameSettingsRepository.getInstance().setStartTime(time);
-                                savePreference(FullscreenActivity.PREF_START_TIME, (int) time);
-                                if (mTcpServer != null)
-                                    mTcpServer.sendAllGameInfo(TcpServer.SEND_ALL);
-                                dialog.dismiss();
-                            }
-                        })
-                .setNegativeButton(R.string.cancel,
-                        new DialogInterface.OnClickListener() {
-                            public void onClick(DialogInterface dialog, int id) {
-                                dialog.cancel();
-                            }
-                        });
-        AlertDialog alertDialog = alertDialogBuilder.create();
-        alertDialog.show();
+    /** The starting timer dialog's result: empty or not a number changes nothing. */
+    private void onStartingTimerEntered(String text) {
+        if (text.isEmpty())
+            return;
+        long time;
+        try {
+            time = Long.parseLong(text);
+        } catch (Exception ignored) {
+            return;
+        }
+        if (time > 1000) {
+            Toast.makeText(getApplicationContext(), getString(R.string.error_limit_too_high), Toast.LENGTH_SHORT).show();
+            return;
+        }
+        resetIfPostGame();
+        GameSettingsRepository.getInstance().setStartTime(time);
+        savePreference(FullscreenActivity.PREF_START_TIME, (int) time);
+        if (mTcpServer != null)
+            mTcpServer.sendAllGameInfo(TcpServer.SEND_ALL);
     }
 
     public void kickPlayerFromAdmin(byte playerID) {
@@ -651,77 +589,18 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             return;
         }
 
-        LayoutInflater li = LayoutInflater.from(this);
-        View view = li.inflate(R.layout.team_ratio_dialog, null);
+        showDialog(TeamRatioDialog.newInstance(teamMode.teamCount, GameSettingsRepository.getInstance().getTeamLayout().teamSizes()),
+                TeamRatioDialog.REQUEST_KEY);
+    }
 
-        final int numTeams = teamMode.teamCount;
-        final LinearLayout team3Layout = view.findViewById(R.id.team3_layout);
-        final LinearLayout team4Layout = view.findViewById(R.id.team4_layout);
-
-        final EditText team1ET = view.findViewById(R.id.team1_ratio_et);
-        final EditText team2ET = view.findViewById(R.id.team2_ratio_et);
-        final EditText team3ET = view.findViewById(R.id.team3_ratio_et);
-        final EditText team4ET = view.findViewById(R.id.team4_ratio_et);
-
-        int[] currentSizes = GameSettingsRepository.getInstance().getTeamLayout().teamSizes();
-
-        team1ET.setText(String.valueOf(currentSizes[0]));
-        team2ET.setText(String.valueOf(currentSizes[1]));
-
-        if (numTeams == 4) {
-            team3Layout.setVisibility(View.VISIBLE);
-            team4Layout.setVisibility(View.VISIBLE);
-            team3ET.setText(String.valueOf(currentSizes[2]));
-            team4ET.setText(String.valueOf(currentSizes[3]));
-        } else {
-            team3Layout.setVisibility(View.GONE);
-            team4Layout.setVisibility(View.GONE);
+    /** The team ratio dialog's result, already validated. */
+    private void onTeamSizesEntered(int[] newSizes) {
+        resetIfPostGame();
+        GameSettingsRepository.getInstance().setTeamSizes(newSizes);
+        if (mTcpServer != null) {
+            mTcpServer.rebalanceAllPlayers(false);
         }
-
-        AlertDialog.Builder alertDialogBuilder = new AlertDialog.Builder(this, R.style.Theme_AppCompat_DayNight_Dialog_Alert);
-        alertDialogBuilder.setView(view);
-        alertDialogBuilder.setTitle("Configure Team Sizes");
-
-        alertDialogBuilder
-                .setCancelable(false)
-                .setPositiveButton(R.string.ok, null)
-                .setNegativeButton(R.string.cancel, new DialogInterface.OnClickListener() {
-                    public void onClick(DialogInterface dialog, int id) {
-                        dialog.cancel();
-                    }
-                });
-
-        final AlertDialog alertDialog = alertDialogBuilder.create();
-        alertDialog.show();
-
-        alertDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                List<String> texts = new ArrayList<>();
-                for (EditText editText : new EditText[]{team1ET, team2ET, team3ET, team4ET}) {
-                    texts.add(editText.getText().toString());
-                }
-                TeamSizes.Result result = TeamSizes.INSTANCE.validate(texts, numTeams);
-                if (result instanceof TeamSizes.Result.BelowOne) {
-                    Toast.makeText(DedicatedServerActivity.this, "Team limits must be at least 1 player slot", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                if (result instanceof TeamSizes.Result.WrongTotal) {
-                    int totalEnteredSum = ((TeamSizes.Result.WrongTotal) result).getTotal();
-                    Toast.makeText(DedicatedServerActivity.this, "Total player slots across all teams must equal " + GameSettingsRepository.MAX_PLAYER_ID + " (current sum: " + totalEnteredSum + ")", Toast.LENGTH_LONG).show();
-                    return;
-                }
-                int[] newSizes = ((TeamSizes.Result.Valid) result).getSizes();
-
-                resetIfPostGame();
-                GameSettingsRepository.getInstance().setTeamSizes(newSizes);
-                if (mTcpServer != null) {
-                    mTcpServer.rebalanceAllPlayers(false);
-                }
-                getPlayerDisplayData();
-                alertDialog.dismiss();
-            }
-        });
+        getPlayerDisplayData();
     }
 
     /**

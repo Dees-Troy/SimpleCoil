@@ -153,6 +153,9 @@
     <string name="player_list_points_label">Score</string>
     <string name="player_list_eliminated_label">Eliminated</string>
     <string name="player_list_team_header">TEAM %1$d (Limit %2$d/%3$d) Score: %4$d</string>
+    <string name="team_ratio_dialog_title">Configure Team Sizes</string>
+    <string name="team_ratio_min_one">Team limits must be at least 1 player slot</string>
+    <string name="team_ratio_total">Total player slots across all teams must equal %1$d (current sum: %2$d)</string>
     <string name="scoreboard_players_header">PLAYERS</string>
     <string name="scoreboard_edit_ratio">Tap to edit ratio</string>
     <string name="scoreboard_number">%1$d</string>

@@ -34,6 +34,8 @@ import com.simplecoil.simplecoil.R
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.domain.session.SessionToast
 import com.simplecoil.simplecoil.domain.team.TeamMode
+import com.simplecoil.simplecoil.ui.dialogs.GameLimitDialog
+import com.simplecoil.simplecoil.ui.dialogs.TeamRatioDialog
 
 /**
  * Dialogs, toasts and popup menus of the play screen ([GameDialogs]), moved from
@@ -65,6 +67,12 @@ class DialogCoordinator(
                 actions.forEach { it() }
             }
         })
+        fm.setFragmentResultListener(GameLimitDialog.REQUEST_KEY, activity) { _, result ->
+            vm.onGameLimitEntered(GameLimitDialog.text(result), GameLimitDialog.kind(result))
+        }
+        fm.setFragmentResultListener(TeamRatioDialog.REQUEST_KEY, activity) { _, result ->
+            vm.onTeamSizesEntered(TeamRatioDialog.sizes(result).map { it.toString() })
+        }
         // Bring restored dialogs in line with the view model (it may have outlived them, or not).
         if (vm.disconnectDialogShowing) showDisconnectDialog() else remove(TAG_DISCONNECTED)
         if (!vm.scoreboardVisible) remove(TAG_SCOREBOARD)

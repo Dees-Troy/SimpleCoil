@@ -19,11 +19,8 @@ package com.simplecoil.simplecoil.ui.game
 import android.app.Dialog
 import android.content.DialogInterface
 import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.core.os.bundleOf
-import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.simplecoil.simplecoil.PlayerDisplayData
@@ -32,12 +29,10 @@ import com.simplecoil.simplecoil.R
 import com.simplecoil.simplecoil.SimpleCoilApp
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.databinding.BlasterDisconnectedDialogBinding
-import com.simplecoil.simplecoil.databinding.GameLimitDialogBinding
 import com.simplecoil.simplecoil.databinding.PlayerDataDialogBinding
 import com.simplecoil.simplecoil.databinding.PlayerNameDialogBinding
 import com.simplecoil.simplecoil.databinding.ServerIpDialogBinding
-import com.simplecoil.simplecoil.databinding.TeamRatioDialogBinding
-import com.simplecoil.simplecoil.domain.rules.LimitKind
+import com.simplecoil.simplecoil.ui.dialogs.AppDialogFragment
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardAdapter
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardRows
 
@@ -48,16 +43,11 @@ import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardRows
  */
 
 /** A play screen dialog; reaches the activity's GameViewModel (creating it if restored first). */
-abstract class GameDialogFragment : DialogFragment() {
+abstract class GameDialogFragment : AppDialogFragment() {
     protected val vm: GameViewModel by lazy {
         val activity = requireActivity()
         ViewModelProvider(activity, GameViewModelFactory(activity.application as SimpleCoilApp))[GameViewModel::class.java]
     }
-
-    /** The dialogs' layouts were inflated with the application context; keep their look. */
-    protected val appInflater: LayoutInflater get() = LayoutInflater.from(requireContext().applicationContext)
-
-    protected fun alertBuilder() = AlertDialog.Builder(requireContext(), R.style.Theme_AppCompat_DayNight_Dialog_Alert)
 }
 
 /** "Blaster disconnected" with Disconnect & Quit; shown until the link recovers. */
@@ -138,96 +128,6 @@ class ServerIpDialog : GameDialogFragment() {
 
     companion object {
         fun newInstance(suggestion: String) = ServerIpDialog().apply { arguments = bundleOf(ARG_TEXT to suggestion) }
-    }
-}
-
-class GameLimitDialog : GameDialogFragment() {
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        isCancelable = false
-        val binding = GameLimitDialogBinding.inflate(appInflater)
-        val time = binding.gameLimitTimeRadio
-        val lives = binding.gameLimitLivesRadio
-        val score = binding.gameLimitScoreRadio
-        time.isChecked = true
-        lives.isChecked = false
-        score.isChecked = false
-        score.visibility = if (requireArguments().getBoolean(ARG_ALLOW_SCORE)) View.VISIBLE else View.GONE
-        time.setOnClickListener {
-            time.isChecked = true
-            lives.isChecked = false
-            score.isChecked = false
-        }
-        lives.setOnClickListener {
-            time.isChecked = false
-            lives.isChecked = true
-            score.isChecked = false
-        }
-        score.setOnClickListener {
-            time.isChecked = false
-            lives.isChecked = false
-            score.isChecked = true
-        }
-        return alertBuilder()
-            .setView(binding.root)
-            .setPositiveButton(R.string.ok) { dialog, _ ->
-                val kind = when {
-                    time.isChecked -> LimitKind.TIME
-                    lives.isChecked -> LimitKind.LIVES
-                    else -> LimitKind.SCORE
-                }
-                vm.onGameLimitEntered(binding.gameLimitEt.text.toString(), kind)
-                dialog.dismiss()
-            }
-            .setNegativeButton(R.string.cancel) { dialog, _ -> dialog.cancel() }
-            .create()
-    }
-
-    companion object {
-        private const val ARG_ALLOW_SCORE = "allowScoreLimit"
-
-        fun newInstance(allowScoreLimit: Boolean) = GameLimitDialog().apply { arguments = bundleOf(ARG_ALLOW_SCORE to allowScoreLimit) }
-    }
-}
-
-/** Team sizes; stays open until GameViewModel accepts them. */
-class TeamRatioDialog : GameDialogFragment() {
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
-        isCancelable = false
-        val numTeams = requireArguments().getInt(ARG_NUM_TEAMS)
-        val sizes = requireArguments().getIntArray(ARG_SIZES)!!
-        val binding = TeamRatioDialogBinding.inflate(LayoutInflater.from(requireContext()))
-        val editTexts = listOf(binding.team1RatioEt, binding.team2RatioEt, binding.team3RatioEt, binding.team4RatioEt)
-        editTexts[0].setText(sizes[0].toString())
-        editTexts[1].setText(sizes[1].toString())
-        if (numTeams == 4) {
-            binding.team3Layout.visibility = View.VISIBLE
-            binding.team4Layout.visibility = View.VISIBLE
-            editTexts[2].setText(sizes[2].toString())
-            editTexts[3].setText(sizes[3].toString())
-        } else {
-            binding.team3Layout.visibility = View.GONE
-            binding.team4Layout.visibility = View.GONE
-        }
-        val dialog = alertBuilder()
-            .setView(binding.root)
-            .setTitle("Configure Team Sizes")
-            .setPositiveButton(R.string.ok, null)
-            .setNegativeButton(R.string.cancel) { d, _ -> d.cancel() }
-            .create()
-        dialog.setOnShowListener {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-                if (vm.onTeamSizesEntered(editTexts.take(numTeams).map { it.text.toString() })) dialog.dismiss()
-            }
-        }
-        return dialog
-    }
-
-    companion object {
-        private const val ARG_NUM_TEAMS = "numTeams"
-        private const val ARG_SIZES = "sizes"
-
-        fun newInstance(numTeams: Int, sizes: IntArray) =
-            TeamRatioDialog().apply { arguments = bundleOf(ARG_NUM_TEAMS to numTeams, ARG_SIZES to sizes) }
     }
 }
 
