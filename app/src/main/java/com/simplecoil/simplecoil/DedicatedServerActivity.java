@@ -142,6 +142,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             public void onServiceConnected(ComponentName componentName, IBinder service) {
                 mTcpServer = ((TcpServer.LocalBinder) service).getService();
                 mTcpServer.startTcpServer();
+                mTcpServer.startAsForeground();
                 mViewModel.setPhase(mTcpServer.getSessionPhase());
                 getPlayerDisplayData();
             }

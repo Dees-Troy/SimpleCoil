@@ -125,6 +125,9 @@
 
     <string name="dedicated_server_button">Dedicated Server</string>
     <string name="title_activity_dedicated_server">DedicatedServerActivity</string>
+    <string name="server_notification_channel">SimpleCoil Dedicated Server</string>
+    <string name="server_notification_title">SimpleCoil Dedicated Server</string>
+    <string name="server_notification_text">The server is running</string>
     <string name="dedicated_time_limit">%1$d minutes</string>
     <string name="dedicated_lives_limit">%1$d lives</string>
     <string name="dedicated_score_limit">%1$d points</string>

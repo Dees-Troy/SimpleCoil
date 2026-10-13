@@ -70,7 +70,8 @@
             android:enabled="true" />
         <service
             android:name=".TcpServer"
-            android:enabled="true" />
+            android:enabled="true"
+            android:foregroundServiceType="connectedDevice" />
 
         <activity
             android:name=".DedicatedServerActivity"

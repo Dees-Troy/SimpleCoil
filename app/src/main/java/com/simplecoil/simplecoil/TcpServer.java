@@ -16,12 +16,21 @@
 
 package com.simplecoil.simplecoil;
 
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.os.Binder;
+import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.util.Log;
+
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.ServiceCompat;
 
 import com.simplecoil.simplecoil.data.model.GpsData;
 import com.simplecoil.simplecoil.data.model.PlayerSettings;
@@ -156,6 +165,56 @@ public class TcpServer extends Service {
             intent.setPackage(getPackageName());
         }
         super.sendBroadcast(intent);
+    }
+
+    private static final int NOTIFICATION_ID = 1339;
+    private static final String CHANNEL_ID = "TcpServerServiceChannel";
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel serviceChannel = new NotificationChannel(
+                    CHANNEL_ID,
+                    getString(R.string.server_notification_channel),
+                    NotificationManager.IMPORTANCE_LOW
+            );
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.createNotificationChannel(serviceChannel);
+            }
+        }
+    }
+
+    /**
+     * Keeps the process in the foreground while the server runs, so a minimized or backgrounded
+     * server isn't frozen or killed (S3). Called by the screen once the server has started.
+     */
+    public void startAsForeground() {
+        createNotificationChannel();
+        Intent notificationIntent = new Intent(this, DedicatedServerActivity.class);
+        notificationIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        PendingIntent pendingIntent = PendingIntent.getActivity(
+                this,
+                0,
+                notificationIntent,
+                PendingIntent.FLAG_IMMUTABLE
+        );
+        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle(getString(R.string.server_notification_title))
+                .setContentText(getString(R.string.server_notification_text))
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setContentIntent(pendingIntent)
+                .setOngoing(true)
+                .build();
+        try {
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE);
+        } catch (Exception e) {
+            // Android 12+ refuses this while the app is in the background; serve on without it.
+            Log.w(TAG, "Could not start foreground: " + e.getMessage());
+        }
+    }
+
+    private void stopAsForeground() {
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE);
     }
 
     public class LocalBinder extends Binder {
@@ -1361,6 +1420,7 @@ public class TcpServer extends Service {
 
     public void stopTcpServer() {
         keepListening = false;
+        stopAsForeground();
     }
 
     /** The server socket is open (tests wait for it). */
