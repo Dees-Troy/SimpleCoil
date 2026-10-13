@@ -104,7 +104,6 @@
     <string name="scan_players_button">Search For Players</string>
     <string name="scan_started_toast">Player scan started!</string>
     <string name="network_player_1count">1 Player</string>
-    <string name="network_player_count">%1$d Players</string>
     <string name="not_enough_players_toast">Not enough players!</string>
     <string name="network_team">Player %1$d</string>
     <string name="player_name">Player Name:</string>
@@ -128,9 +127,6 @@
     <string name="server_notification_channel">SimpleCoil Dedicated Server</string>
     <string name="server_notification_title">SimpleCoil Dedicated Server</string>
     <string name="server_notification_text">The server is running</string>
-    <string name="dedicated_time_limit">%1$d minutes</string>
-    <string name="dedicated_lives_limit">%1$d lives</string>
-    <string name="dedicated_score_limit">%1$d points</string>
     <string name="dedicated_unlimited">Unlimited</string>
     <string name="dedicated_limit_separator">, </string>
     <string name="dedicated_game_running">Game Running</string>
@@ -138,7 +134,6 @@
     <string name="dedicated_game_over">Game over. Players can still reconnect. Tap Reset for a new game.</string>
     <string name="reset_game_button">Reset</string>
     <string name="reset_game_admin">Reset game</string>
-    <string name="dedicated_reset_confirm">Reset scores and remove %1$d disconnected players?</string>
     <string name="dedicated_game_reset_toast">Game reset</string>
     <string name="dedicated_allow_join">Allow players to join after game has started?</string>
     <string name="dedicated_server_settings_only">Only allow server settings?</string>
@@ -215,4 +210,24 @@
     <string name="error_local_network_permission_required">Local network access is required for network games.</string>
     <string name="permission_continue">Continue</string>
     <string name="permission_open_settings">Open settings</string>
+    <plurals name="network_player_count">
+        <item quantity="one">%1$d Player</item>
+        <item quantity="other">%1$d Players</item>
+    </plurals>
+    <plurals name="dedicated_time_limit">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+    <plurals name="dedicated_lives_limit">
+        <item quantity="one">%1$d life</item>
+        <item quantity="other">%1$d lives</item>
+    </plurals>
+    <plurals name="dedicated_score_limit">
+        <item quantity="one">%1$d point</item>
+        <item quantity="other">%1$d points</item>
+    </plurals>
+    <plurals name="dedicated_reset_confirm">
+        <item quantity="one">Reset scores and remove %1$d disconnected player?</item>
+        <item quantity="other">Reset scores and remove %1$d disconnected players?</item>
+    </plurals>
 </resources>

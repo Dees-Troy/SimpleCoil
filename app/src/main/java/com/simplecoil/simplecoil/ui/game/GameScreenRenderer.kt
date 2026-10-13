@@ -312,7 +312,7 @@ class GameScreenRenderer(
     }
 
     override fun showPlayerCount(count: Int) {
-        b.playerCountTv.text = context.getString(R.string.network_player_count, count)
+        b.playerCountTv.text = context.resources.getQuantityString(R.plurals.network_player_count, count, count)
         b.playerCountTv.visibility = View.VISIBLE
     }
 

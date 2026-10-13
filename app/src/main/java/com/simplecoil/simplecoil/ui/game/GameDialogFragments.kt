@@ -77,7 +77,7 @@ class EndGameConfirmDialog : GameDialogFragment() {
 class ResetConfirmDialog : GameDialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
         AlertDialog.Builder(requireContext())
-            .setMessage(getString(R.string.dedicated_reset_confirm, requireArguments().getInt(ARG_DISCONNECTED)))
+            .setMessage(requireArguments().getInt(ARG_DISCONNECTED).let { resources.getQuantityString(R.plurals.dedicated_reset_confirm, it, it) })
             .setPositiveButton(R.string.reset_game_button) { _, _ -> vm.onResetConfirmed() }
             .setNegativeButton(R.string.cancel) { dialog, _ -> dialog.dismiss() }
             .create()

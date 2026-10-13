@@ -186,7 +186,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         });
         mViewModel.getPlayerCountLiveData().observe(this, count -> {
             if (mNetworkPlayerCountTV != null && count != null) {
-                mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, count));
+                mNetworkPlayerCountTV.setText(quantity(R.plurals.network_player_count, count));
             }
         });
         mViewModel.startServerBeacon("SimpleCoil Server");
@@ -196,7 +196,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         mGameTimer = findViewById(R.id.game_timer_chronometer);
         mGameCountDownTV = findViewById(R.id.game_countdown_tv);
         mNetworkPlayerCountTV = findViewById(R.id.player_count_tv);
-        mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, 0));
+        mNetworkPlayerCountTV.setText(quantity(R.plurals.network_player_count, 0));
         mTeamModeButton = findViewById(R.id.team_mode_toggle_button);
         if (mTeamModeButton != null) {
             mTeamModeButton.setOnClickListener((new View.OnClickListener() {
@@ -540,6 +540,11 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         getPlayerDisplayData();
     }
 
+    /** The plural [id] for [count], with the count filled in. */
+    private String quantity(int id, int count) {
+        return getResources().getQuantityString(id, count, count);
+    }
+
     /** Shows [dialog] unless one is already showing under [tag] or the state is saved. */
     private void showDialog(DialogFragment dialog, String tag) {
         FragmentManager fm = getSupportFragmentManager();
@@ -551,7 +556,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     private void setGameLimit() {
         String gameLimits = "";
         if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_TIME) != 0) {
-            gameLimits += getString(R.string.dedicated_time_limit, GameSettingsRepository.getInstance().getTimeLimit());
+            gameLimits += quantity(R.plurals.dedicated_time_limit, GameSettingsRepository.getInstance().getTimeLimit());
             mGameCountDownTV.setVisibility(View.VISIBLE);
             String display = ClockFormat.minutes(GameSettingsRepository.getInstance().getTimeLimit());
             mGameCountDownTV.setText(display);
@@ -563,12 +568,12 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_LIVES) != 0) {
             if (!gameLimits.isEmpty())
                 gameLimits += getString(R.string.dedicated_limit_separator);
-            gameLimits += getString(R.string.dedicated_lives_limit, GameSettingsRepository.getInstance().getLivesLimit());
+            gameLimits += quantity(R.plurals.dedicated_lives_limit, GameSettingsRepository.getInstance().getLivesLimit());
         }
         if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_SCORE) != 0) {
             if (!gameLimits.isEmpty())
                 gameLimits += getString(R.string.dedicated_limit_separator);
-            gameLimits += getString(R.string.dedicated_score_limit, GameSettingsRepository.getInstance().getScoreLimit());
+            gameLimits += quantity(R.plurals.dedicated_score_limit, GameSettingsRepository.getInstance().getScoreLimit());
         }
         if (gameLimits.isEmpty())
             gameLimits = getString(R.string.dedicated_unlimited);
@@ -653,7 +658,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             if (player != null && !player.isConnected) disconnected++;
         }
         new AlertDialog.Builder(this, R.style.AppDialogTheme)
-                .setMessage(getString(R.string.dedicated_reset_confirm, disconnected))
+                .setMessage(quantity(R.plurals.dedicated_reset_confirm, disconnected))
                 .setPositiveButton(R.string.reset_game_button, new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int id) {
                         if (mTcpServer != null)
@@ -710,7 +715,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
     private void onGameEnded() {
         Log.d(TAG, "DedicatedServerActivity.onGameEnded called. mGameState=" + GameStateRepository.getInstance().getGameState());
         mViewModel.setPhase(SessionPhase.POST_GAME);
-        mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, PlayerRepository.getInstance().getPlayerCount(true)));
+        mNetworkPlayerCountTV.setText(quantity(R.plurals.network_player_count, PlayerRepository.getInstance().getPlayerCount(true)));
         mGameTimer.stop();
         if (mSpawnTimer != null) {
             mSpawnTimer.cancel();
@@ -736,7 +741,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             if (NetMsg.NETMSG_JOIN.equals(action) || NetMsg.NETMSG_LEAVE.equals(action)) {
                 // The server ends the game itself when the last but one player leaves.
                 mViewModel.updatePlayerCount();
-                mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, PlayerRepository.getInstance().getPlayerCount(true)));
+                mNetworkPlayerCountTV.setText(quantity(R.plurals.network_player_count, PlayerRepository.getInstance().getPlayerCount(true)));
                 getPlayerDisplayData();
             } else if (NetMsg.NETMSG_STARTGAME.equals(action)) {
                 onGameStarted();
@@ -745,7 +750,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
             } else if (NetMsg.NETMSG_SESSIONRESET.equals(action)) {
                 mViewModel.setPhase(SessionPhase.LOBBY);
                 mViewModel.updatePlayerCount();
-                mNetworkPlayerCountTV.setText(getString(R.string.network_player_count, PlayerRepository.getInstance().getPlayerCount(true)));
+                mNetworkPlayerCountTV.setText(quantity(R.plurals.network_player_count, PlayerRepository.getInstance().getPlayerCount(true)));
                 getPlayerDisplayData();
             } else if (NetMsg.NETMSG_ERROR.equals(action)) {
                 String errorMessage = intent.getStringExtra(UDPListenerService.INTENT_MESSAGE);
