@@ -20,7 +20,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import com.simplecoil.simplecoil.NetMsg
@@ -47,17 +46,11 @@ class GameViewModelFactory(private val app: SimpleCoilApp) : ViewModelProvider.F
 
     companion object {
         /** Connected over Wi-Fi (the network game needs the LAN). */
-        @Suppress("DEPRECATION")
         fun isWifiConnected(context: Context): Boolean {
             val connManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager? ?: return false
-            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val network = connManager.activeNetwork ?: return false
-                val capabilities = connManager.getNetworkCapabilities(network)
-                capabilities != null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
-            } else {
-                val wifi = connManager.getNetworkInfo(ConnectivityManager.TYPE_WIFI)
-                wifi != null && wifi.isConnected
-            }
+            val network = connManager.activeNetwork ?: return false
+            val capabilities = connManager.getNetworkCapabilities(network)
+            return capabilities != null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
         }
     }
 }

@@ -38,6 +38,7 @@ object BlePermissions {
      * The permissions "Connect blaster" asks for on [sdkInt], in request order. Unchanged from the
      * activity: all of them must be granted before scanning.
      */
+    @SuppressLint("InlinedApi") // each permission is only listed on the versions that have it
     fun forConnect(sdkInt: Int): List<String> = buildList {
         if (sdkInt >= Build.VERSION_CODES.S) {
             add(Manifest.permission.BLUETOOTH_SCAN)

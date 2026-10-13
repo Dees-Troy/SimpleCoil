@@ -16,6 +16,7 @@
 
 package com.simplecoil.simplecoil;
 
+import android.annotation.SuppressLint;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -270,6 +271,7 @@ public class TcpServer extends Service {
      * Keeps the process in the foreground while the server runs, so a minimized or backgrounded
      * server isn't frozen or killed (S3). Called by the screen once the server has started.
      */
+    @SuppressLint("InlinedApi") // ServiceCompat ignores the type below Android 10
     public void startAsForeground() {
         createNotificationChannel();
         Intent notificationIntent = new Intent(this, DedicatedServerActivity.class);

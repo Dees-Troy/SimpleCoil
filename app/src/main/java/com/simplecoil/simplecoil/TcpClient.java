@@ -226,6 +226,7 @@ public class TcpClient extends Service {
     }
 
     /** Shows the network notification while the client is connected or rejoining. */
+    @SuppressLint("InlinedApi") // ServiceCompat ignores the type below Android 10
     public void startAsForeground(String statusText) {
         Notification notification = createPersistentNotification(statusText);
         try {
@@ -554,7 +555,7 @@ public class TcpClient extends Service {
     /** Routes [socket] over Wi-Fi even when Android made mobile data the default network. */
     private void bindToWifi(Socket socket) {
         Network wifi = mWifiNetwork;
-        if (wifi == null || Build.VERSION.SDK_INT < Build.VERSION_CODES.M)
+        if (wifi == null)
             return;
         try {
             wifi.bindSocket(socket);
