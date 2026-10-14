@@ -294,13 +294,13 @@ class GameRosterTest {
         assertEquals(GameRoster.ReliableCheck.APPLY, roster.checkReliable(ca, 3, game))
         assertEquals(GameRoster.ReliableCheck.DUPLICATE, roster.checkReliable(ca, 2, game)) // lower than applied
         assertEquals(GameRoster.ReliableCheck.STALE, roster.checkReliable(ca, 4, game + 1))
-        assertEquals(3, ca.player.lastAppliedSeq)
+        assertEquals(3, ca.player!!.lastAppliedSeq)
         roster.endGame()
         assertEquals(GameRoster.ReliableCheck.APPLY, roster.checkReliable(ca, 4, game)) // late replay after the game
         roster.reset()
         assertEquals(0L, roster.gameId())
         assertEquals(GameRoster.ReliableCheck.STALE, roster.checkReliable(ca, 5, game))
-        assertEquals(0, ca.player.lastAppliedSeq)
+        assertEquals(0, ca.player!!.lastAppliedSeq)
     }
 
     @Test
