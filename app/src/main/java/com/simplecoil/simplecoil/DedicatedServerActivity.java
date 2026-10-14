@@ -47,6 +47,7 @@ import com.simplecoil.simplecoil.domain.session.ClockFormat;
 import com.simplecoil.simplecoil.domain.team.TeamLayout;
 import com.simplecoil.simplecoil.domain.team.TeamMode;
 import com.simplecoil.simplecoil.network.ServerEvent;
+import com.simplecoil.simplecoil.network.WireProtocol;
 import com.simplecoil.simplecoil.network.server.ClockState;
 import com.simplecoil.simplecoil.network.server.SessionPhase;
 import com.simplecoil.simplecoil.ui.dialogs.GameLimitDialog;
@@ -383,7 +384,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         if (isFinishing()) {
             // Kick everyone; the server's client thread closes their sockets once it stops.
             if (mTcpServer != null)
-                mTcpServer.sendTCPMessageAll(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_SERVERCANCEL);
+                mTcpServer.sendTCPMessageAll(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_SERVERCANCEL);
             if (mUDPListenerService != null)
                 mUDPListenerService.stopListen();
             if (mTcpServer != null)

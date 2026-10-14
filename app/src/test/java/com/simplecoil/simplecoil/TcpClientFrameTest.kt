@@ -21,6 +21,7 @@ import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.network.ClientEvent
 import com.simplecoil.simplecoil.network.EventBus
 import com.simplecoil.simplecoil.network.GameUpdate
+import com.simplecoil.simplecoil.network.WireProtocol
 import com.simplecoil.simplecoil.network.server.SessionPhase
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.toList
@@ -40,8 +41,8 @@ import org.junit.Test
  */
 class TcpClientFrameTest {
 
-    private val mesg = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG
-    private val json = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON
+    private val mesg = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG
+    private val json = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON
     private val repo = PlayerRepository.getInstance()
 
     @After
@@ -70,7 +71,7 @@ class TcpClientFrameTest {
     fun versionError_publishesTheVersionError_andEndsTheSession() {
         // It used to throw in substring before reaching its branch
         var ended = false
-        val events = eventsDuring { ended = it.handleFrame(NetMsg.NETMSG_VERSIONERROR) }
+        val events = eventsDuring { ended = it.handleFrame(WireProtocol.NETMSG_VERSIONERROR) }
         assertTrue(ended)
         assertEquals(listOf(ClientEvent.VersionError), events)
     }
@@ -78,7 +79,7 @@ class TcpClientFrameTest {
     @Test
     fun shortAndGarbageFrames_areIgnored() {
         val events = eventsDuring {
-            for (raw in listOf("", "Simple", TcpServer.TCPMESSAGE_PREFIX, TcpServer.TCPMESSAGE_PREFIX + "JS", "SimpleCoil:06MESGSTARTGAME"))
+            for (raw in listOf("", "Simple", WireProtocol.TCPMESSAGE_PREFIX, WireProtocol.TCPMESSAGE_PREFIX + "JS", "SimpleCoil:06MESGSTARTGAME"))
                 assertFalse(raw, it.handleFrame(raw))
         }
         assertEquals(emptyList<ClientEvent>(), events)
@@ -87,9 +88,9 @@ class TcpClientFrameTest {
     @Test
     fun eliminatedWithoutAnId_isIgnored() {
         val events = eventsDuring {
-            assertFalse(it.handleFrame(mesg + NetMsg.NETMSG_ELIMINATED))
-            assertFalse(it.handleFrame(mesg + NetMsg.NETMSG_ELIMINATED + "x"))
-            assertFalse(it.handleFrame(mesg + NetMsg.NETMSG_ELIMINATED + "7"))
+            assertFalse(it.handleFrame(mesg + WireProtocol.NETMSG_ELIMINATED))
+            assertFalse(it.handleFrame(mesg + WireProtocol.NETMSG_ELIMINATED + "x"))
+            assertFalse(it.handleFrame(mesg + WireProtocol.NETMSG_ELIMINATED + "7"))
         }
         assertEquals(listOf(ClientEvent.Eliminated(7)), events)
     }
@@ -97,34 +98,34 @@ class TcpClientFrameTest {
     @Test
     fun serverCancel_endsTheSession() {
         var ended = false
-        val events = eventsDuring { ended = it.handleFrame(mesg + NetMsg.NETMSG_SERVERCANCEL) }
+        val events = eventsDuring { ended = it.handleFrame(mesg + WireProtocol.NETMSG_SERVERCANCEL) }
         assertTrue(ended)
         assertEquals(listOf(ClientEvent.ServerCancel), events)
     }
 
     @Test
     fun commands_publishTheirEvents() {
-        assertEquals(listOf(ClientEvent.ShotFired), eventsFor(mesg + NetMsg.NETMSG_SHOTFIRED))
-        assertEquals(listOf(ClientEvent.TeamEliminated), eventsFor(mesg + NetMsg.NETMSG_TEAMELIMINATED))
-        assertEquals(listOf(ClientEvent.StartGame), eventsFor(mesg + NetMsg.NETMSG_STARTGAME))
-        assertEquals(listOf(ClientEvent.EndGame), eventsFor(mesg + NetMsg.NETMSG_ENDGAME))
-        assertEquals(listOf(ClientEvent.Error("Reset the game first")), eventsFor(mesg + NetMsg.NETMSG_ERROR + "Reset the game first"))
-        assertEquals(emptyList<ClientEvent>(), eventsFor(mesg + NetMsg.NETMSG_ACK + "3"))
+        assertEquals(listOf(ClientEvent.ShotFired), eventsFor(mesg + WireProtocol.NETMSG_SHOTFIRED))
+        assertEquals(listOf(ClientEvent.TeamEliminated), eventsFor(mesg + WireProtocol.NETMSG_TEAMELIMINATED))
+        assertEquals(listOf(ClientEvent.StartGame), eventsFor(mesg + WireProtocol.NETMSG_STARTGAME))
+        assertEquals(listOf(ClientEvent.EndGame), eventsFor(mesg + WireProtocol.NETMSG_ENDGAME))
+        assertEquals(listOf(ClientEvent.Error("Reset the game first")), eventsFor(mesg + WireProtocol.NETMSG_ERROR + "Reset the game first"))
+        assertEquals(emptyList<ClientEvent>(), eventsFor(mesg + WireProtocol.NETMSG_ACK + "3"))
     }
 
     @Test
     fun hitAndOut_withoutAnId_namePlayerZero() {
-        assertEquals(listOf(ClientEvent.Hit(9)), eventsFor(mesg + NetMsg.NETMSG_HIT + "9"))
-        assertEquals(listOf(ClientEvent.Hit(0)), eventsFor(mesg + NetMsg.NETMSG_HIT))
-        assertEquals(listOf(ClientEvent.Out(17)), eventsFor(mesg + NetMsg.NETMSG_OUT + "17"))
-        assertEquals(listOf(ClientEvent.Out(0)), eventsFor(mesg + NetMsg.NETMSG_OUT + "x"))
+        assertEquals(listOf(ClientEvent.Hit(9)), eventsFor(mesg + WireProtocol.NETMSG_HIT + "9"))
+        assertEquals(listOf(ClientEvent.Hit(0)), eventsFor(mesg + WireProtocol.NETMSG_HIT))
+        assertEquals(listOf(ClientEvent.Out(17)), eventsFor(mesg + WireProtocol.NETMSG_OUT + "17"))
+        assertEquals(listOf(ClientEvent.Out(0)), eventsFor(mesg + WireProtocol.NETMSG_OUT + "x"))
     }
 
     @Test
     fun serverReply_carriesTheAssignedId_whenThereIsOne() {
-        assertEquals(listOf(ClientEvent.ServerReply(3)), eventsFor(mesg + NetMsg.NETMSG_SERVERREPLY + "3"))
+        assertEquals(listOf(ClientEvent.ServerReply(3)), eventsFor(mesg + WireProtocol.NETMSG_SERVERREPLY + "3"))
         assertEquals(3.toByte(), repo.playerID)
-        assertEquals(listOf(ClientEvent.ServerReply(null)), eventsFor(mesg + NetMsg.NETMSG_SERVERREPLY))
+        assertEquals(listOf(ClientEvent.ServerReply(null)), eventsFor(mesg + WireProtocol.NETMSG_SERVERREPLY))
         assertEquals(3.toByte(), repo.playerID)
     }
 

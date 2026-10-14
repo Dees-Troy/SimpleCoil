@@ -17,7 +17,7 @@
 package com.simplecoil.simplecoil.network.client
 
 import android.util.Log
-import com.simplecoil.simplecoil.NetMsg
+import com.simplecoil.simplecoil.network.WireProtocol
 
 /**
  * The client's reliable messages that the server has not acknowledged yet (reconnect design
@@ -87,7 +87,7 @@ class ClientOutbox(private val capacity: Int = CAPACITY) {
     @Synchronized
     fun reconcile(serverEliminated: Int, ackSeq: Int): Int {
         ack(ackSeq)
-        return serverEliminated + entries.count { it.seq > ackSeq && it.rmsg.startsWith(NetMsg.NETMSG_ELIMINATED) }
+        return serverEliminated + entries.count { it.seq > ackSeq && it.rmsg.startsWith(WireProtocol.NETMSG_ELIMINATED) }
     }
 
     companion object {

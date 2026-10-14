@@ -21,8 +21,8 @@ import android.net.DhcpInfo;
 import android.net.wifi.WifiManager;
 import android.util.Log;
 
-import com.simplecoil.simplecoil.NetMsg;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
+import com.simplecoil.simplecoil.network.WireProtocol;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -45,8 +45,8 @@ public class ServerDiscoveryManager {
     private static final int BEACON_INTERVAL_MS = 1000;
     private static final int RECEIVE_BUFFER_SIZE = 1024;
 
-    public static final String BEACON_PREFIX = NetMsg.MESSAGE_PREFIX + "BEACON:";
-    public static final String DISCOVER_MSG = NetMsg.MESSAGE_PREFIX + "DISCOVER";
+    public static final String BEACON_PREFIX = WireProtocol.MESSAGE_PREFIX + "BEACON:";
+    public static final String DISCOVER_MSG = WireProtocol.MESSAGE_PREFIX + "DISCOVER";
 
     private final Context mContext;
     private WifiManager mWifiManager;
@@ -174,7 +174,7 @@ public class ServerDiscoveryManager {
                         try {
                             mServerSocket.receive(packet);
                             String msg = new String(packet.getData(), 0, packet.getLength()).trim();
-                            if (msg.startsWith(DISCOVER_MSG) || msg.startsWith(NetMsg.MESSAGE_PREFIX + NetMsg.NETMSG_JOIN)) {
+                            if (msg.startsWith(DISCOVER_MSG) || msg.startsWith(WireProtocol.MESSAGE_PREFIX + WireProtocol.NETMSG_JOIN)) {
                                 Log.d(TAG, "Received discovery query from " + packet.getAddress().getHostAddress());
                                 sendBeaconPacketTo(packet.getAddress(), serverName);
                             }
@@ -261,7 +261,7 @@ public class ServerDiscoveryManager {
                                 continue; // Ignore self
                             }
                             String msg = new String(packet.getData(), 0, packet.getLength()).trim();
-                            if (msg.startsWith(BEACON_PREFIX) || msg.startsWith(NetMsg.MESSAGE_PREFIX + NetMsg.NETMSG_SERVERREPLY)) {
+                            if (msg.startsWith(BEACON_PREFIX) || msg.startsWith(WireProtocol.MESSAGE_PREFIX + WireProtocol.NETMSG_SERVERREPLY)) {
                                 String serverIp = packet.getAddress().getHostAddress();
                                 String serverName = "SimpleCoil Server";
                                 if (msg.startsWith(BEACON_PREFIX)) {

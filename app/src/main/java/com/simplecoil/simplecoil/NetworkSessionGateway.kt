@@ -28,6 +28,8 @@ import com.simplecoil.simplecoil.domain.team.TeamLayout
 import com.simplecoil.simplecoil.domain.session.SessionNetwork
 import com.simplecoil.simplecoil.network.ClientEvent
 import com.simplecoil.simplecoil.network.EventBus
+import com.simplecoil.simplecoil.network.WireKeys
+import com.simplecoil.simplecoil.network.WireProtocol
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -189,19 +191,19 @@ class NetworkSessionGateway(
     // ---------------------------------------------------------------------------------------
 
     override fun sendHit(playerId: Byte) {
-        tcpClient?.sendTCPMessage(message(NetMsg.NETMSG_HIT + playerId))
+        tcpClient?.sendTCPMessage(message(WireProtocol.NETMSG_HIT + playerId))
     }
 
     override fun sendOut(playerId: Byte) {
-        tcpClient?.sendTCPMessage(message(NetMsg.NETMSG_OUT + playerId))
+        tcpClient?.sendTCPMessage(message(WireProtocol.NETMSG_OUT + playerId))
     }
 
     override fun sendShotFired() {
-        tcpClient?.sendTCPMessage(message(NetMsg.NETMSG_SHOTFIRED))
+        tcpClient?.sendTCPMessage(message(WireProtocol.NETMSG_SHOTFIRED))
     }
 
     override fun sendEliminated(playerId: Byte) {
-        tcpClient?.sendReliable(NetMsg.NETMSG_ELIMINATED + playerId)
+        tcpClient?.sendReliable(WireProtocol.NETMSG_ELIMINATED + playerId)
     }
 
     /** Our position, from the map's location updates. */
@@ -238,14 +240,14 @@ class NetworkSessionGateway(
             var myPoints: Int? = null
             try {
                 val json = JSONObject(message)
-                val players = json.getJSONArray(TcpServer.JSON_PLAYERDATA)
+                val players = json.getJSONArray(WireKeys.PLAYERDATA)
                 synchronized(repo) {
                     for (x in 0 until players.length()) {
                         val player = players.getJSONObject(x)
                         val playerData = PlayerDisplayData()
-                        playerData.playerID = player.getInt(TcpServer.JSON_PLAYERID).toByte()
-                        playerData.playerName = player.getString(TcpServer.JSON_PLAYERNAME)
-                        playerData.points = player.getInt(TcpServer.JSON_PLAYERPOINTS)
+                        playerData.playerID = player.getInt(WireKeys.PLAYERID).toByte()
+                        playerData.playerName = player.getString(WireKeys.PLAYERNAME)
+                        playerData.points = player.getInt(WireKeys.PLAYERPOINTS)
                         if (playerData.playerID == repo.playerID) {
                             myPoints = maxOf(myPoints ?: playerData.points, playerData.points)
                         }
@@ -253,8 +255,8 @@ class NetworkSessionGateway(
                             val teamIdx = layout.teamOf(playerData.playerID) - 1
                             if (teamIdx in 0..3) teamPoints[teamIdx] += playerData.points
                         }
-                        playerData.eliminated = player.getInt(TcpServer.JSON_PLAYERELIMINATED)
-                        playerData.isConnected = player.optBoolean(TcpServer.JSON_CONNECTED, true)
+                        playerData.eliminated = player.getInt(WireKeys.PLAYERELIMINATED)
+                        playerData.isConnected = player.optBoolean(WireKeys.CONNECTED, true)
                         val settings = repo.playerSettings[playerData.playerID]
                         if (settings == null) {
                             playerData.overrideLives = false
@@ -275,19 +277,19 @@ class NetworkSessionGateway(
 
         /** TCP message carrying a NETMSG: prefix + version + "MESG" + [netMsg]. */
         @JvmStatic
-        fun message(netMsg: String): String = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + netMsg
+        fun message(netMsg: String): String = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + netMsg
 
         /** TCP message carrying JSON: prefix + version + "JSON" + [json]. */
         @JvmStatic
-        fun jsonMessage(json: JSONObject): String = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + json
+        fun jsonMessage(json: JSONObject): String = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + json
 
         /** Team change request for [playerId] to [targetTeam]. */
         @JvmStatic
         @Throws(JSONException::class)
         fun teamChangeRequest(playerId: Byte, targetTeam: Int): String {
             val json = JSONObject()
-            json.put(TcpServer.JSON_PLAYERID, playerId.toInt())
-            json.put(TcpServer.JSON_REQUEST_TEAM_CHANGE, targetTeam)
+            json.put(WireKeys.PLAYERID, playerId.toInt())
+            json.put(WireKeys.REQUEST_TEAM_CHANGE, targetTeam)
             return jsonMessage(json)
         }
     }

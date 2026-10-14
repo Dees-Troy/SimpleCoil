@@ -18,6 +18,8 @@ package com.simplecoil.simplecoil
 
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.network.WireKeys
+import com.simplecoil.simplecoil.network.WireProtocol
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -36,7 +38,7 @@ class TcpClientLivenessTest {
         LoopbackClient.awaitPortFree()
         GameStateRepository.getInstance().serverIP = InetAddress.getByName("127.0.0.1")
         PlayerRepository.getInstance().pairedGrenadeID = 0
-        ServerSocket(TcpServer.TCP_SERVER_PORT).use { server ->
+        ServerSocket(WireProtocol.TCP_SERVER_PORT).use { server ->
             server.soTimeout = 10_000
             val client = object : TcpClient() {
                 override fun startAsForeground(statusText: String?) {} // notifications are stubs here
@@ -50,7 +52,7 @@ class TcpClientLivenessTest {
                 // Half of a large game info, then nothing: the client used to block in readUTF forever.
                 val players = (1..32).joinToString(",") { "{\"playername\":\"Player $it\",\"playerID\":$it}" }
                 val bytes = ByteArrayOutputStream().also {
-                    DataOutputStream(it).writeUTF(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + "{\"players\":[$players]}")
+                    DataOutputStream(it).writeUTF(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + "{\"players\":[$players]}")
                 }.toByteArray()
                 first.getOutputStream().apply { write(bytes, 0, bytes.size / 2); flush() }
                 val stalledAt = System.nanoTime()
@@ -61,8 +63,8 @@ class TcpClientLivenessTest {
 
                 // ...and enters its retry loop.
                 val second = server.accept()
-                val hello = JSONObject(DataInputStream(second.getInputStream()).readUTF().removePrefix(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON))
-                assertTrue(hello.getBoolean(TcpServer.JSON_REJOIN))
+                val hello = JSONObject(DataInputStream(second.getInputStream()).readUTF().removePrefix(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON))
+                assertTrue(hello.getBoolean(WireKeys.REJOIN))
                 second.close()
                 first.close()
             } finally {

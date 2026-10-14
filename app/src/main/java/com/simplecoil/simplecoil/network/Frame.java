@@ -16,10 +16,6 @@
 
 package com.simplecoil.simplecoil.network;
 
-import com.simplecoil.simplecoil.NetMsg;
-import com.simplecoil.simplecoil.TcpClient;
-import com.simplecoil.simplecoil.TcpServer;
-
 /**
  * One received TCP frame, classified by its header. Shared by the server and the client so
  * neither has to cut the header with substring, which threw on short frames (N5).
@@ -51,21 +47,21 @@ public final class Frame {
     public static Frame parse(String raw) {
         if (raw == null)
             return new Frame(Kind.UNKNOWN, "");
-        if (raw.startsWith(TcpServer.TCPMESSAGE_PREFIX)) {
-            String rest = raw.substring(TcpServer.TCPMESSAGE_PREFIX.length());
-            if (rest.startsWith(TcpServer.TCPPREFIX_JSON))
-                return new Frame(Kind.JSON, rest.substring(TcpServer.TCPPREFIX_JSON.length()));
-            if (rest.startsWith(TcpServer.TCPPREFIX_MESG))
-                return new Frame(Kind.MESG, rest.substring(TcpServer.TCPPREFIX_MESG.length()));
+        if (raw.startsWith(WireProtocol.TCPMESSAGE_PREFIX)) {
+            String rest = raw.substring(WireProtocol.TCPMESSAGE_PREFIX.length());
+            if (rest.startsWith(WireProtocol.TCPPREFIX_JSON))
+                return new Frame(Kind.JSON, rest.substring(WireProtocol.TCPPREFIX_JSON.length()));
+            if (rest.startsWith(WireProtocol.TCPPREFIX_MESG))
+                return new Frame(Kind.MESG, rest.substring(WireProtocol.TCPPREFIX_MESG.length()));
             return new Frame(Kind.UNKNOWN, "");
         }
-        if (raw.startsWith(NetMsg.MESSAGE_PREFIX))
+        if (raw.startsWith(WireProtocol.MESSAGE_PREFIX))
             return new Frame(Kind.OTHER_VERSION, "");
-        if (raw.equals(TcpServer.TCP_SERVER_PING))
+        if (raw.equals(WireProtocol.PING))
             return new Frame(Kind.PING, "");
-        if (raw.equals(TcpClient.TCP_CLIENT_PONG))
+        if (raw.equals(WireProtocol.PONG))
             return new Frame(Kind.PONG, "");
-        if (raw.startsWith(NetMsg.NETMSG_VERSIONERROR))
+        if (raw.startsWith(WireProtocol.NETMSG_VERSIONERROR))
             return new Frame(Kind.VERSION_ERROR, "");
         return new Frame(Kind.UNKNOWN, "");
     }

@@ -16,6 +16,8 @@
 
 package com.simplecoil.simplecoil
 
+import com.simplecoil.simplecoil.network.WireKeys
+import com.simplecoil.simplecoil.network.WireProtocol
 import org.json.JSONObject
 import java.io.DataInputStream
 import java.io.DataOutputStream
@@ -27,7 +29,7 @@ import java.util.concurrent.CopyOnWriteArrayList
  * A raw TCP client for TcpServer over 127.0.0.1: writes the wire strings by hand, answers the
  * server's pings and records everything else it receives.
  */
-class LoopbackClient(port: Int = TcpServer.TCP_SERVER_PORT) {
+class LoopbackClient(port: Int = WireProtocol.TCP_SERVER_PORT) {
     private val socket = Socket("127.0.0.1", port)
     private val out = DataOutputStream(socket.getOutputStream())
 
@@ -40,7 +42,7 @@ class LoopbackClient(port: Int = TcpServer.TCP_SERVER_PORT) {
             try {
                 while (true) {
                     val message = input.readUTF()
-                    if (message == TcpServer.TCP_SERVER_PING) send(TcpClient.TCP_CLIENT_PONG) else received += message
+                    if (message == WireProtocol.PING) send(WireProtocol.PONG) else received += message
                 }
             } catch (e: Exception) {
                 // closed
@@ -54,32 +56,32 @@ class LoopbackClient(port: Int = TcpServer.TCP_SERVER_PORT) {
         out.flush()
     }
 
-    fun mesg(netMsg: String) = send(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + netMsg)
+    fun mesg(netMsg: String) = send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + netMsg)
 
-    fun json(json: JSONObject) = send(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + json)
+    fun json(json: JSONObject) = send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + json)
 
     /** The join JSON TcpClient.sendPlayerInfo() sends. */
     fun hello(playerId: Int, name: String, mac: String?, rejoin: Boolean = false) {
         val json = JSONObject()
-        json.put(TcpServer.JSON_PLAYERID, playerId)
-        json.put(TcpServer.JSON_PLAYERNAME, name)
-        if (mac != null) json.put(TcpServer.JSON_BLASTER_MAC, mac)
-        if (rejoin) json.put(TcpServer.JSON_REJOIN, true)
+        json.put(WireKeys.PLAYERID, playerId)
+        json.put(WireKeys.PLAYERNAME, name)
+        if (mac != null) json.put(WireKeys.BLASTER_MAC, mac)
+        if (rejoin) json.put(WireKeys.REJOIN, true)
         json(json)
     }
 
     /** The first MESG received that starts with [netMsg] (prefix stripped), waiting up to [timeoutMs]. */
     fun awaitMesg(netMsg: String, timeoutMs: Long = 3000): String {
-        val prefix = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + netMsg
+        val prefix = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + netMsg
         val found = awaitValue(timeoutMs) { received.firstOrNull { it.startsWith(prefix) } }
-        return found.substring(TcpServer.TCPMESSAGE_PREFIX.length + TcpServer.TCPPREFIX_MESG.length)
+        return found.substring(WireProtocol.TCPMESSAGE_PREFIX.length + WireProtocol.TCPPREFIX_MESG.length)
     }
 
     /** The last JSON received that has [key], waiting up to [timeoutMs]. */
     fun awaitJson(key: String, timeoutMs: Long = 3000): JSONObject = awaitValue(timeoutMs) { lastJson(key) }
 
     fun lastJson(key: String): JSONObject? {
-        val prefix = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON
+        val prefix = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON
         return received.reversed().asSequence()
             .filter { it.startsWith(prefix) }
             .map { JSONObject(it.substring(prefix.length)) }
@@ -87,7 +89,7 @@ class LoopbackClient(port: Int = TcpServer.TCP_SERVER_PORT) {
     }
 
     fun mesgs(netMsg: String): List<String> {
-        val prefix = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG
+        val prefix = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG
         return received.filter { it.startsWith(prefix + netMsg) }.map { it.substring(prefix.length) }
     }
 
@@ -115,7 +117,7 @@ class LoopbackClient(port: Int = TcpServer.TCP_SERVER_PORT) {
         }
 
         /** Waits until nothing listens on [port] (a stopped TcpServer can take a second to close). */
-        fun awaitPortFree(port: Int = TcpServer.TCP_SERVER_PORT, timeoutMs: Long = 5000) {
+        fun awaitPortFree(port: Int = WireProtocol.TCP_SERVER_PORT, timeoutMs: Long = 5000) {
             awaitTrue(timeoutMs, "port $port to close") {
                 try {
                     ServerSocket(port).close()

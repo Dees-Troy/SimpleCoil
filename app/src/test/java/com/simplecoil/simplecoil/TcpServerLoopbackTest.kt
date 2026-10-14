@@ -24,6 +24,8 @@ import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.domain.team.TeamMode
 import com.simplecoil.simplecoil.network.EventBus
 import com.simplecoil.simplecoil.network.ServerEvent
+import com.simplecoil.simplecoil.network.WireKeys
+import com.simplecoil.simplecoil.network.WireProtocol
 import com.simplecoil.simplecoil.network.client.ClientOutbox
 import com.simplecoil.simplecoil.network.server.ClockState
 import com.simplecoil.simplecoil.network.server.SessionPhase
@@ -100,7 +102,7 @@ class TcpServerLoopbackTest {
     private fun join(name: String, mac: String?, requestedId: Int = 0): Pair<LoopbackClient, Int> {
         val client = connect()
         client.hello(requestedId, name, mac)
-        val id = client.awaitMesg(NetMsg.NETMSG_SERVERREPLY).substring(NetMsg.NETMSG_SERVERREPLY.length).toInt()
+        val id = client.awaitMesg(WireProtocol.NETMSG_SERVERREPLY).substring(WireProtocol.NETMSG_SERVERREPLY.length).toInt()
         return client to id
     }
 
@@ -126,12 +128,12 @@ class TcpServerLoopbackTest {
         val (b, idB) = join("Bravo", "BB:00")
         assertEquals(1, idA)
         assertEquals(17, idB) // the second player goes to team 2
-        val info = b.awaitJson(TcpServer.JSON_PLAYERS)
-        assertEquals(GameStateRepository.GAME_STATE_NONE, info.getInt(TcpServer.JSON_GAMESTATE))
+        val info = b.awaitJson(WireKeys.PLAYERS)
+        assertEquals(GameStateRepository.GAME_STATE_NONE, info.getInt(WireKeys.GAMESTATE))
         assertFalse(info.has("dedicatedserver")) // every server is dedicated (v07)
-        assertEquals(SessionPhase.LOBBY.wireValue, info.getInt(TcpServer.JSON_SESSIONPHASE))
-        assertFalse(info.has(TcpServer.JSON_GAMEID))
-        assertTrue(info.has(TcpServer.JSON_PLAYERGAMEUPDATE)) // the joiner gets its own update
+        assertEquals(SessionPhase.LOBBY.wireValue, info.getInt(WireKeys.SESSIONPHASE))
+        assertFalse(info.has(WireKeys.GAMEID))
+        assertTrue(info.has(WireKeys.PLAYERGAMEUPDATE)) // the joiner gets its own update
         awaitTrue { score(idA)?.isConnected == true && score(idB)?.isConnected == true }
         assertEquals("Alpha", PlayerRepository.getInstance().getPlayerName(idA.toByte()))
         assertEquals(idB.toByte(), PlayerRepository.getInstance().getPlayerIdByMac("BB:00"))
@@ -159,7 +161,7 @@ class TcpServerLoopbackTest {
     fun lobbyLeave_removesThePlayer() {
         val (a, idA) = join("Alpha", "AA:00")
         awaitTrue { score(idA) != null }
-        a.mesg(NetMsg.NETMSG_LEAVE)
+        a.mesg(WireProtocol.NETMSG_LEAVE)
         awaitTrue { score(idA) == null }
         assertNull(PlayerRepository.getInstance().teamIPMap[idA.toByte()])
     }
@@ -179,9 +181,9 @@ class TcpServerLoopbackTest {
         awaitTrue(what = "game end") { ServerEvent.GameEnded in sessionEvents() }
         // the final scores, as sent to the clients
         val data = eventsSoFar().filterIsInstance<ServerEvent.PlayerDataChanged>().mapNotNull { it.json }
-        assertTrue(data.isNotEmpty() && data.last().contains(TcpServer.JSON_PLAYERDATA))
+        assertTrue(data.isNotEmpty() && data.last().contains(WireKeys.PLAYERDATA))
         assertTrue(server.resetSession())
-        a.mesg(NetMsg.NETMSG_LEAVE)
+        a.mesg(WireProtocol.NETMSG_LEAVE)
         awaitTrue { score(idA) == null && ServerEvent.PlayerLeft in sessionEvents() }
         assertEquals(listOf(ServerEvent.PlayerJoined, ServerEvent.PlayerJoined, ServerEvent.GameStarted,
             ServerEvent.GameEnded, ServerEvent.SessionReset, ServerEvent.PlayerLeft), sessionEvents())
@@ -197,7 +199,7 @@ class TcpServerLoopbackTest {
             awaitTrue { server.clockState is ClockState.Counting }
             awaitTrue { GameStateRepository.getInstance().serverGameTimeRemaining in 60..65 }
             clockOffset += 65_000
-            a.awaitMesg(NetMsg.NETMSG_ENDGAME)
+            a.awaitMesg(WireProtocol.NETMSG_ENDGAME)
             awaitTrue { server.clockState == ClockState.Idle }
             assertEquals(SessionPhase.POST_GAME, server.sessionPhase)
             assertEquals(0, GameStateRepository.getInstance().serverGameTimeRemaining)
@@ -225,7 +227,7 @@ class TcpServerLoopbackTest {
     private fun startGameWith(vararg names: Pair<String, String?>): List<Pair<LoopbackClient, Int>> {
         val joined = names.map { (name, mac) -> join(name, mac) }
         server.startGame()
-        joined.forEach { (client, _) -> client.awaitMesg(NetMsg.NETMSG_STARTGAME) }
+        joined.forEach { (client, _) -> client.awaitMesg(WireProtocol.NETMSG_STARTGAME) }
         return joined
     }
 
@@ -234,9 +236,9 @@ class TcpServerLoopbackTest {
         val (a, b) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
         val (clientA, idA) = a
         val (clientB, idB) = b
-        clientA.mesg(NetMsg.NETMSG_ELIMINATED + idB)
+        clientA.mesg(WireProtocol.NETMSG_ELIMINATED + idB)
         awaitTrue { score(idA)?.eliminated == 1 && score(idB)?.points == 1 }
-        assertEquals(NetMsg.NETMSG_ELIMINATED + idA, clientB.awaitMesg(NetMsg.NETMSG_ELIMINATED))
+        assertEquals(WireProtocol.NETMSG_ELIMINATED + idA, clientB.awaitMesg(WireProtocol.NETMSG_ELIMINATED))
     }
 
     @Test
@@ -245,14 +247,14 @@ class TcpServerLoopbackTest {
         val (clientA, idA) = a
         val (clientC, idC) = c
         assertEquals(PlayerRepository.getInstance().calcNetworkTeam(idA.toByte()), PlayerRepository.getInstance().calcNetworkTeam(idC.toByte()))
-        clientA.mesg(NetMsg.NETMSG_ELIMINATED + idC)
-        clientA.mesg(NetMsg.NETMSG_PLAYERDATAREQUEST) // answered after the elimination was handled
-        clientA.awaitJson(TcpServer.JSON_PLAYERDATA)
+        clientA.mesg(WireProtocol.NETMSG_ELIMINATED + idC)
+        clientA.mesg(WireProtocol.NETMSG_PLAYERDATAREQUEST) // answered after the elimination was handled
+        clientA.awaitJson(WireKeys.PLAYERDATA)
         assertEquals(1, score(idA)!!.eliminated)
         assertEquals(0, score(idC)!!.points)
         Thread.sleep(200)
-        assertTrue(clientC.mesgs(NetMsg.NETMSG_ELIMINATED).isEmpty())
-        assertTrue(clientC.mesgs(NetMsg.NETMSG_TEAMELIMINATED).isEmpty())
+        assertTrue(clientC.mesgs(WireProtocol.NETMSG_ELIMINATED).isEmpty())
+        assertTrue(clientC.mesgs(WireProtocol.NETMSG_TEAMELIMINATED).isEmpty())
     }
 
     @Test
@@ -260,7 +262,7 @@ class TcpServerLoopbackTest {
         val (a, b) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
         val (clientA, idA) = a
         val (clientB, idB) = b
-        clientA.mesg(NetMsg.NETMSG_ELIMINATED + idB)
+        clientA.mesg(WireProtocol.NETMSG_ELIMINATED + idB)
         awaitTrue { score(idB)?.points == 1 }
 
         clientB.close()
@@ -269,8 +271,8 @@ class TcpServerLoopbackTest {
 
         val (back, idBack) = join("Bravo", "BB:00")
         assertEquals(idB, idBack)
-        val update = back.awaitJson(TcpServer.JSON_PLAYERGAMEUPDATE).getJSONObject(TcpServer.JSON_PLAYERGAMEUPDATE)
-        assertEquals(1, update.getInt(TcpServer.JSON_PLAYERPOINTS))
+        val update = back.awaitJson(WireKeys.PLAYERGAMEUPDATE).getJSONObject(WireKeys.PLAYERGAMEUPDATE)
+        assertEquals(1, update.getInt(WireKeys.PLAYERPOINTS))
         awaitTrue { score(idB)?.isConnected == true }
         assertEquals(1, score(idB)!!.points)
         assertEquals(1, score(idA)!!.eliminated)
@@ -282,8 +284,8 @@ class TcpServerLoopbackTest {
         GameSettingsRepository.getInstance().setAllowJoinInProgress(false)
         val late = connect()
         late.hello(0, "Charlie", "CC:00")
-        assertTrue(late.awaitMesg(NetMsg.NETMSG_ERROR).startsWith(NetMsg.NETMSG_ERROR))
-        assertTrue(late.mesgs(NetMsg.NETMSG_SERVERREPLY).isEmpty())
+        assertTrue(late.awaitMesg(WireProtocol.NETMSG_ERROR).startsWith(WireProtocol.NETMSG_ERROR))
+        assertTrue(late.mesgs(WireProtocol.NETMSG_SERVERREPLY).isEmpty())
     }
 
     @Test
@@ -298,7 +300,7 @@ class TcpServerLoopbackTest {
     fun runningGame_leaveKeepsThePlayerAsDisconnected() {
         // Q12: a player who leaves on purpose stays on the scoreboard until the reset.
         val (clientA, idA) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00", "Charlie" to "CC:00")[0]
-        clientA.mesg(NetMsg.NETMSG_LEAVE)
+        clientA.mesg(WireProtocol.NETMSG_LEAVE)
         awaitDisconnected(idA)
         assertEquals(SessionPhase.RUNNING, server.sessionPhase)
     }
@@ -306,7 +308,7 @@ class TcpServerLoopbackTest {
     @Test
     fun runningGame_lastButOnePlayerLeaving_endsTheGame() {
         val (a, _) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
-        a.first.mesg(NetMsg.NETMSG_LEAVE)
+        a.first.mesg(WireProtocol.NETMSG_LEAVE)
         awaitTrue { server.sessionPhase == SessionPhase.POST_GAME }
     }
 
@@ -320,13 +322,13 @@ class TcpServerLoopbackTest {
         val (a, b) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
         val (clientA, idA) = a
         val (clientB, idB) = b
-        clientA.mesg(NetMsg.NETMSG_ELIMINATED + idB)
+        clientA.mesg(WireProtocol.NETMSG_ELIMINATED + idB)
         awaitTrue { score(idB)?.points == 1 }
         clientB.close()
         awaitDisconnected(idB)
 
         server.endGame()
-        clientA.awaitMesg(NetMsg.NETMSG_ENDGAME)
+        clientA.awaitMesg(WireProtocol.NETMSG_ENDGAME)
         assertEquals(SessionPhase.POST_GAME, server.sessionPhase)
         assertEquals(GameStateRepository.GAME_STATE_NONE, GameStateRepository.getInstance().gameState)
         assertEquals(GameStateRepository.GAME_STATE_NONE, GameStateRepository.getInstance().gameState)
@@ -335,8 +337,8 @@ class TcpServerLoopbackTest {
 
         val (back, idBack) = join("Bravo", "BB:00")
         assertEquals(idB, idBack)
-        val update = back.awaitJson(TcpServer.JSON_PLAYERGAMEUPDATE).getJSONObject(TcpServer.JSON_PLAYERGAMEUPDATE)
-        assertEquals(1, update.getInt(TcpServer.JSON_PLAYERPOINTS))
+        val update = back.awaitJson(WireKeys.PLAYERGAMEUPDATE).getJSONObject(WireKeys.PLAYERGAMEUPDATE)
+        assertEquals(1, update.getInt(WireKeys.PLAYERPOINTS))
         assertNotNull(score(idA))
     }
 
@@ -348,12 +350,12 @@ class TcpServerLoopbackTest {
         val (a, b) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
         val (clientA, idA) = a
         val (clientB, idB) = b
-        clientA.mesg(NetMsg.NETMSG_ELIMINATED + idB)
+        clientA.mesg(WireProtocol.NETMSG_ELIMINATED + idB)
         awaitTrue { score(idB)?.points == 1 }
         clientB.close()
         awaitDisconnected(idB)
         server.endGame()
-        clientA.awaitMesg(NetMsg.NETMSG_ENDGAME)
+        clientA.awaitMesg(WireProtocol.NETMSG_ENDGAME)
         return Triple(clientA, idA, idB)
     }
 
@@ -362,8 +364,8 @@ class TcpServerLoopbackTest {
         val (clientA, idA, _) = endedGameWithBravoAway()
         makeAdmin(idA)
         assertFalse(server.startGame())
-        clientA.mesg(NetMsg.NETMSG_STARTGAME)
-        assertEquals(NetMsg.NETMSG_ERROR + "Reset the game first", clientA.awaitMesg(NetMsg.NETMSG_ERROR))
+        clientA.mesg(WireProtocol.NETMSG_STARTGAME)
+        assertEquals(WireProtocol.NETMSG_ERROR + "Reset the game first", clientA.awaitMesg(WireProtocol.NETMSG_ERROR))
         assertEquals(SessionPhase.POST_GAME, server.sessionPhase)
     }
 
@@ -377,7 +379,7 @@ class TcpServerLoopbackTest {
         assertEquals(0, score(idA)!!.eliminated)
         assertFalse(server.roster.isCached("AA:00"))
         // The clients hear about it.
-        awaitTrue { clientA.lastJson(TcpServer.JSON_PLAYERS)?.getInt(TcpServer.JSON_GAMESTATE) == GameStateRepository.GAME_STATE_NONE }
+        awaitTrue { clientA.lastJson(WireKeys.PLAYERS)?.getInt(WireKeys.GAMESTATE) == GameStateRepository.GAME_STATE_NONE }
         assertTrue(server.startGame())
     }
 
@@ -395,7 +397,7 @@ class TcpServerLoopbackTest {
     fun adminTeamModeAfterAGame_resetsFirst() {
         val (clientA, idA, idB) = endedGameWithBravoAway()
         makeAdmin(idA)
-        clientA.mesg(NetMsg.NETMSG_ADMIN_GAMEMODE + TeamMode.FOUR_TEAMS.wireValue)
+        clientA.mesg(WireProtocol.NETMSG_ADMIN_GAMEMODE + TeamMode.FOUR_TEAMS.wireValue)
         awaitTrue { server.sessionPhase == SessionPhase.LOBBY }
         awaitTrue { GameSettingsRepository.getInstance().teamMode == TeamMode.FOUR_TEAMS }
         assertNull(score(idB))
@@ -405,9 +407,9 @@ class TcpServerLoopbackTest {
     fun adminTeamMode_unknownValue_isIgnored() {
         val (a, idA) = join("Alpha", "AA:00")
         makeAdmin(idA)
-        a.mesg(NetMsg.NETMSG_ADMIN_GAMEMODE + 3)
-        a.mesg(NetMsg.NETMSG_PLAYERDATAREQUEST) // processed after the mode change
-        a.awaitJson(TcpServer.JSON_PLAYERDATA)
+        a.mesg(WireProtocol.NETMSG_ADMIN_GAMEMODE + 3)
+        a.mesg(WireProtocol.NETMSG_PLAYERDATAREQUEST) // processed after the mode change
+        a.awaitJson(WireKeys.PLAYERDATA)
         assertEquals(TeamMode.TWO_TEAMS, GameSettingsRepository.getInstance().teamMode)
         assertArrayEquals(intArrayOf(16, 16), GameSettingsRepository.getInstance().teamLayout.teamSizes())
     }
@@ -420,31 +422,31 @@ class TcpServerLoopbackTest {
     fun adminCommandsFromANonAdmin_areIgnored() {
         val (a, idA) = join("Alpha", "AA:00")
         val (_, idB) = join("Bravo", "BB:00")
-        a.mesg(NetMsg.NETMSG_STARTGAME)
-        a.mesg(NetMsg.NETMSG_ADMIN_STARTGAME)
-        a.mesg(NetMsg.NETMSG_ADMIN_KICK + idB)
-        a.mesg(NetMsg.NETMSG_ADMIN_GAMEMODE + TeamMode.FREE_FOR_ALL.wireValue)
-        a.mesg(NetMsg.NETMSG_PLAYERDATAREQUEST) // processed after the others
-        a.awaitJson(TcpServer.JSON_PLAYERDATA)
+        a.mesg(WireProtocol.NETMSG_STARTGAME)
+        a.mesg(WireProtocol.NETMSG_ADMIN_STARTGAME)
+        a.mesg(WireProtocol.NETMSG_ADMIN_KICK + idB)
+        a.mesg(WireProtocol.NETMSG_ADMIN_GAMEMODE + TeamMode.FREE_FOR_ALL.wireValue)
+        a.mesg(WireProtocol.NETMSG_PLAYERDATAREQUEST) // processed after the others
+        a.awaitJson(WireKeys.PLAYERDATA)
         assertEquals(SessionPhase.LOBBY, server.sessionPhase)
         assertNotNull(score(idB))
         assertEquals(TeamMode.TWO_TEAMS, GameSettingsRepository.getInstance().teamMode)
 
         // A client can't make itself an admin through its player settings either.
         val settings = org.json.JSONObject()
-        settings.put(TcpServer.JSON_PLAYERSETTINGS, true)
-        settings.put(TcpServer.JSON_PLAYERID, idA)
-        settings.put(TcpServer.JSON_HEALTH, 20)
-        settings.put(TcpServer.JSON_RELOAD_SHOTS, 30)
-        settings.put(TcpServer.JSON_RELOAD_TIME, 1500)
-        settings.put(TcpServer.JSON_RELOAD_ON_EMPTY, false)
-        settings.put(TcpServer.JSON_SPAWN_TIME, 10)
-        settings.put(TcpServer.JSON_DAMAGE, -1)
-        settings.put(TcpServer.JSON_SHOT_MODE_SINGLE, true)
-        settings.put(TcpServer.JSON_SHOT_MODE_BURST3, true)
-        settings.put(TcpServer.JSON_SHOT_MODE_AUTO, true)
-        settings.put(TcpServer.JSON_FIRING_MODE, 0)
-        settings.put(TcpServer.JSON_IS_ADMIN, true)
+        settings.put(WireKeys.PLAYERSETTINGS, true)
+        settings.put(WireKeys.PLAYERID, idA)
+        settings.put(WireKeys.HEALTH, 20)
+        settings.put(WireKeys.RELOAD_SHOTS, 30)
+        settings.put(WireKeys.RELOAD_TIME, 1500)
+        settings.put(WireKeys.RELOAD_ON_EMPTY, false)
+        settings.put(WireKeys.SPAWN_TIME, 10)
+        settings.put(WireKeys.DAMAGE, -1)
+        settings.put(WireKeys.SHOT_MODE_SINGLE, true)
+        settings.put(WireKeys.SHOT_MODE_BURST3, true)
+        settings.put(WireKeys.SHOT_MODE_AUTO, true)
+        settings.put(WireKeys.FIRING_MODE, 0)
+        settings.put(WireKeys.IS_ADMIN, true)
         a.json(settings)
         awaitTrue { PlayerRepository.getInstance().playerSettings[idA.toByte()] != null }
         assertFalse(PlayerRepository.getInstance().playerSettings[idA.toByte()]!!.isAdmin)
@@ -454,33 +456,33 @@ class TcpServerLoopbackTest {
     fun gameInfo_carriesThePhaseAndGameId_andPlayerDataTheConnection() {
         val (a, b) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
         val (clientA, _) = a
-        awaitTrue { clientA.lastJson(TcpServer.JSON_PLAYERS)?.getInt(TcpServer.JSON_SESSIONPHASE) == SessionPhase.RUNNING.wireValue }
-        val gameId = clientA.lastJson(TcpServer.JSON_PLAYERS)!!.getLong(TcpServer.JSON_GAMEID)
+        awaitTrue { clientA.lastJson(WireKeys.PLAYERS)?.getInt(WireKeys.SESSIONPHASE) == SessionPhase.RUNNING.wireValue }
+        val gameId = clientA.lastJson(WireKeys.PLAYERS)!!.getLong(WireKeys.GAMEID)
         assertEquals(server.roster.gameId(), gameId)
         assertTrue(gameId != 0L)
         b.first.close()
         awaitDisconnected(b.second)
         server.endGame()
-        clientA.awaitMesg(NetMsg.NETMSG_ENDGAME)
-        val players = clientA.awaitJson(TcpServer.JSON_PLAYERDATA).getJSONArray(TcpServer.JSON_PLAYERDATA)
-        val bravo = (0 until players.length()).map { players.getJSONObject(it) }.first { it.getInt(TcpServer.JSON_PLAYERID) == b.second }
-        assertFalse(bravo.getBoolean(TcpServer.JSON_CONNECTED))
+        clientA.awaitMesg(WireProtocol.NETMSG_ENDGAME)
+        val players = clientA.awaitJson(WireKeys.PLAYERDATA).getJSONArray(WireKeys.PLAYERDATA)
+        val bravo = (0 until players.length()).map { players.getJSONObject(it) }.first { it.getInt(WireKeys.PLAYERID) == b.second }
+        assertFalse(bravo.getBoolean(WireKeys.CONNECTED))
     }
 
     @Test
     fun adminReset_resetsOnlyForAnAdmin() {
         val (clientA, idA, idB) = endedGameWithBravoAway()
         val before = clientA.received.size
-        clientA.mesg(NetMsg.NETMSG_ADMIN_RESET)
-        clientA.mesg(NetMsg.NETMSG_PLAYERDATAREQUEST) // answered after the reset was handled
-        awaitTrue { clientA.received.drop(before).any { it.contains(TcpServer.JSON_PLAYERDATA) } }
+        clientA.mesg(WireProtocol.NETMSG_ADMIN_RESET)
+        clientA.mesg(WireProtocol.NETMSG_PLAYERDATAREQUEST) // answered after the reset was handled
+        awaitTrue { clientA.received.drop(before).any { it.contains(WireKeys.PLAYERDATA) } }
         assertEquals(SessionPhase.POST_GAME, server.sessionPhase)
         makeAdmin(idA)
-        clientA.mesg(NetMsg.NETMSG_ADMIN_RESET)
+        clientA.mesg(WireProtocol.NETMSG_ADMIN_RESET)
         awaitTrue { server.sessionPhase == SessionPhase.LOBBY }
         assertNull(score(idB))
-        awaitTrue { clientA.lastJson(TcpServer.JSON_PLAYERS)?.getInt(TcpServer.JSON_SESSIONPHASE) == SessionPhase.LOBBY.wireValue }
-        assertFalse(clientA.lastJson(TcpServer.JSON_PLAYERS)!!.has(TcpServer.JSON_GAMEID))
+        awaitTrue { clientA.lastJson(WireKeys.PLAYERS)?.getInt(WireKeys.SESSIONPHASE) == SessionPhase.LOBBY.wireValue }
+        assertFalse(clientA.lastJson(WireKeys.PLAYERS)!!.has(WireKeys.GAMEID))
     }
 
     @Test
@@ -488,11 +490,11 @@ class TcpServerLoopbackTest {
         val (a, idA) = join("Alpha", "AA:00")
         join("Bravo", "BB:00")
         makeAdmin(idA)
-        a.mesg(NetMsg.NETMSG_ADMIN_STARTGAME)
-        a.awaitMesg(NetMsg.NETMSG_STARTGAME)
+        a.mesg(WireProtocol.NETMSG_ADMIN_STARTGAME)
+        a.awaitMesg(WireProtocol.NETMSG_STARTGAME)
         assertEquals(SessionPhase.RUNNING, server.sessionPhase)
-        a.mesg(NetMsg.NETMSG_ADMIN_ENDGAME)
-        a.awaitMesg(NetMsg.NETMSG_ENDGAME)
+        a.mesg(WireProtocol.NETMSG_ADMIN_ENDGAME)
+        a.awaitMesg(WireProtocol.NETMSG_ENDGAME)
         assertEquals(SessionPhase.POST_GAME, server.sessionPhase)
     }
 
@@ -516,11 +518,11 @@ class TcpServerLoopbackTest {
         val (clientB, idB) = b
         val outbox = ClientOutbox()
         outbox.onGameId(server.roster.gameId())
-        val killedByBravo = NetMsg.NETMSG_ELIMINATED + idB
+        val killedByBravo = WireProtocol.NETMSG_ELIMINATED + idB
 
         // 1: delivered and acknowledged.
         clientA.reliable(outbox, killedByBravo)
-        assertEquals(NetMsg.NETMSG_ACK + 1, clientA.awaitMesg(NetMsg.NETMSG_ACK))
+        assertEquals(WireProtocol.NETMSG_ACK + 1, clientA.awaitMesg(WireProtocol.NETMSG_ACK))
         outbox.ack(1)
         // 2: applied, but its ack is lost with the connection (D1).
         clientA.reliable(outbox, killedByBravo)
@@ -534,20 +536,20 @@ class TcpServerLoopbackTest {
 
         val back = connect()
         back.rejoin("Alpha", "AA:00", outbox)
-        assertEquals(NetMsg.NETMSG_SERVERREPLY + idA, back.awaitMesg(NetMsg.NETMSG_SERVERREPLY))
-        val update = back.awaitJson(TcpServer.JSON_PLAYERGAMEUPDATE).getJSONObject(TcpServer.JSON_PLAYERGAMEUPDATE)
-        assertEquals(4, update.getInt(TcpServer.JSON_ACKSEQ))
-        assertEquals(4, update.getInt(TcpServer.JSON_PLAYERELIMINATED))
+        assertEquals(WireProtocol.NETMSG_SERVERREPLY + idA, back.awaitMesg(WireProtocol.NETMSG_SERVERREPLY))
+        val update = back.awaitJson(WireKeys.PLAYERGAMEUPDATE).getJSONObject(WireKeys.PLAYERGAMEUPDATE)
+        assertEquals(4, update.getInt(WireKeys.ACKSEQ))
+        assertEquals(4, update.getInt(WireKeys.PLAYERELIMINATED))
         // D2: the lives the client shows equal its own count.
-        assertEquals(4, outbox.reconcile(update.getInt(TcpServer.JSON_PLAYERELIMINATED), update.getInt(TcpServer.JSON_ACKSEQ)))
+        assertEquals(4, outbox.reconcile(update.getInt(WireKeys.PLAYERELIMINATED), update.getInt(WireKeys.ACKSEQ)))
         assertTrue(outbox.pending().isEmpty())
         awaitTrue { score(idA)?.isConnected == true }
         assertEquals(4, score(idA)!!.eliminated)
         assertEquals(4, score(idB)!!.points)
         // The shooter heard about each kill once.
-        awaitTrue { clientB.mesgs(NetMsg.NETMSG_ELIMINATED).size == 4 }
+        awaitTrue { clientB.mesgs(WireProtocol.NETMSG_ELIMINATED).size == 4 }
         Thread.sleep(200)
-        assertEquals(4, clientB.mesgs(NetMsg.NETMSG_ELIMINATED).size)
+        assertEquals(4, clientB.mesgs(WireProtocol.NETMSG_ELIMINATED).size)
     }
 
     @Test
@@ -559,13 +561,13 @@ class TcpServerLoopbackTest {
         outbox.onGameId(server.roster.gameId())
         clientA.close()
         awaitDisconnected(idA)
-        outbox.add(NetMsg.NETMSG_ELIMINATED + idB, outbox.gameId)
+        outbox.add(WireProtocol.NETMSG_ELIMINATED + idB, outbox.gameId)
         server.endGame()
-        clientB.awaitMesg(NetMsg.NETMSG_ENDGAME)
+        clientB.awaitMesg(WireProtocol.NETMSG_ENDGAME)
 
         val back = connect()
         back.rejoin("Alpha", "AA:00", outbox)
-        back.awaitMesg(NetMsg.NETMSG_SERVERREPLY)
+        back.awaitMesg(WireProtocol.NETMSG_SERVERREPLY)
         awaitTrue { score(idA)?.isConnected == true }
         assertEquals(1, score(idA)!!.eliminated)
         assertEquals(1, score(idB)!!.points)
@@ -574,8 +576,8 @@ class TcpServerLoopbackTest {
         // An envelope from an older game is acknowledged and dropped.
         val stale = ClientOutbox()
         stale.onGameId(server.roster.gameId() + 1)
-        back.reliable(stale, NetMsg.NETMSG_ELIMINATED + idB)
-        assertEquals(NetMsg.NETMSG_ACK + 1, back.awaitMesg(NetMsg.NETMSG_ACK))
+        back.reliable(stale, WireProtocol.NETMSG_ELIMINATED + idB)
+        assertEquals(WireProtocol.NETMSG_ACK + 1, back.awaitMesg(WireProtocol.NETMSG_ACK))
         assertEquals(1, score(idB)!!.points)
     }
 
@@ -591,12 +593,12 @@ class TcpServerLoopbackTest {
         val (a, _) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
         val (clientA, _) = a
         server.endGame()
-        clientA.awaitMesg(NetMsg.NETMSG_ENDGAME)
-        val data = clientA.lastJson(TcpServer.JSON_PLAYERDATA)
+        clientA.awaitMesg(WireProtocol.NETMSG_ENDGAME)
+        val data = clientA.lastJson(WireKeys.PLAYERDATA)
         assertNotNull(data)
-        val prefix = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON
-        val endGame = TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_ENDGAME
-        val dataIndex = clientA.received.indexOfLast { it.startsWith(prefix) && it.contains(TcpServer.JSON_PLAYERDATA) }
+        val prefix = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON
+        val endGame = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_ENDGAME
+        val dataIndex = clientA.received.indexOfLast { it.startsWith(prefix) && it.contains(WireKeys.PLAYERDATA) }
         assertTrue(dataIndex < clientA.received.indexOf(endGame))
     }
 
@@ -613,7 +615,7 @@ class TcpServerLoopbackTest {
         val (b, idB) = join("Bravo", "BB:00")
         assertEquals(17, idB)
         server.rebalanceAllPlayers(false)
-        awaitTrue { b.mesgs(NetMsg.NETMSG_SERVERREPLY).size >= 2 }
+        awaitTrue { b.mesgs(WireProtocol.NETMSG_SERVERREPLY).size >= 2 }
 
         // Connections 3..17.
         repeat(15) { connect() }
@@ -628,18 +630,18 @@ class TcpServerLoopbackTest {
         // N5: a short frame after the version prefix used to throw out of the read thread
         val (a, _) = join("Alpha", "AA:00")
         val (b, _) = join("Bravo", "BB:00")
-        a.send(TcpServer.TCPMESSAGE_PREFIX + "X")
-        a.send(TcpServer.TCPMESSAGE_PREFIX)
-        b.mesg(NetMsg.NETMSG_SHOTFIRED)
-        a.awaitMesg(NetMsg.NETMSG_SHOTFIRED)
-        b.awaitMesg(NetMsg.NETMSG_SHOTFIRED)
+        a.send(WireProtocol.TCPMESSAGE_PREFIX + "X")
+        a.send(WireProtocol.TCPMESSAGE_PREFIX)
+        b.mesg(WireProtocol.NETMSG_SHOTFIRED)
+        a.awaitMesg(WireProtocol.NETMSG_SHOTFIRED)
+        b.awaitMesg(WireProtocol.NETMSG_SHOTFIRED)
     }
 
     @Test
     fun otherProtocolVersion_getsVersionError() {
         val client = connect()
-        client.send(NetMsg.MESSAGE_PREFIX + "06" + TcpServer.TCPPREFIX_MESG + NetMsg.NETMSG_LEAVE)
-        awaitTrue { client.received.contains(NetMsg.NETMSG_VERSIONERROR) }
+        client.send(WireProtocol.MESSAGE_PREFIX + "06" + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_LEAVE)
+        awaitTrue { client.received.contains(WireProtocol.NETMSG_VERSIONERROR) }
     }
 
     @Test
@@ -660,12 +662,12 @@ class TcpServerLoopbackTest {
             "{\"rmsg\":\"ELIMINATED\",\"seq\":1,\"gameid\":1}",
         )
         val c = connect()
-        hostile.forEach { c.send(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + it) }
-        hostile.forEach { a.send(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + it) }
-        listOf(NetMsg.NETMSG_HIT + "1", NetMsg.NETMSG_OUT + "1", NetMsg.NETMSG_TEAMELIMINATED, NetMsg.NETMSG_PLAYERDATAREQUEST,
-            NetMsg.NETMSG_ELIMINATED + "1", NetMsg.NETMSG_ELIMINATED, NetMsg.NETMSG_ELIMINATED + "x", NetMsg.NETMSG_LEAVE).forEach { c.mesg(it) }
-        b.mesg(NetMsg.NETMSG_SHOTFIRED)
-        b.awaitMesg(NetMsg.NETMSG_SHOTFIRED)
+        hostile.forEach { c.send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + it) }
+        hostile.forEach { a.send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + it) }
+        listOf(WireProtocol.NETMSG_HIT + "1", WireProtocol.NETMSG_OUT + "1", WireProtocol.NETMSG_TEAMELIMINATED, WireProtocol.NETMSG_PLAYERDATAREQUEST,
+            WireProtocol.NETMSG_ELIMINATED + "1", WireProtocol.NETMSG_ELIMINATED, WireProtocol.NETMSG_ELIMINATED + "x", WireProtocol.NETMSG_LEAVE).forEach { c.mesg(it) }
+        b.mesg(WireProtocol.NETMSG_SHOTFIRED)
+        b.awaitMesg(WireProtocol.NETMSG_SHOTFIRED)
     }
 
     // ------------------------------------------------------------------------------------------
@@ -691,7 +693,7 @@ class TcpServerLoopbackTest {
     fun aClientThatNeverReads_isClosedWhenItsQueueFills_andNobodyElseWaits() {
         // N2: a blocking write to a client in a dead zone used to stall the whole server.
         val (a, idA) = join("Alpha", "AA:00")
-        val stuck = java.net.Socket("127.0.0.1", TcpServer.TCP_SERVER_PORT) // never reads
+        val stuck = java.net.Socket("127.0.0.1", WireProtocol.TCP_SERVER_PORT) // never reads
         try {
             awaitTrue { server.roster.connectionCount() == 2 }
             // Batches the reading client keeps up with; the stuck one's socket buffers, then its queue, fill up.
@@ -706,8 +708,8 @@ class TcpServerLoopbackTest {
             }
             awaitTrue(5_000, "the stuck connection to be dropped") { server.roster.connectionCount() == 1 }
             assertNotNull(score(idA))
-            a.mesg(NetMsg.NETMSG_SHOTFIRED)
-            a.awaitMesg(NetMsg.NETMSG_SHOTFIRED)
+            a.mesg(WireProtocol.NETMSG_SHOTFIRED)
+            a.awaitMesg(WireProtocol.NETMSG_SHOTFIRED)
         } finally {
             stuck.close()
         }
@@ -719,10 +721,10 @@ class TcpServerLoopbackTest {
 
     /** A raw client that says hello, then sends half of a frame and goes silent. */
     private fun joinAndStallMidFrame(name: String, mac: String): java.net.Socket {
-        val socket = java.net.Socket("127.0.0.1", TcpServer.TCP_SERVER_PORT)
+        val socket = java.net.Socket("127.0.0.1", WireProtocol.TCP_SERVER_PORT)
         val out = java.io.DataOutputStream(socket.getOutputStream())
-        val hello = org.json.JSONObject().put(TcpServer.JSON_PLAYERID, 0).put(TcpServer.JSON_PLAYERNAME, name).put(TcpServer.JSON_BLASTER_MAC, mac)
-        out.writeUTF(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON + hello)
+        val hello = org.json.JSONObject().put(WireKeys.PLAYERID, 0).put(WireKeys.PLAYERNAME, name).put(WireKeys.BLASTER_MAC, mac)
+        out.writeUTF(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + hello)
         out.write(byteArrayOf(0, 100))
         out.write("SimpleCoil".toByteArray())
         out.flush()
@@ -737,8 +739,8 @@ class TcpServerLoopbackTest {
         try {
             val stalledAt = System.nanoTime()
             awaitTrue { server.roster.connectionCount() == 2 && server.roster.records().size == 2 }
-            a.mesg(NetMsg.NETMSG_SHOTFIRED)
-            a.awaitMesg(NetMsg.NETMSG_SHOTFIRED, 500)
+            a.mesg(WireProtocol.NETMSG_SHOTFIRED)
+            a.awaitMesg(WireProtocol.NETMSG_SHOTFIRED, 500)
             awaitTrue(6_000, "the stalled peer to be dropped") { server.roster.connectionCount() == 1 }
             val droppedAfter = (System.nanoTime() - stalledAt) / 1_000_000
             assertTrue("dropped after $droppedAfter ms", droppedAfter in 3_300..3_900)
@@ -754,15 +756,15 @@ class TcpServerLoopbackTest {
         try {
             awaitTrue { server.roster.records().size == 32 }
             assertTrue(server.startGame())
-            joined.forEach { (client, _) -> client.awaitMesg(NetMsg.NETMSG_STARTGAME) }
+            joined.forEach { (client, _) -> client.awaitMesg(WireProtocol.NETMSG_STARTGAME) }
             val gameId = server.roster.gameId()
             joined.forEachIndexed { index, (client, _) ->
                 val shooter = joined[(index + 1) % joined.size].second
                 val outbox = ClientOutbox()
                 outbox.onGameId(gameId)
                 val sentAt = System.nanoTime()
-                client.reliable(outbox, NetMsg.NETMSG_ELIMINATED + shooter)
-                client.awaitMesg(NetMsg.NETMSG_ACK, 500)
+                client.reliable(outbox, WireProtocol.NETMSG_ELIMINATED + shooter)
+                client.awaitMesg(WireProtocol.NETMSG_ACK, 500)
                 assertTrue((System.nanoTime() - sentAt) / 1_000_000 < 500)
             }
             joined.forEach { (_, id) -> assertEquals(1, score(id)!!.eliminated) }
@@ -778,7 +780,7 @@ class TcpServerLoopbackTest {
         server.startTcpServer()
         awaitTrue(1_000, "server socket") { server.isAccepting }
         val (a, _) = join("Alpha", "AA:00")
-        a.mesg(NetMsg.NETMSG_SHOTFIRED)
-        a.awaitMesg(NetMsg.NETMSG_SHOTFIRED)
+        a.mesg(WireProtocol.NETMSG_SHOTFIRED)
+        a.awaitMesg(WireProtocol.NETMSG_SHOTFIRED)
     }
 }

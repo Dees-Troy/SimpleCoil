@@ -45,6 +45,8 @@ import com.simplecoil.simplecoil.domain.team.TeamMode;
 import com.simplecoil.simplecoil.network.EventBus;
 import com.simplecoil.simplecoil.network.Frame;
 import com.simplecoil.simplecoil.network.ServerEvent;
+import com.simplecoil.simplecoil.network.WireKeys;
+import com.simplecoil.simplecoil.network.WireProtocol;
 import com.simplecoil.simplecoil.network.server.ClockState;
 import com.simplecoil.simplecoil.network.server.Connection;
 import com.simplecoil.simplecoil.network.server.GameRoster;
@@ -85,75 +87,9 @@ public class TcpServer extends Service {
 
     public static final int SEND_ALL = -100;
 
-    public static final int TCP_SERVER_PORT = 17510;
     // Read timeout on every socket: the granularity of ping and drop timing (network design Q5)
     public static final int TCP_DEDICATED_READ_WAIT_MS = 100;
-    public static final String TCP_SERVER_PING = "ping";
     private static final String ADMIN_PREFIX = "ADMIN_";
-
-    public static final String TCPMESSAGE_PREFIX = NetMsg.MESSAGE_PREFIX + NetMsg.NETWORK_VERSION;
-    public static final String TCPPREFIX_MESG = "MESG";
-    public static final String TCPPREFIX_JSON = "JSON";
-
-    public static final String JSON_PLAYERS = "players";
-    public static final String JSON_PLAYERNAME = "playername";
-    public static final String JSON_PLAYERNAMECHANGE = "playernamechange";
-    public static final String JSON_PLAYERID = "playerID";
-    public static final String JSON_PLAYERIP = "playerIP";
-    public static final String JSON_LIMITS = "limits";
-    public static final String JSON_TIMELIMIT = "timelimit";
-    public static final String JSON_LIVESLIMIT = "liveslimit";
-    public static final String JSON_SCORELIMIT = "scorelimit";
-    public static final String JSON_GAMEMODE = "gamemode";
-    public static final String JSON_TEAMSIZES = "teamsizes";
-    public static final String JSON_REJOIN = "rejoin";
-    public static final String JSON_USEGPS = "usegps";
-    public static final String JSON_TEAM = "team";
-    public static final String JSON_GAMESTATE = "gamestate";
-    public static final String JSON_SESSIONPHASE = "sessionphase";
-    public static final String JSON_GAMEID = "gameid";
-    public static final String JSON_CONNECTED = "connected";
-    // Reliable client messages (§3.4): {"rmsg": "ELIMINATED7", "seq": 12, "gameid": 418873301}
-    public static final String JSON_RMSG = "rmsg";
-    public static final String JSON_SEQ = "seq";
-    public static final String JSON_PENDING = "pending";
-    public static final String JSON_ACKSEQ = "ackseq";
-    public static final String JSON_ONLY_SERVER_SETTINGS = "onlyserversettings";
-    public static final String JSON_ALLOW_CHOOSE_TEAMS = "allowchooseteams";
-    public static final String JSON_REQUEST_TEAM_CHANGE = "requestteamchange";
-    public static final String JSON_PAIRED_GRENADE_ID = "pairedgrenadeID";
-    public static final String JSON_GRENADE_PAIRINGS = "grenadepairings";
-    public static final String JSON_BLASTER_MAC = "blaster_mac";
-
-    public static final String JSON_GPSLONGITUDE = "gpslongitude";
-    public static final String JSON_GPSLATITUDE = "gpslatitude";
-    public static final String JSON_GPSUPDATE = "gpsupdate";
-    public static final String JSON_GPSFULLUPDATE = "gpsfullupdate";
-
-    public static final String JSON_PLAYERDATA = "playerdata";
-    public static final String JSON_PLAYERPOINTS = "points";
-    public static final String JSON_PLAYERELIMINATED = "eliminated";
-    public static final String JSON_TEAMPOINTS = "teampoints";
-    public static final String JSON_TIMEREMAINING = "timeremaining";
-    public static final String JSON_PLAYERGAMEUPDATE = "playergameupdate";
-
-    public static final String JSON_PLAYERSETTINGS = "playersettings";
-    public static final String JSON_HEALTH = "health";
-    public static final String JSON_RELOAD_SHOTS = "reloadshots";
-    public static final String JSON_RELOAD_TIME = "reloadtime";
-    public static final String JSON_RELOAD_ON_EMPTY = "reloadonempty";
-    public static final String JSON_MANUAL_RESPAWN = "manualrespawn";
-    public static final String JSON_SPAWN_TIME = "spawntime";
-    public static final String JSON_RESPAWN_SHIELD_TIME = "respawnshieldtime";
-    public static final String JSON_START_TIME = "starttime";
-    public static final String JSON_DAMAGE = "damage";
-    public static final String JSON_SHOT_MODE_SINGLE = "shotmodesingle";
-    public static final String JSON_SHOT_MODE_BURST3 = "shotmodeburst3";
-    public static final String JSON_SHOT_MODE_AUTO = "shotmodeauto";
-    public static final String JSON_FIRING_MODE = "firingmode";
-    public static final String JSON_RECOIL_SETTING = "recoilsetting";
-    public static final String JSON_IS_ADMIN = "isadmin";
-    public static final String JSON_ALLOWPLAYERSETTINGS = "allowplayersettings";
 
     private volatile boolean keepListening = false;
     private volatile boolean mAccepting = false;
@@ -403,7 +339,7 @@ public class TcpServer extends Service {
             return false;
         syncGameState();
         // we want to make sure that we have sent the start game message to all clients before publishing that the game has started locally
-        sendTCPMessageAll(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_STARTGAME);
+        sendTCPMessageAll(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_STARTGAME);
         sendAllGameInfo(SEND_ALL);
         mEvents.publish(ServerEvent.GameStarted.INSTANCE);
         mEvents.publish(new ServerEvent.PlayerDataChanged(null));
@@ -426,7 +362,7 @@ public class TcpServer extends Service {
                 syncGameState();
                 mClock.stop();
                 sendPlayerData(SEND_ALL);
-                sendTCPMessageAll(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ENDGAME);
+                sendTCPMessageAll(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_ENDGAME);
                 // after ENDGAME, so the clients have ended the game before they see game state NONE;
                 // carries the POST_GAME phase, which swaps End Game for Reset in the admin menu
                 sendAllGameInfo(SEND_ALL);
@@ -490,7 +426,7 @@ public class TcpServer extends Service {
                 Log.d(TAG, "switchPlayerTeam: moving player " + oldPlayerID + " to new ID " + newPlayerID);
                 PlayerRecord record = mRoster.movePlayer(oldPlayerID, newPlayerID);
                 if (record != null && record.getConnection() != null)
-                    record.getConnection().send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERREPLY + newPlayerID);
+                    record.getConnection().send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_SERVERREPLY + newPlayerID);
                 sendPlayerData(SEND_ALL);
                 sendAllGameInfo(SEND_ALL);
                 mEvents.publish(new ServerEvent.PlayerDataChanged(null));
@@ -504,7 +440,7 @@ public class TcpServer extends Service {
                 Log.d(TAG, "kickPlayer: kicking player " + playerID);
                 Connection connection = mRoster.kick(playerID);
                 if (connection != null) {
-                    connection.send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERCANCEL);
+                    connection.send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_SERVERCANCEL);
                     connection.closeAfterPending();
                 }
                 mGPSIntervalCount.set(SEND_ALL_GPS_INTERVAL);
@@ -532,7 +468,7 @@ public class TcpServer extends Service {
                 for (PlayerRecord record : result.assigned) {
                     Connection connection = record.getConnection();
                     if (connection != null)
-                        connection.send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERREPLY + record.getPlayerId());
+                        connection.send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_SERVERREPLY + record.getPlayerId());
                 }
                 sendPlayerData(SEND_ALL);
                 sendAllGameInfo(SEND_ALL);
@@ -557,46 +493,46 @@ public class TcpServer extends Service {
             JSONArray players = new JSONArray();
             for (Map.Entry<Byte, InetAddress> entry : PlayerRepository.getInstance().getTeamIPMap().entrySet()) {
                 JSONObject player = new JSONObject();
-                player.put(JSON_PLAYERNAME, PlayerRepository.getInstance().getPlayerName(entry.getKey()));
-                player.put(JSON_PLAYERID, entry.getKey());
-                player.put(JSON_PLAYERIP, entry.getValue());
+                player.put(WireKeys.PLAYERNAME, PlayerRepository.getInstance().getPlayerName(entry.getKey()));
+                player.put(WireKeys.PLAYERID, entry.getKey());
+                player.put(WireKeys.PLAYERIP, entry.getValue());
                 players.put(player);
             }
             JSONObject game = new JSONObject();
-            game.put(JSON_PLAYERS, players);
+            game.put(WireKeys.PLAYERS, players);
             JSONObject limits = new JSONObject();
             if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_TIME) != 0) {
-                limits.put(JSON_TIMELIMIT, GameSettingsRepository.getInstance().getTimeLimit());
+                limits.put(WireKeys.TIMELIMIT, GameSettingsRepository.getInstance().getTimeLimit());
             }
             if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_LIVES) != 0) {
-                limits.put(JSON_LIVESLIMIT, GameSettingsRepository.getInstance().getLivesLimit());
+                limits.put(WireKeys.LIVESLIMIT, GameSettingsRepository.getInstance().getLivesLimit());
             }
             if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_SCORE) != 0) {
-                limits.put(JSON_SCORELIMIT, GameSettingsRepository.getInstance().getScoreLimit());
+                limits.put(WireKeys.SCORELIMIT, GameSettingsRepository.getInstance().getScoreLimit());
             }
-            game.put(JSON_LIMITS, limits);
+            game.put(WireKeys.LIMITS, limits);
             TeamLayout layout = GameSettingsRepository.getInstance().getTeamLayout();
-            game.put(JSON_GAMEMODE, layout.getMode().wireValue);
+            game.put(WireKeys.GAMEMODE, layout.getMode().wireValue);
             JSONArray teamSizesArr = new JSONArray();
             for (int size : layout.teamSizes()) {
                 teamSizesArr.put(size);
             }
-            game.put(JSON_TEAMSIZES, teamSizesArr);
-            game.put(JSON_GAMESTATE, GameStateRepository.getInstance().getGameState());
+            game.put(WireKeys.TEAMSIZES, teamSizesArr);
+            game.put(WireKeys.GAMESTATE, GameStateRepository.getInstance().getGameState());
             if (GameStateRepository.getInstance().getGameState() != GameStateRepository.GAME_STATE_NONE && (GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_TIME) != 0)
-                game.put(JSON_TIMEREMAINING, GameStateRepository.getInstance().getServerGameTimeRemaining());
+                game.put(WireKeys.TIMEREMAINING, GameStateRepository.getInstance().getServerGameTimeRemaining());
             SessionPhase phase = mRoster.phase();
-            game.put(JSON_SESSIONPHASE, phase.wireValue);
+            game.put(WireKeys.SESSIONPHASE, phase.wireValue);
             if (phase != SessionPhase.LOBBY)
-                game.put(JSON_GAMEID, mRoster.gameId());
+                game.put(WireKeys.GAMEID, mRoster.gameId());
             if (GameSettingsRepository.getInstance().isUseGPS())
-                game.put(JSON_USEGPS, GameSettingsRepository.getInstance().getGpsMode());
-            game.put(JSON_ALLOWPLAYERSETTINGS, GameSettingsRepository.getInstance().isAllowPlayerSettings());
-            game.put(JSON_PLAYERSETTINGS, getPlayerSettings(id, false));
-            game.put(JSON_ONLY_SERVER_SETTINGS, GameSettingsRepository.getInstance().isOnlyServerSettings());
-            game.put(JSON_ALLOW_CHOOSE_TEAMS, GameSettingsRepository.getInstance().isAllowChooseTeams());
-            game.put(JSON_START_TIME, GameSettingsRepository.getInstance().getStartTime());
-            final String allMessage = TCPMESSAGE_PREFIX + TCPPREFIX_JSON + game.toString();
+                game.put(WireKeys.USEGPS, GameSettingsRepository.getInstance().getGpsMode());
+            game.put(WireKeys.ALLOWPLAYERSETTINGS, GameSettingsRepository.getInstance().isAllowPlayerSettings());
+            game.put(WireKeys.PLAYERSETTINGS, getPlayerSettings(id, false));
+            game.put(WireKeys.ONLY_SERVER_SETTINGS, GameSettingsRepository.getInstance().isOnlyServerSettings());
+            game.put(WireKeys.ALLOW_CHOOSE_TEAMS, GameSettingsRepository.getInstance().isAllowChooseTeams());
+            game.put(WireKeys.START_TIME, GameSettingsRepository.getInstance().getStartTime());
+            final String allMessage = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + game.toString();
             if (id == SEND_ALL)
                 sendTCPMessageAll(allMessage);
             else {
@@ -604,22 +540,22 @@ public class TcpServer extends Service {
                 ScoreData scoreData = getScore((byte)id);
                 JSONObject playerGameUpdate = new JSONObject();
                 if (scoreData != null) {
-                    playerGameUpdate.put(JSON_PLAYERPOINTS, scoreData.points);
-                    playerGameUpdate.put(JSON_PLAYERELIMINATED, scoreData.eliminated);
+                    playerGameUpdate.put(WireKeys.PLAYERPOINTS, scoreData.points);
+                    playerGameUpdate.put(WireKeys.PLAYERELIMINATED, scoreData.eliminated);
                 } else {
-                    playerGameUpdate.put(JSON_PLAYERPOINTS, 0);
-                    playerGameUpdate.put(JSON_PLAYERELIMINATED, 0);
+                    playerGameUpdate.put(WireKeys.PLAYERPOINTS, 0);
+                    playerGameUpdate.put(WireKeys.PLAYERELIMINATED, 0);
                 }
                 if (!layout.getMode().isFreeForAll()) {
-                    playerGameUpdate.put(JSON_TEAMPOINTS, mRoster.teamPoints(layout.teamOf((byte) id)));
+                    playerGameUpdate.put(WireKeys.TEAMPOINTS, mRoster.teamPoints(layout.teamOf((byte) id)));
                 }
                 if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_TIME) != 0 && GameStateRepository.getInstance().getGameState() != GameStateRepository.GAME_STATE_NONE) {
-                    playerGameUpdate.put(JSON_TIMEREMAINING, GameStateRepository.getInstance().getServerGameTimeRemaining());
+                    playerGameUpdate.put(WireKeys.TIMEREMAINING, GameStateRepository.getInstance().getServerGameTimeRemaining());
                 }
                 PlayerRecord record = mRoster.record((byte) id);
-                playerGameUpdate.put(JSON_ACKSEQ, record != null ? record.getLastAppliedSeq() : 0);
-                game.put(JSON_PLAYERGAMEUPDATE, playerGameUpdate);
-                final String idMessage = TCPMESSAGE_PREFIX + TCPPREFIX_JSON + game.toString();
+                playerGameUpdate.put(WireKeys.ACKSEQ, record != null ? record.getLastAppliedSeq() : 0);
+                game.put(WireKeys.PLAYERGAMEUPDATE, playerGameUpdate);
+                final String idMessage = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + game.toString();
 
                 for (Connection connection : mRoster.connections()) {
                     PlayerRecord player = connection.getPlayer();
@@ -669,10 +605,10 @@ public class TcpServer extends Service {
                 for (Map.Entry<Byte, GpsData> entry : repo.getGpsData().entrySet()) {
                     if (entry.getValue().hasUpdate || currentInterval >= SEND_ALL_GPS_INTERVAL) {
                         JSONObject player = new JSONObject();
-                        player.put(JSON_PLAYERID, entry.getKey());
-                        player.put(JSON_TEAM, entry.getValue().team);
-                        player.put(JSON_GPSLONGITUDE, entry.getValue().longitude);
-                        player.put(JSON_GPSLATITUDE, entry.getValue().latitude);
+                        player.put(WireKeys.PLAYERID, entry.getKey());
+                        player.put(WireKeys.TEAM, entry.getValue().team);
+                        player.put(WireKeys.GPSLONGITUDE, entry.getValue().longitude);
+                        player.put(WireKeys.GPSLATITUDE, entry.getValue().latitude);
                         players.put(player);
                         hasUpdate = true;
                     }
@@ -682,11 +618,11 @@ public class TcpServer extends Service {
             if (hasData) {
                 if (hasUpdate) {
                     JSONObject game = new JSONObject();
-                    game.put(JSON_GPSUPDATE, players);
+                    game.put(WireKeys.GPSUPDATE, players);
                     if (currentInterval >= SEND_ALL_GPS_INTERVAL) {
-                        game.put(JSON_GPSFULLUPDATE, true);
+                        game.put(WireKeys.GPSFULLUPDATE, true);
                     }
-                    messageToSend = TCPMESSAGE_PREFIX + TCPPREFIX_JSON + game.toString();
+                    messageToSend = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + game.toString();
                 }
                 if (mGPSIntervalCount.incrementAndGet() >= SEND_ALL_GPS_INTERVAL)
                     mGPSIntervalCount.set(0);
@@ -719,23 +655,23 @@ public class TcpServer extends Service {
             JSONArray players = new JSONArray();
             for (Map.Entry<Byte, InetAddress> entry : PlayerRepository.getInstance().getTeamIPMap().entrySet()) {
                 JSONObject player = new JSONObject();
-                player.put(JSON_PLAYERNAME, PlayerRepository.getInstance().getPlayerName(entry.getKey()));
-                player.put(JSON_PLAYERID, entry.getKey());
-                player.put(JSON_PLAYERIP, entry.getValue());
+                player.put(WireKeys.PLAYERNAME, PlayerRepository.getInstance().getPlayerName(entry.getKey()));
+                player.put(WireKeys.PLAYERID, entry.getKey());
+                player.put(WireKeys.PLAYERIP, entry.getValue());
                 ScoreData scoreData = getScore(entry.getKey());
                 if (scoreData != null) {
-                    player.put(JSON_PLAYERPOINTS, scoreData.points);
-                    player.put(JSON_PLAYERELIMINATED, scoreData.eliminated);
-                    player.put(JSON_CONNECTED, scoreData.isConnected);
+                    player.put(WireKeys.PLAYERPOINTS, scoreData.points);
+                    player.put(WireKeys.PLAYERELIMINATED, scoreData.eliminated);
+                    player.put(WireKeys.CONNECTED, scoreData.isConnected);
                 } else {
-                    player.put(JSON_PLAYERPOINTS, 0);
-                    player.put(JSON_PLAYERELIMINATED, 0);
+                    player.put(WireKeys.PLAYERPOINTS, 0);
+                    player.put(WireKeys.PLAYERELIMINATED, 0);
                 }
                 players.put(player);
             }
             JSONObject game = new JSONObject();
-            game.put(JSON_PLAYERDATA, players);
-            String message = TCPMESSAGE_PREFIX + TCPPREFIX_JSON + game.toString();
+            game.put(WireKeys.PLAYERDATA, players);
+            String message = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + game.toString();
             if (playerID != SEND_ALL)
                 sendTCPMessageID(message, (byte)playerID);
             else {
@@ -824,23 +760,23 @@ public class TcpServer extends Service {
                 }
                 for (Map.Entry<Byte, PlayerSettings> entry : PlayerRepository.getInstance().getPlayerSettings().entrySet()) {
                     JSONObject player = new JSONObject();
-                    player.put(JSON_PLAYERID, entry.getKey());
-                    player.put(JSON_HEALTH, entry.getValue().health);
-                    player.put(JSON_RELOAD_SHOTS, entry.getValue().shots);
-                    player.put(JSON_RELOAD_TIME, entry.getValue().reloadTime);
-                    player.put(JSON_RELOAD_ON_EMPTY, entry.getValue().reloadOnEmpty);
-                    player.put(JSON_MANUAL_RESPAWN, entry.getValue().manualRespawn);
-                    player.put(JSON_SPAWN_TIME, entry.getValue().spawnTime);
-                    player.put(JSON_RESPAWN_SHIELD_TIME, entry.getValue().respawnShieldTime);
-                    player.put(JSON_DAMAGE, entry.getValue().damage);
+                    player.put(WireKeys.PLAYERID, entry.getKey());
+                    player.put(WireKeys.HEALTH, entry.getValue().health);
+                    player.put(WireKeys.RELOAD_SHOTS, entry.getValue().shots);
+                    player.put(WireKeys.RELOAD_TIME, entry.getValue().reloadTime);
+                    player.put(WireKeys.RELOAD_ON_EMPTY, entry.getValue().reloadOnEmpty);
+                    player.put(WireKeys.MANUAL_RESPAWN, entry.getValue().manualRespawn);
+                    player.put(WireKeys.SPAWN_TIME, entry.getValue().spawnTime);
+                    player.put(WireKeys.RESPAWN_SHIELD_TIME, entry.getValue().respawnShieldTime);
+                    player.put(WireKeys.DAMAGE, entry.getValue().damage);
                     if (entry.getValue().overrideLives)
-                        player.put(JSON_LIVESLIMIT, entry.getValue().lives);
-                    player.put(JSON_SHOT_MODE_SINGLE, entry.getValue().allowShotModeSingle);
-                    player.put(JSON_SHOT_MODE_BURST3, entry.getValue().allowShotModeBurst3);
-                    player.put(JSON_SHOT_MODE_AUTO, entry.getValue().allowShotModeAuto);
-                    player.put(JSON_FIRING_MODE, entry.getValue().firingMode);
-                    player.put(JSON_RECOIL_SETTING, entry.getValue().recoilSetting);
-                    player.put(JSON_IS_ADMIN, entry.getValue().isAdmin);
+                        player.put(WireKeys.LIVESLIMIT, entry.getValue().lives);
+                    player.put(WireKeys.SHOT_MODE_SINGLE, entry.getValue().allowShotModeSingle);
+                    player.put(WireKeys.SHOT_MODE_BURST3, entry.getValue().allowShotModeBurst3);
+                    player.put(WireKeys.SHOT_MODE_AUTO, entry.getValue().allowShotModeAuto);
+                    player.put(WireKeys.FIRING_MODE, entry.getValue().firingMode);
+                    player.put(WireKeys.RECOIL_SETTING, entry.getValue().recoilSetting);
+                    player.put(WireKeys.IS_ADMIN, entry.getValue().isAdmin);
                     players.put(player);
                 }
             }
@@ -869,10 +805,10 @@ public class TcpServer extends Service {
             return;
         try {
             JSONObject game = new JSONObject();
-            game.put(JSON_ALLOWPLAYERSETTINGS, allowPlayerSettings);
+            game.put(WireKeys.ALLOWPLAYERSETTINGS, allowPlayerSettings);
             GameSettingsRepository.getInstance().setAllowPlayerSettings(allowPlayerSettings);
-            game.put(JSON_PLAYERSETTINGS, players);
-            String message = TCPMESSAGE_PREFIX + TCPPREFIX_JSON + game.toString();
+            game.put(WireKeys.PLAYERSETTINGS, players);
+            String message = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + game.toString();
             sendTCPMessageAll(message);
         } catch (JSONException e) {
             e.printStackTrace();
@@ -899,7 +835,7 @@ public class TcpServer extends Service {
         PlayerRepository.getInstance().clearGrenadePairings();
         ServerSocket ss = null;
         try {
-            ss = new ServerSocket(TCP_SERVER_PORT);
+            ss = new ServerSocket(WireProtocol.TCP_SERVER_PORT);
             ss.setSoTimeout(1000);
             synchronized (this) {
                 if (!keepListening)
@@ -981,11 +917,11 @@ public class TcpServer extends Service {
                     break;
                 } else if (silence >= SILENCE_PING2_MS) {
                     if (!pinged2)
-                        client.send(TCP_SERVER_PING);
+                        client.send(WireProtocol.PING);
                     pinged1 = true;
                     pinged2 = true;
                 } else if (silence >= SILENCE_PING1_MS && !pinged1) {
-                    client.send(TCP_SERVER_PING);
+                    client.send(WireProtocol.PING);
                     pinged1 = true;
                 }
             }
@@ -1095,49 +1031,49 @@ public class TcpServer extends Service {
                 } else if (frame.kind == Frame.Kind.MESG) {
                     // Handle messages
                     message = frame.body;
-                    if (message.equals(NetMsg.NETMSG_LEAVE)) {
+                    if (message.equals(WireProtocol.NETMSG_LEAVE)) {
                         // A player in the game's roster stays on the scoreboard, disconnected (Q12)
                         removeClient(client);
                         if (mRoster.isRunning() && mRoster.connectedCount() <= 1)
                             endGame();
                         return;
-                    } else if (message.startsWith(NetMsg.NETMSG_ELIMINATED)) {
+                    } else if (message.startsWith(WireProtocol.NETMSG_ELIMINATED)) {
                         // Sent reliably since v07; a bare one is applied the same way, without de-dup
                         handleEliminated(client, message);
-                    } else if (message.equals(NetMsg.NETMSG_SHOTFIRED)) {
-                        sendTCPMessageAll(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SHOTFIRED);
-                    } else if (message.startsWith(NetMsg.NETMSG_HIT)) {
-                        message = message.substring(NetMsg.NETMSG_HIT.length());
+                    } else if (message.equals(WireProtocol.NETMSG_SHOTFIRED)) {
+                        sendTCPMessageAll(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_SHOTFIRED);
+                    } else if (message.startsWith(WireProtocol.NETMSG_HIT)) {
+                        message = message.substring(WireProtocol.NETMSG_HIT.length());
                         try {
                             byte shooterId = (byte) Integer.parseInt(message);
                             byte targetId = playerIdOf(client);
-                            sendTCPMessageID(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_HIT + targetId, shooterId);
+                            sendTCPMessageID(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_HIT + targetId, shooterId);
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
-                    } else if (message.startsWith(NetMsg.NETMSG_OUT)) {
-                        message = message.substring(NetMsg.NETMSG_OUT.length());
+                    } else if (message.startsWith(WireProtocol.NETMSG_OUT)) {
+                        message = message.substring(WireProtocol.NETMSG_OUT.length());
                         try {
                             byte shooterId = (byte) Integer.parseInt(message);
                             byte targetId = playerIdOf(client);
-                            sendTCPMessageID(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_OUT + targetId, shooterId);
+                            sendTCPMessageID(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_OUT + targetId, shooterId);
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
-                    } else if (message.equals(NetMsg.NETMSG_TEAMELIMINATED)) {
-                        sendTCPMessageTeam(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_TEAMELIMINATED, playerIdOf(client), false);
-                    } else if (message.equals(NetMsg.NETMSG_PLAYERDATAREQUEST)) {
+                    } else if (message.equals(WireProtocol.NETMSG_TEAMELIMINATED)) {
+                        sendTCPMessageTeam(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_TEAMELIMINATED, playerIdOf(client), false);
+                    } else if (message.equals(WireProtocol.NETMSG_PLAYERDATAREQUEST)) {
                         sendPlayerData(playerIdOf(client));
                     } else if (isAdminCommand(message) && !isAdmin(client)) {
                         // D14: only players the server operator made admins may run the game
                         Log.w(TAG, "Ignoring '" + message + "' from non-admin client " + client.getConnectionId());
-                    } else if (message.equals(NetMsg.NETMSG_STARTGAME) || message.startsWith(NetMsg.NETMSG_ADMIN_STARTGAME)) {
+                    } else if (message.equals(WireProtocol.NETMSG_STARTGAME) || message.startsWith(WireProtocol.NETMSG_ADMIN_STARTGAME)) {
                         Log.d(TAG, "TcpServer received STARTGAME / ADMIN_STARTGAME command: '" + message + "'");
                         if (!startGame() && mRoster.phase() == SessionPhase.POST_GAME)
-                            client.send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ERROR + "Reset the game first");
-                    } else if (message.equals(NetMsg.NETMSG_ENDGAME) || message.startsWith(NetMsg.NETMSG_ADMIN_ENDGAME)) {
+                            client.send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_ERROR + "Reset the game first");
+                    } else if (message.equals(WireProtocol.NETMSG_ENDGAME) || message.startsWith(WireProtocol.NETMSG_ADMIN_ENDGAME)) {
                         Log.d(TAG, "TcpServer received ENDGAME / ADMIN_ENDGAME command: '" + message + "'");
-                        if (message.startsWith(NetMsg.NETMSG_ADMIN_ENDGAME)) {
+                        if (message.startsWith(WireProtocol.NETMSG_ADMIN_ENDGAME)) {
                             endGame();
                         } else {
                             // Regular ENDGAME from a client is treated as the client leaving
@@ -1146,19 +1082,19 @@ public class TcpServer extends Service {
                                 endGame();
                             return;
                         }
-                    } else if (message.startsWith(NetMsg.NETMSG_ADMIN_RESET)) {
+                    } else if (message.startsWith(WireProtocol.NETMSG_ADMIN_RESET)) {
                         Log.d(TAG, "TcpServer received ADMIN_RESET command: '" + message + "'");
                         resetSession();
-                    } else if (message.startsWith(NetMsg.NETMSG_ADMIN_SORTTEAMS)) {
+                    } else if (message.startsWith(WireProtocol.NETMSG_ADMIN_SORTTEAMS)) {
                         Log.d(TAG, "TcpServer received ADMIN_SORTTEAMS command: '" + message + "'");
                         if (!mRoster.isRunning()) {
                             resetIfPostGame();
                             rebalanceAllPlayers(true);
                         }
-                    } else if (message.startsWith(NetMsg.NETMSG_ADMIN_GAMEMODE)) {
+                    } else if (message.startsWith(WireProtocol.NETMSG_ADMIN_GAMEMODE)) {
                         Log.d(TAG, "TcpServer received ADMIN_GAMEMODE command: '" + message + "'");
                         try {
-                            TeamMode mode = TeamMode.fromWire(Integer.parseInt(message.substring(NetMsg.NETMSG_ADMIN_GAMEMODE.length()).trim()));
+                            TeamMode mode = TeamMode.fromWire(Integer.parseInt(message.substring(WireProtocol.NETMSG_ADMIN_GAMEMODE.length()).trim()));
                             if (mode == null) {
                                 Log.w(TAG, "ADMIN_GAMEMODE ignored: unknown team mode");
                             } else if (!mRoster.isRunning()) {
@@ -1170,19 +1106,19 @@ public class TcpServer extends Service {
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
-                    } else if (message.startsWith(NetMsg.NETMSG_ADMIN_KICK)) {
+                    } else if (message.startsWith(WireProtocol.NETMSG_ADMIN_KICK)) {
                         Log.d(TAG, "TcpServer received ADMIN_KICK command: '" + message + "'");
                         try {
-                            byte targetID = (byte) Integer.parseInt(message.substring(NetMsg.NETMSG_ADMIN_KICK.length()).trim());
+                            byte targetID = (byte) Integer.parseInt(message.substring(WireProtocol.NETMSG_ADMIN_KICK.length()).trim());
                             kickPlayer(targetID);
                         } catch (Exception e) {
                             e.printStackTrace();
                         }
-                    } else if (message.startsWith(NetMsg.NETMSG_ADMIN_TEAMSIZES)) {
+                    } else if (message.startsWith(WireProtocol.NETMSG_ADMIN_TEAMSIZES)) {
                         Log.d(TAG, "TcpServer received ADMIN_TEAMSIZES command: '" + message + "'");
                         if (!mRoster.isRunning()) {
                             try {
-                                String sizesStr = message.substring(NetMsg.NETMSG_ADMIN_TEAMSIZES.length()).trim();
+                                String sizesStr = message.substring(WireProtocol.NETMSG_ADMIN_TEAMSIZES.length()).trim();
                                 String[] parts = sizesStr.split(",");
                                 int[] newSizes = new int[parts.length];
                                 int sum = 0;
@@ -1201,7 +1137,7 @@ public class TcpServer extends Service {
                         }
                     }
                 } else if (frame.kind == Frame.Kind.OTHER_VERSION) {
-                    client.send(NetMsg.NETMSG_VERSIONERROR);
+                    client.send(WireProtocol.NETMSG_VERSIONERROR);
                     return;
                 } else if (frame.kind != Frame.Kind.PING) {
                     Log.d(TAG, "unknown tcp message received");
@@ -1218,15 +1154,15 @@ public class TcpServer extends Service {
                     if (pairings[index] != PlayerRepository.INVALID_PLAYER_ID) {
                         has_data = true;
                         JSONObject grenadePairing = new JSONObject();
-                        grenadePairing.put(JSON_PLAYERID, pairings[index]);
-                        grenadePairing.put(JSON_PAIRED_GRENADE_ID, index);
+                        grenadePairing.put(WireKeys.PLAYERID, pairings[index]);
+                        grenadePairing.put(WireKeys.PAIRED_GRENADE_ID, index);
                         grenadePairings.put(grenadePairing);
                     }
                 }
                 if (has_data) {
                     JSONObject data = new JSONObject();
-                    data.put(JSON_GRENADE_PAIRINGS, grenadePairings);
-                    String message = TCPMESSAGE_PREFIX + TCPPREFIX_JSON + data.toString();
+                    data.put(WireKeys.GRENADE_PAIRINGS, grenadePairings);
+                    String message = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + data.toString();
                     sendTCPMessageAll(message);
                 }
             } catch (JSONException e) {
@@ -1236,7 +1172,7 @@ public class TcpServer extends Service {
 
         /** Messages that run the game: every ADMIN_* message, and a plain STARTGAME. */
         private boolean isAdminCommand(String message) {
-            return message.equals(NetMsg.NETMSG_STARTGAME) || message.startsWith(ADMIN_PREFIX);
+            return message.equals(WireProtocol.NETMSG_STARTGAME) || message.startsWith(ADMIN_PREFIX);
         }
 
         /** The server operator gave this player admin rights in its player settings. */
@@ -1261,7 +1197,7 @@ public class TcpServer extends Service {
         private void handleEliminated(Connection client, String message) {
             byte id;
             try {
-                id = (byte) Integer.parseInt(message.substring(NetMsg.NETMSG_ELIMINATED.length()));
+                id = (byte) Integer.parseInt(message.substring(WireProtocol.NETMSG_ELIMINATED.length()));
             } catch (NumberFormatException e) {
                 e.printStackTrace();
                 return;
@@ -1283,11 +1219,11 @@ public class TcpServer extends Service {
                 return;
             }
             int shooterScore = elimination.shooterPoints;
-            sendTCPMessageID(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ELIMINATED + elimination.victimId, id);
+            sendTCPMessageID(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_ELIMINATED + elimination.victimId, id);
             TeamLayout layout = GameSettingsRepository.getInstance().getTeamLayout();
             if (!layout.getMode().isFreeForAll()) {
                 // Send a message to all teammates about the score increase
-                sendTCPMessageTeam(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_TEAMELIMINATED, id, false);
+                sendTCPMessageTeam(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_TEAMELIMINATED, id, false);
             }
             mEvents.publish(new ServerEvent.PlayerDataChanged(null));
             int scoreLimit = ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_SCORE) != 0 ? GameSettingsRepository.getInstance().getScoreLimit() : 0);
@@ -1321,7 +1257,7 @@ public class TcpServer extends Service {
                     Log.d(TAG, "dropping duplicate reliable message " + seq + ": " + rmsg);
                     break;
                 case APPLY:
-                    if (rmsg.startsWith(NetMsg.NETMSG_ELIMINATED))
+                    if (rmsg.startsWith(WireProtocol.NETMSG_ELIMINATED))
                         handleEliminated(client, rmsg);
                     else
                         Log.w(TAG, "unknown reliable message: " + rmsg);
@@ -1333,15 +1269,15 @@ public class TcpServer extends Service {
 
         /** The entries a (re)joining client hadn't had acknowledged, applied before its snapshot is built. */
         private void applyPending(Connection client, JSONObject hello) {
-            JSONArray pending = hello.optJSONArray(JSON_PENDING);
+            JSONArray pending = hello.optJSONArray(WireKeys.PENDING);
             if (pending == null)
                 return;
-            long gameId = hello.optLong(JSON_GAMEID, 0);
+            long gameId = hello.optLong(WireKeys.GAMEID, 0);
             for (int i = 0; i < pending.length(); i++) {
                 JSONObject entry = pending.optJSONObject(i);
-                if (entry == null || !entry.has(JSON_RMSG) || !entry.has(JSON_SEQ))
+                if (entry == null || !entry.has(WireKeys.RMSG) || !entry.has(WireKeys.SEQ))
                     continue;
-                handleReliable(client, entry.optString(JSON_RMSG), entry.optInt(JSON_SEQ), gameId);
+                handleReliable(client, entry.optString(WireKeys.RMSG), entry.optInt(WireKeys.SEQ), gameId);
             }
         }
 
@@ -1353,42 +1289,42 @@ public class TcpServer extends Service {
                 e.printStackTrace();
                 return;
             }
-            if (player.has(JSON_RMSG)) {
+            if (player.has(WireKeys.RMSG)) {
                 try {
-                    int ack = handleReliable(client, player.getString(JSON_RMSG), player.getInt(JSON_SEQ), player.optLong(JSON_GAMEID, 0));
+                    int ack = handleReliable(client, player.getString(WireKeys.RMSG), player.getInt(WireKeys.SEQ), player.optLong(WireKeys.GAMEID, 0));
                     if (ack >= 0)
-                        client.send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ACK + ack);
+                        client.send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_ACK + ack);
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
                 return;
             }
-            if (player.has(JSON_REQUEST_TEAM_CHANGE)) {
+            if (player.has(WireKeys.REQUEST_TEAM_CHANGE)) {
                 try {
-                    int targetTeam = player.getInt(JSON_REQUEST_TEAM_CHANGE);
+                    int targetTeam = player.getInt(WireKeys.REQUEST_TEAM_CHANGE);
                     handleClientTeamChangeRequest(client, targetTeam);
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
                 return;
             }
-            if (player.has(JSON_PAIRED_GRENADE_ID)) {
+            if (player.has(WireKeys.PAIRED_GRENADE_ID)) {
                 // Pairing and announcing run on the dispatcher, so two pairings can't go out in the wrong order.
                 try {
-                    PlayerRepository.getInstance().pairGrenade(player.getInt(JSON_PAIRED_GRENADE_ID), player.getInt(JSON_PLAYERID));
+                    PlayerRepository.getInstance().pairGrenade(player.getInt(WireKeys.PAIRED_GRENADE_ID), player.getInt(WireKeys.PLAYERID));
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
                 sendGrenadePairings();
                 return;
             }
-            if (player.has(JSON_GPSLONGITUDE)) {
+            if (player.has(WireKeys.GPSLONGITUDE)) {
                 byte playerId = playerIdOf(client);
                 PlayerRecord record = client.getPlayer();
                 double longitude, latitude;
                 try {
-                    longitude = player.getDouble(JSON_GPSLONGITUDE);
-                    latitude = player.getDouble(JSON_GPSLATITUDE);
+                    longitude = player.getDouble(WireKeys.GPSLONGITUDE);
+                    latitude = player.getDouble(WireKeys.GPSLATITUDE);
                 } catch (JSONException e) {
                     e.printStackTrace();
                     return;
@@ -1408,7 +1344,7 @@ public class TcpServer extends Service {
                 }
                 return;
             }
-            if (player.has(JSON_PLAYERSETTINGS)) {
+            if (player.has(WireKeys.PLAYERSETTINGS)) {
                 if (!GameSettingsRepository.getInstance().isAllowPlayerSettings()) {
                     Log.e(TAG, "Player " + playerIdOf(client) + "not allowed to send player settings");
                     sendPlayerSettings((byte)SEND_ALL, false, true);
@@ -1423,31 +1359,31 @@ public class TcpServer extends Service {
                         repo.getPlayerSettings().put(playerId, settings);
                     }
                     try {
-                        settings.health = player.getInt(JSON_HEALTH);
-                        settings.shots = (byte)player.getInt(JSON_RELOAD_SHOTS);
-                        settings.reloadTime = player.getLong(JSON_RELOAD_TIME);
-                        settings.reloadOnEmpty = player.getBoolean(JSON_RELOAD_ON_EMPTY);
-                        settings.manualRespawn = player.optBoolean(JSON_MANUAL_RESPAWN, false);
-                        settings.spawnTime = player.getLong(JSON_SPAWN_TIME);
-                        if (player.has(JSON_RESPAWN_SHIELD_TIME)) {
-                            settings.respawnShieldTime = player.getLong(JSON_RESPAWN_SHIELD_TIME);
+                        settings.health = player.getInt(WireKeys.HEALTH);
+                        settings.shots = (byte)player.getInt(WireKeys.RELOAD_SHOTS);
+                        settings.reloadTime = player.getLong(WireKeys.RELOAD_TIME);
+                        settings.reloadOnEmpty = player.getBoolean(WireKeys.RELOAD_ON_EMPTY);
+                        settings.manualRespawn = player.optBoolean(WireKeys.MANUAL_RESPAWN, false);
+                        settings.spawnTime = player.getLong(WireKeys.SPAWN_TIME);
+                        if (player.has(WireKeys.RESPAWN_SHIELD_TIME)) {
+                            settings.respawnShieldTime = player.getLong(WireKeys.RESPAWN_SHIELD_TIME);
                         }
-                        settings.damage = player.getInt(JSON_DAMAGE);
-                        if (player.has(JSON_LIVESLIMIT)) {
+                        settings.damage = player.getInt(WireKeys.DAMAGE);
+                        if (player.has(WireKeys.LIVESLIMIT)) {
                             settings.overrideLives = true;
-                            settings.lives = player.getInt(JSON_LIVESLIMIT);
+                            settings.lives = player.getInt(WireKeys.LIVESLIMIT);
                         } else {
                             settings.overrideLives = false;
                             settings.lives = 0;
                         }
-                        settings.allowShotModeAuto = player.getBoolean(JSON_SHOT_MODE_AUTO);
-                        settings.allowShotModeBurst3 = player.getBoolean(JSON_SHOT_MODE_BURST3);
-                        settings.allowShotModeSingle = player.getBoolean(JSON_SHOT_MODE_SINGLE);
-                        settings.firingMode = player.getInt(JSON_FIRING_MODE);
-                        if (player.has(JSON_RECOIL_SETTING)) {
-                            settings.recoilSetting = player.getInt(JSON_RECOIL_SETTING);
+                        settings.allowShotModeAuto = player.getBoolean(WireKeys.SHOT_MODE_AUTO);
+                        settings.allowShotModeBurst3 = player.getBoolean(WireKeys.SHOT_MODE_BURST3);
+                        settings.allowShotModeSingle = player.getBoolean(WireKeys.SHOT_MODE_SINGLE);
+                        settings.firingMode = player.getInt(WireKeys.FIRING_MODE);
+                        if (player.has(WireKeys.RECOIL_SETTING)) {
+                            settings.recoilSetting = player.getInt(WireKeys.RECOIL_SETTING);
                         }
-                        // JSON_IS_ADMIN is ignored: only the server operator grants admin rights (D14)
+                        // WireKeys.IS_ADMIN is ignored: only the server operator grants admin rights (D14)
                     } catch (JSONException e) {
                         e.printStackTrace();
                     }
@@ -1456,10 +1392,10 @@ public class TcpServer extends Service {
                 mEvents.publish(new ServerEvent.PlayerDataChanged(null));
                 return;
             }
-            if (player.has(JSON_PLAYERNAMECHANGE)) {
+            if (player.has(WireKeys.PLAYERNAMECHANGE)) {
                 String playerName;
                 try {
-                    playerName = player.getString(JSON_PLAYERNAMECHANGE);
+                    playerName = player.getString(WireKeys.PLAYERNAMECHANGE);
                 } catch (JSONException e) {
                     e.printStackTrace();
                     return;
@@ -1475,9 +1411,9 @@ public class TcpServer extends Service {
             String playerName;
             String blasterMac;
             try {
-                id = (byte) player.getInt(JSON_PLAYERID);
-                playerName = player.getString(JSON_PLAYERNAME);
-                blasterMac = player.has(JSON_BLASTER_MAC) ? player.getString(JSON_BLASTER_MAC) : "";
+                id = (byte) player.getInt(WireKeys.PLAYERID);
+                playerName = player.getString(WireKeys.PLAYERNAME);
+                blasterMac = player.has(WireKeys.BLASTER_MAC) ? player.getString(WireKeys.BLASTER_MAC) : "";
             } catch (JSONException e) {
                 e.printStackTrace();
                 return;
@@ -1488,7 +1424,7 @@ public class TcpServer extends Service {
             switch (result.kind) {
                 case REFUSED_IN_PROGRESS:
                     Log.d(TAG, "Rejecting client " + client.getConnectionId() + " (MAC: " + blasterMac + ") - Game in progress and allowJoin is false.");
-                    client.send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_ERROR + "Cannot join game in progress due to server settings.");
+                    client.send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_ERROR + "Cannot join game in progress due to server settings.");
                     client.closeAfterPending();
                     mRoster.removeConnection(client);
                     return;
@@ -1503,7 +1439,7 @@ public class TcpServer extends Service {
                     if (result.displaced != null)
                         result.displaced.close();
                     applyPending(client, player);
-                    client.send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERREPLY + existingPlayerId);
+                    client.send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_SERVERREPLY + existingPlayerId);
                     sendAllGameInfo(existingPlayerId);
                     mEvents.publish(new ServerEvent.PlayerDataChanged(null));
                     mEvents.publish(ServerEvent.PlayerJoined.INSTANCE);
@@ -1516,7 +1452,7 @@ public class TcpServer extends Service {
             PlayerRecord record = result.record;
             id = record.getPlayerId();
             applyPending(client, player);
-            client.send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERREPLY + id);
+            client.send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_SERVERREPLY + id);
             Log.e(TAG, "network team is " + record.getTeam());
             InetAddress inetAddress = client.getInetAddress();
             Log.d(TAG, "client " + client.getConnectionId() + " player '" + record.getName() + "' (" + id + ") found at " + (inetAddress != null ? inetAddress.toString() : "null"));
@@ -1558,7 +1494,7 @@ public class TcpServer extends Service {
                 Log.w(TAG, "Team change rejected: No open slot on team " + targetTeam);
                 return;
             }
-            client.send(TCPMESSAGE_PREFIX + TCPPREFIX_MESG + NetMsg.NETMSG_SERVERREPLY + moved.getPlayerId());
+            client.send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_SERVERREPLY + moved.getPlayerId());
             sendPlayerData(SEND_ALL);
             sendAllGameInfo(SEND_ALL);
             mEvents.publish(new ServerEvent.PlayerDataChanged(null));

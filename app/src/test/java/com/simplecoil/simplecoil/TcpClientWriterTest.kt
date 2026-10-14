@@ -19,6 +19,8 @@ package com.simplecoil.simplecoil
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import org.json.JSONObject
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
+import com.simplecoil.simplecoil.network.WireKeys
+import com.simplecoil.simplecoil.network.WireProtocol
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -56,7 +58,7 @@ class TcpClientWriterTest {
         assertEquals(sent, written())
     }
 
-    private fun json(message: String) = JSONObject(message.removePrefix(TcpServer.TCPMESSAGE_PREFIX + TcpServer.TCPPREFIX_JSON))
+    private fun json(message: String) = JSONObject(message.removePrefix(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON))
 
     @Test
     fun eliminationsWhileDisconnected_rideInsideTheHello() {
@@ -66,8 +68,8 @@ class TcpClientWriterTest {
         PlayerRepository.getInstance().deviceAddress = "AA:BB"
         PlayerRepository.getInstance().pairedGrenadeID = 0
         val client = TcpClient()
-        client.sendReliable(NetMsg.NETMSG_ELIMINATED + 3) // no connection: only in the outbox
-        client.sendTCPMessage(NetworkSessionGateway.message(NetMsg.NETMSG_HIT + 3)) // no connection: dropped
+        client.sendReliable(WireProtocol.NETMSG_ELIMINATED + 3) // no connection: only in the outbox
+        client.sendTCPMessage(NetworkSessionGateway.message(WireProtocol.NETMSG_HIT + 3)) // no connection: dropped
         client.awaitWritesForTest()
 
         client.attachOutputForTest(DataOutputStream(bytes))
@@ -76,13 +78,13 @@ class TcpClientWriterTest {
         val messages = written()
         assertEquals(1, messages.size)
         val hello = json(messages[0])
-        assertEquals(7, hello.getInt(TcpServer.JSON_PLAYERID))
-        assertEquals("AA:BB", hello.getString(TcpServer.JSON_BLASTER_MAC))
-        assertTrue(hello.getBoolean(TcpServer.JSON_REJOIN))
-        val pending = hello.getJSONArray(TcpServer.JSON_PENDING)
+        assertEquals(7, hello.getInt(WireKeys.PLAYERID))
+        assertEquals("AA:BB", hello.getString(WireKeys.BLASTER_MAC))
+        assertTrue(hello.getBoolean(WireKeys.REJOIN))
+        val pending = hello.getJSONArray(WireKeys.PENDING)
         assertEquals(1, pending.length())
-        assertEquals("ELIMINATED3", pending.getJSONObject(0).getString(TcpServer.JSON_RMSG))
-        assertEquals(1, pending.getJSONObject(0).getInt(TcpServer.JSON_SEQ))
+        assertEquals("ELIMINATED3", pending.getJSONObject(0).getString(WireKeys.RMSG))
+        assertEquals(1, pending.getJSONObject(0).getInt(WireKeys.SEQ))
     }
 
     @Test
@@ -90,11 +92,11 @@ class TcpClientWriterTest {
         // D1: a write into the socket buffer during the 3.5 s detection window is no delivery.
         val client = TcpClient()
         client.attachOutputForTest(DataOutputStream(bytes))
-        client.sendReliable(NetMsg.NETMSG_ELIMINATED + 3)
+        client.sendReliable(WireProtocol.NETMSG_ELIMINATED + 3)
         client.awaitWritesForTest()
         val envelope = json(written().single())
-        assertEquals("ELIMINATED3", envelope.getString(TcpServer.JSON_RMSG))
-        assertEquals(1, envelope.getInt(TcpServer.JSON_SEQ))
+        assertEquals("ELIMINATED3", envelope.getString(WireKeys.RMSG))
+        assertEquals(1, envelope.getInt(WireKeys.SEQ))
         assertEquals(1, client.outbox.pending().size)
     }
 
@@ -104,7 +106,7 @@ class TcpClientWriterTest {
         LoopbackClient.awaitPortFree()
         GameStateRepository.getInstance().serverIP = InetAddress.getByName("127.0.0.1")
         PlayerRepository.getInstance().pairedGrenadeID = 0
-        ServerSocket(TcpServer.TCP_SERVER_PORT).use { server ->
+        ServerSocket(WireProtocol.TCP_SERVER_PORT).use { server ->
             server.soTimeout = 5_000
             val client = object : TcpClient() {
                 override fun startAsForeground(statusText: String?) {} // notifications are stubs here
@@ -114,7 +116,7 @@ class TcpClientWriterTest {
             socket.soTimeout = 5_000
             val input = DataInputStream(socket.getInputStream())
             input.readUTF() // the hello
-            val chatter = (0 until 50).map { NetworkSessionGateway.message(NetMsg.NETMSG_SHOTFIRED) }
+            val chatter = (0 until 50).map { NetworkSessionGateway.message(WireProtocol.NETMSG_SHOTFIRED) }
             chatter.forEach { client.sendTCPMessage(it) }
             val startedAt = System.nanoTime()
             client.leaveServer()
@@ -126,7 +128,7 @@ class TcpClientWriterTest {
             } catch (e: EOFException) {
                 // the client closed its socket
             }
-            assertEquals(chatter + NetworkSessionGateway.message(NetMsg.NETMSG_LEAVE), frames)
+            assertEquals(chatter + NetworkSessionGateway.message(WireProtocol.NETMSG_LEAVE), frames)
             socket.close()
         }
     }
