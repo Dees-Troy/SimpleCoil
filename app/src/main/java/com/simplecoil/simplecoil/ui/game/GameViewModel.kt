@@ -57,7 +57,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import org.json.JSONException
 
 /** What the activity saves across recreation. */
 data class SavedGameScreen(
@@ -726,11 +725,7 @@ class GameViewModel(
             Log.w(TAG, "Cannot request team change while game is running")
             return
         }
-        try {
-            client.sendTCPMessage(NetworkSessionGateway.teamChangeRequest(playerRepo.playerID, targetTeam))
-        } catch (e: JSONException) {
-            Log.e(TAG, "JSON Exception: " + e.message)
-        }
+        client.sendTCPMessage(NetworkSessionGateway.teamChangeRequest(playerRepo.playerID, targetTeam))
     }
 
     private fun setNetworkMenu(type: Int) {
