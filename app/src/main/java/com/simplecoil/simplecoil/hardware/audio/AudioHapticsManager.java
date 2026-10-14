@@ -40,8 +40,6 @@ public class AudioHapticsManager {
     private static final String TAG = "AudioHapticsManager";
     public static final long DEFAULT_VIBRATE_DURATION_MS = 250;
 
-    private static volatile AudioHapticsManager instance;
-
     private Context context;
     private SoundPool soundPool;
     private Vibrator vibrator;
@@ -70,18 +68,7 @@ public class AudioHapticsManager {
         }
     }
 
-    private AudioHapticsManager() {}
-
-    public static AudioHapticsManager getInstance() {
-        if (instance == null) {
-            synchronized (AudioHapticsManager.class) {
-                if (instance == null) {
-                    instance = new AudioHapticsManager();
-                }
-            }
-        }
-        return instance;
-    }
+    public AudioHapticsManager() {}
 
     public synchronized void initialize(Context context) {
         if (context == null) return;

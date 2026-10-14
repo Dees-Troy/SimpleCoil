@@ -33,8 +33,6 @@ public class GameSettingsRepository {
         void onTeamLayoutChanged(TeamLayout layout);
     }
 
-    private static volatile GameSettingsRepository instance;
-
     // Constants
     public static final byte MAX_PLAYER_ID = (byte) 0x20;
     public static final byte RELOAD_COUNT = (byte) 30;
@@ -102,36 +100,6 @@ public class GameSettingsRepository {
     private final CopyOnWriteArrayList<TeamLayoutListener> teamLayoutListeners = new CopyOnWriteArrayList<>();
 
     public GameSettingsRepository() {}
-
-    /**
-     * Makes [repo] the process's instance. Called once by AppContainer, before any component
-     * starts; fails if another instance was created first, so there is never a second copy of the
-     * state (APP_CONTAINER_DESIGN.md G4).
-     */
-    public static void install(GameSettingsRepository repo) {
-        synchronized (GameSettingsRepository.class) {
-            if (instance != null && instance != repo)
-                throw new IllegalStateException("GameSettingsRepository was created before install()");
-            instance = repo;
-        }
-    }
-
-    /**
-     * The process's instance; created lazily for JVM tests that have no application.
-     *
-     * @deprecated inject the instance from AppContainer instead.
-     */
-    @Deprecated
-    public static GameSettingsRepository getInstance() {
-        if (instance == null) {
-            synchronized (GameSettingsRepository.class) {
-                if (instance == null) {
-                    instance = new GameSettingsRepository();
-                }
-            }
-        }
-        return instance;
-    }
 
     // Team layout
 

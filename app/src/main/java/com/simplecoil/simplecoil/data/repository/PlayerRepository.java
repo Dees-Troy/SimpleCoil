@@ -32,8 +32,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class PlayerRepository {
-    private static volatile PlayerRepository instance;
-
     public static final int INVALID_PLAYER_ID = -100;
     public static final int GRENADE_PLAYER_ID = 167;
     public static final int MAX_GRENADE_IDS = 16;
@@ -63,36 +61,6 @@ public class PlayerRepository {
         this.settings = settings;
         this.gameState = gameState;
         clearGrenadePairings();
-    }
-
-    /**
-     * Makes [repo] the process's instance. Called once by AppContainer, before any component
-     * starts; fails if another instance was created first, so there is never a second copy of the
-     * state (APP_CONTAINER_DESIGN.md G4).
-     */
-    public static void install(PlayerRepository repo) {
-        synchronized (PlayerRepository.class) {
-            if (instance != null && instance != repo)
-                throw new IllegalStateException("PlayerRepository was created before install()");
-            instance = repo;
-        }
-    }
-
-    /**
-     * The process's instance; created lazily for JVM tests that have no application.
-     *
-     * @deprecated inject the instance from AppContainer instead.
-     */
-    @Deprecated
-    public static PlayerRepository getInstance() {
-        if (instance == null) {
-            synchronized (PlayerRepository.class) {
-                if (instance == null) {
-                    instance = new PlayerRepository(GameSettingsRepository.getInstance(), GameStateRepository.getInstance());
-                }
-            }
-        }
-        return instance;
     }
 
     public byte getPlayerID() { return playerID; }

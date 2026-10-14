@@ -92,7 +92,7 @@ class AppContainer(private val app: Application) {
     }
 
     private val audioHaptics: AudioHapticsPlayer by lazy {
-        AudioHapticsPlayer(AudioHapticsManager.getInstance().also { it.initialize(app) })
+        AudioHapticsPlayer(AudioHapticsManager().also { it.initialize(app) })
     }
 
     /** Game sounds (preloaded SoundPool). */
@@ -102,16 +102,6 @@ class AppContainer(private val app: Application) {
 
     /** The map's location tracking and markers; process-wide, as the map fragment comes and goes. */
     val mapLocation: MapLocationManager by lazy { MapLocationManager(players, settings) }
-
-    /**
-     * Makes this container's repositories the ones getInstance() returns, for the code that
-     * doesn't take them through its constructor yet (APP_CONTAINER_DESIGN.md §3).
-     */
-    fun installLegacySingletons() {
-        GameSettingsRepository.install(settings)
-        GameStateRepository.install(gameState)
-        PlayerRepository.install(players)
-    }
 
     // Network
 

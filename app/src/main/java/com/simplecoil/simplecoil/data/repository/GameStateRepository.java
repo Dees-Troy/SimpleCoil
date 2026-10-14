@@ -21,8 +21,6 @@ import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class GameStateRepository {
-    private static volatile GameStateRepository instance;
-
     public static final int GAME_STATE_NONE = 0; // Game not started
     public static final int GAME_STATE_RUNNING = 1; // Game running and player active
     public static final int GAME_STATE_ELIMINATED = 2; // Player eliminated / waiting for respawn
@@ -72,36 +70,6 @@ public class GameStateRepository {
     }
 
     public GameStateRepository() {}
-
-    /**
-     * Makes [repo] the process's instance. Called once by AppContainer, before any component
-     * starts; fails if another instance was created first, so there is never a second copy of the
-     * state (APP_CONTAINER_DESIGN.md G4).
-     */
-    public static void install(GameStateRepository repo) {
-        synchronized (GameStateRepository.class) {
-            if (instance != null && instance != repo)
-                throw new IllegalStateException("GameStateRepository was created before install()");
-            instance = repo;
-        }
-    }
-
-    /**
-     * The process's instance; created lazily for JVM tests that have no application.
-     *
-     * @deprecated inject the instance from AppContainer instead.
-     */
-    @Deprecated
-    public static GameStateRepository getInstance() {
-        if (instance == null) {
-            synchronized (GameStateRepository.class) {
-                if (instance == null) {
-                    instance = new GameStateRepository();
-                }
-            }
-        }
-        return instance;
-    }
 
     public void addListener(GameStateChangeListener listener) {
         if (listener != null) {
