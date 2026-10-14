@@ -1,6 +1,6 @@
 # SimpleCoil Dedicated Server: Lifecycle, Screen and Shared Components — Design Document
 
-Status: **APPROVED (2026-10-13); steps 0–6 IMPLEMENTED and verified on devices (roadmap Stages 0–2; the H1–H5 device checks were waived).** All decisions in §8 are resolved. Steps 7–8 remain.
+Status: **APPROVED (2026-10-13); steps 0–6 IMPLEMENTED and verified on devices (roadmap Stages 0–2; the H1–H5 device checks were waived).** All decisions in §8 are resolved. Steps 7–8 remain; S5 (one beacon) was fixed with network Phase 3 step 7 (roadmap Stage 3).
 
 Revision 2 (2026-10-13): decisions recorded (§8). Stopping the server asks for confirmation on Back (Q1). The device
 is kept awake only while the server screen is in the foreground, not after Home (Q3, which replaces the draft's

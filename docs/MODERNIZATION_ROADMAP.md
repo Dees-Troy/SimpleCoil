@@ -1,6 +1,6 @@
 # SimpleCoil Modernization Roadmap (after V2 refactor)
 
-Status: **Stages 0–2 DONE (2026-10-13), device checks included; Stage 3 next.** All four documents are approved and their decisions resolved.
+Status: **Stages 0–2 DONE (2026-10-13), device checks included. Stage 3 DONE in code (2026-10-13); its device checks are next.** All four documents are approved and their decisions resolved.
 Branch audited: `V2-refactor` @ `b460c02`. The on-device checklists in `REFACTOR_DESIGN.md` §6.5 and
 `STATE_CONSOLIDATION_DESIGN.md` §8.6 have been completed.
 Date: 2026-10-13
@@ -138,6 +138,52 @@ item 1 for the clock (a timed game ends on time with the screen closed, and the 
 
 - **Network Phase 3**: golden wire fixtures, `WireCodec`, then the class-by-class conversion, injecting
   dependencies as each class is converted (app container step 4).
+
+**Done in code (2026-10-13), one commit per step; device checks pending.** 542 unit tests pass,
+`assembleDebug` and `assembleRelease` (R8) are green, and `lintDebug` is down from 26 warnings to 24 (0 errors).
+The network package has no Java left.
+
+- **Step 1:** `NetMsg` → `WireProtocol`, the JSON keys → `WireKeys` `2348c5f`.
+- **Step 2:** `SessionPhase` `5db420c`, `GameRoster` with injected repositories `1dd3e9b`, `PlayerRecord`
+  `05def9c`, `Connection` `3e25156`.
+- **Step 3:** golden wire fixtures `338ec50`: every client and server message family under
+  `app/src/test/resources/wire/`, checked against the real builders (`ClientWireFixturesTest`,
+  `ServerWireFixturesTest`, the latter over 127.0.0.1).
+- **Step 4:** `WireCodec` and the typed messages, one family per commit: commands `e6161ec`, the client's JSON
+  with the single player-settings mapping (N10) `26c0599`, the server's JSON `baac736`; follow-up `8287ee8`.
+- **Step 5:** `TcpClient` → `GameClient`, `ClientConnection`, `ClientMessageHandler` and the service shell
+  `bd9c9b6`.
+- **Step 6:** `TcpServer` → `GameServer`, `ServerMessageHandler`, `SnapshotBuilder` and the service shell
+  `ff142f1`.
+- **Step 7:** `DiscoveryBeacon`, `DiscoveryClient` and `UDPListenerService` in Kotlin `0d406fe` (clears
+  `WifiManagerPotentialLeak` ×2); one beacon for the dedicated server `4f73083` (S5).
+- **Step 8:** `NetTrace`, frame logging in debug builds only (N9) `13a9c5d`.
+- Also: `Frame` and `FrameReader` in Kotlin `9b1b597`; the producer-less `ClientEvent.Join`, `Leave` and
+  `SameTeam` removed `0fedb3f`; a send-order test that overfilled the writer queue under load fixed `a922f14`.
+
+Notes:
+
+- **One class more than the design lists.** The client's senders (hello, settings, name, grenade, location,
+  reliable messages, leave) live in `GameClient`, a plain class over `ClientConnection` and
+  `ClientMessageHandler`, as `GameServer` is for the server. `TcpClient` keeps its API and delegates to it, so
+  the tests build a `GameClient` with fresh repositories in place of a service.
+- **Decoding is all or nothing.** A frame that doesn't decode is ignored as a whole; the old parsers applied
+  whatever came before the bad key. The codec requires exactly what the old parsers required, so every frame a
+  v07 build sends decodes (the smallest game info an older server sends is a test case). A player entry
+  without an address is skipped. Player settings with a bad field still make the server resend everyone's.
+- The server's GPS tick is a coroutine on the dispatcher with a fixed 1 s delay, in place of a scheduled thread
+  that posted to it. The client's retry wait is a conflated channel, woken by Wi-Fi or a stop.
+- The discovery beacon and client hold their own multicast locks; the one shared lock could be released by one
+  role while the other still ran.
+- `TcpServerLoopbackTest`, `ServerWireFixturesTest`, `GameRosterTest` and the client tests build fresh
+  repositories (app container §4.1). The remaining `getInstance()` callers are the Stage 4–5 files: the server
+  screen and its ViewModel, `MapFragment` and `MapLocationManager`.
+- `ServerEvent.PlayerDataChanged` and `ClientEvent.PlayerDataUpdate` still carry the player data's JSON, which
+  the screens decode through `WireCodec.decodePlayerData`; `ServerSnapshot` (Stage 4) can type them.
+
+Device checks (pending): the full network smoke test (`NETWORK_STACK_DESIGN.md` §9.1, items 1–7, with a v07
+build from before this stage in the same game for ground rule 1); the dedicated server screen's join, leave,
+start, end and reset updates, the GPS map, and a timed game; discovery answers once per query (S5).
 
 ### Stage 4 — server screen
 
