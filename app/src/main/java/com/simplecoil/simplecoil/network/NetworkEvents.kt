@@ -33,8 +33,6 @@ sealed interface ClientEvent {
     data class Out(val playerId: Byte) : ClientEvent
     data class Eliminated(val playerId: Byte) : ClientEvent
     data object TeamEliminated : ClientEvent
-    data object Join : ClientEvent
-    data object Leave : ClientEvent
 
     /**
      * [gameUpdate] when the game info carried a player game update; [gameState] when it carried
@@ -51,7 +49,6 @@ sealed interface ClientEvent {
     data object EndGame : ClientEvent
     data class Error(val message: String?) : ClientEvent
     data object VersionError : ClientEvent
-    data object SameTeam : ClientEvent
     data object FailedToJoin : ClientEvent
     data object ServerCancel : ClientEvent
 

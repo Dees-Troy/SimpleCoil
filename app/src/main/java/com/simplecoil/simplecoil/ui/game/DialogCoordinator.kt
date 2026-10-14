@@ -138,7 +138,6 @@ class DialogCoordinator(
             GameMessage.NO_WIFI -> toast(appContext.getString(R.string.error_no_wifi))
             GameMessage.LIMIT_TOO_HIGH -> toast(appContext.getString(R.string.error_limit_too_high))
             GameMessage.UDP_VERSION_ERROR -> toast(appContext.getString(R.string.error_udp_version))
-            GameMessage.SAME_ID_ERROR -> toast(appContext.getString(R.string.error_same_id))
             GameMessage.KICKED_BY_SERVER -> toast(appContext.getString(R.string.kicked_by_server_toast))
             GameMessage.INAPPROPRIATE_NAME -> toast("Please choose an appropriate player name!")
             GameMessage.LOCATION_PERMISSION_REQUIRED -> activityToast(activity.getString(R.string.error_location_permission_required))

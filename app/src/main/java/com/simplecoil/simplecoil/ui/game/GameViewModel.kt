@@ -965,13 +965,6 @@ class GameViewModel(
                 screen?.showTeamScore(net.teamScore)
                 if (!net.useNetwork && (settingsRepo.gameLimit and GameSettingsRepository.GAME_LIMIT_SCORE) != 0 && net.teamScore >= settingsRepo.scoreLimit) endGame()
             }
-            ClientEvent.Join, ClientEvent.Leave -> {
-                screen?.showPlayerCount(playerRepo.getPlayerCount(false))
-                // Everyone else is out so game is over - this only works in FFA because we don't
-                // keep track of who and how many people are on each team
-                if (settingsRepo.teamMode.isFreeForAll && gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE &&
-                    event == ClientEvent.Leave && playerRepo.getPlayerCount(false) <= 1) endGame()
-            }
             is ClientEvent.ListPlayers -> onListPlayers(event)
             is ClientEvent.PlayerDataUpdate -> displayPlayerData(event.json)
             ClientEvent.StartGame -> {
@@ -985,11 +978,6 @@ class GameViewModel(
             }
             ClientEvent.VersionError -> {
                 screen?.showMessage(GameMessage.UDP_VERSION_ERROR)
-                ready = false
-                setReady()
-            }
-            ClientEvent.SameTeam -> {
-                screen?.showMessage(GameMessage.SAME_ID_ERROR)
                 ready = false
                 setReady()
             }

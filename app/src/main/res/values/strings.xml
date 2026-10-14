@@ -62,7 +62,6 @@
     <string name="ble_not_supported">BLE is not supported</string>
     <string name="error_bluetooth_not_supported">Bluetooth not supported.</string>
     <string name="error_location_permission_required">Location permission required for Bluetooth scanning.</string>
-    <string name="error_same_id">Two players are using the same ID!</string>
     <string name="error_udp_version">Network client version mismatch. Please update the app!</string>
     <string name="error_no_wifi">Wi-Fi must be connected!</string>
     <string name="error_limit_too_high">Limit is too high!</string>
