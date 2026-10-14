@@ -177,4 +177,83 @@ class WireCodecTest {
         val hello = clientJson("""{"playerID":1,"playername":"X","gameid":7,"pending":[{"rmsg":"ELIMINATED2"},5,{"rmsg":"ELIMINATED3","seq":4}]}""")
         assertEquals(ClientMessage.Hello(1, "X", null, false, 7, listOf(WirePending("ELIMINATED3", 4))), hello)
     }
+
+    // ------------------------------------------------------------------------------------------
+    // Server JSON
+    // ------------------------------------------------------------------------------------------
+
+    private val ip = "/127.0.0.1"
+    private val players = listOf(WirePlayer(1, "Alpha", ip), WirePlayer(17, "Bravo", ip))
+
+    private fun serverSettings(playerId: Int, livesLimit: Int?, isAdmin: Boolean) = WirePlayerSettings(
+        playerId = playerId, health = 20, reloadShots = 30, reloadTime = 1500, reloadOnEmpty = false, manualRespawn = false,
+        spawnTime = 10, respawnShieldTime = 3, damage = -1, livesLimit = livesLimit, shotModeSingle = true,
+        shotModeBurst3 = true, shotModeAuto = true, firingMode = 0, recoilSetting = 0, isAdmin = isAdmin,
+    )
+
+    private val lobby = ServerMessage.GameInfo(
+        players = players, limits = WireLimits(null, null, null), gameMode = 2, teamSizes = listOf(16, 16), gameState = 0,
+        timeRemaining = null, sessionPhase = 0, gameId = null, gpsMode = null, allowPlayerSettings = false,
+        playerSettings = emptyList(), onlyServerSettings = false, allowChooseTeams = true, startTime = 5, playerUpdate = null,
+    )
+
+    private val running = lobby.copy(
+        limits = WireLimits(10, 3, 25), gameState = 1, timeRemaining = 0, sessionPhase = 1, gameId = 418873301, gpsMode = 2,
+        playerSettings = listOf(serverSettings(1, 2, false)),
+    )
+
+    private val serverFixtures = mapOf(
+        "server/game_info_lobby.frame" to lobby,
+        "server/game_info_lobby_joiner.frame" to lobby.withPlayerUpdate(WirePlayerGameUpdate(0, 0, 0, null, 0)),
+        "server/game_info_running.frame" to running,
+        "server/game_info_post_game.frame" to running.copy(gameState = 0, timeRemaining = null, sessionPhase = 2),
+        "server/player_data.frame" to ServerMessage.PlayerData(listOf(WireScore(1, "Alpha", ip, 0, 1, true), WireScore(17, "Bravo", ip, 1, 0, true))),
+        "server/player_settings.frame" to ServerMessage.PlayerSettings(true, listOf(
+            serverSettings(1, 2, true),
+            WirePlayerSettings(17, 30, 12, 2500, true, true, 15, 4, -3, null, true, true, false, 1, 2, false),
+        )),
+        "server/grenade_pairings.frame" to ServerMessage.GrenadePairings(listOf(WireGrenadePairing(3, 1))),
+        "server/gps_full.frame" to ServerMessage.GpsUpdate(listOf(WireGpsPosition(1, 1, -74.25, 40.5)), true),
+        "server/gps_delta.frame" to ServerMessage.GpsUpdate(listOf(WireGpsPosition(1, 1, -74.5, 40.75)), false),
+    )
+
+    @Test
+    fun serverJson_encodesToTheFixtures_andDecodesBack() {
+        for ((name, message) in serverFixtures) {
+            WireFixtures.assertFrame(name, WireCodec.encode(message))
+            assertEquals(name, message, decodeServer(WireFixtures.frame(name)))
+        }
+    }
+
+    @Test
+    fun playerData_decodesFromItsJson_asTheScreensReadIt() {
+        val data = serverFixtures.getValue("server/player_data.frame") as ServerMessage.PlayerData
+        assertEquals(data, WireCodec.decodePlayerData(WireCodec.playerDataJson(data)))
+        // An older server sent no "connected"
+        assertEquals(ServerMessage.PlayerData(listOf(WireScore(1, "Me", null, 4, 1, null))),
+            WireCodec.decodePlayerData("""{"playerdata":[{"playerID":1,"playername":"Me","points":4,"eliminated":1}]}"""))
+        assertNull(WireCodec.decodePlayerData("""{"playerdata":[{"playerID":1}]}"""))
+    }
+
+    private fun serverJson(json: String) = decodeServer(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + json)
+
+    @Test
+    fun serverJson_isToldApartByItsKeys_inTheClientsOrder() {
+        assertEquals(ServerMessage.GrenadePairings(emptyList()), serverJson("""{"grenadepairings":[],"gpsupdate":[]}"""))
+        assertEquals(ServerMessage.GpsUpdate(emptyList(), false), serverJson("""{"gpsupdate":[],"playerdata":[]}"""))
+        assertEquals(ServerMessage.PlayerData(emptyList()), serverJson("""{"playerdata":[],"players":[]}"""))
+        assertNull(serverJson("""{"somethingnew":1}"""))
+    }
+
+    @Test
+    fun gameInfo_requiresWhatTheClientRequired_andDefaultsTheRest() {
+        // The smallest game info an older v07 server sends
+        val minimal = serverJson("""{"players":[{"playerID":3,"playername":"Me"}],"limits":{},"gamemode":2,"onlyserversettings":false}""")
+        assertEquals(ServerMessage.GameInfo(listOf(WirePlayer(3, "Me", null)), WireLimits(null, null, null), 2, null, null, null,
+            null, null, null, null, null, false, null, null, null), minimal)
+        // Settings need their allowplayersettings
+        assertNull(serverJson("""{"players":[],"limits":{},"gamemode":2,"onlyserversettings":false,"playersettings":[]}"""))
+        assertNull(serverJson("""{"players":[],"gamemode":2,"onlyserversettings":false}"""))
+        assertNull(serverJson("""{"players":[],"limits":{},"gamemode":2,"onlyserversettings":false,"playergameupdate":{"points":1}}"""))
+    }
 }

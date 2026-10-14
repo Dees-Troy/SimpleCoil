@@ -193,10 +193,75 @@ sealed interface ClientMessage {
     data class GpsLocation(val latitude: Double, val longitude: Double) : ClientMessage
 }
 
+/** A player in the game info. [ip] is InetAddress.toString(), "/" and all; the client skips its own entry's. */
+data class WirePlayer(val playerId: Int, val name: String, val ip: String?)
+
+/** The game's limits; null where there is none. */
+data class WireLimits(val timeLimit: Int?, val livesLimit: Int?, val scoreLimit: Int?)
+
+/** The receiving player's own score, in the game info it gets when it (re)joins. */
+data class WirePlayerGameUpdate(
+    val points: Int,
+    val eliminated: Int,
+    /** In team games. */
+    val teamPoints: Int?,
+    /** Seconds left, in a running timed game. */
+    val timeRemaining: Long?,
+    /** The last reliable message applied (§3.4). */
+    val ackSeq: Int?,
+)
+
+/** A scoreboard row. [connected] is left out for a player the server has no score for. */
+data class WireScore(val playerId: Int, val name: String, val ip: String?, val points: Int, val eliminated: Int, val connected: Boolean?)
+
+/** A player's position; [team] is only read for a player the client hasn't placed yet. */
+data class WireGpsPosition(val playerId: Int, val team: Int?, val longitude: Double, val latitude: Double)
+
+data class WireGrenadePairing(val grenadeId: Int, val playerId: Int)
+
 /** What the server sends a client. */
 sealed interface ServerMessage {
     data class Command(val command: ServerCommand) : ServerMessage
 
     /** Sent bare, without the header: the client may not speak our version. */
     data object VersionError : ServerMessage
+
+    /**
+     * The game: players, limits, teams, settings and phase. A null field is left out of the
+     * frame, as the server has always done; [playerUpdate] goes only to a player that just
+     * (re)joined.
+     */
+    data class GameInfo(
+        val players: List<WirePlayer>,
+        val limits: WireLimits,
+        /** TeamMode.wireValue. */
+        val gameMode: Int,
+        val teamSizes: List<Int>?,
+        val gameState: Int?,
+        val timeRemaining: Long?,
+        /** SessionPhase.wireValue. */
+        val sessionPhase: Int?,
+        /** After the lobby only. */
+        val gameId: Long?,
+        /** The GPS mode, when GPS is on. */
+        val gpsMode: Int?,
+        val allowPlayerSettings: Boolean?,
+        val playerSettings: List<WirePlayerSettings>?,
+        val onlyServerSettings: Boolean,
+        val allowChooseTeams: Boolean?,
+        val startTime: Long?,
+        val playerUpdate: WirePlayerGameUpdate?,
+    ) : ServerMessage {
+        fun withPlayerUpdate(update: WirePlayerGameUpdate?) = copy(playerUpdate = update)
+    }
+
+    /** The scoreboard. */
+    data class PlayerData(val players: List<WireScore>) : ServerMessage
+
+    /** Everyone's settings. */
+    data class PlayerSettings(val allowPlayerSettings: Boolean, val players: List<WirePlayerSettings>) : ServerMessage
+    data class GrenadePairings(val pairings: List<WireGrenadePairing>) : ServerMessage
+
+    /** Positions that changed, or all of them when [full] (the client then forgets the rest). */
+    data class GpsUpdate(val positions: List<WireGpsPosition>, val full: Boolean) : ServerMessage
 }

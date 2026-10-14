@@ -31,16 +31,12 @@ import com.simplecoil.simplecoil.network.ClientEvent
 import com.simplecoil.simplecoil.network.ClientMessage
 import com.simplecoil.simplecoil.network.EventBus
 import com.simplecoil.simplecoil.network.WireCodec
-import com.simplecoil.simplecoil.network.WireKeys
-import com.simplecoil.simplecoil.network.WireProtocol
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONException
-import org.json.JSONObject
 
 /**
  * The play screen's network session (R13/R14 transport): binds UDPListenerService and TcpClient,
@@ -238,42 +234,35 @@ class NetworkSessionGateway(
          */
         @JvmStatic
         fun parsePlayerData(message: String, repo: PlayerRepository, layout: TeamLayout): ParsedPlayerData? {
+            val data = WireCodec.decodePlayerData(message) ?: return null
             val finalData = arrayOfNulls<PlayerDisplayData>(GameSettingsRepository.MAX_PLAYER_ID + 2)
             val teamPoints = IntArray(4)
             var myPoints: Int? = null
-            try {
-                val json = JSONObject(message)
-                val players = json.getJSONArray(WireKeys.PLAYERDATA)
-                synchronized(repo) {
-                    for (x in 0 until players.length()) {
-                        val player = players.getJSONObject(x)
-                        val playerData = PlayerDisplayData()
-                        playerData.playerID = player.getInt(WireKeys.PLAYERID).toByte()
-                        playerData.playerName = player.getString(WireKeys.PLAYERNAME)
-                        playerData.points = player.getInt(WireKeys.PLAYERPOINTS)
-                        if (playerData.playerID == repo.playerID) {
-                            myPoints = maxOf(myPoints ?: playerData.points, playerData.points)
-                        }
-                        if (!layout.mode.isFreeForAll) {
-                            val teamIdx = layout.teamOf(playerData.playerID) - 1
-                            if (teamIdx in 0..3) teamPoints[teamIdx] += playerData.points
-                        }
-                        playerData.eliminated = player.getInt(WireKeys.PLAYERELIMINATED)
-                        playerData.isConnected = player.optBoolean(WireKeys.CONNECTED, true)
-                        val settings = repo.playerSettings[playerData.playerID]
-                        if (settings == null) {
-                            playerData.overrideLives = false
-                            playerData.lives = 0
-                        } else {
-                            playerData.overrideLives = settings.overrideLives
-                            playerData.lives = settings.lives
-                        }
-                        finalData[playerData.playerID.toInt()] = playerData
+            synchronized(repo) {
+                for (player in data.players) {
+                    val playerData = PlayerDisplayData()
+                    playerData.playerID = player.playerId.toByte()
+                    playerData.playerName = player.name
+                    playerData.points = player.points
+                    if (playerData.playerID == repo.playerID) {
+                        myPoints = maxOf(myPoints ?: playerData.points, playerData.points)
                     }
+                    if (!layout.mode.isFreeForAll) {
+                        val teamIdx = layout.teamOf(playerData.playerID) - 1
+                        if (teamIdx in 0..3) teamPoints[teamIdx] += playerData.points
+                    }
+                    playerData.eliminated = player.eliminated
+                    playerData.isConnected = player.connected ?: true
+                    val settings = repo.playerSettings[playerData.playerID]
+                    if (settings == null) {
+                        playerData.overrideLives = false
+                        playerData.lives = 0
+                    } else {
+                        playerData.overrideLives = settings.overrideLives
+                        playerData.lives = settings.lives
+                    }
+                    finalData[playerData.playerID.toInt()] = playerData
                 }
-            } catch (e: JSONException) {
-                Log.e(TAG, "Error parsing player data", e)
-                return null
             }
             return ParsedPlayerData(finalData, myPoints, teamPoints)
         }

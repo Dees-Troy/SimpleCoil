@@ -103,7 +103,37 @@ object WireCodec {
     fun encode(message: ServerMessage): String = when (message) {
         is ServerMessage.Command -> MESG_HEADER + text(message.command)
         ServerMessage.VersionError -> WireProtocol.NETMSG_VERSIONERROR
+        is ServerMessage.GameInfo -> json { putGameInfo(message) }
+        is ServerMessage.PlayerData -> json { putPlayerData(message) }
+        is ServerMessage.PlayerSettings -> json {
+            put(WireKeys.ALLOWPLAYERSETTINGS, message.allowPlayerSettings)
+            put(WireKeys.PLAYERSETTINGS, settingsArray(message.players))
+        }
+        is ServerMessage.GrenadePairings -> json {
+            put(WireKeys.GRENADE_PAIRINGS, JSONArray(message.pairings.map {
+                JSONObject().put(WireKeys.PLAYERID, it.playerId).put(WireKeys.PAIRED_GRENADE_ID, it.grenadeId)
+            }))
+        }
+        is ServerMessage.GpsUpdate -> json {
+            put(WireKeys.GPSUPDATE, JSONArray(message.positions.map {
+                JSONObject().apply {
+                    put(WireKeys.PLAYERID, it.playerId)
+                    it.team?.let { team -> put(WireKeys.TEAM, team) }
+                    put(WireKeys.GPSLONGITUDE, it.longitude)
+                    put(WireKeys.GPSLATITUDE, it.latitude)
+                }
+            }))
+            if (message.full) put(WireKeys.GPSFULLUPDATE, true)
+        }
     }
+
+    /** The JSON of a player data frame (the server screen reads it too). */
+    @JvmStatic
+    fun playerDataJson(message: ServerMessage.PlayerData): String = JSONObject().apply { putPlayerData(message) }.toString()
+
+    /** The scoreboard in a player data frame's JSON; null when it doesn't decode. */
+    @JvmStatic
+    fun decodePlayerData(json: String): ServerMessage.PlayerData? = parse(json) { readPlayerData(it) }
 
     /** What a client's MESG or JSON frame says; null for any other kind of frame, or one that doesn't decode. */
     @JvmStatic
@@ -117,6 +147,7 @@ object WireCodec {
     @JvmStatic
     fun decodeServer(frame: Frame): ServerMessage? = when (frame.kind) {
         Frame.Kind.MESG -> ServerMessage.Command(decodeServerCommand(frame.body))
+        Frame.Kind.JSON -> parse(frame.body) { decodeServerJson(it) }
         Frame.Kind.VERSION_ERROR -> ServerMessage.VersionError
         else -> null
     }
@@ -174,6 +205,154 @@ object WireCodec {
         Log.w(TAG, "Bad JSON frame: ${e.message}")
         null
     }
+
+    /**
+     * The server's JSON frame, told apart by its keys in the order the client has always checked
+     * them; null for one with none of them.
+     */
+    private fun decodeServerJson(json: JSONObject): ServerMessage? = when {
+        json.has(WireKeys.GRENADE_PAIRINGS) -> {
+            val array = json.getJSONArray(WireKeys.GRENADE_PAIRINGS)
+            ServerMessage.GrenadePairings((0 until array.length()).map {
+                val pairing = array.getJSONObject(it)
+                WireGrenadePairing(pairing.getInt(WireKeys.PAIRED_GRENADE_ID), pairing.getInt(WireKeys.PLAYERID))
+            })
+        }
+        json.has(WireKeys.GPSUPDATE) -> {
+            val array = json.getJSONArray(WireKeys.GPSUPDATE)
+            ServerMessage.GpsUpdate((0 until array.length()).map {
+                val position = array.getJSONObject(it)
+                WireGpsPosition(position.getInt(WireKeys.PLAYERID),
+                    if (position.has(WireKeys.TEAM)) position.getInt(WireKeys.TEAM) else null,
+                    position.getDouble(WireKeys.GPSLONGITUDE), position.getDouble(WireKeys.GPSLATITUDE))
+            }, json.has(WireKeys.GPSFULLUPDATE))
+        }
+        json.has(WireKeys.PLAYERDATA) -> readPlayerData(json)
+        json.has(WireKeys.PLAYERS) -> readGameInfo(json)
+        json.has(WireKeys.PLAYERSETTINGS) ->
+            ServerMessage.PlayerSettings(json.getBoolean(WireKeys.ALLOWPLAYERSETTINGS), readSettingsArray(json))
+        else -> null
+    }
+
+    private fun JSONObject.putGameInfo(info: ServerMessage.GameInfo) {
+        put(WireKeys.PLAYERS, JSONArray(info.players.map {
+            JSONObject().put(WireKeys.PLAYERNAME, it.name).put(WireKeys.PLAYERID, it.playerId).putOpt(WireKeys.PLAYERIP, it.ip)
+        }))
+        put(WireKeys.LIMITS, JSONObject().apply {
+            info.limits.timeLimit?.let { put(WireKeys.TIMELIMIT, it) }
+            info.limits.livesLimit?.let { put(WireKeys.LIVESLIMIT, it) }
+            info.limits.scoreLimit?.let { put(WireKeys.SCORELIMIT, it) }
+        })
+        put(WireKeys.GAMEMODE, info.gameMode)
+        info.teamSizes?.let { put(WireKeys.TEAMSIZES, JSONArray(it)) }
+        info.gameState?.let { put(WireKeys.GAMESTATE, it) }
+        info.timeRemaining?.let { put(WireKeys.TIMEREMAINING, it) }
+        info.sessionPhase?.let { put(WireKeys.SESSIONPHASE, it) }
+        info.gameId?.let { put(WireKeys.GAMEID, it) }
+        info.gpsMode?.let { put(WireKeys.USEGPS, it) }
+        info.allowPlayerSettings?.let { put(WireKeys.ALLOWPLAYERSETTINGS, it) }
+        info.playerSettings?.let { put(WireKeys.PLAYERSETTINGS, settingsArray(it)) }
+        put(WireKeys.ONLY_SERVER_SETTINGS, info.onlyServerSettings)
+        info.allowChooseTeams?.let { put(WireKeys.ALLOW_CHOOSE_TEAMS, it) }
+        info.startTime?.let { put(WireKeys.START_TIME, it) }
+        info.playerUpdate?.let { update ->
+            put(WireKeys.PLAYERGAMEUPDATE, JSONObject().apply {
+                put(WireKeys.PLAYERPOINTS, update.points)
+                put(WireKeys.PLAYERELIMINATED, update.eliminated)
+                update.teamPoints?.let { put(WireKeys.TEAMPOINTS, it) }
+                update.timeRemaining?.let { put(WireKeys.TIMEREMAINING, it) }
+                update.ackSeq?.let { put(WireKeys.ACKSEQ, it) }
+            })
+        }
+    }
+
+    /** The game info, with the keys the client requires required and the rest read as it read them. */
+    private fun readGameInfo(json: JSONObject): ServerMessage.GameInfo {
+        val playersArray = json.getJSONArray(WireKeys.PLAYERS)
+        val players = (0 until playersArray.length()).map {
+            val player = playersArray.getJSONObject(it)
+            WirePlayer(player.getInt(WireKeys.PLAYERID), player.getString(WireKeys.PLAYERNAME),
+                if (player.has(WireKeys.PLAYERIP)) player.getString(WireKeys.PLAYERIP) else null)
+        }
+        val limits = json.getJSONObject(WireKeys.LIMITS)
+        val hasSettings = json.has(WireKeys.PLAYERSETTINGS)
+        val update = if (!json.has(WireKeys.PLAYERGAMEUPDATE)) null else json.getJSONObject(WireKeys.PLAYERGAMEUPDATE).let {
+            WirePlayerGameUpdate(
+                points = it.getInt(WireKeys.PLAYERPOINTS),
+                eliminated = it.getInt(WireKeys.PLAYERELIMINATED),
+                teamPoints = it.optIntOrNull(WireKeys.TEAMPOINTS, 0),
+                timeRemaining = if (it.has(WireKeys.TIMEREMAINING)) it.optLong(WireKeys.TIMEREMAINING, -1) else null,
+                ackSeq = it.optIntOrNull(WireKeys.ACKSEQ, 0),
+            )
+        }
+        return ServerMessage.GameInfo(
+            players = players,
+            limits = WireLimits(limits.getIntOrNull(WireKeys.TIMELIMIT), limits.getIntOrNull(WireKeys.LIVESLIMIT),
+                limits.getIntOrNull(WireKeys.SCORELIMIT)),
+            gameMode = json.getInt(WireKeys.GAMEMODE),
+            teamSizes = if (!json.has(WireKeys.TEAMSIZES)) null else
+                json.getJSONArray(WireKeys.TEAMSIZES).let { sizes -> (0 until sizes.length()).map { sizes.getInt(it) } },
+            gameState = json.getIntOrNull(WireKeys.GAMESTATE),
+            timeRemaining = if (json.has(WireKeys.TIMEREMAINING)) json.optLong(WireKeys.TIMEREMAINING) else null,
+            sessionPhase = json.getIntOrNull(WireKeys.SESSIONPHASE),
+            gameId = if (json.has(WireKeys.GAMEID)) json.optLong(WireKeys.GAMEID, 0) else null,
+            gpsMode = json.getIntOrNull(WireKeys.USEGPS),
+            allowPlayerSettings = when {
+                hasSettings -> json.getBoolean(WireKeys.ALLOWPLAYERSETTINGS)
+                json.has(WireKeys.ALLOWPLAYERSETTINGS) -> json.optBoolean(WireKeys.ALLOWPLAYERSETTINGS)
+                else -> null
+            },
+            playerSettings = if (hasSettings) readSettingsArray(json) else null,
+            onlyServerSettings = json.getBoolean(WireKeys.ONLY_SERVER_SETTINGS),
+            allowChooseTeams = if (json.has(WireKeys.ALLOW_CHOOSE_TEAMS)) json.getBoolean(WireKeys.ALLOW_CHOOSE_TEAMS) else null,
+            startTime = if (json.has(WireKeys.START_TIME)) json.getLong(WireKeys.START_TIME) else null,
+            playerUpdate = update,
+        )
+    }
+
+    private fun JSONObject.putPlayerData(data: ServerMessage.PlayerData) {
+        put(WireKeys.PLAYERDATA, JSONArray(data.players.map {
+            JSONObject().apply {
+                put(WireKeys.PLAYERNAME, it.name)
+                put(WireKeys.PLAYERID, it.playerId)
+                putOpt(WireKeys.PLAYERIP, it.ip)
+                put(WireKeys.PLAYERPOINTS, it.points)
+                put(WireKeys.PLAYERELIMINATED, it.eliminated)
+                it.connected?.let { connected -> put(WireKeys.CONNECTED, connected) }
+            }
+        }))
+    }
+
+    private fun readPlayerData(json: JSONObject): ServerMessage.PlayerData {
+        val array = json.getJSONArray(WireKeys.PLAYERDATA)
+        return ServerMessage.PlayerData((0 until array.length()).map {
+            val player = array.getJSONObject(it)
+            WireScore(player.getInt(WireKeys.PLAYERID), player.getString(WireKeys.PLAYERNAME),
+                if (player.has(WireKeys.PLAYERIP)) player.optString(WireKeys.PLAYERIP) else null,
+                player.getInt(WireKeys.PLAYERPOINTS), player.getInt(WireKeys.PLAYERELIMINATED),
+                if (player.has(WireKeys.CONNECTED)) player.optBoolean(WireKeys.CONNECTED, true) else null)
+        })
+    }
+
+    private fun settingsArray(players: List<WirePlayerSettings>) = JSONArray(players.map {
+        JSONObject().apply {
+            put(WireKeys.PLAYERID, it.playerId)
+            putSettings(it)
+        }
+    })
+
+    private fun readSettingsArray(json: JSONObject): List<WirePlayerSettings> {
+        val array = json.getJSONArray(WireKeys.PLAYERSETTINGS)
+        return (0 until array.length()).map {
+            val entry = array.getJSONObject(it)
+            readSettings(entry, entry.getInt(WireKeys.PLAYERID))
+        }
+    }
+
+    private fun JSONObject.getIntOrNull(key: String): Int? = if (has(key)) getInt(key) else null
+
+    /** Null when [key] is absent; [default] when it is there but not a number, as optInt read it. */
+    private fun JSONObject.optIntOrNull(key: String, default: Int): Int? = if (has(key)) optInt(key, default) else null
 
     private fun JSONObject.putSettings(settings: WirePlayerSettings) {
         put(WireKeys.HEALTH, settings.health)

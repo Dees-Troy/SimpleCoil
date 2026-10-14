@@ -50,10 +50,15 @@ import com.simplecoil.simplecoil.network.ServerCommand;
 import com.simplecoil.simplecoil.network.ServerEvent;
 import com.simplecoil.simplecoil.network.ServerMessage;
 import com.simplecoil.simplecoil.network.WireCodec;
-import com.simplecoil.simplecoil.network.WireKeys;
+import com.simplecoil.simplecoil.network.WireGpsPosition;
+import com.simplecoil.simplecoil.network.WireGrenadePairing;
+import com.simplecoil.simplecoil.network.WireLimits;
 import com.simplecoil.simplecoil.network.WirePending;
+import com.simplecoil.simplecoil.network.WirePlayer;
+import com.simplecoil.simplecoil.network.WirePlayerGameUpdate;
 import com.simplecoil.simplecoil.network.WirePlayerSettings;
 import com.simplecoil.simplecoil.network.WireProtocol;
+import com.simplecoil.simplecoil.network.WireScore;
 import com.simplecoil.simplecoil.network.server.ClockState;
 import com.simplecoil.simplecoil.network.server.Connection;
 import com.simplecoil.simplecoil.network.server.GameRoster;
@@ -61,15 +66,12 @@ import com.simplecoil.simplecoil.network.server.PlayerRecord;
 import com.simplecoil.simplecoil.network.server.ServerGameClock;
 import com.simplecoil.simplecoil.network.server.SessionPhase;
 
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -498,87 +500,73 @@ public class TcpServer extends Service {
     }
 
     private void sendAllGameInfoNow(final int id) {
-        if (mRoster.isEmpty() || PlayerRepository.getInstance().getTeamIPMap() == null || PlayerRepository.getInstance().getTeamIPMap().size() == 0)
+        PlayerRepository players = PlayerRepository.getInstance();
+        if (mRoster.isEmpty() || players.getTeamIPMap() == null || players.getTeamIPMap().size() == 0)
             return;
-        try {
-            JSONArray players = new JSONArray();
-            for (Map.Entry<Byte, InetAddress> entry : PlayerRepository.getInstance().getTeamIPMap().entrySet()) {
-                JSONObject player = new JSONObject();
-                player.put(WireKeys.PLAYERNAME, PlayerRepository.getInstance().getPlayerName(entry.getKey()));
-                player.put(WireKeys.PLAYERID, entry.getKey());
-                player.put(WireKeys.PLAYERIP, entry.getValue());
-                players.put(player);
-            }
-            JSONObject game = new JSONObject();
-            game.put(WireKeys.PLAYERS, players);
-            JSONObject limits = new JSONObject();
-            if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_TIME) != 0) {
-                limits.put(WireKeys.TIMELIMIT, GameSettingsRepository.getInstance().getTimeLimit());
-            }
-            if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_LIVES) != 0) {
-                limits.put(WireKeys.LIVESLIMIT, GameSettingsRepository.getInstance().getLivesLimit());
-            }
-            if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_SCORE) != 0) {
-                limits.put(WireKeys.SCORELIMIT, GameSettingsRepository.getInstance().getScoreLimit());
-            }
-            game.put(WireKeys.LIMITS, limits);
-            TeamLayout layout = GameSettingsRepository.getInstance().getTeamLayout();
-            game.put(WireKeys.GAMEMODE, layout.getMode().wireValue);
-            JSONArray teamSizesArr = new JSONArray();
-            for (int size : layout.teamSizes()) {
-                teamSizesArr.put(size);
-            }
-            game.put(WireKeys.TEAMSIZES, teamSizesArr);
-            game.put(WireKeys.GAMESTATE, GameStateRepository.getInstance().getGameState());
-            if (GameStateRepository.getInstance().getGameState() != GameStateRepository.GAME_STATE_NONE && (GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_TIME) != 0)
-                game.put(WireKeys.TIMEREMAINING, GameStateRepository.getInstance().getServerGameTimeRemaining());
-            SessionPhase phase = mRoster.phase();
-            game.put(WireKeys.SESSIONPHASE, phase.wireValue);
-            if (phase != SessionPhase.LOBBY)
-                game.put(WireKeys.GAMEID, mRoster.gameId());
-            if (GameSettingsRepository.getInstance().isUseGPS())
-                game.put(WireKeys.USEGPS, GameSettingsRepository.getInstance().getGpsMode());
-            game.put(WireKeys.ALLOWPLAYERSETTINGS, GameSettingsRepository.getInstance().isAllowPlayerSettings());
-            game.put(WireKeys.PLAYERSETTINGS, getPlayerSettings(id, false));
-            game.put(WireKeys.ONLY_SERVER_SETTINGS, GameSettingsRepository.getInstance().isOnlyServerSettings());
-            game.put(WireKeys.ALLOW_CHOOSE_TEAMS, GameSettingsRepository.getInstance().isAllowChooseTeams());
-            game.put(WireKeys.START_TIME, GameSettingsRepository.getInstance().getStartTime());
-            final String allMessage = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + game.toString();
-            if (id == SEND_ALL)
-                sendTCPMessageAll(allMessage);
-            else {
-                // Get update data for this specific player
-                ScoreData scoreData = getScore((byte)id);
-                JSONObject playerGameUpdate = new JSONObject();
-                if (scoreData != null) {
-                    playerGameUpdate.put(WireKeys.PLAYERPOINTS, scoreData.points);
-                    playerGameUpdate.put(WireKeys.PLAYERELIMINATED, scoreData.eliminated);
-                } else {
-                    playerGameUpdate.put(WireKeys.PLAYERPOINTS, 0);
-                    playerGameUpdate.put(WireKeys.PLAYERELIMINATED, 0);
-                }
-                if (!layout.getMode().isFreeForAll()) {
-                    playerGameUpdate.put(WireKeys.TEAMPOINTS, mRoster.teamPoints(layout.teamOf((byte) id)));
-                }
-                if ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_TIME) != 0 && GameStateRepository.getInstance().getGameState() != GameStateRepository.GAME_STATE_NONE) {
-                    playerGameUpdate.put(WireKeys.TIMEREMAINING, GameStateRepository.getInstance().getServerGameTimeRemaining());
-                }
-                PlayerRecord record = mRoster.record((byte) id);
-                playerGameUpdate.put(WireKeys.ACKSEQ, record != null ? record.getLastAppliedSeq() : 0);
-                game.put(WireKeys.PLAYERGAMEUPDATE, playerGameUpdate);
-                final String idMessage = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + game.toString();
-
-                for (Connection connection : mRoster.connections()) {
-                    PlayerRecord player = connection.getPlayer();
-                    if (player != null && player.getPlayerId() == id)
-                        connection.send(idMessage);
-                    else
-                        connection.send(allMessage);
-                }
-            }
-        } catch (JSONException e) {
-            e.printStackTrace();
+        GameSettingsRepository settings = GameSettingsRepository.getInstance();
+        GameStateRepository gameState = GameStateRepository.getInstance();
+        List<WirePlayer> wirePlayers = new ArrayList<>();
+        for (Map.Entry<Byte, InetAddress> entry : players.getTeamIPMap().entrySet()) {
+            wirePlayers.add(new WirePlayer(entry.getKey(), players.getPlayerName(entry.getKey()), ipString(entry.getValue())));
         }
+        int gameLimit = settings.getGameLimit();
+        boolean timed = (gameLimit & GameSettingsRepository.GAME_LIMIT_TIME) != 0;
+        WireLimits limits = new WireLimits(
+                timed ? Integer.valueOf(settings.getTimeLimit()) : null,
+                (gameLimit & GameSettingsRepository.GAME_LIMIT_LIVES) != 0 ? Integer.valueOf(settings.getLivesLimit()) : null,
+                (gameLimit & GameSettingsRepository.GAME_LIMIT_SCORE) != 0 ? Integer.valueOf(settings.getScoreLimit()) : null);
+        TeamLayout layout = settings.getTeamLayout();
+        List<Integer> teamSizes = new ArrayList<>();
+        for (int size : layout.teamSizes()) {
+            teamSizes.add(size);
+        }
+        int state = gameState.getGameState();
+        boolean running = state != GameStateRepository.GAME_STATE_NONE;
+        Long timeRemaining = running && timed ? Long.valueOf(gameState.getServerGameTimeRemaining()) : null;
+        SessionPhase phase = mRoster.phase();
+        ServerMessage.GameInfo info = new ServerMessage.GameInfo(
+                wirePlayers,
+                limits,
+                layout.getMode().wireValue,
+                teamSizes,
+                state,
+                timeRemaining,
+                phase.wireValue,
+                phase != SessionPhase.LOBBY ? Long.valueOf(mRoster.gameId()) : null,
+                settings.isUseGPS() ? Integer.valueOf(settings.getGpsMode()) : null,
+                settings.isAllowPlayerSettings(),
+                getPlayerSettings(id, false),
+                settings.isOnlyServerSettings(),
+                settings.isAllowChooseTeams(),
+                settings.getStartTime(),
+                null);
+        final String allMessage = WireCodec.encode(info);
+        if (id == SEND_ALL) {
+            sendTCPMessageAll(allMessage);
+            return;
+        }
+        // Get update data for this specific player
+        ScoreData scoreData = getScore((byte) id);
+        PlayerRecord record = mRoster.record((byte) id);
+        WirePlayerGameUpdate update = new WirePlayerGameUpdate(
+                scoreData != null ? scoreData.points : 0,
+                scoreData != null ? scoreData.eliminated : 0,
+                !layout.getMode().isFreeForAll() ? Integer.valueOf(mRoster.teamPoints(layout.teamOf((byte) id))) : null,
+                timeRemaining,
+                record != null ? record.getLastAppliedSeq() : 0);
+        final String idMessage = WireCodec.encode(info.withPlayerUpdate(update));
+        for (Connection connection : mRoster.connections()) {
+            PlayerRecord player = connection.getPlayer();
+            if (player != null && player.getPlayerId() == id)
+                connection.send(idMessage);
+            else
+                connection.send(allMessage);
+        }
+    }
+
+    /** As the address went into the JSON: InetAddress.toString(), "/" and all. */
+    private static String ipString(InetAddress address) {
+        return address != null ? address.toString() : null;
     }
 
     /**
@@ -603,47 +591,26 @@ public class TcpServer extends Service {
 
     private void gpsTick() {
         if (!mGPSRunning) return; // a tick already queued when the relay stopped
-        String messageToSend = null;
         PlayerRepository repo = PlayerRepository.getInstance();
-        try {
-            JSONArray players = new JSONArray();
-            boolean hasUpdate = false;
-            boolean hasData;
-            int currentInterval = mGPSIntervalCount.get();
-            // The repository's lock keeps a GPS report from landing between reading and clearing hasUpdate.
-            synchronized (repo) {
-                hasData = !repo.getGpsData().isEmpty();
-                for (Map.Entry<Byte, GpsData> entry : repo.getGpsData().entrySet()) {
-                    if (entry.getValue().hasUpdate || currentInterval >= SEND_ALL_GPS_INTERVAL) {
-                        JSONObject player = new JSONObject();
-                        player.put(WireKeys.PLAYERID, entry.getKey());
-                        player.put(WireKeys.TEAM, entry.getValue().team);
-                        player.put(WireKeys.GPSLONGITUDE, entry.getValue().longitude);
-                        player.put(WireKeys.GPSLATITUDE, entry.getValue().latitude);
-                        players.put(player);
-                        hasUpdate = true;
-                    }
-                    entry.getValue().hasUpdate = false;
-                }
+        List<WireGpsPosition> positions = new ArrayList<>();
+        boolean hasData;
+        int currentInterval = mGPSIntervalCount.get();
+        boolean full = currentInterval >= SEND_ALL_GPS_INTERVAL;
+        // The repository's lock keeps a GPS report from landing between reading and clearing hasUpdate.
+        synchronized (repo) {
+            hasData = !repo.getGpsData().isEmpty();
+            for (Map.Entry<Byte, GpsData> entry : repo.getGpsData().entrySet()) {
+                GpsData gps = entry.getValue();
+                if (gps.hasUpdate || full)
+                    positions.add(new WireGpsPosition(entry.getKey(), gps.team, gps.longitude, gps.latitude));
+                gps.hasUpdate = false;
             }
-            if (hasData) {
-                if (hasUpdate) {
-                    JSONObject game = new JSONObject();
-                    game.put(WireKeys.GPSUPDATE, players);
-                    if (currentInterval >= SEND_ALL_GPS_INTERVAL) {
-                        game.put(WireKeys.GPSFULLUPDATE, true);
-                    }
-                    messageToSend = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + game.toString();
-                }
-                if (mGPSIntervalCount.incrementAndGet() >= SEND_ALL_GPS_INTERVAL)
-                    mGPSIntervalCount.set(0);
-            }
-        } catch (JSONException e) {
-            e.printStackTrace();
         }
-
-        if (messageToSend != null) {
-            sendTCPMessageAll(messageToSend);
+        if (hasData) {
+            if (!positions.isEmpty())
+                sendTCPMessageAll(WireCodec.encode(new ServerMessage.GpsUpdate(positions, full)));
+            if (mGPSIntervalCount.incrementAndGet() >= SEND_ALL_GPS_INTERVAL)
+                mGPSIntervalCount.set(0);
         }
 
         if (!keepListening || !GameSettingsRepository.getInstance().isUseGPS()) {
@@ -660,142 +627,107 @@ public class TcpServer extends Service {
     }
 
     private void sendPlayerData(int playerID) {
-        if (mRoster.isEmpty() || PlayerRepository.getInstance().getTeamIPMap() == null || PlayerRepository.getInstance().getTeamIPMap().size() == 0)
+        PlayerRepository players = PlayerRepository.getInstance();
+        if (mRoster.isEmpty() || players.getTeamIPMap() == null || players.getTeamIPMap().size() == 0)
             return;
-        try {
-            JSONArray players = new JSONArray();
-            for (Map.Entry<Byte, InetAddress> entry : PlayerRepository.getInstance().getTeamIPMap().entrySet()) {
-                JSONObject player = new JSONObject();
-                player.put(WireKeys.PLAYERNAME, PlayerRepository.getInstance().getPlayerName(entry.getKey()));
-                player.put(WireKeys.PLAYERID, entry.getKey());
-                player.put(WireKeys.PLAYERIP, entry.getValue());
-                ScoreData scoreData = getScore(entry.getKey());
-                if (scoreData != null) {
-                    player.put(WireKeys.PLAYERPOINTS, scoreData.points);
-                    player.put(WireKeys.PLAYERELIMINATED, scoreData.eliminated);
-                    player.put(WireKeys.CONNECTED, scoreData.isConnected);
-                } else {
-                    player.put(WireKeys.PLAYERPOINTS, 0);
-                    player.put(WireKeys.PLAYERELIMINATED, 0);
-                }
-                players.put(player);
-            }
-            JSONObject game = new JSONObject();
-            game.put(WireKeys.PLAYERDATA, players);
-            String message = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + game.toString();
-            if (playerID != SEND_ALL)
-                sendTCPMessageID(message, (byte)playerID);
-            else {
-                for (Connection connection : mRoster.connections()) {
-                    connection.send(message);
-                }
-            }
-            mEvents.publish(new ServerEvent.PlayerDataChanged(game.toString()));
-        } catch (JSONException e) {
-            e.printStackTrace();
+        List<WireScore> scores = new ArrayList<>();
+        for (Map.Entry<Byte, InetAddress> entry : players.getTeamIPMap().entrySet()) {
+            ScoreData scoreData = getScore(entry.getKey());
+            scores.add(new WireScore(entry.getKey(), players.getPlayerName(entry.getKey()), ipString(entry.getValue()),
+                    scoreData != null ? scoreData.points : 0,
+                    scoreData != null ? scoreData.eliminated : 0,
+                    scoreData != null ? Boolean.valueOf(scoreData.isConnected) : null));
         }
+        ServerMessage.PlayerData data = new ServerMessage.PlayerData(scores);
+        String message = WireCodec.encode(data);
+        if (playerID != SEND_ALL)
+            sendTCPMessageID(message, (byte)playerID);
+        else {
+            for (Connection connection : mRoster.connections()) {
+                connection.send(message);
+            }
+        }
+        mEvents.publish(new ServerEvent.PlayerDataChanged(WireCodec.playerDataJson(data)));
     }
 
-    private JSONArray getPlayerSettings(int playerID, boolean applyAll) {
+    private List<WirePlayerSettings> getPlayerSettings(int playerID, boolean applyAll) {
         return getPlayerSettings(playerID, applyAll, false);
     }
 
-    private JSONArray getPlayerSettings(int playerID, boolean applyAll, boolean applyTeam) {
+    /** Everyone's settings after applying [playerID]'s to all or its team; null with nobody connected. */
+    private List<WirePlayerSettings> getPlayerSettings(int playerID, boolean applyAll, boolean applyTeam) {
         // Read before taking the repository's lock: the roster's lock always comes first.
         boolean noPlayers = mRoster.isEmpty();
         PlayerRepository repo = PlayerRepository.getInstance();
         TeamLayout layout = GameSettingsRepository.getInstance().getTeamLayout();
-        try {
-            JSONArray players = new JSONArray();
-            synchronized (repo) {
-                if (applyAll && playerID != SEND_ALL) {
-                    PlayerSettings src = PlayerRepository.getInstance().getPlayerSettings().get((byte) playerID);
-                    if (src != null) {
-                        for (Byte x = 1; x <= GameSettingsRepository.MAX_PLAYER_ID; x++) {
-                            if (x != playerID) {
-                                PlayerSettings playerSettings = PlayerRepository.getInstance().getPlayerSettings().get(x);
-                                if (playerSettings == null) {
-                                    playerSettings = new PlayerSettings();
-                                    PlayerRepository.getInstance().getPlayerSettings().put(x, playerSettings);
-                                }
-                                playerSettings.health = src.health;
-                                playerSettings.shots = src.shots;
-                                playerSettings.reloadTime = src.reloadTime;
-                                playerSettings.reloadOnEmpty = src.reloadOnEmpty;
-                                playerSettings.manualRespawn = src.manualRespawn;
-                                playerSettings.spawnTime = src.spawnTime;
-                                playerSettings.respawnShieldTime = src.respawnShieldTime;
-                                playerSettings.damage = src.damage;
-                                playerSettings.overrideLives = src.overrideLives;
-                                playerSettings.lives = src.lives;
-                                playerSettings.allowShotModeSingle = src.allowShotModeSingle;
-                                playerSettings.allowShotModeBurst3 = src.allowShotModeBurst3;
-                                playerSettings.allowShotModeAuto = src.allowShotModeAuto;
-                                playerSettings.recoilSetting = src.recoilSetting;
-                                playerSettings.firingMode = src.firingMode;
+        List<WirePlayerSettings> players = new ArrayList<>();
+        synchronized (repo) {
+            if (applyAll && playerID != SEND_ALL) {
+                PlayerSettings src = PlayerRepository.getInstance().getPlayerSettings().get((byte) playerID);
+                if (src != null) {
+                    for (Byte x = 1; x <= GameSettingsRepository.MAX_PLAYER_ID; x++) {
+                        if (x != playerID) {
+                            PlayerSettings playerSettings = PlayerRepository.getInstance().getPlayerSettings().get(x);
+                            if (playerSettings == null) {
+                                playerSettings = new PlayerSettings();
+                                PlayerRepository.getInstance().getPlayerSettings().put(x, playerSettings);
                             }
-                        }
-                    }
-                } else if (applyTeam && playerID != SEND_ALL && !layout.getMode().isFreeForAll()) {
-                    PlayerSettings src = PlayerRepository.getInstance().getPlayerSettings().get((byte) playerID);
-                    if (src != null) {
-                        int sourceTeam = layout.teamOf((byte) playerID);
-                        for (Byte x = 1; x <= GameSettingsRepository.MAX_PLAYER_ID; x++) {
-                            if (x != playerID && layout.teamOf(x) == sourceTeam) {
-                                PlayerSettings playerSettings = PlayerRepository.getInstance().getPlayerSettings().get(x);
-                                if (playerSettings == null) {
-                                    playerSettings = new PlayerSettings();
-                                    PlayerRepository.getInstance().getPlayerSettings().put(x, playerSettings);
-                                }
-                                playerSettings.health = src.health;
-                                playerSettings.shots = src.shots;
-                                playerSettings.reloadTime = src.reloadTime;
-                                playerSettings.reloadOnEmpty = src.reloadOnEmpty;
-                                playerSettings.manualRespawn = src.manualRespawn;
-                                playerSettings.spawnTime = src.spawnTime;
-                                playerSettings.respawnShieldTime = src.respawnShieldTime;
-                                playerSettings.damage = src.damage;
-                                playerSettings.overrideLives = src.overrideLives;
-                                playerSettings.lives = src.lives;
-                                playerSettings.allowShotModeSingle = src.allowShotModeSingle;
-                                playerSettings.allowShotModeBurst3 = src.allowShotModeBurst3;
-                                playerSettings.allowShotModeAuto = src.allowShotModeAuto;
-                                playerSettings.recoilSetting = src.recoilSetting;
-                                playerSettings.firingMode = src.firingMode;
-                            }
+                            playerSettings.health = src.health;
+                            playerSettings.shots = src.shots;
+                            playerSettings.reloadTime = src.reloadTime;
+                            playerSettings.reloadOnEmpty = src.reloadOnEmpty;
+                            playerSettings.manualRespawn = src.manualRespawn;
+                            playerSettings.spawnTime = src.spawnTime;
+                            playerSettings.respawnShieldTime = src.respawnShieldTime;
+                            playerSettings.damage = src.damage;
+                            playerSettings.overrideLives = src.overrideLives;
+                            playerSettings.lives = src.lives;
+                            playerSettings.allowShotModeSingle = src.allowShotModeSingle;
+                            playerSettings.allowShotModeBurst3 = src.allowShotModeBurst3;
+                            playerSettings.allowShotModeAuto = src.allowShotModeAuto;
+                            playerSettings.recoilSetting = src.recoilSetting;
+                            playerSettings.firingMode = src.firingMode;
                         }
                     }
                 }
-                if (noPlayers || PlayerRepository.getInstance().getTeamIPMap().isEmpty()) {
-                    return null;
-                }
-                for (Map.Entry<Byte, PlayerSettings> entry : PlayerRepository.getInstance().getPlayerSettings().entrySet()) {
-                    JSONObject player = new JSONObject();
-                    player.put(WireKeys.PLAYERID, entry.getKey());
-                    player.put(WireKeys.HEALTH, entry.getValue().health);
-                    player.put(WireKeys.RELOAD_SHOTS, entry.getValue().shots);
-                    player.put(WireKeys.RELOAD_TIME, entry.getValue().reloadTime);
-                    player.put(WireKeys.RELOAD_ON_EMPTY, entry.getValue().reloadOnEmpty);
-                    player.put(WireKeys.MANUAL_RESPAWN, entry.getValue().manualRespawn);
-                    player.put(WireKeys.SPAWN_TIME, entry.getValue().spawnTime);
-                    player.put(WireKeys.RESPAWN_SHIELD_TIME, entry.getValue().respawnShieldTime);
-                    player.put(WireKeys.DAMAGE, entry.getValue().damage);
-                    if (entry.getValue().overrideLives)
-                        player.put(WireKeys.LIVESLIMIT, entry.getValue().lives);
-                    player.put(WireKeys.SHOT_MODE_SINGLE, entry.getValue().allowShotModeSingle);
-                    player.put(WireKeys.SHOT_MODE_BURST3, entry.getValue().allowShotModeBurst3);
-                    player.put(WireKeys.SHOT_MODE_AUTO, entry.getValue().allowShotModeAuto);
-                    player.put(WireKeys.FIRING_MODE, entry.getValue().firingMode);
-                    player.put(WireKeys.RECOIL_SETTING, entry.getValue().recoilSetting);
-                    player.put(WireKeys.IS_ADMIN, entry.getValue().isAdmin);
-                    players.put(player);
+            } else if (applyTeam && playerID != SEND_ALL && !layout.getMode().isFreeForAll()) {
+                PlayerSettings src = PlayerRepository.getInstance().getPlayerSettings().get((byte) playerID);
+                if (src != null) {
+                    int sourceTeam = layout.teamOf((byte) playerID);
+                    for (Byte x = 1; x <= GameSettingsRepository.MAX_PLAYER_ID; x++) {
+                        if (x != playerID && layout.teamOf(x) == sourceTeam) {
+                            PlayerSettings playerSettings = PlayerRepository.getInstance().getPlayerSettings().get(x);
+                            if (playerSettings == null) {
+                                playerSettings = new PlayerSettings();
+                                PlayerRepository.getInstance().getPlayerSettings().put(x, playerSettings);
+                            }
+                            playerSettings.health = src.health;
+                            playerSettings.shots = src.shots;
+                            playerSettings.reloadTime = src.reloadTime;
+                            playerSettings.reloadOnEmpty = src.reloadOnEmpty;
+                            playerSettings.manualRespawn = src.manualRespawn;
+                            playerSettings.spawnTime = src.spawnTime;
+                            playerSettings.respawnShieldTime = src.respawnShieldTime;
+                            playerSettings.damage = src.damage;
+                            playerSettings.overrideLives = src.overrideLives;
+                            playerSettings.lives = src.lives;
+                            playerSettings.allowShotModeSingle = src.allowShotModeSingle;
+                            playerSettings.allowShotModeBurst3 = src.allowShotModeBurst3;
+                            playerSettings.allowShotModeAuto = src.allowShotModeAuto;
+                            playerSettings.recoilSetting = src.recoilSetting;
+                            playerSettings.firingMode = src.firingMode;
+                        }
+                    }
                 }
             }
-            return players;
-        } catch (JSONException e) {
-            e.printStackTrace();
+            if (noPlayers || PlayerRepository.getInstance().getTeamIPMap().isEmpty()) {
+                return null;
+            }
+            for (Map.Entry<Byte, PlayerSettings> entry : PlayerRepository.getInstance().getPlayerSettings().entrySet()) {
+                players.add(WirePlayerSettings.of(entry.getKey(), entry.getValue()));
+            }
         }
-        return null;
+        return players;
     }
 
     public void sendPlayerSettings(int playerID, boolean applyAll, boolean allowPlayerSettings) {
@@ -811,19 +743,11 @@ public class TcpServer extends Service {
     }
 
     private void sendPlayerSettingsNow(int playerID, boolean applyAll, boolean applyTeam, boolean allowPlayerSettings) {
-        JSONArray players = getPlayerSettings(playerID, applyAll, applyTeam);
+        List<WirePlayerSettings> players = getPlayerSettings(playerID, applyAll, applyTeam);
         if (players == null)
             return;
-        try {
-            JSONObject game = new JSONObject();
-            game.put(WireKeys.ALLOWPLAYERSETTINGS, allowPlayerSettings);
-            GameSettingsRepository.getInstance().setAllowPlayerSettings(allowPlayerSettings);
-            game.put(WireKeys.PLAYERSETTINGS, players);
-            String message = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + game.toString();
-            sendTCPMessageAll(message);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
+        GameSettingsRepository.getInstance().setAllowPlayerSettings(allowPlayerSettings);
+        sendTCPMessageAll(WireCodec.encode(new ServerMessage.PlayerSettings(allowPlayerSettings, players)));
     }
 
     synchronized void startTcpServer() {
@@ -1136,28 +1060,14 @@ public class TcpServer extends Service {
         }
 
         private void sendGrenadePairings() {
-            boolean has_data = false;
             int[] pairings = PlayerRepository.getInstance().getGrenadePairings();
-            try {
-                JSONArray grenadePairings = new JSONArray();
-                for (int index = 1; index < PlayerRepository.MAX_GRENADE_IDS; index++) {
-                    if (pairings[index] != PlayerRepository.INVALID_PLAYER_ID) {
-                        has_data = true;
-                        JSONObject grenadePairing = new JSONObject();
-                        grenadePairing.put(WireKeys.PLAYERID, pairings[index]);
-                        grenadePairing.put(WireKeys.PAIRED_GRENADE_ID, index);
-                        grenadePairings.put(grenadePairing);
-                    }
-                }
-                if (has_data) {
-                    JSONObject data = new JSONObject();
-                    data.put(WireKeys.GRENADE_PAIRINGS, grenadePairings);
-                    String message = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + data.toString();
-                    sendTCPMessageAll(message);
-                }
-            } catch (JSONException e) {
-                e.printStackTrace();
+            List<WireGrenadePairing> paired = new ArrayList<>();
+            for (int index = 1; index < PlayerRepository.MAX_GRENADE_IDS; index++) {
+                if (pairings[index] != PlayerRepository.INVALID_PLAYER_ID)
+                    paired.add(new WireGrenadePairing(index, pairings[index]));
             }
+            if (!paired.isEmpty())
+                sendTCPMessageAll(WireCodec.encode(new ServerMessage.GrenadePairings(paired)));
         }
 
         /** The server operator gave this player admin rights in its player settings. */

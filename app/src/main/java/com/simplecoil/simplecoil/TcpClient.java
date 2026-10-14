@@ -49,21 +49,22 @@ import com.simplecoil.simplecoil.network.ClientEvent;
 import com.simplecoil.simplecoil.network.ClientMessage;
 import com.simplecoil.simplecoil.network.EventBus;
 import com.simplecoil.simplecoil.network.Frame;
+import com.simplecoil.simplecoil.network.FrameReader;
 import com.simplecoil.simplecoil.network.GameUpdate;
 import com.simplecoil.simplecoil.network.ServerCommand;
+import com.simplecoil.simplecoil.network.ServerMessage;
 import com.simplecoil.simplecoil.network.WireCodec;
+import com.simplecoil.simplecoil.network.WireGpsPosition;
+import com.simplecoil.simplecoil.network.WireGrenadePairing;
+import com.simplecoil.simplecoil.network.WireLimits;
 import com.simplecoil.simplecoil.network.WirePending;
+import com.simplecoil.simplecoil.network.WirePlayer;
+import com.simplecoil.simplecoil.network.WirePlayerGameUpdate;
 import com.simplecoil.simplecoil.network.WirePlayerSettings;
-import com.simplecoil.simplecoil.network.FrameReader;
-import com.simplecoil.simplecoil.network.WireKeys;
 import com.simplecoil.simplecoil.network.WireProtocol;
 import com.simplecoil.simplecoil.network.client.ClientOutbox;
 import com.simplecoil.simplecoil.network.client.ReconnectPolicy;
 import com.simplecoil.simplecoil.network.server.SessionPhase;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import java.io.BufferedOutputStream;
 import java.io.DataOutputStream;
@@ -474,7 +475,9 @@ public class TcpClient extends Service {
         }
         Log.i(TAG, "received: '" + raw + "'");
         if (frame.kind == Frame.Kind.JSON) {
-            parseGameInfo(frame.body);
+            ServerMessage message = WireCodec.decodeServer(frame);
+            if (message != null)
+                handleMessage(message, frame.body);
         } else if (frame.kind == Frame.Kind.MESG) {
             return handleCommand(WireCodec.decodeServerCommand(frame.body));
         } else if (frame.kind == Frame.Kind.VERSION_ERROR) {
@@ -628,222 +631,183 @@ public class TcpClient extends Service {
         }
     }
 
-    private void parseGameInfo(String message) {
-        try {
-            JSONObject game = new JSONObject(message);
-            if (game.has(WireKeys.GRENADE_PAIRINGS)) {
-                PlayerRepository repo = PlayerRepository.getInstance();
-                synchronized (repo) {
-                    repo.clearGrenadePairings();
-                    JSONArray grenadePairings = game.getJSONArray(WireKeys.GRENADE_PAIRINGS);
-                    for (int x = 0; x < grenadePairings.length(); x++) {
-                        JSONObject grenadePairing = grenadePairings.getJSONObject(x);
-                        repo.pairGrenade(
-                                grenadePairing.getInt(WireKeys.PAIRED_GRENADE_ID),
-                                grenadePairing.getInt(WireKeys.PLAYERID)
-                        );
-                    }
+    /** A JSON message from the server; [json] is the frame's JSON. */
+    private void handleMessage(ServerMessage message, String json) {
+        if (message instanceof ServerMessage.GrenadePairings) {
+            PlayerRepository repo = PlayerRepository.getInstance();
+            synchronized (repo) {
+                repo.clearGrenadePairings();
+                for (WireGrenadePairing pairing : ((ServerMessage.GrenadePairings) message).getPairings()) {
+                    repo.pairGrenade(pairing.getGrenadeId(), pairing.getPlayerId());
                 }
-                return;
             }
-            if (game.has(WireKeys.GPSUPDATE)) {
-                JSONArray updates = game.getJSONArray(WireKeys.GPSUPDATE);
-                boolean fullUpdate = false;
-                synchronized (PlayerRepository.getInstance()) {
-                    if (game.has(WireKeys.GPSFULLUPDATE)) {
-                        PlayerRepository.getInstance().getGpsData().clear();
-                        fullUpdate = true;
+        } else if (message instanceof ServerMessage.GpsUpdate) {
+            ServerMessage.GpsUpdate update = (ServerMessage.GpsUpdate) message;
+            PlayerRepository repo = PlayerRepository.getInstance();
+            synchronized (repo) {
+                if (update.getFull())
+                    repo.getGpsData().clear();
+                for (WireGpsPosition position : update.getPositions()) {
+                    byte playerID = (byte) position.getPlayerId();
+                    if (playerID == repo.getPlayerID())
+                        continue;
+                    GpsData gps = repo.getGpsData().get(playerID);
+                    if (gps == null) {
+                        gps = new GpsData();
+                        gps.team = position.getTeam() != null ? position.getTeam() : 0;
+                        repo.getGpsData().put(playerID, gps);
                     }
-                    for (int x = 0; x < updates.length(); x++) {
-                        JSONObject update = updates.getJSONObject(x);
-                        Byte playerID = (byte) update.getInt(WireKeys.PLAYERID);
-                        if (playerID != PlayerRepository.getInstance().getPlayerID()) {
-                            double longitude = update.getDouble(WireKeys.GPSLONGITUDE);
-                            double latitude = update.getDouble(WireKeys.GPSLATITUDE);
-                            GpsData gps = PlayerRepository.getInstance().getGpsData().get(playerID);
-                            if (gps == null) {
-                                gps = new GpsData();
-                                gps.longitude = longitude;
-                                gps.latitude = latitude;
-                                gps.team = update.getInt(WireKeys.TEAM);
-                                PlayerRepository.getInstance().getGpsData().put(playerID, gps);
-                            } else {
-                                gps.longitude = longitude;
-                                gps.latitude = latitude;
-                            }
-                            gps.hasUpdate = true; // Anything that the server sends us is considered an update
-                        }
-                    }
+                    gps.longitude = position.getLongitude();
+                    gps.latitude = position.getLatitude();
+                    gps.hasUpdate = true; // Anything that the server sends us is considered an update
                 }
-                mEvents.publish(new ClientEvent.GpsData(fullUpdate));
-                return;
             }
-            if (game.has(WireKeys.PLAYERDATA)) {
-                mEvents.publish(new ClientEvent.PlayerDataUpdate(message));
-                return;
-            }
-            if (game.has(WireKeys.PLAYERSETTINGS)) {
-                JSONArray settings = game.getJSONArray(WireKeys.PLAYERSETTINGS);
-                synchronized (PlayerRepository.getInstance()) {
-                    for (byte x = 0; x < settings.length(); x++) {
-                        JSONObject setting = settings.getJSONObject(x);
-                        Byte playerID = (byte) setting.getInt(WireKeys.PLAYERID);
-                        PlayerSettings playerSettings = PlayerRepository.getInstance().getPlayerSettings().get(playerID);
-                        if (playerSettings == null) {
-                            playerSettings = new PlayerSettings();
-                            PlayerRepository.getInstance().getPlayerSettings().put(playerID, playerSettings);
-                        }
-                        playerSettings.health = setting.getInt(WireKeys.HEALTH);
-                        playerSettings.shots = (byte)setting.getInt(WireKeys.RELOAD_SHOTS);
-                        playerSettings.reloadTime = setting.getLong(WireKeys.RELOAD_TIME);
-                        playerSettings.reloadOnEmpty = setting.getBoolean(WireKeys.RELOAD_ON_EMPTY);
-                        playerSettings.manualRespawn = setting.optBoolean(WireKeys.MANUAL_RESPAWN, false);
-                        playerSettings.spawnTime = setting.getLong(WireKeys.SPAWN_TIME);
-                        if (setting.has(WireKeys.RESPAWN_SHIELD_TIME)) {
-                            playerSettings.respawnShieldTime = setting.getLong(WireKeys.RESPAWN_SHIELD_TIME);
-                        }
-                        playerSettings.damage = setting.getInt(WireKeys.DAMAGE);
-                        if (setting.has(WireKeys.LIVESLIMIT)) {
-                            playerSettings.overrideLives = true;
-                            playerSettings.lives = setting.getInt(WireKeys.LIVESLIMIT);
-                        } else {
-                            playerSettings.overrideLives = false;
-                            playerSettings.lives = 0;
-                        }
-                        playerSettings.allowShotModeSingle = setting.getBoolean(WireKeys.SHOT_MODE_SINGLE);
-                        playerSettings.allowShotModeBurst3 = setting.getBoolean(WireKeys.SHOT_MODE_BURST3);
-                        playerSettings.allowShotModeAuto = setting.getBoolean(WireKeys.SHOT_MODE_AUTO);
-                        playerSettings.firingMode = setting.getInt(WireKeys.FIRING_MODE);
-                        if (setting.has(WireKeys.RECOIL_SETTING)) {
-                            playerSettings.recoilSetting = setting.getInt(WireKeys.RECOIL_SETTING);
-                        }
-                        if (setting.has(WireKeys.IS_ADMIN)) {
-                            playerSettings.isAdmin = setting.getBoolean(WireKeys.IS_ADMIN);
-                        }
-                        if (playerID == PlayerRepository.getInstance().getPlayerID()) {
-                            GameSettingsRepository.getInstance().setFullHealth(playerSettings.health);
-                            GameSettingsRepository.getInstance().setFullReload(playerSettings.shots);
-                            GameSettingsRepository.getInstance().setReloadTime(playerSettings.reloadTime);
-                            GameSettingsRepository.getInstance().setReloadOnEmpty(playerSettings.reloadOnEmpty);
-                            GameSettingsRepository.getInstance().setManualRespawn(playerSettings.manualRespawn);
-                            GameSettingsRepository.getInstance().setRespawnTime(playerSettings.spawnTime);
-                            GameSettingsRepository.getInstance().setRespawnShieldTime(playerSettings.respawnShieldTime);
-                            GameSettingsRepository.getInstance().setDamage(playerSettings.damage);
-                            GameSettingsRepository.getInstance().setOverrideLives(playerSettings.overrideLives);
-                            GameSettingsRepository.getInstance().setOverrideLivesVal(playerSettings.lives);
-                            GameSettingsRepository.getInstance().setAllowSingleShotMode(playerSettings.allowShotModeSingle);
-                            GameSettingsRepository.getInstance().setAllowBurst3ShotMode(playerSettings.allowShotModeBurst3);
-                            GameSettingsRepository.getInstance().setAllowAutoShotMode(playerSettings.allowShotModeAuto);
-                            GameSettingsRepository.getInstance().setCurrentFiringMode(playerSettings.firingMode);
-                            GameSettingsRepository.getInstance().setServerRecoilSetting(playerSettings.recoilSetting);
-                            PlayerRepository.getInstance().setAdmin(playerSettings.isAdmin);
-                        }
-                    }
-                }
-                GameSettingsRepository.getInstance().setAllowPlayerSettings(game.getBoolean(WireKeys.ALLOWPLAYERSETTINGS));
-                mEvents.publish(ClientEvent.PlayerSettingsUpdate.INSTANCE);
-            }
-            if (game.has(WireKeys.PLAYERS)) {
-                synchronized (PlayerRepository.getInstance()) {
-                    PlayerRepository.getInstance().clearAllPlayers();
-                    GameSettingsRepository.getInstance().setGameLimit(GameSettingsRepository.GAME_LIMIT_NONE);
-                    JSONArray players = game.getJSONArray(WireKeys.PLAYERS);
-                    for (int x = 0; x < players.length(); x++) {
-                        JSONObject player = players.getJSONObject(x);
-                        Byte playerID = (byte) player.getInt(WireKeys.PLAYERID);
-                        String playerName = player.getString(WireKeys.PLAYERNAME);
-                        if (playerID == PlayerRepository.getInstance().getPlayerID()) {
-                            if (!playerName.isEmpty() && !playerName.equals(PlayerRepository.getInstance().getPlayerName())) {
-                                PlayerRepository.getInstance().setPlayerName(playerName);
-                            }
-                        } else {
-                            InetAddress playerIP = null;
-                            String ip = player.getString(WireKeys.PLAYERIP);
-                            if (ip.startsWith("/")) ip = ip.substring(1);
-                            try {
-                                playerIP = InetAddress.getByName(ip);
-                            } catch (UnknownHostException e) {
-                                e.printStackTrace();
-                            }
-                            if (playerIP != null) {
-                                PlayerRepository.getInstance().addOrUpdatePlayer(playerID, playerIP, playerName);
-                                Log.d(TAG, "player '" + playerName + "' (" + playerID + ") found at " + playerIP.toString());
-                            }
-                        }
-                    }
-                }
-                JSONArray players = game.getJSONArray(WireKeys.PLAYERS);
-                Log.d(TAG, "Found " + players.length() + " players");
-                JSONObject limits = game.getJSONObject(WireKeys.LIMITS);
-                int gameLimit = GameSettingsRepository.getInstance().getGameLimit();
-                if (limits.has(WireKeys.TIMELIMIT)) {
-                    gameLimit += GameSettingsRepository.GAME_LIMIT_TIME;
-                    GameSettingsRepository.getInstance().setTimeLimit(limits.getInt(WireKeys.TIMELIMIT));
-                }
-                if (limits.has(WireKeys.LIVESLIMIT)) {
-                    gameLimit += GameSettingsRepository.GAME_LIMIT_LIVES;
-                    GameSettingsRepository.getInstance().setLivesLimit(limits.getInt(WireKeys.LIVESLIMIT));
-                    Log.e(TAG, "tcpClient set lives limit to " + GameSettingsRepository.getInstance().getLivesLimit());
-                }
-                if (limits.has(WireKeys.SCORELIMIT)) {
-                    gameLimit += GameSettingsRepository.GAME_LIMIT_SCORE;
-                    GameSettingsRepository.getInstance().setScoreLimit(limits.getInt(WireKeys.SCORELIMIT));
-                }
-                GameSettingsRepository.getInstance().setGameLimit(gameLimit);
-                TeamMode teamMode = TeamMode.fromWire(game.getInt(WireKeys.GAMEMODE));
-                int[] sizes = null;
-                if (game.has(WireKeys.TEAMSIZES)) {
-                    JSONArray teamSizesArr = game.getJSONArray(WireKeys.TEAMSIZES);
-                    sizes = new int[teamSizesArr.length()];
-                    for (int i = 0; i < teamSizesArr.length(); i++) {
-                        sizes[i] = teamSizesArr.getInt(i);
-                    }
-                }
-                if (teamMode != null) {
-                    GameSettingsRepository.getInstance().setTeamModeAndSizes(teamMode, sizes);
-                } else {
-                    Log.w(TAG, "Unknown team mode from the server: " + game.getInt(WireKeys.GAMEMODE));
-                }
-                GameSettingsRepository.getInstance().setUseGPS(game.has(WireKeys.USEGPS));
-                if (GameSettingsRepository.getInstance().isUseGPS()) {
-                    GameSettingsRepository.getInstance().setGpsMode(game.getInt(WireKeys.USEGPS));
-                }
-                if (game.has(WireKeys.START_TIME)) {
-                    GameSettingsRepository.getInstance().setStartTime(game.getLong(WireKeys.START_TIME));
-                    GameSettingsRepository.getInstance().setStartTime(GameSettingsRepository.getInstance().getStartTime());
-                }
-                GameSettingsRepository.getInstance().setOnlyServerSettings(game.getBoolean(WireKeys.ONLY_SERVER_SETTINGS));
-                if (game.has(WireKeys.ALLOW_CHOOSE_TEAMS)) {
-                    boolean allowChooseTeams = game.getBoolean(WireKeys.ALLOW_CHOOSE_TEAMS);
-                    GameSettingsRepository.getInstance().setAllowChooseTeams(allowChooseTeams);
-                    GameSettingsRepository.getInstance().setAllowChooseTeams(allowChooseTeams);
-                }
-                Integer sessionPhase = null;
-                Long gameId = null;
-                if (game.has(WireKeys.SESSIONPHASE)) {
-                    mSessionPhase = SessionPhase.fromWire(game.getInt(WireKeys.SESSIONPHASE));
-                    mGameId = game.optLong(WireKeys.GAMEID, 0);
-                    mOutbox.onGameId(mGameId); // a new game, or a reset: the old entries are void
-                    sessionPhase = mSessionPhase.wireValue;
-                    gameId = mGameId;
-                }
-                GameUpdate gameUpdate = null;
-                if (game.has(WireKeys.PLAYERGAMEUPDATE)) {
-                    JSONObject playerGameUpdate = game.getJSONObject(WireKeys.PLAYERGAMEUPDATE);
-                    // D2: the server's count plus the eliminations it hasn't applied yet
-                    int eliminations = mOutbox.reconcile(playerGameUpdate.getInt(WireKeys.PLAYERELIMINATED),
-                            playerGameUpdate.optInt(WireKeys.ACKSEQ, 0));
-                    // A missing team score is 0 and a missing time is -1 (no time limit)
-                    gameUpdate = new GameUpdate(playerGameUpdate.getInt(WireKeys.PLAYERPOINTS), eliminations,
-                            playerGameUpdate.optInt(WireKeys.TEAMPOINTS, 0),
-                            playerGameUpdate.optLong(WireKeys.TIMEREMAINING, -1));
-                }
-                Integer gameState = game.has(WireKeys.GAMESTATE) ? game.getInt(WireKeys.GAMESTATE) : null;
-                mEvents.publish(new ClientEvent.ListPlayers(gameUpdate, gameState, sessionPhase, gameId));
-            }
-        } catch (JSONException e) {
-            e.printStackTrace();
+            mEvents.publish(new ClientEvent.GpsData(update.getFull()));
+        } else if (message instanceof ServerMessage.PlayerData) {
+            mEvents.publish(new ClientEvent.PlayerDataUpdate(json));
+        } else if (message instanceof ServerMessage.PlayerSettings) {
+            ServerMessage.PlayerSettings settings = (ServerMessage.PlayerSettings) message;
+            applyPlayerSettings(settings.getPlayers(), settings.getAllowPlayerSettings());
+        } else if (message instanceof ServerMessage.GameInfo) {
+            ServerMessage.GameInfo info = (ServerMessage.GameInfo) message;
+            if (info.getPlayerSettings() != null)
+                applyPlayerSettings(info.getPlayerSettings(), info.getAllowPlayerSettings());
+            applyGameInfo(info);
         }
+    }
+
+    /** Everyone's settings from the server; our own become the game settings. */
+    private void applyPlayerSettings(List<WirePlayerSettings> players, boolean allowPlayerSettings) {
+        PlayerRepository repo = PlayerRepository.getInstance();
+        GameSettingsRepository settings = GameSettingsRepository.getInstance();
+        synchronized (repo) {
+            for (WirePlayerSettings wire : players) {
+                byte playerID = (byte) wire.getPlayerId();
+                PlayerSettings playerSettings = repo.getPlayerSettings().get(playerID);
+                if (playerSettings == null) {
+                    playerSettings = new PlayerSettings();
+                    repo.getPlayerSettings().put(playerID, playerSettings);
+                }
+                wire.applyTo(playerSettings, true);
+                if (playerID == repo.getPlayerID()) {
+                    settings.setFullHealth(playerSettings.health);
+                    settings.setFullReload(playerSettings.shots);
+                    settings.setReloadTime(playerSettings.reloadTime);
+                    settings.setReloadOnEmpty(playerSettings.reloadOnEmpty);
+                    settings.setManualRespawn(playerSettings.manualRespawn);
+                    settings.setRespawnTime(playerSettings.spawnTime);
+                    settings.setRespawnShieldTime(playerSettings.respawnShieldTime);
+                    settings.setDamage(playerSettings.damage);
+                    settings.setOverrideLives(playerSettings.overrideLives);
+                    settings.setOverrideLivesVal(playerSettings.lives);
+                    settings.setAllowSingleShotMode(playerSettings.allowShotModeSingle);
+                    settings.setAllowBurst3ShotMode(playerSettings.allowShotModeBurst3);
+                    settings.setAllowAutoShotMode(playerSettings.allowShotModeAuto);
+                    settings.setCurrentFiringMode(playerSettings.firingMode);
+                    settings.setServerRecoilSetting(playerSettings.recoilSetting);
+                    repo.setAdmin(playerSettings.isAdmin);
+                }
+            }
+        }
+        settings.setAllowPlayerSettings(allowPlayerSettings);
+        mEvents.publish(ClientEvent.PlayerSettingsUpdate.INSTANCE);
+    }
+
+    /** The players, limits, teams and phase from the game info. */
+    private void applyGameInfo(ServerMessage.GameInfo info) {
+        PlayerRepository repo = PlayerRepository.getInstance();
+        GameSettingsRepository settings = GameSettingsRepository.getInstance();
+        synchronized (repo) {
+            repo.clearAllPlayers();
+            settings.setGameLimit(GameSettingsRepository.GAME_LIMIT_NONE);
+            for (WirePlayer player : info.getPlayers()) {
+                byte playerID = (byte) player.getPlayerId();
+                String playerName = player.getName();
+                if (playerID == repo.getPlayerID()) {
+                    if (!playerName.isEmpty() && !playerName.equals(repo.getPlayerName())) {
+                        repo.setPlayerName(playerName);
+                    }
+                } else {
+                    String ip = player.getIp();
+                    if (ip == null) {
+                        Log.w(TAG, "No address for player " + playerID);
+                        continue;
+                    }
+                    if (ip.startsWith("/")) ip = ip.substring(1);
+                    InetAddress playerIP = null;
+                    try {
+                        playerIP = InetAddress.getByName(ip);
+                    } catch (UnknownHostException e) {
+                        e.printStackTrace();
+                    }
+                    if (playerIP != null) {
+                        repo.addOrUpdatePlayer(playerID, playerIP, playerName);
+                        Log.d(TAG, "player '" + playerName + "' (" + playerID + ") found at " + playerIP.toString());
+                    }
+                }
+            }
+        }
+        Log.d(TAG, "Found " + info.getPlayers().size() + " players");
+        WireLimits limits = info.getLimits();
+        int gameLimit = settings.getGameLimit();
+        if (limits.getTimeLimit() != null) {
+            gameLimit += GameSettingsRepository.GAME_LIMIT_TIME;
+            settings.setTimeLimit(limits.getTimeLimit());
+        }
+        if (limits.getLivesLimit() != null) {
+            gameLimit += GameSettingsRepository.GAME_LIMIT_LIVES;
+            settings.setLivesLimit(limits.getLivesLimit());
+            Log.e(TAG, "tcpClient set lives limit to " + settings.getLivesLimit());
+        }
+        if (limits.getScoreLimit() != null) {
+            gameLimit += GameSettingsRepository.GAME_LIMIT_SCORE;
+            settings.setScoreLimit(limits.getScoreLimit());
+        }
+        settings.setGameLimit(gameLimit);
+        TeamMode teamMode = TeamMode.fromWire(info.getGameMode());
+        int[] sizes = null;
+        if (info.getTeamSizes() != null) {
+            sizes = new int[info.getTeamSizes().size()];
+            for (int i = 0; i < sizes.length; i++) {
+                sizes[i] = info.getTeamSizes().get(i);
+            }
+        }
+        if (teamMode != null) {
+            settings.setTeamModeAndSizes(teamMode, sizes);
+        } else {
+            Log.w(TAG, "Unknown team mode from the server: " + info.getGameMode());
+        }
+        settings.setUseGPS(info.getGpsMode() != null);
+        if (info.getGpsMode() != null) {
+            settings.setGpsMode(info.getGpsMode());
+        }
+        if (info.getStartTime() != null) {
+            settings.setStartTime(info.getStartTime());
+        }
+        settings.setOnlyServerSettings(info.getOnlyServerSettings());
+        if (info.getAllowChooseTeams() != null) {
+            settings.setAllowChooseTeams(info.getAllowChooseTeams());
+        }
+        Integer sessionPhase = null;
+        Long gameId = null;
+        if (info.getSessionPhase() != null) {
+            mSessionPhase = SessionPhase.fromWire(info.getSessionPhase());
+            mGameId = info.getGameId() != null ? info.getGameId() : 0;
+            mOutbox.onGameId(mGameId); // a new game, or a reset: the old entries are void
+            sessionPhase = mSessionPhase.wireValue;
+            gameId = mGameId;
+        }
+        GameUpdate gameUpdate = null;
+        WirePlayerGameUpdate update = info.getPlayerUpdate();
+        if (update != null) {
+            // D2: the server's count plus the eliminations it hasn't applied yet
+            int eliminations = mOutbox.reconcile(update.getEliminated(), update.getAckSeq() != null ? update.getAckSeq() : 0);
+            // A missing team score is 0 and a missing time is -1 (no time limit)
+            gameUpdate = new GameUpdate(update.getPoints(), eliminations,
+                    update.getTeamPoints() != null ? update.getTeamPoints() : 0,
+                    update.getTimeRemaining() != null ? update.getTimeRemaining() : -1);
+        }
+        mEvents.publish(new ClientEvent.ListPlayers(gameUpdate, info.getGameState(), sessionPhase, gameId));
     }
 
     public SessionPhase getSessionPhase() {
