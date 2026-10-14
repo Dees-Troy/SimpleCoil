@@ -209,3 +209,39 @@ fixed by the next snapshot.
   - a player (in free for all) or a team reaches the score limit, or
   - one team or none still has lives left.
 - An elimination that arrives after the game ends still counts in the final scores.
+
+## 7. Bandwidth estimates
+
+When GPS is enabled (`usegps`), clients send location updates to the server as players move, and the server broadcasts a combined location matrix for all players to every client every second (`GPS_UPDATE_INTERVAL = 1000 ms`).
+
+### 7.1 Data rates per packet
+
+- **Client Upstream (1 Hz):**
+  - Payload: 2-byte UTF length + `SimpleCoil:07JSON` (17 B) + `{"gpslongitude":...,"gpslatitude":...}` (~56 B) $\approx$ **75 bytes/sec** (~0.60 kbps).
+  - With IPv4/TCP headers (+40 B): **115 bytes/sec** (~0.92 kbps).
+- **Server Downstream Broadcast (1 Hz):**
+  - Payload: 2-byte UTF length + `SimpleCoil:07JSON` (17 B) + outer JSON wrapper (~16 B) + per-player position entry (~78 B per player).
+  - Packet payload sizes by player count ($N$):
+    - **8 Players:** ~659 bytes/sec payload (~5.27 kbps per client).
+    - **16 Players:** ~1,283 bytes/sec payload (~10.26 kbps per client).
+    - **32 Players:** ~2,531 bytes/sec payload (~20.25 kbps per client).
+- **Server Scaling:** Inbound traffic scales linearly ($O(N)$), while outbound traffic scales quadratically ($O(N^2)$) as position updates for all $N$ players are relayed to all $N$ connected clients.
+
+### 7.2 Bandwidth summary tables
+
+#### Per-Client Bandwidth
+
+| Player Count ($N$) | Upstream (Payload) | Downstream (Payload) | Total Client Bandwidth (Payload) | Total Client Bandwidth (Wire IP/TCP) | Hourly Data Usage |
+|---|---|---|---|---|---|
+| **8 Players** | 0.60 kbps (75 B/s) | 5.27 kbps (659 B/s) | **5.87 kbps** (0.73 KB/s) | **6.51 kbps** (0.81 KB/s) | **~2.9 MB / hr** |
+| **16 Players** | 0.60 kbps (75 B/s) | 10.26 kbps (1,283 B/s) | **10.86 kbps** (1.36 KB/s) | **11.50 kbps** (1.44 KB/s) | **~5.2 MB / hr** |
+| **32 Players** | 0.60 kbps (75 B/s) | 20.25 kbps (2,531 B/s) | **20.85 kbps** (2.53 KB/s) | **21.81 kbps** (2.73 KB/s) | **~9.8 MB / hr** |
+
+#### Dedicated / Host Server Bandwidth
+
+| Player Count ($N$) | Server Inbound (Upload) | Server Outbound (Broadcast) | Total Server Payload Throughput | Total Server Wire Bandwidth (IP/TCP) | Hourly Data Usage |
+|---|---|---|---|---|---|
+| **8 Players** | 4.80 kbps (0.60 KB/s) | 42.18 kbps (5.27 KB/s) | **46.98 kbps** (5.87 KB/s) | **~52.1 kbps** (6.51 KB/s) | **~23.4 MB / hr** |
+| **16 Players** | 9.60 kbps (1.20 KB/s) | 164.22 kbps (20.53 KB/s) | **173.82 kbps** (21.73 KB/s) | **~184.1 kbps** (23.01 KB/s) | **~82.8 MB / hr** |
+| **32 Players** | 19.20 kbps (2.40 KB/s) | 647.94 kbps (80.99 KB/s) | **667.14 kbps** (83.39 KB/s) | **~697.9 kbps** (87.23 KB/s) | **~314 MB / hr** |
+
