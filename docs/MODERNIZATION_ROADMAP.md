@@ -1,6 +1,6 @@
 # SimpleCoil Modernization Roadmap (after V2 refactor)
 
-Status: **Stages 0–3 DONE (2026-10-13), device checks included; Stage 4 next.** All four documents are approved and their decisions resolved.
+Status: **Stages 0–3 DONE (2026-10-13), device checks included; Stage 4 done in code, its device checks to run.** All four documents are approved and their decisions resolved.
 Branch audited: `V2-refactor` @ `b460c02`. The on-device checklists in `REFACTOR_DESIGN.md` §6.5 and
 `STATE_CONSOLIDATION_DESIGN.md` §8.6 have been completed.
 Date: 2026-10-13
@@ -190,6 +190,53 @@ start, end and reset updates, the GPS map, and a timed game; discovery answers o
 - **Dedicated server steps 7–8**: `ServerSnapshot`, `ServerController`, the Kotlin ViewModel and activity, stop
   confirmation (app container step 5 happens here).
 - **Platform step 8**: large-screen layouts and the insets check, now that the server layout is final.
+
+**Done in code (2026-10-13), one commit per step; device checks still to run.** 555 unit tests pass,
+`assembleDebug` is green, and `lintDebug` has 0 errors and 27 warnings (24 before, plus the portrait server layout's
+three `RelativeOverlap` warnings copied into the landscape one).
+
+- **Dedicated server step 7:** `GameServer.applyPlayerSettings`, the player settings save as one dispatcher
+  operation `b0faa84` (S11); `ServerSnapshot`, rebuilt on the dispatcher after every task, and the operator's
+  settings changes as `GameServer` operations `d1c12a6`.
+- **Dedicated server step 8 and app container step 5:** `ServerController`, `TcpServer` hosting the beacon,
+  notification and Wi-Fi lock, and the Kotlin `DedicatedServerViewModel`, `DedicatedServerRenderer` and
+  `DedicatedServerActivity` `2c82735` (S4, S14 partly, S15; Q1, Q3).
+- **Platform step 8:** the two-pane `layout-sw600dp-land` server layout `1a32da3`.
+
+Notes:
+
+- **Steps 7 and 8 are one commit for the screen.** `ServerController` and the Kotlin screen landed together, so the
+  Java activity wasn't rewired to the controller only to be deleted in the next commit. The snapshot and S11 came
+  first, on their own.
+- **`ServerController` is an interface**, with `TcpServerController` (in the container) as the real one, so
+  `DedicatedServerViewModelTest` runs on a fake, as §6.1 asks. It binds the service once, from start to stop, and
+  forwards the server's snapshot as a `StateFlow<ServerSnapshot?>` (null while not running). Commands while
+  unbound are dropped, as the old null checks did.
+- **The operator's settings changes run on the server's dispatcher** (`changeTeamMode`, `changeLimits`,
+  `changeGpsMode`, ...), each with the old screen's order: reset after a game, change, renumber or resend. They
+  return whether they reset, for the toast. The view model saves the settings under the same keys (R5).
+  `loadSettings` applies them when the server starts, and turns join-in-progress off, as the screen's switch always
+  started.
+- **The beacon moved into `TcpServer`**, so `UDPListenerService` only discovers. `ServerEvent.ServerCreated` went:
+  the snapshot carries the address. The play screen's `udp.startGame()` only stopped a beacon that never ran on a
+  phone, so it went too.
+- **The zeroing of the play screen's player id and game state** (S14) moved from the activity's `onCreate` into
+  `TcpServer.startServer`; it goes for good with server-scoped state (Stage 5).
+- **Notification:** "N players · phase", tap to open, and a Stop server action. `POST_NOTIFICATIONS` is not asked
+  again on the server screen: since Stage 0 the Dedicated server button asks for it on every path to the screen.
+- **Reset and Stop confirmations** use a new host-agnostic `ConfirmDialog` (Fragment Result API), so they survive
+  recreation. The play screen keeps its own `ResetConfirmDialog`, bound to `GameViewModel`; it was not moved.
+- **Platform §3.2 item 5 was not done.** The connect layout's buttons (about 320dp) fit a large screen in
+  landscape, and its info `WebView` already scrolls itself. A `ScrollView` around it would nest the `WebView` in a
+  scroller on phones too, a visual change ground rule 1 rules out. The play layout keeps its 400dp map (Q2).
+- The `getInstance()` callers left are `MapFragment` and `MapLocationManager` (Stage 5).
+
+Device checks to run: the dedicated-server check (`DEDICATED_SERVER_DESIGN.md` §10, items 1–9, with the Wi-Fi lock
+and keep-screen-on of item 1 and the notification's Stop of item 3); the network smoke test
+(`NETWORK_STACK_DESIGN.md` §9.1); and platform step 8's matrix (`PLATFORM_COMPAT_DESIGN.md` §3.2, §4.2): the server
+screen in portrait, landscape (two panes) and a free-form window at its minimum size on a tablet or the resizable
+emulator and a Chromebook, with no overlap at the display cutout or a side navigation bar; on a phone, still
+portrait.
 
 ### Stage 5 — finish
 
