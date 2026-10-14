@@ -125,10 +125,7 @@ class SessionEndToEndTest {
 
     /** [captor].capture() for a Kotlin parameter that can't take the null it returns. */
     @Suppress("UNCHECKED_CAST")
-    private fun <T> capture(captor: ArgumentCaptor<T>): T {
-        captor.capture()
-        return null as T
-    }
+    private fun <T> capture(captor: ArgumentCaptor<T>): T = captor.capture() as T
 
     private fun sent(): List<String> {
         val strings = mutableListOf<String>()

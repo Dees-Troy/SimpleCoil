@@ -158,8 +158,10 @@ class GameClient(
     /** For tests: [handler]'s handling of one frame. */
     internal fun handleFrameForTest(raw: String): Boolean = handler.handle(raw)
 
+    /** For tests: writes go to [output] as if connected. */
     internal fun attachOutputForTest(output: java.io.DataOutputStream?) = connection.attachOutputForTest(output)
 
+    /** For tests: waits until everything sent so far has been written (or dropped). */
     internal fun awaitWritesForTest() = connection.awaitWritesForTest()
 
     companion object {

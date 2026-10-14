@@ -27,7 +27,7 @@ import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.domain.team.TeamMode;
-import com.simplecoil.simplecoil.network.discovery.ServerDiscoveryManager;
+import com.simplecoil.simplecoil.network.discovery.DiscoveryBeacon;
 import com.simplecoil.simplecoil.network.server.SessionPhase;
 
 import java.net.InetAddress;
@@ -40,7 +40,7 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
     private final GameSettingsRepository settingsRepo;
     private final GameStateRepository gameStateRepo;
     private final PlayerRepository playerRepo;
-    private final ServerDiscoveryManager discoveryManager;
+    private final DiscoveryBeacon discoveryBeacon;
 
     private final MutableLiveData<Integer> gameStateLiveData = new MutableLiveData<>();
     private final MutableLiveData<Long> timeRemainingLiveData = new MutableLiveData<>();
@@ -64,7 +64,7 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
                 GameSettingsRepository.getInstance(),
                 GameStateRepository.getInstance(),
                 PlayerRepository.getInstance(),
-                new ServerDiscoveryManager(application)
+                new DiscoveryBeacon(application)
         );
     }
 
@@ -73,13 +73,13 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
             GameSettingsRepository settingsRepo,
             GameStateRepository gameStateRepo,
             PlayerRepository playerRepo,
-            ServerDiscoveryManager discoveryManager) {
+            DiscoveryBeacon discoveryBeacon) {
 
         super(application);
         this.settingsRepo = settingsRepo;
         this.gameStateRepo = gameStateRepo;
         this.playerRepo = playerRepo;
-        this.discoveryManager = discoveryManager;
+        this.discoveryBeacon = discoveryBeacon;
 
         initInitialState();
         this.gameStateRepo.addListener(this);
@@ -104,16 +104,16 @@ public class DedicatedServerViewModel extends AndroidViewModel implements GameSt
     protected void onCleared() {
         gameStateRepo.removeListener(this);
         settingsRepo.removeTeamLayoutListener(teamLayoutListener);
-        discoveryManager.stopBroadcastingBeacon();
+        discoveryBeacon.stop();
     }
 
     // Actions
     public void startServerBeacon(String serverName) {
-        discoveryManager.startBroadcastingBeacon(serverName);
+        discoveryBeacon.start(serverName);
     }
 
     public void stopServerBeacon() {
-        discoveryManager.stopBroadcastingBeacon();
+        discoveryBeacon.stop();
     }
 
     public void setTeamMode(TeamMode teamMode) {

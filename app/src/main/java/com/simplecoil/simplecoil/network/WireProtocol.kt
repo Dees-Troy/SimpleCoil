@@ -59,6 +59,15 @@ object WireProtocol {
 
     // UDP discovery: a beacon answers a query that starts with MESSAGE_PREFIX + NETMSG_JOIN
     const val NETMSG_JOIN = "JOIN"
+
+    /** UDP discovery: beacons and queries go to this port. */
+    const val DISCOVERY_PORT = 17500
+
+    /** A server's beacon: this, then the server's name. */
+    const val BEACON_PREFIX = MESSAGE_PREFIX + "BEACON:"
+
+    /** A client's query; servers answer it with a beacon. */
+    const val DISCOVER_MSG = MESSAGE_PREFIX + "DISCOVER"
 }
 
 /** The JSON keys of the v07 frames. Frozen (network design §1): a key's name, type and presence never change. */

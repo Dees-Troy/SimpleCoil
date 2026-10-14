@@ -18,7 +18,6 @@ package com.simplecoil.simplecoil.network.client
 
 import android.net.Network
 import android.util.Log
-import androidx.annotation.VisibleForTesting
 import com.simplecoil.simplecoil.network.ClientEvent
 import com.simplecoil.simplecoil.network.EventBus
 import com.simplecoil.simplecoil.network.FrameReader
@@ -302,14 +301,13 @@ class ClientConnection(
         }
     }
 
-    @VisibleForTesting
-    fun attachOutputForTest(output: DataOutputStream?) {
+    /** For tests: writes go to [output] as if connected. */
+    internal fun attachOutputForTest(output: DataOutputStream?) {
         synchronized(outLock) { out = output }
     }
 
-    /** Waits until everything sent so far has been written (or dropped). */
-    @VisibleForTesting
-    fun awaitWritesForTest() {
+    /** For tests: waits until everything sent so far has been written (or dropped). */
+    internal fun awaitWritesForTest() {
         writer.submit {}.get()
     }
 
