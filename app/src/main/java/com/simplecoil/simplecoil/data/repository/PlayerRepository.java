@@ -36,8 +36,8 @@ public class PlayerRepository {
     public static final int GRENADE_PLAYER_ID = 167;
     public static final int MAX_GRENADE_IDS = 16;
 
-    // This phone's own player. The dedicated server shares the process but is not a player, so the
-    // server-side lookups below (auto-sort, open ids, name checks, purge) never consult these.
+    // This phone's own player. The dedicated server has its own instance and is not a player, so
+    // the server-side lookups below (auto-sort, open ids, name checks, purge) never consult these.
     private volatile byte playerID = 0;
     private volatile String playerName = "";
     private volatile boolean isAdmin = false;

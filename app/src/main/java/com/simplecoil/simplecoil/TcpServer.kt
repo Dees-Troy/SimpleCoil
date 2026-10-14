@@ -31,6 +31,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.network.ServerCommand
@@ -77,7 +78,11 @@ class TcpServer : Service() {
     override fun onCreate() {
         super.onCreate()
         container = (application as SimpleCoilApp).container
-        server = GameServer(container.settings, container.players, container.gameState, container.serverEvents, container.clock,
+        // The server's own state, for as long as it runs (app container Q3): running a server never
+        // touches the play screen's player id, name, settings or game state.
+        val settings = GameSettingsRepository()
+        val gameState = GameStateRepository()
+        server = GameServer(settings, PlayerRepository(settings, gameState), gameState, container.serverEvents, container.clock,
             saveTeamMode = { container.userPreferences.saveTeamMode(it) })
         beacon = DiscoveryBeacon(this)
     }
@@ -102,16 +107,10 @@ class TcpServer : Service() {
     fun startServer(saved: SavedServerSettings) {
         if (serving) return
         serving = true
-        // The play screen's leftovers: this device is the server now, not a player (S14, until
-        // the server gets its own state; app container Q3)
-        container.players.setPlayerID(0.toByte())
-        container.gameState.gameState = GameStateRepository.GAME_STATE_NONE
         server.loadSettings(saved)
         server.start()
         beacon.start(SERVER_NAME)
-        val address = PlayerRepository.getIPAddress()
-        address?.let { container.gameState.serverIP = it }
-        server.setServerIp(address?.hostAddress ?: PlayerRepository.getIPAddressStr())
+        server.setServerIp(PlayerRepository.getIPAddress()?.hostAddress ?: PlayerRepository.getIPAddressStr())
         startAsForeground()
         updateWifiLock()
     }
