@@ -110,6 +110,13 @@ class GameViewModel(
         private set
     private var autoScanStarted = false
     private var resumed = false
+    /**
+     * Paused between games with the screen out of view: the blaster rescans and the server search
+     * wait for the next resume instead of running in the background all day (battery drain).
+     */
+    private var paused = false
+    private var reconnectOnResume = false
+    private var serverSearchOnResume = false
 
     /** The connecting popup's status; null when it should be closed. */
     var connectStatus: ConnectStatus? = null
@@ -217,10 +224,30 @@ class GameViewModel(
         ble.reconnect(deviceAddress)
         net.bindServices()
         if (net.useNetwork) net.tcpClient?.sendPlayerInfo(true)
+
+        paused = false
+        if (reconnectOnResume) {
+            reconnectOnResume = false
+            screen?.requestConnect()
+        }
+        if (serverSearchOnResume) {
+            serverSearchOnResume = false
+            if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINING) {
+                startServerSearchTimeout()
+                net.udp?.joinServer()
+            }
+        }
     }
 
     fun onPause() {
         resumed = false
+        if (gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) return // a game keeps reconnecting
+        paused = true
+        if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINING) {
+            cancelServerSearchTimeout()
+            net.udp?.endScanning()
+            serverSearchOnResume = true
+        }
     }
 
     fun onScreenDestroyed() {
@@ -332,8 +359,13 @@ class GameViewModel(
         ble.cancelScanTimeout()
         ble.clearScanning()
         if (engine.hasConnectedToBlaster || gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) {
-            Log.e(TAG, "blaster disconnected, attempt to reconnect")
-            screen?.requestConnect()
+            if (paused && gameStateRepo.gameState == GameStateRepository.GAME_STATE_NONE) {
+                Log.d(TAG, "blaster disconnected while paused, reconnecting on resume")
+                reconnectOnResume = true
+            } else {
+                Log.e(TAG, "blaster disconnected, attempt to reconnect")
+                screen?.requestConnect()
+            }
             showWeaponDisconnect()
             return
         }
@@ -1036,7 +1068,7 @@ class GameViewModel(
                     viewModelScope.launch {
                         delay(FAILED_JOIN_RETRY_MILLIS)
                         val udp = net.udp
-                        if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINING && udp != null) {
+                        if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINING && udp != null && !paused) {
                             Log.d(TAG, "Auto-retrying server scan...")
                             udp.joinServer()
                         }

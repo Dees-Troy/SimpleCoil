@@ -209,6 +209,29 @@ class GameViewModelTest {
     }
 
     @Test
+    fun linkLost_betweenGamesWhilePaused_waitsForResumeToRescan() {
+        engine.hasConnectedToBlaster = true
+        vm.onPause()
+        blasterEvents.tryEmit(BlasterEvent.Disconnected)
+        verify(screen).showDisconnectDialog()
+        verify(screen, never()).requestConnect()
+
+        vm.onResume()
+        verify(screen).requestConnect()
+        vm.onPause()
+        vm.onResume()
+        verify(screen).requestConnect() // only the one that was waiting
+    }
+
+    @Test
+    fun linkLost_midGameWhilePaused_keepsReconnecting() {
+        vm.onStartGamePressed()
+        vm.onPause()
+        blasterEvents.tryEmit(BlasterEvent.Disconnected)
+        verify(screen).requestConnect()
+    }
+
+    @Test
     fun connectStatusPopup_showsWhileConnecting_andClosesOnFirstPacket() {
         blasterEvents.tryEmit(BlasterEvent.ServicesDiscovered)
         assertEquals(ConnectStatus.COMMUNICATING, vm.connectStatus)
@@ -331,6 +354,22 @@ class GameViewModelTest {
         // No server yet: the search restarts every 10 s.
         advance(10_000)
         verify(udp, times(2)).joinServer()
+    }
+
+    @Test
+    fun serverSearch_stopsWhilePaused_andRestartsOnResume() {
+        vm.onNetworkButtonPressed() // searching
+        verify(udp).joinServer()
+        vm.onPause()
+        verify(udp).endScanning()
+        emitNetwork(ClientEvent.FailedToJoin)
+        advance(60_000)
+        verify(udp).joinServer() // no re-scans in the background
+
+        vm.onResume()
+        verify(udp, times(2)).joinServer()
+        advance(10_000)
+        verify(udp, times(3)).joinServer()
     }
 
     @Test
