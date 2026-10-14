@@ -447,9 +447,9 @@ public class PlayerRepository {
         return name != null ? name : "";
     }
 
-    public int getPlayerCount(boolean isDedicated) {
-        int ret = teamIPMap.size();
-        return ret + (isDedicated ? 0 : 1);
+    /** The players in the roster. A client's roster leaves out its own player. */
+    public int getPlayerCount() {
+        return teamIPMap.size();
     }
 
     public static String getIPAddressStr() {

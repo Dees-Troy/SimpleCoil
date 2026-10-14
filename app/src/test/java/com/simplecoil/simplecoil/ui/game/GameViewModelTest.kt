@@ -430,7 +430,7 @@ class GameViewModelTest {
     @Test
     fun networkMenuEntries_followTheMenuState() {
         assertEquals(listOf(NetworkMenuEntry.Join, NetworkMenuEntry.JoinIp, NetworkMenuEntry.PlayerName("Tester"),
-            NetworkMenuEntry.ChooseTeamMode, NetworkMenuEntry.DisableNetwork), vm.networkMenuEntries())
+            NetworkMenuEntry.DisableNetwork), vm.networkMenuEntries())
         vm.onNetworkButtonPressed()
         assertEquals(listOf(NetworkMenuEntry.JoinIp, NetworkMenuEntry.DisableNetwork), vm.networkMenuEntries())
     }

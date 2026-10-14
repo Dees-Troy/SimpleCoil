@@ -242,7 +242,7 @@ When GPS is enabled (`usegps`), clients send location updates to the server as p
 | **16 Players** | 0.60 kbps (75 B/s) | 10.26 kbps (1,283 B/s) | **10.86 kbps** (1.36 KB/s) | **11.50 kbps** (1.44 KB/s) | **~5.2 MB / hr** |
 | **32 Players** | 0.60 kbps (75 B/s) | 20.25 kbps (2,531 B/s) | **20.85 kbps** (2.53 KB/s) | **21.81 kbps** (2.73 KB/s) | **~9.8 MB / hr** |
 
-#### Dedicated / Host Server Bandwidth
+#### Dedicated Server Bandwidth
 
 | Player Count ($N$) | Server Inbound (Upload) | Server Outbound (Broadcast) | Total Server Payload Throughput | Total Server Wire Bandwidth (IP/TCP) | Hourly Data Usage |
 |---|---|---|---|---|---|

@@ -99,8 +99,6 @@ public class PlayerRepositoryTest {
 
     @Test
     public void testAutoSortPlayerIDDedicatedServer() throws Exception {
-        // On a dedicated server, host playerID is 0
-        playerRepo.setPlayerID((byte) 0);
         settingsRepo.setTeamMode(TeamMode.TWO_TEAMS);
 
         // Player 1 joins -> should receive Team 1 ID (e.g. ID 1)
@@ -121,7 +119,6 @@ public class PlayerRepositoryTest {
 
     @Test
     public void testAutoSortPlayerIDWithAdditionalOccupiedIDs() {
-        playerRepo.setPlayerID((byte) 0);
         settingsRepo.setTeamMode(TeamMode.TWO_TEAMS);
 
         Set<Byte> additional = new HashSet<>();
@@ -136,7 +133,6 @@ public class PlayerRepositoryTest {
 
     @Test
     public void testNoDuplicatePlayerIDsInSequence() throws Exception {
-        playerRepo.setPlayerID((byte) 0);
         settingsRepo.setTeamMode(TeamMode.TWO_TEAMS);
 
         Set<Byte> assignedIDs = new HashSet<>();
@@ -152,7 +148,6 @@ public class PlayerRepositoryTest {
 
     @Test
     public void testConcurrentPlayerRegistrationAndGrenadePairings() throws InterruptedException {
-        playerRepo.setPlayerID((byte) 0);
         playerRepo.clearAllPlayers();
         playerRepo.clearGrenadePairings();
 
@@ -180,19 +175,18 @@ public class PlayerRepositoryTest {
             t.join();
         }
 
-        Assert.assertTrue(playerRepo.getPlayerCount(true) > 1);
+        Assert.assertTrue(playerRepo.getPlayerCount() > 1);
     }
 
     @Test
     public void testPlayerReconnectionUpdateIPAndName() throws Exception {
-        playerRepo.setPlayerID((byte) 0);
         playerRepo.clearAllPlayers();
 
         byte playerId = 2;
         InetAddress initialIp = InetAddress.getByName("192.168.1.100");
         playerRepo.addOrUpdatePlayer(playerId, initialIp, "OldName");
 
-        assertEquals(1, playerRepo.getPlayerCount(true));
+        assertEquals(1, playerRepo.getPlayerCount());
         assertEquals("OldName", playerRepo.getPlayerName(playerId));
         assertEquals(initialIp, playerRepo.getTeamIPMap().get(playerId));
 
@@ -201,7 +195,7 @@ public class PlayerRepositoryTest {
         playerRepo.addOrUpdatePlayer(playerId, newIp, "NewName");
 
         // Player count should still be 1 (not incremented)
-        assertEquals(1, playerRepo.getPlayerCount(true));
+        assertEquals(1, playerRepo.getPlayerCount());
         assertEquals("NewName", playerRepo.getPlayerName(playerId));
         assertEquals(newIp, playerRepo.getTeamIPMap().get(playerId));
         assertEquals((Byte) playerId, playerRepo.getIpTeamMap().get(newIp));
@@ -209,7 +203,6 @@ public class PlayerRepositoryTest {
 
     @Test
     public void testPlayerMacAddressMappingAndLookup() throws Exception {
-        playerRepo.setPlayerID((byte) 0);
         playerRepo.clearAllPlayers();
 
         byte playerId = 5;
@@ -232,7 +225,6 @@ public class PlayerRepositoryTest {
 
     @Test
     public void testLobbyPhasePlayerRemovalCleansMacAndName() throws Exception {
-        playerRepo.setPlayerID((byte) 0);
         playerRepo.clearAllPlayers();
 
         byte playerId = 7;
@@ -252,7 +244,6 @@ public class PlayerRepositoryTest {
 
     @Test
     public void testPlayerReassignmentPreservesName() throws Exception {
-        playerRepo.setPlayerID((byte) 0);
         playerRepo.clearAllPlayers();
 
         byte oldId = 1;
@@ -273,7 +264,6 @@ public class PlayerRepositoryTest {
 
     @Test
     public void testIsNameUniqueExcludesCurrentPlayer() throws Exception {
-        playerRepo.setPlayerID((byte) 0);
         playerRepo.clearAllPlayers();
 
         byte p1 = 1;
@@ -293,7 +283,6 @@ public class PlayerRepositoryTest {
 
     @Test
     public void testRemapPlayersMovesEveryMapAndDropsTheRest() throws Exception {
-        playerRepo.setPlayerID((byte) 0);
         playerRepo.clearAllPlayers();
 
         InetAddress ip1 = InetAddress.getByName("10.0.0.1");
@@ -319,7 +308,6 @@ public class PlayerRepositoryTest {
 
     @Test
     public void testUpdateAllPlayerMappingsPreservesNamesAndMACs() throws Exception {
-        playerRepo.setPlayerID((byte) 0);
         playerRepo.clearAllPlayers();
 
         // Player 1: Alice at ID 1
@@ -382,7 +370,6 @@ public class PlayerRepositoryTest {
 
     @Test
     public void testRemovePlayerWhenGameNotRunningClearsMacAndNameAndReleasesId() throws Exception {
-        playerRepo.setPlayerID((byte) 0);
         playerRepo.clearAllPlayers();
 
         byte p1 = 2;
@@ -408,7 +395,6 @@ public class PlayerRepositoryTest {
 
     @Test
     public void testRemovePlayerWhenGameRunningPreservesNameAndMac() throws Exception {
-        playerRepo.setPlayerID((byte) 0);
         playerRepo.clearAllPlayers();
 
         byte p1 = 2;
@@ -429,7 +415,6 @@ public class PlayerRepositoryTest {
 
     @Test
     public void testPurgeDisconnectedPlayers() throws Exception {
-        playerRepo.setPlayerID((byte) 0);
         playerRepo.clearAllPlayers();
 
         byte activeP1 = 1;
@@ -452,7 +437,6 @@ public class PlayerRepositoryTest {
 
     @Test
     public void testIsNameUniqueCaseInsensitive() throws Exception {
-        playerRepo.setPlayerID((byte) 0);
         playerRepo.clearAllPlayers();
 
         byte p1 = 1;

@@ -43,7 +43,6 @@ sealed interface NetworkMenuEntry {
     data object Join : NetworkMenuEntry
     data object JoinIp : NetworkMenuEntry
     data class PlayerName(val name: String) : NetworkMenuEntry
-    data object ChooseTeamMode : NetworkMenuEntry
     data class SwitchTeam(val team: Int, val color: Int) : NetworkMenuEntry
     data object DisableNetwork : NetworkMenuEntry
 }

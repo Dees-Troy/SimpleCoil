@@ -200,7 +200,7 @@ class GameServer(
             phase = roster.phase(),
             serverIp = serverIp,
             players = rows,
-            playerCount = players.getPlayerCount(true),
+            playerCount = players.getPlayerCount(),
             clock = gameClock.state,
             settings = ServerSettings(
                 teamLayout = settings.teamLayout,

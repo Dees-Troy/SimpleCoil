@@ -188,7 +188,6 @@ class DialogCoordinator(
                 NetworkMenuEntry.Join -> menu.add(0, R.id.join_item, 20, R.string.join_button)
                 NetworkMenuEntry.JoinIp -> menu.add(0, R.id.join_ip_item, 30, R.string.join_ip_button)
                 is NetworkMenuEntry.PlayerName -> menu.add(0, R.id.player_name_item, 50, activity.getString(R.string.player_name_button, entry.name))
-                NetworkMenuEntry.ChooseTeamMode -> menu.add(0, R.id.team_mode_item, 60, R.string.team_mode_toggle_button)
                 is NetworkMenuEntry.SwitchTeam -> {
                     val itemId = switchTeamItemId(entry.team)
                     if (itemId != 0) {
@@ -282,7 +281,6 @@ class DialogCoordinator(
             R.id.switch_team_2_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.SwitchTeam(2, 0))
             R.id.switch_team_3_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.SwitchTeam(3, 0))
             R.id.switch_team_4_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.SwitchTeam(4, 0))
-            R.id.team_mode_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.ChooseTeamMode)
             R.id.firing_mode_outdoor_no_cone_item -> vm.onFiringModeSelected(GameSettingsRepository.FIRING_MODE_OUTDOOR_NO_CONE)
             R.id.firing_mode_outdoor_with_cone_item -> vm.onFiringModeSelected(GameSettingsRepository.FIRING_MODE_OUTDOOR_WITH_CONE)
             R.id.firing_mode_indoor_no_cone_item -> vm.onFiringModeSelected(GameSettingsRepository.FIRING_MODE_INDOOR_NO_CONE)

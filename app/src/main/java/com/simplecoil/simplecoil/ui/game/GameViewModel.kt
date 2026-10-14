@@ -633,7 +633,7 @@ class GameViewModel(
             setTeam()
         }
         if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINED) {
-            if (playerRepo.getPlayerCount(false) <= 1) {
+            if (playersInGame() <= 1) {
                 screen?.showMessage(GameMessage.NOT_ENOUGH_PLAYERS)
                 screen?.showOnlyOnePlayer()
                 return
@@ -740,13 +740,9 @@ class GameViewModel(
 
     /** What the network popup lists for the current menu state. */
     fun networkMenuEntries(): List<NetworkMenuEntry> = when (networkMenuType) {
-        NETWORK_TYPE_ENABLED -> buildList {
-            add(NetworkMenuEntry.Join)
-            add(NetworkMenuEntry.JoinIp)
-            add(NetworkMenuEntry.PlayerName(playerRepo.playerName))
-            if (gameStateRepo.gameState == GameStateRepository.GAME_STATE_NONE) add(NetworkMenuEntry.ChooseTeamMode)
-            add(NetworkMenuEntry.DisableNetwork)
-        }
+        NETWORK_TYPE_ENABLED -> listOf(
+            NetworkMenuEntry.Join, NetworkMenuEntry.JoinIp, NetworkMenuEntry.PlayerName(playerRepo.playerName), NetworkMenuEntry.DisableNetwork,
+        )
         NETWORK_TYPE_JOINING -> listOf(NetworkMenuEntry.JoinIp, NetworkMenuEntry.DisableNetwork)
         NETWORK_TYPE_JOINED -> buildList {
             add(NetworkMenuEntry.PlayerName(playerRepo.playerName))
@@ -781,7 +777,6 @@ class GameViewModel(
             }
             is NetworkMenuEntry.PlayerName -> screen?.showPlayerNameDialog(playerRepo.playerName)
             is NetworkMenuEntry.SwitchTeam -> requestSwitchTeam(entry.team)
-            NetworkMenuEntry.ChooseTeamMode -> screen?.showTeamModeMenu()
         }
     }
 
@@ -1127,10 +1122,13 @@ class GameViewModel(
         }
     }
 
+    /** The server's roster leaves this phone out, so count it here. */
+    private fun playersInGame() = playerRepo.playerCount + 1
+
     private fun onListPlayers(event: ClientEvent.ListPlayers) {
         if (!ready) return
         net.udp!!.endScanning()
-        screen?.showPlayerCount(playerRepo.getPlayerCount(false))
+        screen?.showPlayerCount(playersInGame())
         screen?.showTeamMode(settingsRepo.teamMode)
         setTeam()
         if (ready && net.useNetwork && gameStateRepo.gameState == GameStateRepository.GAME_STATE_NONE) {
