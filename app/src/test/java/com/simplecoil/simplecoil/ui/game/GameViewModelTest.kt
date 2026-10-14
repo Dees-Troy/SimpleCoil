@@ -548,9 +548,10 @@ class GameViewModelTest {
     }
 
     @Test
-    fun resume_rebindsNetworkAndReconnectsBlaster() {
+    fun resume_restoresTheSavedPlayerName() {
+        prefs.values["PlayerName"] = "Saved"
         vm.onResume()
-        verify(screen, times(2)).showPlayerName("Tester")
+        assertEquals("Saved", players.playerName)
     }
 
     @Test

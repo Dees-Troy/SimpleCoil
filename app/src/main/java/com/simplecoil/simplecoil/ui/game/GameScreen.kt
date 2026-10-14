@@ -104,7 +104,6 @@ interface GameView {
     fun showFiringMode(firingMode: Int)
     fun showTeamMode(mode: TeamMode)
     fun showTeam(team: TeamDisplay)
-    fun showPlayerName(name: String)
     fun showPreGameButtons(buttons: PreGameButtons)
     fun showAdminButton(visible: Boolean)
 

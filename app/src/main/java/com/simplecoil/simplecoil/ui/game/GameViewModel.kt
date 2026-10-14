@@ -200,7 +200,6 @@ class GameViewModel(
         settingsRepo.gameLimit = gameLimit
         setDeviceAddress(prefs.deviceAddress())
         screen?.setReconnectVisible(deviceAddress.isNotEmpty())
-        screen?.showPlayerName(playerRepo.playerName)
         screen?.showNetworkOptions(false, freeForAll())
         setGameLimit()
         updatePlayerSettings()
@@ -217,7 +216,6 @@ class GameViewModel(
         if (selectedPlayerId.toInt() != 0 && playerRepo.playerID.toInt() == 0) playerRepo.playerID = selectedPlayerId
         val savedName = prefs.playerName("")
         if (savedName.isNotEmpty()) playerRepo.playerName = savedName
-        playerRepo.playerName?.let { screen?.showPlayerName(it) }
         displayCurrentTeam()
         updatePlayerSettings()
 
@@ -532,7 +530,6 @@ class GameViewModel(
         }
         playerRepo.playerName = trimmed
         prefs.savePlayerName(trimmed)
-        screen?.showPlayerName(trimmed)
         displayCurrentTeam()
         val client = net.tcpClient
         if (ready && client != null) {

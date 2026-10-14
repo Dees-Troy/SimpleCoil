@@ -253,10 +253,6 @@ class GameScreenRenderer(
         b.teamLabelTv.setTextColor(Color.WHITE)
     }
 
-    override fun showPlayerName(name: String) {
-        b.playerNameLabelTv.text = name
-    }
-
     override fun showPreGameButtons(buttons: PreGameButtons) {
         val lobbyVisibility = if (buttons.ready) View.INVISIBLE else View.VISIBLE
         b.teamMinusButton.visibility = lobbyVisibility
@@ -288,7 +284,6 @@ class GameScreenRenderer(
         // The team mode stays visible offline too; showTeamModeSelectable picks button or label.
         b.teamModeLabelTv.visibility = View.VISIBLE
         b.scoresChip.visibility = visibility
-        b.playerNameLabelTv.visibility = visibility
         b.serverIpTv.visibility = View.GONE
         setTeamScoreVisible(enabled && !freeForAll)
     }
