@@ -80,6 +80,11 @@
             android:enabled="true"
             android:foregroundServiceType="connectedDevice" />
 
+        <!-- The Quit action on the blaster and network notifications -->
+        <receiver
+            android:name=".QuitReceiver"
+            android:exported="false" />
+
         <activity
             android:name=".DedicatedServerActivity"
             android:exported="false"

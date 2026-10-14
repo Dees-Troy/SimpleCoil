@@ -109,6 +109,7 @@ open class BluetoothLeService : Service() {
             .setContentTitle("SimpleCoil Connected")
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(pendingIntent)
+            .addAction(0, getString(R.string.notification_quit), QuitReceiver.pendingIntent(this))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
     }

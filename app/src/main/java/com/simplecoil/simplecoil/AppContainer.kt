@@ -118,4 +118,9 @@ class AppContainer(private val app: Application) {
     val networkGateway: NetworkSessionGateway by lazy {
         NetworkSessionGateway(app, appScope, settings, players, bus = clientEvents)
     }
+
+    /** The notifications' Quit: leaves the server, drops the blaster, stops everything and exits. */
+    val appQuitter: AppQuitter by lazy {
+        AppQuitter(app, appScope, dispatchers.io, networkGateway, bleConnectionManager, serverController)
+    }
 }

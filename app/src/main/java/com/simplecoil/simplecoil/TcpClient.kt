@@ -112,6 +112,7 @@ class TcpClient : Service() {
             .setContentText(contentText)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(pendingIntent)
+            .addAction(0, getString(R.string.notification_quit), QuitReceiver.pendingIntent(this))
             .setOngoing(true)
             .build()
     }
@@ -154,6 +155,9 @@ class TcpClient : Service() {
 
     /** Tells the server we are leaving, then stops: LEAVE is the last frame written. */
     fun leaveServer() = client.leaveServer()
+
+    /** Waits up to [timeoutMillis] for everything sent so far to be written; false on timeout. Blocks. */
+    fun awaitPendingWrites(timeoutMillis: Long) = client.awaitPendingWrites(timeoutMillis)
 
     /** Queues [message] for the writer thread. Without a connection it is dropped. */
     fun sendTCPMessage(message: String) = client.sendTCPMessage(message)

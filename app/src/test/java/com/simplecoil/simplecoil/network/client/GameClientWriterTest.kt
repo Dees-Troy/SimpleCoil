@@ -72,6 +72,24 @@ class GameClientWriterTest {
         assertEquals(sent, written())
     }
 
+    @Test
+    fun awaitPendingWrites_returnsOnceEverythingSentIsWritten() {
+        // Quit waits on this before ending the process: the writer thread is a daemon.
+        val client = newClient()
+        client.attachOutputForTest(DataOutputStream(bytes))
+        val sent = (0 until 500).map { "message $it" }
+        sent.forEach { client.sendTCPMessage(it) }
+        assertTrue(client.awaitPendingWrites(5_000))
+        assertEquals(sent, written())
+    }
+
+    @Test
+    fun awaitPendingWrites_afterShutdown_doesNotWait() {
+        val client = newClient()
+        client.shutdown()
+        assertTrue(client.awaitPendingWrites(5_000))
+    }
+
     private fun json(message: String) = JSONObject(message.removePrefix(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON))
 
     @Test

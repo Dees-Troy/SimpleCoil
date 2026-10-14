@@ -139,6 +139,7 @@
     <string name="server_notification_running">Game running</string>
     <string name="server_notification_post_game">Game over</string>
     <string name="server_notification_stop">Stop server</string>
+    <string name="notification_quit">Quit</string>
     <string name="blaster_notification_health">Health %1$d/%2$d</string>
     <string name="blaster_notification_game_text_reloading">Health %1$d/%2$d · Reloading</string>
     <string name="dedicated_teams_sorted">Teams Sorted &amp; Randomized!</string>

@@ -149,6 +149,9 @@ class GameClient(
         }
     }
 
+    /** Waits up to [timeoutMillis] for everything sent so far to be written; false on timeout. Blocks. */
+    fun awaitPendingWrites(timeoutMillis: Long) = connection.awaitPendingWrites(timeoutMillis)
+
     /** Wi-Fi is back: retry now. */
     fun onNetworkAvailable() = connection.onNetworkAvailable()
 

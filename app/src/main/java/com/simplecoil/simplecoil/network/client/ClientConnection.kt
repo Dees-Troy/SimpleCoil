@@ -40,6 +40,8 @@ import java.net.Socket
 import java.net.UnknownHostException
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 /**
  * The client's connection to the server: the socket, a [FrameReader] with the liveness check,
@@ -173,6 +175,20 @@ class ClientConnection(
             // already closed
         }
     }
+
+    /**
+     * Waits up to [timeoutMillis] until everything sent so far has been written (or dropped);
+     * false if it timed out. Blocks, so not on the main thread.
+     */
+    fun awaitPendingWrites(timeoutMillis: Long): Boolean =
+        try {
+            writer.submit {}.get(timeoutMillis, TimeUnit.MILLISECONDS)
+            true
+        } catch (e: RejectedExecutionException) {
+            true // the writer is gone, and nothing is left to write
+        } catch (e: TimeoutException) {
+            false
+        }
 
     /** The client is still running, or still stopping. */
     val isRunning: Boolean get() = keepListening
