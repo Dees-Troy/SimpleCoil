@@ -16,6 +16,7 @@
 
 package com.simplecoil.simplecoil
 
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -201,5 +202,19 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
 
     companion object {
         private const val TAG = "scmain"
+
+        /**
+         * Brings the running task back as it was, like tapping the launcher icon. A plain intent
+         * for this class would stack a second, fresh copy of the screen (back on the connect
+         * layout) on top of the one holding the session.
+         */
+        fun resumeIntent(context: Context): Intent =
+            asResumeIntent(Intent(context, FullscreenActivity::class.java))
+
+        /** The launcher's action and category are what let Android match the existing task. */
+        internal fun asResumeIntent(intent: Intent): Intent =
+            intent.setAction(Intent.ACTION_MAIN)
+                .addCategory(Intent.CATEGORY_LAUNCHER)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
     }
 }

@@ -91,7 +91,7 @@ open class BluetoothLeService : Service() {
     }
 
     private fun createPersistentNotification(contentText: String): Notification {
-        val notificationIntent = Intent(this, FullscreenActivity::class.java)
+        val notificationIntent = FullscreenActivity.resumeIntent(this)
         val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
