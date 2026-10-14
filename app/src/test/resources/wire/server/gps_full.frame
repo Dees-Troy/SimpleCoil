@@ -1,0 +1,10 @@
+SimpleCoil:07JSON
+{
+  "gpsfullupdate": true,
+  "gpsupdate": [{
+    "gpslongitude": -74.25,
+    "gpslatitude": 40.5,
+    "team": 1,
+    "playerID": 1
+  }]
+}

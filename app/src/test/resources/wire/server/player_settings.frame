@@ -1,0 +1,41 @@
+SimpleCoil:07JSON
+{
+  "allowplayersettings": true,
+  "playersettings": [
+    {
+      "damage": -1,
+      "reloadtime": 1500,
+      "reloadonempty": false,
+      "manualrespawn": false,
+      "health": 20,
+      "shotmodeauto": true,
+      "recoilsetting": 0,
+      "firingmode": 0,
+      "shotmodeburst3": true,
+      "isadmin": true,
+      "reloadshots": 30,
+      "respawnshieldtime": 3,
+      "liveslimit": 2,
+      "spawntime": 10,
+      "shotmodesingle": true,
+      "playerID": 1
+    },
+    {
+      "damage": -3,
+      "reloadtime": 2500,
+      "reloadonempty": true,
+      "manualrespawn": true,
+      "health": 30,
+      "shotmodeauto": false,
+      "recoilsetting": 2,
+      "firingmode": 1,
+      "shotmodeburst3": true,
+      "isadmin": false,
+      "reloadshots": 12,
+      "respawnshieldtime": 4,
+      "spawntime": 15,
+      "shotmodesingle": true,
+      "playerID": 17
+    }
+  ]
+}

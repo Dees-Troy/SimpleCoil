@@ -1,0 +1,18 @@
+SimpleCoil:07JSON
+{
+  "gameid": 418873301,
+  "rejoin": true,
+  "pending": [
+    {
+      "rmsg": "ELIMINATED17",
+      "seq": 1
+    },
+    {
+      "rmsg": "ELIMINATED18",
+      "seq": 2
+    }
+  ],
+  "blaster_mac": "AA:BB:CC:DD:EE:FF",
+  "playername": "Rook",
+  "playerID": 5
+}
