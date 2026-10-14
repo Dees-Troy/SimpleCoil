@@ -14,30 +14,24 @@
  * limitations under the License.
  */
 
-package com.simplecoil.simplecoil.network.server;
+package com.simplecoil.simplecoil.network.server
 
 /**
  * The dedicated server's session: LOBBY → (Start Game) → RUNNING → (End Game) → POST_GAME →
  * (Reset) → LOBBY. The game roster is filled at the start, kept after the end, and cleared by the
  * reset (reconnect design §3.1).
  */
-public enum SessionPhase {
+enum class SessionPhase(
+    /** The value sent as "sessionphase". */
+    @JvmField val wireValue: Int,
+) {
     LOBBY(0),
     RUNNING(1),
     POST_GAME(2);
 
-    /** The value sent as "sessionphase". */
-    public final int wireValue;
-
-    SessionPhase(int wireValue) {
-        this.wireValue = wireValue;
-    }
-
-    /** The phase for a "sessionphase" value; LOBBY for anything unknown. */
-    public static SessionPhase fromWire(int value) {
-        for (SessionPhase phase : values()) {
-            if (phase.wireValue == value) return phase;
-        }
-        return LOBBY;
+    companion object {
+        /** The phase for a "sessionphase" value; LOBBY for anything unknown. */
+        @JvmStatic
+        fun fromWire(value: Int): SessionPhase = entries.firstOrNull { it.wireValue == value } ?: LOBBY
     }
 }
