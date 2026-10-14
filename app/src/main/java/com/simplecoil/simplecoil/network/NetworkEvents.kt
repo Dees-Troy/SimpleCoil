@@ -67,6 +67,9 @@ sealed interface ClientEvent {
     data object UdpServiceConnected : ClientEvent
     data object UdpServiceDisconnected : ClientEvent
 
+    /** The score matrix the server sent this phone (score matrix design §5.1). */
+    data class ScoreMatrix(val matrix: ServerMessage.ScoreMatrix) : ClientEvent
+
     /** Scoreboard parsed from player data JSON; indexed by player id. Scores are already updated. */
     class PlayerData(val players: Array<PlayerDisplayData?>) : ClientEvent
 }

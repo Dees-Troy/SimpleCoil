@@ -38,7 +38,11 @@ import com.simplecoil.simplecoil.hardware.blaster.BlasterEvent
 import com.simplecoil.simplecoil.hardware.blaster.BlasterManager
 import com.simplecoil.simplecoil.hardware.blaster.BleConnectionManager
 import com.simplecoil.simplecoil.network.ClientEvent
+import com.simplecoil.simplecoil.network.ServerMessage
+import com.simplecoil.simplecoil.network.WireMatrixCell
+import com.simplecoil.simplecoil.network.WireMatrixPlayer
 import com.simplecoil.simplecoil.network.server.SessionPhase
+import com.simplecoil.simplecoil.ui.scoreboard.ScoreMatrixState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -563,6 +567,131 @@ class GameViewModelTest {
         assertEquals(-2, settings.damage)
         verify(client).sendPlayerSettings()
         verify(screen).showPlayerSettings(40, 12.toByte(), 2)
+    }
+
+    // --------------------------------------------------------------------------------------
+    // Score matrix
+    // --------------------------------------------------------------------------------------
+
+    private val matrixRequest = "SimpleCoil:07MESGSCOREMATRIXREQUEST"
+
+    private fun matrixReply(gameId: Long? = null, vararg cells: WireMatrixCell) = ClientEvent.ScoreMatrix(ServerMessage.ScoreMatrix(
+        listOf(WireMatrixPlayer(1, "Tester", 1, true), WireMatrixPlayer(17, "Bravo", 2, true)), cells.toList(), gameId))
+
+    /** Joined, the scoreboard open on its matrix face. */
+    private fun openMatrix() {
+        net.useNetwork = true
+        players.playerID = 1
+        vm.openScoreboard()
+        vm.onScoreMatrixToggled()
+    }
+
+    @Test
+    fun scoreMatrix_toggleShowsLoadingAndAsks_thenTheReply() {
+        openMatrix()
+        assertTrue(vm.scoreMatrixVisible)
+        verify(screen).showScoreMatrix(ScoreMatrixState.Loading)
+        verify(client, times(1)).sendTCPMessage(matrixRequest)
+        emitNetwork(matrixReply(null, WireMatrixCell(17, 1, 2)))
+        val ready = vm.scoreMatrixState as ScoreMatrixState.Ready
+        assertEquals(2, ready.matrix.counts[1][0])
+        assertTrue(ready.matrix.players[0].isSelf)
+        verify(screen).showScoreMatrix(ready)
+        // Back to the list: no new request, and the matrix is kept for the next toggle
+        vm.onScoreMatrixToggled()
+        assertFalse(vm.scoreMatrixVisible)
+        assertEquals(ready, vm.scoreMatrixState)
+    }
+
+    @Test
+    fun scoreMatrix_noReply_isUnsupported_butALateReplyStillShows() {
+        openMatrix()
+        advance(GameViewModel.SCORE_MATRIX_TIMEOUT_MS)
+        assertEquals(ScoreMatrixState.Unsupported, vm.scoreMatrixState)
+        verify(screen).showScoreMatrix(ScoreMatrixState.Unsupported)
+        emitNetwork(matrixReply())
+        assertTrue(vm.scoreMatrixState is ScoreMatrixState.Ready)
+    }
+
+    @Test
+    fun scoreMatrix_aTimeoutOnARefresh_keepsTheLastMatrix() {
+        openMatrix()
+        emitNetwork(matrixReply())
+        advance(GameViewModel.SCORE_MATRIX_MIN_INTERVAL_MS)
+        emitNetwork(ClientEvent.TeamEliminated) // refresh, never answered
+        verify(client, times(2)).sendTCPMessage(matrixRequest)
+        advance(GameViewModel.SCORE_MATRIX_TIMEOUT_MS)
+        assertTrue(vm.scoreMatrixState is ScoreMatrixState.Ready)
+    }
+
+    @Test
+    fun scoreMatrix_aBurstOfTriggers_sendsOneNowAndOneWhenTheIntervalEnds() {
+        openMatrix()
+        emitNetwork(matrixReply())
+        emitNetwork(ClientEvent.Eliminated(17))
+        emitNetwork(ClientEvent.TeamEliminated)
+        emitNetwork(ClientEvent.PlayerData(arrayOfNulls(GameSettingsRepository.MAX_PLAYER_ID + 2)))
+        verify(client, times(1)).sendTCPMessage(matrixRequest)
+        advance(GameViewModel.SCORE_MATRIX_MIN_INTERVAL_MS)
+        verify(client, times(2)).sendTCPMessage(matrixRequest)
+        advance(GameViewModel.SCORE_MATRIX_MIN_INTERVAL_MS * 2)
+        verify(client, times(2)).sendTCPMessage(matrixRequest)
+    }
+
+    @Test
+    fun scoreMatrix_leavingTheMatrixFace_cancelsThePendingRequest() {
+        openMatrix()
+        emitNetwork(ClientEvent.Eliminated(17))
+        vm.onScoreMatrixToggled() // back to the list
+        vm.onScoreMatrixToggled() // and quickly back: the cached state, nothing new sent
+        vm.onScoreMatrixToggled()
+        advance(GameViewModel.SCORE_MATRIX_MIN_INTERVAL_MS)
+        verify(client, times(1)).sendTCPMessage(matrixRequest)
+    }
+
+    @Test
+    fun scoreMatrix_refreshesOnlyWhileTheMatrixFaceIsShowing() {
+        net.useNetwork = true
+        vm.openScoreboard()
+        emitNetwork(ClientEvent.Eliminated(17))
+        advance(GameViewModel.SCORE_MATRIX_MIN_INTERVAL_MS)
+        verify(client, never()).sendTCPMessage(matrixRequest)
+    }
+
+    @Test
+    fun scoreMatrix_forAnotherGame_isDropped_andANewGameIdClearsIt() {
+        prefs.values["PlayerID"] = 1
+        vm.onNetworkButtonPressed()
+        vm.onNetworkMenuEntry(NetworkMenuEntry.Join)
+        emitNetwork(ClientEvent.ServerReply(1))
+        emitNetwork(ClientEvent.ListPlayers(null, 0, SessionPhase.POST_GAME.wireValue, 41))
+        openMatrix()
+        emitNetwork(matrixReply(40)) // crossed a new game
+        assertEquals(ScoreMatrixState.Loading, vm.scoreMatrixState)
+        emitNetwork(matrixReply(41, WireMatrixCell(1, 17, 1)))
+        assertTrue(vm.scoreMatrixState is ScoreMatrixState.Ready)
+        // The server was reset: the last game's matrix is gone, and an open matrix asks again
+        advance(GameViewModel.SCORE_MATRIX_MIN_INTERVAL_MS)
+        emitNetwork(ClientEvent.ListPlayers(null, 0, SessionPhase.LOBBY.wireValue, 0))
+        assertEquals(ScoreMatrixState.Loading, vm.scoreMatrixState)
+        verify(client, times(2)).sendTCPMessage(matrixRequest)
+        emitNetwork(matrixReply(null))
+        assertTrue((vm.scoreMatrixState as ScoreMatrixState.Ready).matrix.isEmpty)
+    }
+
+    @Test
+    fun scoreMatrix_closingTheScoreboardResetsIt_butARecreationKeepsTheFace() {
+        openMatrix()
+        emitNetwork(matrixReply())
+        vm.onScreenDestroyed()
+        assertTrue(vm.scoreMatrixVisible)
+        vm.screen = screen
+        advance(GameViewModel.SCORE_MATRIX_MIN_INTERVAL_MS)
+        vm.openScoreboard() // the recreated dialog
+        verify(client, times(2)).sendTCPMessage(matrixRequest)
+        vm.onScoreboardDismissed()
+        assertFalse(vm.scoreMatrixVisible)
+        assertNull(vm.scoreMatrixState)
     }
 
     private fun emitNetwork(event: ClientEvent) {

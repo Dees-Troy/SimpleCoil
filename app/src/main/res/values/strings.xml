@@ -191,6 +191,31 @@
     <string name="cd_network_status">Network status</string>
     <string name="cd_kick_player">Kick player</string>
     <string name="scoreboard_disconnected">Disconnected</string>
+    <!-- The score matrix (who eliminated whom) on the scoreboard dialog. -->
+    <string name="score_matrix">SCORE MATRIX</string>
+    <string name="scoreboard">SCOREBOARD</string>
+    <string name="score_matrix_empty">No eliminations yet</string>
+    <string name="score_matrix_unsupported">This server doesn\'t support the score matrix</string>
+    <!-- Heads the totals row and column. -->
+    <string name="score_matrix_total">Σ</string>
+    <string name="score_matrix_total_row_description">Totals: times each player was eliminated</string>
+    <string name="score_matrix_total_column_description">Totals: eliminations each player made</string>
+    <plurals name="score_matrix_cell_description">
+        <item quantity="one">%1$s eliminated %2$s %3$d time</item>
+        <item quantity="other">%1$s eliminated %2$s %3$d times</item>
+    </plurals>
+    <plurals name="score_matrix_row_total_description">
+        <item quantity="one">%1$s made %2$d elimination</item>
+        <item quantity="other">%1$s made %2$d eliminations</item>
+    </plurals>
+    <plurals name="score_matrix_column_total_description">
+        <item quantity="one">%1$s was eliminated %2$d time</item>
+        <item quantity="other">%1$s was eliminated %2$d times</item>
+    </plurals>
+    <plurals name="score_matrix_grand_total_description">
+        <item quantity="one">%1$d elimination in total</item>
+        <item quantity="other">%1$d eliminations in total</item>
+    </plurals>
 
     <string name="player_settings_title">Player Settings</string>
     <string name="player_settings_id_title">Player Settings (%1$d)</string>

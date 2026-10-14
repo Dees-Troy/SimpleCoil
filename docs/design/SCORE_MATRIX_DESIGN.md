@@ -1,6 +1,12 @@
 # SimpleCoil Score Matrix (Dedicated Server Mode) — Design Document
 
-Status: **APPROVED (2026-10-14).** All decisions in §8 are resolved. Not yet implemented.
+Status: **IMPLEMENTED AND VERIFIED (2026-10-14).** All decisions in §8 are resolved. Steps 1–7 of §9 are done, and
+the device check (§10) has been run.
+
+Implementation notes: the roster's matrix cells are a `MatrixCell` class rather than a `Triple`, and `Matrix` carries
+the game id so the reply and its `gameid` come from one lock. The view's geometry and scroll math live in a pure
+`ScoreMatrixGeometry`, tested on the JVM (`ScoreMatrixGeometryTest`). The project has no Robolectric, so step 5's
+Robolectric test was replaced by that.
 
 Revision 2 (2026-10-14): decisions recorded (§8). Refreshes are limited to one every 5 s, not one per second (Q3).
 This phone's own name is highlighted in the scoreboard's orange, in both the row and the column header, instead of

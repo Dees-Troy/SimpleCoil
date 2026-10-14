@@ -23,6 +23,8 @@ import com.simplecoil.simplecoil.network.ServerMessage
 import com.simplecoil.simplecoil.network.WireGpsPosition
 import com.simplecoil.simplecoil.network.WireGrenadePairing
 import com.simplecoil.simplecoil.network.WireLimits
+import com.simplecoil.simplecoil.network.WireMatrixCell
+import com.simplecoil.simplecoil.network.WireMatrixPlayer
 import com.simplecoil.simplecoil.network.WirePlayer
 import com.simplecoil.simplecoil.network.WirePlayerGameUpdate
 import com.simplecoil.simplecoil.network.WirePlayerSettings
@@ -102,6 +104,16 @@ class SnapshotBuilder(
             val score = roster.score(id)
             WireScore(id.toInt(), players.getPlayerName(id), ipString(address), score?.points ?: 0, score?.eliminated ?: 0, score?.connected)
         })
+    }
+
+    /** Who eliminated whom in the current game (score matrix design §3.4); sent in every phase. */
+    fun scoreMatrix(): ServerMessage.ScoreMatrix {
+        val matrix = roster.scoreMatrix()
+        return ServerMessage.ScoreMatrix(
+            players = matrix.players.map { WireMatrixPlayer(it.playerId.toInt(), it.name ?: "", it.team, it.connected) },
+            cells = matrix.cells.map { WireMatrixCell(it.shooterId.toInt(), it.victimId.toInt(), it.count) },
+            gameId = matrix.gameId.takeIf { it != 0L },
+        )
     }
 
     /** Everyone's settings; null when there is nobody to send them to. */

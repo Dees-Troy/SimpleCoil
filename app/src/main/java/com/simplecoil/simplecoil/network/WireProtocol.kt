@@ -47,6 +47,7 @@ object WireProtocol {
     const val NETMSG_TEAMELIMINATED = "TEAMELIMINATED"
     const val NETMSG_SERVERREPLY = "SERVERREPLY"
     const val NETMSG_PLAYERDATAREQUEST = "PLAYERDATAREQUEST"
+    const val NETMSG_SCOREMATRIXREQUEST = "SCOREMATRIXREQUEST"
     const val NETMSG_ADMIN_STARTGAME = "ADMIN_STARTGAME"
     const val NETMSG_ADMIN_ENDGAME = "ADMIN_ENDGAME"
     const val NETMSG_ADMIN_GAMEMODE = "ADMIN_GAMEMODE"
@@ -113,6 +114,9 @@ object WireKeys {
     const val TEAMPOINTS = "teampoints"
     const val TIMEREMAINING = "timeremaining"
     const val PLAYERGAMEUPDATE = "playergameupdate"
+    // Who eliminated whom: {"scorematrix": {"players": [...], "cells": [[shooter, victim, count], ...], "gameid": ...}}
+    const val SCOREMATRIX = "scorematrix"
+    const val CELLS = "cells"
 
     const val PLAYERSETTINGS = "playersettings"
     const val HEALTH = "health"

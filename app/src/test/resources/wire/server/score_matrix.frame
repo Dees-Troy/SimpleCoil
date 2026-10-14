@@ -1,0 +1,19 @@
+SimpleCoil:07JSON
+{"scorematrix": {
+  "cells": [[17, 1, 1]],
+  "gameid": 418873301,
+  "players": [
+    {
+      "connected": true,
+      "playername": "Alpha",
+      "playerID": 1,
+      "team": 1
+    },
+    {
+      "connected": true,
+      "playername": "Bravo",
+      "playerID": 17,
+      "team": 2
+    }
+  ]
+}}

@@ -38,6 +38,7 @@ sealed interface ClientCommand {
     data class Eliminated(val shooterId: Byte?) : ClientCommand
     data object TeamEliminated : ClientCommand
     data object PlayerDataRequest : ClientCommand
+    data object ScoreMatrixRequest : ClientCommand
     data object Leave : ClientCommand
 
     /** A plain ENDGAME: the client is leaving (older clients). */
@@ -219,6 +220,12 @@ data class WireGpsPosition(val playerId: Int, val team: Int?, val longitude: Dou
 
 data class WireGrenadePairing(val grenadeId: Int, val playerId: Int)
 
+/** A score matrix row and column. [team] is 1 in free for all. */
+data class WireMatrixPlayer(val playerId: Int, val name: String, val team: Int, val connected: Boolean)
+
+/** [shooterId] eliminated [victimId] [count] times. */
+data class WireMatrixCell(val shooterId: Int, val victimId: Int, val count: Int)
+
 /** What the server sends a client. */
 sealed interface ServerMessage {
     data class Command(val command: ServerCommand) : ServerMessage
@@ -264,4 +271,7 @@ sealed interface ServerMessage {
 
     /** Positions that changed, or all of them when [full] (the client then forgets the rest). */
     data class GpsUpdate(val positions: List<WireGpsPosition>, val full: Boolean) : ServerMessage
+
+    /** Who eliminated whom in the current game; only non-zero cells are sent. [gameId] is null in the lobby. */
+    data class ScoreMatrix(val players: List<WireMatrixPlayer>, val cells: List<WireMatrixCell>, val gameId: Long?) : ServerMessage
 }

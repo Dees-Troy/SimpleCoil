@@ -162,6 +162,20 @@ class ServerWireFixturesTest {
     }
 
     @Test
+    fun scoreMatrix() {
+        val alpha = join("Alpha", "AA:00")
+        val bravo = join("Bravo", "BB:00")
+        server.startGame()
+        bravo.awaitMesg(WireProtocol.NETMSG_STARTGAME)
+        alpha.mesg(WireProtocol.NETMSG_ELIMINATED + 17)
+        bravo.awaitMesg(WireProtocol.NETMSG_ELIMINATED)
+        alpha.mesg(WireProtocol.NETMSG_SCOREMATRIXREQUEST)
+        val json = JSONObject(awaitJsonFrame(alpha, WireKeys.SCOREMATRIX).removePrefix(jsonHeader))
+        json.getJSONObject(WireKeys.SCOREMATRIX).put(WireKeys.GAMEID, FIXTURE_GAME_ID)
+        WireFixtures.assertFrame("server/score_matrix.frame", jsonHeader + json)
+    }
+
+    @Test
     fun commands() {
         val alpha = join("Alpha", "AA:00") // 1, team 1
         val bravo = join("Bravo", "BB:00") // 17, team 2

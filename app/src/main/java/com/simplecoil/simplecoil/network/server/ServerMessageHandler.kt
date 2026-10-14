@@ -89,6 +89,7 @@ class ServerMessageHandler(
             command == ClientCommand.TeamEliminated ->
                 server.sendToTeam(command(ServerCommand.TeamEliminated), playerIdOf(client), includePlayer = false)
             command == ClientCommand.PlayerDataRequest -> server.sendPlayerData(playerIdOf(client).toInt())
+            command == ClientCommand.ScoreMatrixRequest -> server.sendScoreMatrix(client)
             WireCodec.isAdminCommand(command) && !isAdmin(client) ->
                 // D14: only players the server operator made admins may run the game
                 Log.w(TAG, "Ignoring '${WireCodec.text(command)}' from non-admin client ${client.connectionId}")

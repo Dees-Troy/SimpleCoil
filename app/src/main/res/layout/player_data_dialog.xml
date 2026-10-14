@@ -13,4 +13,41 @@
         android:layout_height="wrap_content"
         android:background="#080808" />
 
+    <!-- The score matrix face: the grid, or progress, or a message. GONE while the list shows. -->
+    <FrameLayout
+        android:id="@+id/score_matrix_face"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="@dimen/score_matrix_min_height"
+        android:visibility="gone" >
+
+        <com.simplecoil.simplecoil.ui.scoreboard.ScoreMatrixView
+            android:id="@+id/score_matrix"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center_horizontal"
+            android:fadeScrollbars="true"
+            android:scrollbars="horizontal|vertical"
+            android:visibility="gone" />
+
+        <ProgressBar
+            android:id="@+id/score_matrix_progress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:indeterminate="true"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/score_matrix_message"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:padding="16dp"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:visibility="gone" />
+    </FrameLayout>
+
 </LinearLayout>

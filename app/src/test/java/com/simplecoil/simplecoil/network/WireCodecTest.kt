@@ -38,7 +38,7 @@ class WireCodecTest {
 
     private val clientCommands = listOf(
         ClientCommand.ShotFired, ClientCommand.Hit(17), ClientCommand.Out(17), ClientCommand.TeamEliminated,
-        ClientCommand.PlayerDataRequest, ClientCommand.StartGame, ClientCommand.AdminStartGame, ClientCommand.AdminEndGame,
+        ClientCommand.PlayerDataRequest, ClientCommand.ScoreMatrixRequest, ClientCommand.StartGame, ClientCommand.AdminStartGame, ClientCommand.AdminEndGame,
         ClientCommand.AdminSortTeams, ClientCommand.AdminReset, ClientCommand.AdminGameMode(4), ClientCommand.AdminKick(17),
         ClientCommand.AdminTeamSizes(listOf(10, 6, 8, 8)), ClientCommand.Leave,
     )
@@ -227,6 +227,9 @@ class WireCodecTest {
         "server/grenade_pairings.frame" to ServerMessage.GrenadePairings(listOf(WireGrenadePairing(3, 1))),
         "server/gps_full.frame" to ServerMessage.GpsUpdate(listOf(WireGpsPosition(1, 1, -74.25, 40.5)), true),
         "server/gps_delta.frame" to ServerMessage.GpsUpdate(listOf(WireGpsPosition(1, 1, -74.5, 40.75)), false),
+        "server/score_matrix.frame" to ServerMessage.ScoreMatrix(
+            listOf(WireMatrixPlayer(1, "Alpha", 1, true), WireMatrixPlayer(17, "Bravo", 2, true)),
+            listOf(WireMatrixCell(17, 1, 1)), 418873301),
     )
 
     @Test
@@ -254,6 +257,7 @@ class WireCodecTest {
         assertEquals(ServerMessage.GrenadePairings(emptyList()), serverJson("""{"grenadepairings":[],"gpsupdate":[]}"""))
         assertEquals(ServerMessage.GpsUpdate(emptyList(), false), serverJson("""{"gpsupdate":[],"playerdata":[]}"""))
         assertEquals(ServerMessage.PlayerData(emptyList()), serverJson("""{"playerdata":[],"players":[]}"""))
+        assertEquals(ServerMessage.ScoreMatrix(emptyList(), emptyList(), null), serverJson("""{"scorematrix":{"players":[],"cells":[]}}"""))
         assertNull(serverJson("""{"somethingnew":1}"""))
     }
 
@@ -267,5 +271,44 @@ class WireCodecTest {
         assertNull(serverJson("""{"players":[],"limits":{},"gamemode":2,"onlyserversettings":false,"playersettings":[]}"""))
         assertNull(serverJson("""{"players":[],"gamemode":2,"onlyserversettings":false}"""))
         assertNull(serverJson("""{"players":[],"limits":{},"gamemode":2,"onlyserversettings":false,"playergameupdate":{"points":1}}"""))
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Score matrix
+    // ------------------------------------------------------------------------------------------
+
+    @Test
+    fun scoreMatrix_inTheLobby_hasNoGameId_andDefaultsTeamAndConnected() {
+        val lobby = ServerMessage.ScoreMatrix(listOf(WireMatrixPlayer(3, "Me", 1, false)), emptyList(), null)
+        val frame = WireCodec.encode(lobby)
+        assertFalse(frame.contains(WireKeys.GAMEID))
+        assertEquals(lobby, decodeServer(frame))
+        assertEquals(ServerMessage.ScoreMatrix(listOf(WireMatrixPlayer(3, "Me", 1, true)), emptyList(), null),
+            serverJson("""{"scorematrix":{"players":[{"playerID":3,"playername":"Me"}],"cells":[]}}"""))
+        assertNull(serverJson("""{"scorematrix":{"players":[]}}"""))
+        assertNull(serverJson("""{"scorematrix":{"players":[],"cells":[[1,2]]}}"""))
+    }
+
+    @Test
+    fun scoreMatrixRequest_isNotAnAdminCommand_andAnOlderServerReadsItAsOther() {
+        assertFalse(WireCodec.isAdminCommand(ClientCommand.ScoreMatrixRequest))
+        // An older server has no branch for it: Other, not ADMIN_, so no command runs
+        assertFalse(WireCodec.isAdminCommand(ClientCommand.Other(WireProtocol.NETMSG_SCOREMATRIXREQUEST)))
+        assertEquals(ServerCommand.Other("SCOREMATRIXREQUEST"), WireCodec.decodeServerCommand("SCOREMATRIXREQUEST"))
+    }
+
+    @Test
+    fun theLargestScoreMatrix_fitsInOneFrame() {
+        // 32 players with 20-code-point names in a 4-byte script (6 bytes each in modified UTF-8), every cell 999
+        val name = "\uD800\uDF48".repeat(20)
+        val ids = 1..32
+        val matrix = ServerMessage.ScoreMatrix(
+            ids.map { WireMatrixPlayer(it, name, 1 + it / 17, it % 2 == 0) },
+            ids.flatMap { shooter -> ids.map { victim -> WireMatrixCell(shooter, victim, 999) } },
+            Long.MAX_VALUE)
+        val frame = WireCodec.encode(matrix)
+        val bytes = ByteArrayOutputStream().also { DataOutputStream(it).writeUTF(frame) }.toByteArray()
+        assertTrue("${bytes.size} bytes", bytes.size < 32 * 1024)
+        assertEquals(matrix, decodeServer(FrameReader(ByteArrayInputStream(bytes)).poll()!!))
     }
 }

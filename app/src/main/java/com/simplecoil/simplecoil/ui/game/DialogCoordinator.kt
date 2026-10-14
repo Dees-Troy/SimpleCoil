@@ -37,6 +37,7 @@ import com.simplecoil.simplecoil.domain.team.TeamMode
 import com.simplecoil.simplecoil.ui.dialogs.GameLimitDialog
 import com.simplecoil.simplecoil.ui.dialogs.TeamRatioDialog
 import com.simplecoil.simplecoil.ui.playersettings.PlayerSettingsDialog
+import com.simplecoil.simplecoil.ui.scoreboard.ScoreMatrixState
 
 /**
  * Dialogs, toasts and popup menus of the play screen ([GameDialogs]), moved from
@@ -321,6 +322,17 @@ class DialogCoordinator(
             open.setData(players)
             return
         }
+        show(TAG_SCOREBOARD) { ScoreboardDialog() }
+    }
+
+    override fun showScoreMatrix(state: ScoreMatrixState) {
+        if (activity.isFinishing || activity.isDestroyed) return
+        val open = fm.findFragmentByTag(TAG_SCOREBOARD) as? ScoreboardDialog
+        if (open != null) {
+            open.setMatrix(state)
+            return
+        }
+        // A new dialog reads the face and the matrix from the view model.
         show(TAG_SCOREBOARD) { ScoreboardDialog() }
     }
 

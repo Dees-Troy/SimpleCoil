@@ -19,6 +19,7 @@ package com.simplecoil.simplecoil.ui.game
 import com.simplecoil.simplecoil.PlayerDisplayData
 import com.simplecoil.simplecoil.domain.session.SessionToast
 import com.simplecoil.simplecoil.domain.team.TeamMode
+import com.simplecoil.simplecoil.ui.scoreboard.ScoreMatrixState
 
 /** Status line on the connect screen. */
 enum class ConnectStatus { SCANNING, CONNECTING, COMMUNICATING }
@@ -154,6 +155,8 @@ interface GameDialogs {
     fun showTeamRatioDialog(numTeams: Int, sizes: IntArray)
     fun showLocalPlayerSettings()
     fun showScoreboard(players: Array<PlayerDisplayData?>)
+    /** Update the scoreboard dialog's score matrix face, opening the dialog if needed. */
+    fun showScoreMatrix(state: ScoreMatrixState)
     fun closeScoreboard()
 }
 

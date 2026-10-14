@@ -170,8 +170,8 @@ class ClientWireFixturesTest {
             gateway.sendHit(17)
             gateway.sendOut(17)
             // The play screen's own commands (GameViewModel), built the same way
-            for (command in listOf(ClientCommand.TeamEliminated, ClientCommand.PlayerDataRequest, ClientCommand.StartGame,
-                    ClientCommand.AdminStartGame, ClientCommand.AdminEndGame, ClientCommand.AdminSortTeams, ClientCommand.AdminReset,
+            for (command in listOf(ClientCommand.TeamEliminated, ClientCommand.PlayerDataRequest,
+                    ClientCommand.ScoreMatrixRequest, ClientCommand.StartGame, ClientCommand.AdminStartGame, ClientCommand.AdminEndGame, ClientCommand.AdminSortTeams, ClientCommand.AdminReset,
                     ClientCommand.AdminGameMode(4), ClientCommand.AdminKick(17), ClientCommand.AdminTeamSizes(listOf(10, 6, 8, 8)),
                     ClientCommand.Leave)) { // leaveServer()'s LEAVE: it only writes while connected
                 client.sendTCPMessage(NetworkSessionGateway.command(command))

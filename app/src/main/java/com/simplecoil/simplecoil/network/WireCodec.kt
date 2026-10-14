@@ -32,6 +32,7 @@ import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_HIT
 import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_LEAVE
 import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_OUT
 import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_PLAYERDATAREQUEST
+import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_SCOREMATRIXREQUEST
 import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_SERVERCANCEL
 import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_SERVERREPLY
 import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_SHOTFIRED
@@ -125,6 +126,7 @@ object WireCodec {
             }))
             if (message.full) put(WireKeys.GPSFULLUPDATE, true)
         }
+        is ServerMessage.ScoreMatrix -> json { putScoreMatrix(message) }
     }
 
     /** The JSON of a player data frame (the server screen reads it too). */
@@ -228,6 +230,7 @@ object WireCodec {
             }, json.has(WireKeys.GPSFULLUPDATE))
         }
         json.has(WireKeys.PLAYERDATA) -> readPlayerData(json)
+        json.has(WireKeys.SCOREMATRIX) -> readScoreMatrix(json.getJSONObject(WireKeys.SCOREMATRIX))
         json.has(WireKeys.PLAYERS) -> readGameInfo(json)
         json.has(WireKeys.PLAYERSETTINGS) ->
             ServerMessage.PlayerSettings(json.getBoolean(WireKeys.ALLOWPLAYERSETTINGS), readSettingsArray(json))
@@ -334,6 +337,38 @@ object WireCodec {
         })
     }
 
+    private fun JSONObject.putScoreMatrix(matrix: ServerMessage.ScoreMatrix) {
+        put(WireKeys.SCOREMATRIX, JSONObject().apply {
+            put(WireKeys.PLAYERS, JSONArray(matrix.players.map {
+                JSONObject().apply {
+                    put(WireKeys.PLAYERID, it.playerId)
+                    put(WireKeys.PLAYERNAME, it.name)
+                    put(WireKeys.TEAM, it.team)
+                    put(WireKeys.CONNECTED, it.connected)
+                }
+            }))
+            put(WireKeys.CELLS, JSONArray(matrix.cells.map { JSONArray().put(it.shooterId).put(it.victimId).put(it.count) }))
+            matrix.gameId?.let { put(WireKeys.GAMEID, it) }
+        })
+    }
+
+    private fun readScoreMatrix(json: JSONObject): ServerMessage.ScoreMatrix {
+        val players = json.getJSONArray(WireKeys.PLAYERS)
+        val cells = json.getJSONArray(WireKeys.CELLS)
+        return ServerMessage.ScoreMatrix(
+            players = (0 until players.length()).map {
+                val player = players.getJSONObject(it)
+                WireMatrixPlayer(player.getInt(WireKeys.PLAYERID), player.getString(WireKeys.PLAYERNAME),
+                    player.optInt(WireKeys.TEAM, 1), player.optBoolean(WireKeys.CONNECTED, true))
+            },
+            cells = (0 until cells.length()).map {
+                val cell = cells.getJSONArray(it)
+                WireMatrixCell(cell.getInt(0), cell.getInt(1), cell.getInt(2))
+            },
+            gameId = if (json.has(WireKeys.GAMEID)) json.optLong(WireKeys.GAMEID, 0) else null,
+        )
+    }
+
     private fun settingsArray(players: List<WirePlayerSettings>) = JSONArray(players.map {
         JSONObject().apply {
             put(WireKeys.PLAYERID, it.playerId)
@@ -405,6 +440,7 @@ object WireCodec {
         is ClientCommand.Eliminated -> NETMSG_ELIMINATED + command.shooterId.argument()
         ClientCommand.TeamEliminated -> NETMSG_TEAMELIMINATED
         ClientCommand.PlayerDataRequest -> NETMSG_PLAYERDATAREQUEST
+        ClientCommand.ScoreMatrixRequest -> NETMSG_SCOREMATRIXREQUEST
         ClientCommand.Leave -> NETMSG_LEAVE
         ClientCommand.EndGame -> NETMSG_ENDGAME
         ClientCommand.StartGame -> NETMSG_STARTGAME
@@ -444,6 +480,7 @@ object WireCodec {
         text.startsWith(NETMSG_OUT) -> ClientCommand.Out(strictId(text.after(NETMSG_OUT)))
         text == NETMSG_TEAMELIMINATED -> ClientCommand.TeamEliminated
         text == NETMSG_PLAYERDATAREQUEST -> ClientCommand.PlayerDataRequest
+        text == NETMSG_SCOREMATRIXREQUEST -> ClientCommand.ScoreMatrixRequest
         text == NETMSG_STARTGAME -> ClientCommand.StartGame
         text.startsWith(NETMSG_ADMIN_STARTGAME) -> ClientCommand.AdminStartGame
         text == NETMSG_ENDGAME -> ClientCommand.EndGame

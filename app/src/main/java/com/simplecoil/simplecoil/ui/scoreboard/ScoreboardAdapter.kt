@@ -126,7 +126,7 @@ class ScoreboardAdapter(
         fun bind(row: ScoreboardRow.Player) {
             val context = itemView.context
             id.text = row.label
-            name.setTextColor(if (row.isSelf) SELF_COLOR else Color.WHITE)
+            name.setTextColor(if (row.isSelf) ScoreboardColors.SELF_NAME else Color.WHITE)
             name.text = row.name
             points.text = context.getString(R.string.number, row.points)
             stat.text = context.getString(R.string.number, row.livesOrEliminations)
@@ -166,6 +166,5 @@ class ScoreboardAdapter(
     private companion object {
         const val TYPE_TEAM_HEADER = 0
         const val TYPE_PLAYER = 1
-        const val SELF_COLOR = 0xFFFF8C00.toInt()
     }
 }

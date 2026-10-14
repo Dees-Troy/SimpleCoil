@@ -19,6 +19,7 @@ package com.simplecoil.simplecoil.ui.game
 import android.app.Dialog
 import android.content.DialogInterface
 import android.os.Bundle
+import android.view.View
 import androidx.appcompat.app.AlertDialog
 import androidx.core.os.bundleOf
 import androidx.lifecycle.ViewModelProvider
@@ -33,6 +34,7 @@ import com.simplecoil.simplecoil.databinding.PlayerDataDialogBinding
 import com.simplecoil.simplecoil.databinding.PlayerNameDialogBinding
 import com.simplecoil.simplecoil.databinding.ServerIpDialogBinding
 import com.simplecoil.simplecoil.ui.dialogs.AppDialogFragment
+import com.simplecoil.simplecoil.ui.scoreboard.ScoreMatrixState
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardAdapter
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardRows
 
@@ -163,19 +165,27 @@ class ServerIpDialog : GameDialogFragment() {
     }
 }
 
-/** The scoreboard; GameViewModel pushes new data into it while it is open. */
+/**
+ * The scoreboard; GameViewModel pushes new data into it while it is open. Two faces: the list, and
+ * the score matrix (SCORE_MATRIX_DESIGN.md §5.4), switched with the neutral button. The face is
+ * the view model's, so a recreated dialog comes back on the same one.
+ */
 class ScoreboardDialog : GameDialogFragment() {
     private var adapter: ScoreboardAdapter? = null
+    private var binding: PlayerDataDialogBinding? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Recreated with the activity: ask for fresh data, which arrives through setData().
+        // Recreated with the activity: ask for fresh data (and the matrix, if that face was
+        // showing), which arrives through setData() and setMatrix().
         if (savedInstanceState != null) vm.openScoreboard()
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val activity = requireActivity()
         val binding = PlayerDataDialogBinding.inflate(activity.layoutInflater)
+        this.binding = binding
+        binding.scoreMatrix.maxHeightPx = (resources.displayMetrics.heightPixels * MATRIX_MAX_HEIGHT_FRACTION).toInt()
         val players = vm.scoreboardPlayers ?: arrayOfNulls(GameSettingsRepository.MAX_PLAYER_ID + 2)
         val adapter = ScoreboardAdapter(isClient = true, listener = object : ScoreboardAdapter.Listener {
             override fun onTeamHeaderClicked() = vm.onTeamRatiosRequested()
@@ -185,14 +195,61 @@ class ScoreboardDialog : GameDialogFragment() {
         binding.playerList.layoutManager = LinearLayoutManager(activity)
         binding.playerList.adapter = adapter
         setData(players)
-        return alertBuilder()
+        showFace()
+        val builder = alertBuilder()
             .setNegativeButton(R.string.ok) { dialog, _ -> dialog.cancel() }
             .setView(binding.root)
-            .create()
+        // Only a dedicated server has a matrix. The listener is set once shown: a button's
+        // own listener would close the dialog.
+        val matrixAvailable = vm.networkMenuType == GameViewModel.NETWORK_TYPE_JOINED
+        if (matrixAvailable) builder.setNeutralButton(R.string.score_matrix, null)
+        val dialog = builder.create()
+        if (matrixAvailable) {
+            dialog.setOnShowListener {
+                val toggle = dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
+                toggle.setText(if (vm.scoreMatrixVisible) R.string.scoreboard else R.string.score_matrix)
+                toggle.setOnClickListener {
+                    vm.onScoreMatrixToggled()
+                    showFace()
+                    toggle.setText(if (vm.scoreMatrixVisible) R.string.scoreboard else R.string.score_matrix)
+                }
+            }
+        }
+        return dialog
     }
 
     fun setData(players: Array<PlayerDisplayData?>) {
         adapter?.submitList(ScoreboardRows.build(players, vm.scoreboardContext()))
+    }
+
+    /** Shows the list or the matrix, as the view model has it. */
+    private fun showFace() {
+        val b = binding ?: return
+        val matrix = vm.scoreMatrixVisible
+        b.playerList.visibility = if (matrix) View.GONE else View.VISIBLE
+        b.scoreMatrixFace.visibility = if (matrix) View.VISIBLE else View.GONE
+        if (matrix) setMatrix(vm.scoreMatrixState ?: ScoreMatrixState.Loading)
+    }
+
+    /** The matrix face's content: progress, a message, or the grid. */
+    fun setMatrix(state: ScoreMatrixState) {
+        val b = binding ?: return
+        val ready = state as? ScoreMatrixState.Ready
+        if (ready != null) b.scoreMatrix.setMatrix(ready.matrix)
+        val message = when {
+            state == ScoreMatrixState.Unsupported -> R.string.score_matrix_unsupported
+            ready != null && ready.matrix.isEmpty -> R.string.score_matrix_empty
+            else -> 0
+        }
+        b.scoreMatrixProgress.visibility = if (state == ScoreMatrixState.Loading) View.VISIBLE else View.GONE
+        b.scoreMatrix.visibility = if (ready != null && message == 0) View.VISIBLE else View.GONE
+        b.scoreMatrixMessage.visibility = if (message != 0) View.VISIBLE else View.GONE
+        if (message != 0) b.scoreMatrixMessage.setText(message)
+    }
+
+    override fun onDestroy() {
+        binding = null
+        super.onDestroy()
     }
 
     override fun onDismiss(dialog: DialogInterface) {
@@ -203,3 +260,6 @@ class ScoreboardDialog : GameDialogFragment() {
 }
 
 private const val ARG_TEXT = "text"
+
+/** The score matrix grows to at most this much of the window's height, then scrolls. */
+private const val MATRIX_MAX_HEIGHT_FRACTION = 0.8f

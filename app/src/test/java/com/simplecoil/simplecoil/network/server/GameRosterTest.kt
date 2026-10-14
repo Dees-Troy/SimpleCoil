@@ -390,6 +390,131 @@ class GameRosterTest {
     }
 
     // ------------------------------------------------------------------------------------------
+    // Score matrix
+    // ------------------------------------------------------------------------------------------
+
+    /** The matrix's non-zero cells as (shooter, victim) → count. */
+    private fun cells(): Map<Pair<Int, Int>, Int> =
+        roster.scoreMatrix().cells.associate { (it.shooterId.toInt() to it.victimId.toInt()) to it.count }
+
+    @Test
+    fun matrix_recordsCreditedOwnAndTeammateKills() {
+        val (ca, a) = join("Alpha", "AA") // 1, team 1
+        val (cb, b) = join("Bravo", "BB") // 17, team 2
+        val (_, c) = join("Charlie", "CC") // 2, team 1
+        roster.startGame()
+        roster.onEliminated(ca, b.playerId) // credited
+        roster.onEliminated(ca, b.playerId)
+        roster.onEliminated(cb, a.playerId)
+        roster.onEliminated(ca, a.playerId) // own grenade
+        roster.onEliminated(ca, c.playerId) // teammate's grenade
+        assertEquals(mapOf((17 to 1) to 2, (1 to 17) to 1, (1 to 1) to 1, (2 to 1) to 1), cells())
+        val matrix = roster.scoreMatrix()
+        assertEquals(listOf<Byte>(1, 2, 17), matrix.players.map { it.playerId })
+        assertEquals(listOf("Alpha", "Charlie", "Bravo"), matrix.players.map { it.name })
+        assertEquals(listOf(1, 1, 2), matrix.players.map { it.team })
+    }
+
+    @Test
+    fun matrix_skipsAnUnknownShooter_andAVictimWithoutHello() {
+        val (ca, a) = join("Alpha", "AA")
+        val (_, b) = join("Bravo", "BB")
+        roster.startGame()
+        roster.onEliminated(ca, 30) // nobody is 30
+        roster.onEliminated(connect(), b.playerId) // no hello
+        assertEquals(1, a.eliminated)
+        assertEquals(1, b.points)
+        assertTrue(cells().isEmpty())
+    }
+
+    @Test
+    fun matrix_countsAReliableEliminationOnce() {
+        val (ca, a) = join("Alpha", "AA")
+        val (_, b) = join("Bravo", "BB")
+        roster.startGame()
+        val game = roster.gameId()
+        repeat(3) {
+            if (roster.checkReliable(ca, 1, game) == GameRoster.ReliableCheck.APPLY) roster.onEliminated(ca, b.playerId)
+        }
+        assertEquals(mapOf((b.playerId.toInt() to a.playerId.toInt()) to 1), cells())
+    }
+
+    @Test
+    fun matrix_isEmptyInTheLobby_andClearedOnStartResetAndResetScores() {
+        val (ca, _) = join("Alpha", "AA")
+        val (_, b) = join("Bravo", "BB")
+        roster.onEliminated(ca, b.playerId) // lobby: ignored
+        assertTrue(cells().isEmpty())
+        assertEquals(2, roster.scoreMatrix().players.size)
+
+        roster.startGame()
+        roster.onEliminated(ca, b.playerId)
+        roster.resetScores()
+        assertTrue(cells().isEmpty())
+
+        roster.onEliminated(ca, b.playerId)
+        roster.endGame()
+        roster.onEliminated(ca, b.playerId) // post-game kills count
+        assertEquals(2, cells().values.single())
+        roster.reset()
+        assertTrue(cells().isEmpty())
+
+        roster.startGame()
+        assertTrue(cells().isEmpty())
+        roster.onEliminated(ca, b.playerId)
+        roster.clear()
+        assertTrue(roster.scoreMatrix().cells.isEmpty())
+    }
+
+    @Test
+    fun matrix_purgesAKickedPlayersRowAndColumn() {
+        val (ca, a) = join("Alpha", "AA")
+        val (cb, b) = join("Bravo", "BB")
+        val (cc, c) = join("Charlie", "CC")
+        roster.startGame()
+        roster.onEliminated(ca, b.playerId)
+        roster.onEliminated(cb, a.playerId)
+        roster.onEliminated(cc, a.playerId)
+        roster.onEliminated(ca, c.playerId)
+        roster.onEliminated(cc, b.playerId)
+        roster.kick(a.playerId)
+        assertEquals(mapOf((b.playerId.toInt() to c.playerId.toInt()) to 1), cells())
+        assertFalse(roster.scoreMatrix().players.any { it.playerId == a.playerId })
+
+        // A new player who gets id 1 starts at zero.
+        val (_, d) = join("Delta", "DD", requestedId = 1)
+        assertEquals(1.toByte(), d.playerId)
+        assertEquals(mapOf((b.playerId.toInt() to c.playerId.toInt()) to 1), cells())
+    }
+
+    @Test
+    fun matrix_keepsARosterPlayersCellsAcrossDisconnectAndRejoin() {
+        val (ca, a) = join("Alpha", "AA")
+        val (_, b) = join("Bravo", "BB")
+        roster.startGame()
+        roster.onEliminated(ca, b.playerId)
+        assertEquals(GameRoster.Disconnect.KEPT, roster.onDisconnect(ca))
+        assertFalse(roster.scoreMatrix().players.first { it.playerId == a.playerId }.connected)
+        assertEquals(1, cells().size)
+        val rejoin = hello("Alpha", "AA")
+        assertEquals(GameRoster.HelloResult.Kind.REJOINED, rejoin.kind)
+        roster.onEliminated(rejoin.record!!.connection!!, b.playerId)
+        assertEquals(mapOf((b.playerId.toInt() to a.playerId.toInt()) to 2), cells())
+    }
+
+    @Test
+    fun matrix_purgesAnUncachedPlayerWhoDisconnectsMidGame() {
+        val (ca, a) = join("Alpha", "AA")
+        roster.startGame()
+        val (cn, n) = join("Nomac", null) // joined in progress, no MAC: not on the roster
+        roster.onEliminated(ca, n.playerId)
+        roster.onEliminated(cn, a.playerId)
+        assertEquals(2, cells().size)
+        assertEquals(GameRoster.Disconnect.REMOVED, roster.onDisconnect(cn))
+        assertTrue(cells().isEmpty())
+    }
+
+    // ------------------------------------------------------------------------------------------
     // Kick and renumbering
     // ------------------------------------------------------------------------------------------
 

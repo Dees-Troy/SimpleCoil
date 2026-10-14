@@ -241,6 +241,26 @@ class TcpServerLoopbackTest {
     }
 
     @Test
+    fun scoreMatrix_goesOnlyToTheRequester_withWhoEliminatedWhom() {
+        val (a, b) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
+        val (clientA, idA) = a
+        val (clientB, idB) = b
+        clientA.mesg(WireProtocol.NETMSG_ELIMINATED + idB)
+        clientB.awaitMesg(WireProtocol.NETMSG_ELIMINATED)
+        clientB.mesg(WireProtocol.NETMSG_SCOREMATRIXREQUEST)
+        val matrix = clientB.awaitJson(WireKeys.SCOREMATRIX).getJSONObject(WireKeys.SCOREMATRIX)
+        assertEquals(server.roster.gameId(), matrix.getLong(WireKeys.GAMEID))
+        assertEquals(2, matrix.getJSONArray(WireKeys.PLAYERS).length())
+        val cells = matrix.getJSONArray(WireKeys.CELLS)
+        assertEquals(1, cells.length())
+        assertEquals(listOf(idB, idA, 1), (0 until 3).map { cells.getJSONArray(0).getInt(it) })
+        // A's own request is answered after B's; by then B's matrix would have reached A too.
+        clientA.mesg(WireProtocol.NETMSG_PLAYERDATAREQUEST)
+        clientA.awaitJson(WireKeys.PLAYERDATA)
+        assertNull(clientA.lastJson(WireKeys.SCOREMATRIX))
+    }
+
+    @Test
     fun runningGame_teammateGrenadeKill_costsALife_withoutScoreOrNotifications() {
         val (a, _, c) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00", "Charlie" to "CC:00")
         val (clientA, idA) = a

@@ -78,6 +78,30 @@ class GameRoster @JvmOverloads constructor(
         @JvmField val connected: Boolean,
     )
 
+    /** One player as the score matrix shows it. */
+    class MatrixPlayer internal constructor(
+        @JvmField val playerId: Byte,
+        @JvmField val name: String?,
+        /** 1 in free for all. */
+        @JvmField val team: Int,
+        @JvmField val connected: Boolean,
+    )
+
+    /** A non-zero score matrix cell: [shooterId] eliminated [victimId] [count] times. */
+    class MatrixCell internal constructor(
+        @JvmField val shooterId: Byte,
+        @JvmField val victimId: Byte,
+        @JvmField val count: Int,
+    )
+
+    /** The current game's score matrix: every player, and the non-zero cells. */
+    class Matrix internal constructor(
+        @JvmField val players: List<MatrixPlayer>,
+        @JvmField val cells: List<MatrixCell>,
+        /** The game the matrix belongs to; 0 in the lobby. */
+        @JvmField val gameId: Long,
+    )
+
     private var nextConnectionId = 0
     private var phase = SessionPhase.LOBBY
     /** The current game, from its start until the reset; 0 in the lobby. */
@@ -85,6 +109,8 @@ class GameRoster @JvmOverloads constructor(
     private val byId = TreeMap<Byte, PlayerRecord>()
     private val cacheByMac = HashMap<String, PlayerRecord>()
     private val connections = LinkedHashMap<Int, Connection>()
+    /** Eliminations in the current game: [pairKey] (shooter id, victim id) → count. Cleared with the scores. */
+    private val eliminationCounts = HashMap<Int, Int>()
 
     // ---------------------------------------------------------------------------------------
     // Connections
@@ -99,6 +125,7 @@ class GameRoster @JvmOverloads constructor(
         byId.clear()
         cacheByMac.clear()
         connections.clear()
+        eliminationCounts.clear()
     }
 
     /** Wraps an accepted socket in a new connection with the next connection id. */
@@ -247,6 +274,7 @@ class GameRoster @JvmOverloads constructor(
             record.eliminated = 0
             record.lastAppliedSeq = 0
         }
+        eliminationCounts.clear()
     }
 
     // ---------------------------------------------------------------------------------------
@@ -295,6 +323,7 @@ class GameRoster @JvmOverloads constructor(
             record = PlayerRecord(id, team, null, blasterMac)
         } else if (record.playerId != id) {
             byId.remove(record.playerId)
+            purgeMatrixLocked(record.playerId)
             repo.reassignPlayer(record.playerId, id)
         }
         record.playerId = id
@@ -412,6 +441,11 @@ class GameRoster @JvmOverloads constructor(
         val shooter = byId[shooterId]
         val credited = shooter != null && (victim == null || !sameSide(shooter.playerId, victim.playerId))
         val shooterPoints = if (credited) ++shooter!!.points else 0
+        // Every applied elimination goes in the matrix, credited or not (score matrix design §3.2).
+        if (victim != null && shooter != null) {
+            val key = pairKey(shooter.playerId, victim.playerId)
+            eliminationCounts[key] = (eliminationCounts[key] ?: 0) + 1
+        }
         return Elimination(victim?.playerId ?: 0, shooterId, credited, shooterPoints)
     }
 
@@ -440,10 +474,37 @@ class GameRoster @JvmOverloads constructor(
     }
 
     private fun removeRecordLocked(record: PlayerRecord) {
-        if (byId[record.playerId] === record) byId.remove(record.playerId)
+        if (byId[record.playerId] === record) {
+            byId.remove(record.playerId)
+            purgeMatrixLocked(record.playerId)
+        }
         if (record.blasterMac.isNotEmpty() && cacheByMac[record.blasterMac] === record)
             cacheByMac.remove(record.blasterMac)
         record.connection = null
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Score matrix
+    // ---------------------------------------------------------------------------------------
+
+    /** Who eliminated whom in the current game: every player in id order, and the non-zero cells. */
+    @Synchronized
+    fun scoreMatrix(): Matrix {
+        val layout = settings.teamLayout
+        val players = byId.values.map {
+            val team = if (layout.mode.isFreeForAll) 1 else layout.teamOf(it.playerId)
+            MatrixPlayer(it.playerId, it.name, team, it.connection != null)
+        }
+        val cells = eliminationCounts.entries
+            .sortedBy { it.key }
+            .map { (key, count) -> MatrixCell((key shr 8).toByte(), key.toByte(), count) }
+        return Matrix(players, cells, gameId)
+    }
+
+    /** Forgets [playerId]'s row and column, so a later player given the id starts at zero. */
+    private fun purgeMatrixLocked(playerId: Byte) {
+        val id = playerId.toInt() and 0xFF
+        eliminationCounts.keys.removeAll { (it shr 8) == id || (it and 0xFF) == id }
     }
 
     // ---------------------------------------------------------------------------------------
@@ -589,6 +650,8 @@ class GameRoster @JvmOverloads constructor(
     }
 
     private companion object {
+        fun pairKey(shooter: Byte, victim: Byte): Int = ((shooter.toInt() and 0xFF) shl 8) or (victim.toInt() and 0xFF)
+
         fun findBestTeamForRebalance(sizes: IntArray, numTeams: Int, teamPointers: IntArray, teamLimits: IntArray, teamCounts: IntArray): Int {
             var minRatio = Double.MAX_VALUE
             var bestTeam = -1

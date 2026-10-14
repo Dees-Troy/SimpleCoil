@@ -389,6 +389,11 @@ class GameServer(
         events.publish(ServerEvent.PlayerDataChanged(WireCodec.playerDataJson(data)))
     }
 
+    /** Sends the score matrix to [client] only; the screen never shows it. Runs on the dispatcher. */
+    fun sendScoreMatrix(client: Connection) {
+        client.send(WireCodec.encode(snapshots.scoreMatrix()))
+    }
+
     /** Announces every grenade's owner, if any grenade is paired. Runs on the dispatcher. */
     fun sendGrenadePairings() {
         snapshots.grenadePairings()?.let { sendToAll(WireCodec.encode(it)) }

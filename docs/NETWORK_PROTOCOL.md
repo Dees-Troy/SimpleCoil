@@ -90,6 +90,7 @@ consecutive blocks, sized by the team sizes.
 | `ELIMINATED<shooter>` | I was eliminated by `<shooter>`. Sent reliably (§6). | Scores it (§6.2), then tells the shooter `ELIMINATED<me>` and the shooter's teammates `TEAMELIMINATED`. |
 | `TEAMELIMINATED` | I scored. | Relays it to my teammates. |
 | `PLAYERDATAREQUEST` | Send me the scoreboard. | Replies with `playerdata` (§4.2). |
+| `SCOREMATRIXREQUEST` | Send me the score matrix. Clients ask at most once every 5 s. | Replies with `scorematrix` (§4.2) to the sender only. Older servers ignore it. |
 | `LEAVE` | I'm leaving. | Disconnects the player (§5). Ends the game if one player or none is left connected. |
 | `ENDGAME` | Sent by a non-admin player leaving a game. | Treated like `LEAVE`. |
 
@@ -145,6 +146,7 @@ Each JSON message is identified by the key it contains.
 |---|---|
 | `players` | **Game info**, the full snapshot: every player's `playerID`, `playername`, `playerIP`; `limits` (`timelimit`, `liveslimit`, `scorelimit`); `gamemode`; `teamsizes`; `gamestate`; `sessionphase`; `gameid` (when not in the lobby); `timeremaining`; `usegps`; `allowplayersettings`; `onlyserversettings`; `allowchooseteams`; `starttime`; and `playersettings` for everyone. The copy sent to one player also has `playergameupdate`, which holds that player's `points`, `eliminated`, `teampoints`, `timeremaining` and `ackseq`. |
 | `playerdata` | Scoreboard: each player's `playerID`, `playername`, `points`, `eliminated`, and whether they are `connected`. |
+| `scorematrix` | Who eliminated whom in the current game, sent only to the player who asked: `players` (each player's `playerID`, `playername`, `team` (1 in free for all) and `connected`), `cells` (the non-zero cells as `[shooter, victim, count]` arrays) and `gameid` (left out in the lobby). Every applied elimination is counted, including a player's own grenade and a teammate's. Cleared when a game starts and on reset. A removed player's row and column are dropped. |
 | `playersettings` | Every player's settings (fields as above, plus `recoilsetting` and `isadmin`), and `allowplayersettings`. The settings under the client's own ID replace its local settings. |
 | `grenadepairings` | Every grenade pairing: a list of `{pairedgrenadeID, playerID}`. |
 | `gpsupdate` | Other players' `playerID`, `team` and location, sent every second. Only players who moved are included. Every 20th update (and after anyone joins or leaves) is complete and is flagged with `gpsfullupdate`. |

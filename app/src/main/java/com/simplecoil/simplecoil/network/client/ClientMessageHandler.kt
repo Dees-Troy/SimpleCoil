@@ -128,6 +128,8 @@ class ClientMessageHandler(
                 events.publish(ClientEvent.GpsData(message.full))
             }
             is ServerMessage.PlayerData -> events.publish(ClientEvent.PlayerDataUpdate(json))
+            // Already typed, and small: no parsing left for the gateway's parse dispatcher
+            is ServerMessage.ScoreMatrix -> events.publish(ClientEvent.ScoreMatrix(message))
             is ServerMessage.PlayerSettings -> applyPlayerSettings(message.players, message.allowPlayerSettings)
             is ServerMessage.GameInfo -> {
                 if (message.playerSettings != null) applyPlayerSettings(message.playerSettings, message.allowPlayerSettings == true)

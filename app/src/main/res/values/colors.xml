@@ -5,4 +5,9 @@
     <color name="colorAccent">#E65100</color>
 
     <color name="black_overlay">#66000000</color>
+    <!-- The score matrix: header bands, the own-elimination diagonal (over any team tint), grid lines. -->
+    <color name="score_matrix_header_background">#141414</color>
+    <color name="score_matrix_diagonal">#26FFFFFF</color>
+    <color name="score_matrix_grid">#262626</color>
+    <color name="score_matrix_separator">#5A5A5A</color>
 </resources>

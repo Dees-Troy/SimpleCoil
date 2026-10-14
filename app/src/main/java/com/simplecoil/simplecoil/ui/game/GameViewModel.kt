@@ -51,6 +51,9 @@ import com.simplecoil.simplecoil.network.ClientEvent
 import com.simplecoil.simplecoil.network.GameUpdate
 import com.simplecoil.simplecoil.network.server.SessionPhase
 import com.simplecoil.simplecoil.ui.playersettings.PlayerSettingsValues
+import com.simplecoil.simplecoil.network.ServerMessage
+import com.simplecoil.simplecoil.ui.scoreboard.ScoreMatrixModel
+import com.simplecoil.simplecoil.ui.scoreboard.ScoreMatrixState
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardContext
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -128,6 +131,19 @@ class GameViewModel(
     var scoreboardVisible = false
         private set
     private var latestPlayerData: Array<PlayerDisplayData?>? = null
+    /** The scoreboard dialog shows the score matrix rather than the list (kept across recreation). */
+    var scoreMatrixVisible = false
+        private set
+    /** The latest score matrix, or what to show instead; null until one is asked for. */
+    var scoreMatrixState: ScoreMatrixState? = null
+        private set
+    /** The server's game id from its game info (0 in the lobby): a matrix for another game is stale. */
+    private var serverGameId = 0L
+    /** Running for [SCORE_MATRIX_MIN_INTERVAL_MS] after each request: the next one waits for it. */
+    private var scoreMatrixCooldown: Job? = null
+    /** A request is due when the cooldown ends. */
+    private var scoreMatrixPending = false
+    private var scoreMatrixTimeout: Job? = null
     private var searchTimeout: Job? = null
 
     val useNetwork: Boolean get() = net.useNetwork
@@ -249,7 +265,8 @@ class GameViewModel(
     }
 
     fun onScreenDestroyed() {
-        closeScoreboard()
+        // The matrix face stays chosen: a recreated dialog comes back on it.
+        closeScoreboard(keepMatrixFace = true)
         ble.reset()
         net.unbindServices()
         screen = null
@@ -823,6 +840,8 @@ class GameViewModel(
             net.udp?.stopListen()
             net.tcpClient?.stopTcpClient()
             serverPhase = SessionPhase.LOBBY
+            serverGameId = 0
+            resetScoreMatrix()
             screen?.showNotReady()
             setNetworkMenu(NETWORK_TYPE_ENABLED)
             screen?.setScoreboardAvailable(false)
@@ -981,6 +1000,10 @@ class GameViewModel(
         scoreboardVisible = true
         latestPlayerData?.let { screen?.showScoreboard(it) }
         if (net.useNetwork) net.tcpClient?.sendTCPMessage(NetworkSessionGateway.command(ClientCommand.PlayerDataRequest))
+        if (scoreMatrixVisible) {
+            screen?.showScoreMatrix(scoreMatrixState ?: ScoreMatrixState.Loading.also { scoreMatrixState = it })
+            requestScoreMatrix()
+        }
     }
 
     /** Thumb button long press: opens or closes the scoreboard while joined to a server. */
@@ -989,13 +1012,15 @@ class GameViewModel(
         if (scoreboardVisible) closeScoreboard() else openScoreboard()
     }
 
-    private fun closeScoreboard() {
+    private fun closeScoreboard(keepMatrixFace: Boolean = false) {
         scoreboardVisible = false
+        if (!keepMatrixFace) resetScoreMatrix()
         screen?.closeScoreboard()
     }
 
     fun onScoreboardDismissed() {
         scoreboardVisible = false
+        resetScoreMatrix()
     }
 
     private fun displayPlayerData(json: String?) {
@@ -1006,6 +1031,89 @@ class GameViewModel(
         latestPlayerData = players
         if (!scoreboardVisible) return
         screen?.showScoreboard(players)
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Score matrix (SCORE_MATRIX_DESIGN.md §5)
+    // ---------------------------------------------------------------------------------------
+
+    /** The scoreboard dialog's SCORE MATRIX / SCOREBOARD button: switches faces; the matrix face asks the server. */
+    fun onScoreMatrixToggled() {
+        if (scoreMatrixVisible) {
+            scoreMatrixVisible = false
+            scoreMatrixPending = false
+            return
+        }
+        scoreMatrixVisible = true
+        val state = scoreMatrixState ?: ScoreMatrixState.Loading.also { scoreMatrixState = it }
+        screen?.showScoreMatrix(state)
+        requestScoreMatrix()
+    }
+
+    private val scoreMatrixShowing get() = scoreboardVisible && scoreMatrixVisible
+
+    /**
+     * Asks for the matrix, at most once every [SCORE_MATRIX_MIN_INTERVAL_MS]. One asked for
+     * sooner is sent when the interval ends, if the matrix is still showing, so the last change
+     * always gets through (Q3).
+     */
+    private fun requestScoreMatrix() {
+        if (!net.useNetwork) return
+        if (scoreMatrixCooldown != null) {
+            scoreMatrixPending = true
+            return
+        }
+        scoreMatrixPending = false
+        net.tcpClient?.sendTCPMessage(NetworkSessionGateway.command(ClientCommand.ScoreMatrixRequest))
+        scoreMatrixTimeout?.cancel()
+        scoreMatrixTimeout = viewModelScope.launch {
+            delay(SCORE_MATRIX_TIMEOUT_MS)
+            // No answer, and nothing shown yet: an older server. A late reply still replaces it.
+            if (scoreMatrixState == ScoreMatrixState.Loading) {
+                scoreMatrixState = ScoreMatrixState.Unsupported
+                if (scoreMatrixShowing) screen?.showScoreMatrix(ScoreMatrixState.Unsupported)
+            }
+        }
+        scoreMatrixCooldown = viewModelScope.launch {
+            delay(SCORE_MATRIX_MIN_INTERVAL_MS)
+            scoreMatrixCooldown = null
+            if (scoreMatrixPending && scoreMatrixShowing) requestScoreMatrix() else scoreMatrixPending = false
+        }
+    }
+
+    /** Something that changes the matrix reached this phone: an open matrix asks again. */
+    private fun refreshScoreMatrix() {
+        if (scoreMatrixShowing) requestScoreMatrix()
+    }
+
+    private fun onScoreMatrix(message: ServerMessage.ScoreMatrix) {
+        if ((message.gameId ?: 0L) != serverGameId) {
+            Log.d(TAG, "Dropping a score matrix for game ${message.gameId}; this is game $serverGameId")
+            return
+        }
+        scoreMatrixTimeout?.cancel()
+        val state = ScoreMatrixState.Ready(ScoreMatrixModel.from(message, settingsRepo.teamLayout, playerRepo.playerID))
+        scoreMatrixState = state
+        if (scoreMatrixShowing) screen?.showScoreMatrix(state)
+    }
+
+    /** The server's game changed (started, or reset): the last matrix is gone. */
+    private fun onServerGameId(gameId: Long) {
+        if (gameId == serverGameId) return
+        serverGameId = gameId
+        if (scoreMatrixState == null) return
+        scoreMatrixState = ScoreMatrixState.Loading
+        if (scoreMatrixShowing) {
+            screen?.showScoreMatrix(ScoreMatrixState.Loading)
+            requestScoreMatrix()
+        }
+    }
+
+    private fun resetScoreMatrix() {
+        scoreMatrixVisible = false
+        scoreMatrixState = null
+        scoreMatrixPending = false
+        scoreMatrixTimeout?.cancel()
     }
 
     // ---------------------------------------------------------------------------------------
@@ -1025,21 +1133,32 @@ class GameViewModel(
                 screen?.showScore(net.score)
                 screen?.showTeamScore(net.teamScore)
                 updateScoreboardData(event.players)
+                refreshScoreMatrix()
             }
+            is ClientEvent.ScoreMatrix -> onScoreMatrix(event.matrix)
             ClientEvent.ShotFired -> {
                 engine.onRemoteShotFired() // Keeps us from spamming shots fired messages
                 screen?.showShotsFired()
             }
             is ClientEvent.Hit -> screen?.showHitOtherPlayer(false, playerName(event.playerId))
             is ClientEvent.Out -> screen?.showHitOtherPlayer(true, playerName(event.playerId))
-            is ClientEvent.Eliminated -> onEliminatedSomeone(event.playerId)
+            is ClientEvent.Eliminated -> {
+                onEliminatedSomeone(event.playerId)
+                refreshScoreMatrix()
+            }
             ClientEvent.TeamEliminated -> {
+                refreshScoreMatrix()
                 // Increase team score in team games
                 net.teamScore = net.teamScore + 1
                 screen?.showTeamScore(net.teamScore)
                 if (!net.useNetwork && (settingsRepo.gameLimit and GameSettingsRepository.GAME_LIMIT_SCORE) != 0 && net.teamScore >= settingsRepo.scoreLimit) endGame()
             }
-            is ClientEvent.ListPlayers -> onListPlayers(event)
+            is ClientEvent.ListPlayers -> {
+                event.gameId?.let { onServerGameId(it) }
+                onListPlayers(event)
+                // The (re)join snapshot: catch up on what was missed while away
+                if (event.gameUpdate != null) refreshScoreMatrix()
+            }
             is ClientEvent.PlayerDataUpdate -> displayPlayerData(event.json)
             ClientEvent.StartGame -> {
                 closeScoreboard()
@@ -1200,5 +1319,11 @@ class GameViewModel(
 
         /** Failed to join: retry the scan after this long. */
         const val FAILED_JOIN_RETRY_MILLIS = 2_000L
+
+        /** At most one score matrix request this often (Q3). */
+        const val SCORE_MATRIX_MIN_INTERVAL_MS = 5_000L
+
+        /** No score matrix this long after asking: the server doesn't have it. */
+        const val SCORE_MATRIX_TIMEOUT_MS = 3_000L
     }
 }
