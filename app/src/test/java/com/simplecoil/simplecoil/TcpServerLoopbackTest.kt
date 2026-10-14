@@ -33,6 +33,7 @@ import com.simplecoil.simplecoil.network.client.GameClient
 import com.simplecoil.simplecoil.network.server.ClockState
 import com.simplecoil.simplecoil.network.server.Connection
 import com.simplecoil.simplecoil.network.server.GameServer
+import com.simplecoil.simplecoil.network.server.SavedServerSettings
 import com.simplecoil.simplecoil.network.server.SessionPhase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -812,5 +813,63 @@ class TcpServerLoopbackTest {
         assertFalse(server.applyPlayerSettings(mover.toByte(), { it.health = 55 }, applyAll = false, applyTeam = false, targetTeam = 2))
         assertEquals(1, layout.teamOf(mover))
         assertEquals(55, players.playerSettings[mover.toByte()]!!.health)
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // The snapshot and the operator's settings (dedicated server design §5.2, §6.1)
+    // ------------------------------------------------------------------------------------------
+
+    @Test
+    fun snapshot_followsJoinsTheGameAndTheClock() {
+        val (a, idA) = join("Alpha", "AA:00")
+        join("Bravo", "BB:00")
+        awaitTrue { server.snapshot.value.players.size == 2 }
+        val lobby = server.snapshot.value
+        assertEquals(SessionPhase.LOBBY, lobby.phase)
+        assertEquals(2, lobby.playerCount)
+        assertEquals("Alpha", lobby.players.single { it.playerId.toInt() == idA }.name)
+        assertEquals(ClockState.Idle, lobby.clock)
+        assertTrue(server.startGame())
+        assertEquals(SessionPhase.RUNNING, server.snapshot.value.phase)
+        assertTrue(server.snapshot.value.clock is ClockState.Starting)
+        a.close()
+        awaitTrue(6000, "Alpha to show as disconnected") {
+            server.snapshot.value.players.single { it.playerId.toInt() == idA }.connected.not()
+        }
+    }
+
+    @Test
+    fun loadSettings_appliesTheSavedSettings_andTeammateGpsIsOffInFreeForAll() {
+        server.loadSettings(SavedServerSettings(TeamMode.FREE_FOR_ALL, timeLimit = 10, livesLimit = 0, scoreLimit = 5,
+            startTimeSeconds = 7, gpsMode = GameSettingsRepository.GPS_TEAMMATE, allowChooseTeams = false))
+        awaitTrue { server.snapshot.value.settings.startTimeSeconds == 7L }
+        val saved = server.snapshot.value.settings
+        assertEquals(TeamMode.FREE_FOR_ALL, saved.teamLayout.mode)
+        assertEquals(GameSettingsRepository.GAME_LIMIT_TIME or GameSettingsRepository.GAME_LIMIT_SCORE, saved.gameLimit)
+        assertEquals(10, saved.timeLimit)
+        assertEquals(5, saved.scoreLimit)
+        assertEquals(GameSettingsRepository.GPS_TEAMMATE, saved.gpsMode)
+        assertFalse(saved.useGps)
+        assertFalse(saved.allowChooseTeams)
+    }
+
+    @Test
+    fun changeTeamMode_afterAGame_resetsFirst_andUsesTheDefaultSizes() {
+        val (_, _, idB) = endedGameWithBravoAway()
+        settings.setTeamSizes(intArrayOf(10, 22))
+        assertTrue(server.changeTeamMode(TeamMode.TWO_TEAMS))
+        assertEquals(SessionPhase.LOBBY, server.snapshot.value.phase)
+        assertArrayEquals(intArrayOf(16, 16), server.snapshot.value.settings.teamLayout.teamSizes())
+        assertNull(score(idB))
+        assertFalse(server.changeTeamMode(TeamMode.FOUR_TEAMS)) // nothing left to reset
+    }
+
+    @Test
+    fun changeLimits_inTheLobby_tellsTheClients() {
+        val (a, _) = join("Alpha", "AA:00")
+        a.awaitJson(WireKeys.PLAYERS)
+        assertFalse(server.changeLimits(GameSettingsRepository.GAME_LIMIT_TIME, 12, 0, 0))
+        assertEquals(12, server.snapshot.value.settings.timeLimit)
+        awaitTrue { a.lastJson(WireKeys.PLAYERS)?.optJSONObject(WireKeys.LIMITS)?.optInt(WireKeys.TIMELIMIT) == 12 }
     }
 }

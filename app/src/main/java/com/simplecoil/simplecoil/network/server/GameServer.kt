@@ -36,6 +36,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.IOException
 import java.net.ServerSocket
@@ -101,11 +104,25 @@ class GameServer(
 
     /** Enforces the time limit (dedicated server design §5.3); touched only on the dispatcher. */
     private val gameClock = ServerGameClock(dispatcher, clock, gameState,
-        onStateChanged = { events.publish(ServerEvent.ClockChanged(it)) },
+        onStateChanged = {
+            events.publish(ServerEvent.ClockChanged(it))
+            publishSnapshot()
+        },
         onTimeUp = {
             events.publish(ServerEvent.TimeExpired)
             endGame()
         })
+
+    /** Where the server listens, for the screen; set on the dispatcher. */
+    private var serverIp: String? = null
+
+    private val _snapshot = MutableStateFlow(buildSnapshot())
+
+    /**
+     * What the server screen shows (dedicated server design §5.2), rebuilt on the dispatcher after
+     * every task; equal snapshots are conflated.
+     */
+    val snapshot: StateFlow<ServerSnapshot> = _snapshot.asStateFlow()
 
     // ---------------------------------------------------------------------------------------
     // The dispatcher
@@ -114,13 +131,13 @@ class GameServer(
     /** Runs [body] on the dispatcher: now if already on it, otherwise queued behind what's there. */
     private fun runOnDispatcher(body: () -> Unit) {
         if (Thread.currentThread() === dispatcherThread) {
-            body()
+            published(body)
             return
         }
         try {
             executor.execute {
                 try {
-                    body()
+                    published(body)
                 } catch (e: RuntimeException) {
                     // One failed handler must not stop the server handling everything else (N5)
                     Log.e(TAG, "Server task failed", e)
@@ -134,14 +151,71 @@ class GameServer(
     /** Runs [body] on the dispatcher and waits for its result. Safe: the dispatcher never blocks. */
     private fun <T> callOnDispatcher(onFailure: T, body: () -> T): T {
         try {
-            if (Thread.currentThread() === dispatcherThread) return body()
-            return executor.submit(Callable { body() }).get()
+            if (Thread.currentThread() === dispatcherThread) return published(body)
+            return executor.submit(Callable { published(body) }).get()
         } catch (e: InterruptedException) {
             Thread.currentThread().interrupt()
         } catch (e: Exception) {
             Log.e(TAG, "Server task failed", e)
         }
         return onFailure
+    }
+
+    /** Runs [body], then publishes the snapshot, whatever [body] changed. */
+    private fun <T> published(body: () -> T): T {
+        try {
+            return body()
+        } finally {
+            publishSnapshot()
+        }
+    }
+
+    private fun publishSnapshot() {
+        try {
+            _snapshot.value = buildSnapshot()
+        } catch (e: RuntimeException) {
+            Log.e(TAG, "Could not build the snapshot", e)
+        }
+    }
+
+    /** Reads the roster first, then the repositories, in the lock order (GameRoster → PlayerRepository). */
+    private fun buildSnapshot(): ServerSnapshot {
+        val records = roster.records()
+        val rows = synchronized(players) {
+            records.map { record ->
+                val id = record.playerId
+                val playerSettings = players.playerSettings[id]
+                ServerPlayerRow(
+                    playerId = id,
+                    name = players.teamPlayerNameMap[id],
+                    points = record.points,
+                    eliminated = record.eliminated,
+                    connected = record.isConnected,
+                    overrideLives = playerSettings?.overrideLives ?: false,
+                    lives = playerSettings?.lives ?: 0,
+                )
+            }
+        }
+        return ServerSnapshot(
+            phase = roster.phase(),
+            serverIp = serverIp,
+            players = rows,
+            playerCount = players.getPlayerCount(true),
+            clock = gameClock.state,
+            settings = ServerSettings(
+                teamLayout = settings.teamLayout,
+                gameLimit = settings.gameLimit,
+                timeLimit = settings.timeLimit,
+                livesLimit = settings.livesLimit,
+                scoreLimit = settings.scoreLimit,
+                startTimeSeconds = settings.startTime,
+                gpsMode = settings.gpsMode,
+                useGps = settings.isUseGPS,
+                allowJoinInProgress = settings.isAllowJoinInProgress,
+                onlyServerSettings = settings.isOnlyServerSettings,
+                allowChooseTeams = settings.isAllowChooseTeams,
+            ),
+        )
     }
 
     // ---------------------------------------------------------------------------------------
@@ -394,6 +468,107 @@ class GameServer(
     }
 
     // ---------------------------------------------------------------------------------------
+    // The operator's settings: each one runs on the dispatcher, in order with the clients'
+    // frames. A change to the game after a game resets first (reconnect design §3.1.1); those
+    // return true if they reset, for the screen's toast.
+    // ---------------------------------------------------------------------------------------
+
+    /** Loads the operator's saved settings into a server that is about to start (§5.5). */
+    fun loadSettings(saved: SavedServerSettings): Unit = runOnDispatcher {
+        settings.teamMode = saved.teamMode
+        storeLimits(limitFlags(saved.timeLimit, saved.livesLimit, saved.scoreLimit), saved.timeLimit, saved.livesLimit, saved.scoreLimit)
+        settings.startTime = saved.startTimeSeconds
+        settings.isAllowChooseTeams = saved.allowChooseTeams
+        applyGpsMode(saved.gpsMode)
+    }
+
+    /** Where the server listens, for the screen. */
+    fun setServerIp(ip: String?): Unit = runOnDispatcher { serverIp = ip }
+
+    /** A new team mode, with its default team sizes (even when re-picking the same mode), and everyone renumbered. */
+    fun changeTeamMode(mode: TeamMode): Boolean = callOnDispatcher(false) {
+        val reset = resetSessionNow()
+        settings.teamMode = mode
+        settings.resetDefaultTeamSizes()
+        applyGpsMode(settings.gpsMode) // teammate GPS means nothing in free for all
+        rebalanceAllPlayers(false)
+        reset
+    }
+
+    /** Sorts and randomizes the teams. */
+    fun sortTeams(): Boolean = callOnDispatcher(false) {
+        val reset = resetSessionNow()
+        rebalanceAllPlayers(true)
+        reset
+    }
+
+    /** New team sizes (already validated), and everyone renumbered. */
+    fun changeTeamSizes(sizes: IntArray): Boolean = callOnDispatcher(false) {
+        val reset = resetSessionNow()
+        settings.setTeamSizes(sizes)
+        rebalanceAllPlayers(false)
+        reset
+    }
+
+    /** New game limits: [gameLimit] holds the GAME_LIMIT_* flags that are on. */
+    fun changeLimits(gameLimit: Int, timeLimit: Int, livesLimit: Int, scoreLimit: Int): Boolean = callOnDispatcher(false) {
+        val reset = resetSessionNow()
+        storeLimits(gameLimit, timeLimit, livesLimit, scoreLimit)
+        sendAllGameInfo(SEND_ALL)
+        reset
+    }
+
+    /** A new starting timer, in seconds. */
+    fun changeStartTime(seconds: Long): Boolean = callOnDispatcher(false) {
+        val reset = resetSessionNow()
+        settings.startTime = seconds
+        sendAllGameInfo(SEND_ALL)
+        reset
+    }
+
+    /** A new GPS relay mode (GameSettingsRepository.GPS_*). */
+    fun changeGpsMode(mode: Int): Boolean = callOnDispatcher(false) {
+        val reset = resetSessionNow()
+        applyGpsMode(mode)
+        reset
+    }
+
+    /** New players may join a running game (checked at their hello). */
+    fun setAllowJoinInProgress(allow: Boolean): Unit = runOnDispatcher { settings.isAllowJoinInProgress = allow }
+
+    fun setOnlyServerSettings(only: Boolean): Unit = runOnDispatcher {
+        settings.isOnlyServerSettings = only
+        sendAllGameInfo(SEND_ALL)
+    }
+
+    fun setAllowChooseTeams(allow: Boolean): Unit = runOnDispatcher {
+        settings.isAllowChooseTeams = allow
+        sendAllGameInfo(SEND_ALL)
+    }
+
+    /** [read] of [playerId]'s settings (null if it has none), under the repository's lock. */
+    fun <T> readPlayerSettings(playerId: Byte, read: (PlayerSettings?) -> T): T = synchronized(players) {
+        read(players.playerSettings[playerId])
+    }
+
+    private fun storeLimits(gameLimit: Int, timeLimit: Int, livesLimit: Int, scoreLimit: Int) {
+        settings.timeLimit = timeLimit
+        settings.livesLimit = livesLimit
+        settings.scoreLimit = scoreLimit
+        settings.gameLimit = gameLimit
+    }
+
+    /** Relays GPS unless the mode is off, or teammate-only in free for all; tells the clients. */
+    private fun applyGpsMode(mode: Int) {
+        settings.gpsMode = mode
+        val off = mode == GameSettingsRepository.GPS_DISABLED ||
+            (settings.teamMode == TeamMode.FREE_FOR_ALL && mode == GameSettingsRepository.GPS_TEAMMATE)
+        settings.isUseGPS = !off
+        if (!off) startGpsRelay()
+        sendAllGameInfo(SEND_ALL)
+    }
+
+    // ---------------------------------------------------------------------------------------
     // GPS
     // ---------------------------------------------------------------------------------------
 
@@ -588,6 +763,15 @@ class GameServer(
 
         /** We will send all GPS data regardless of whether there was a GPS change every xx intervals. */
         private const val SEND_ALL_GPS_INTERVAL = 20
+
+        /** The GAME_LIMIT_* flags for the limits that are set (not 0). */
+        fun limitFlags(timeLimit: Int, livesLimit: Int, scoreLimit: Int): Int {
+            var flags = GameSettingsRepository.GAME_LIMIT_NONE
+            if (timeLimit != 0) flags = flags or GameSettingsRepository.GAME_LIMIT_TIME
+            if (livesLimit != 0) flags = flags or GameSettingsRepository.GAME_LIMIT_LIVES
+            if (scoreLimit != 0) flags = flags or GameSettingsRepository.GAME_LIMIT_SCORE
+            return flags
+        }
 
         /** A MESG frame carrying [command]. */
         private fun command(command: ServerCommand): String = WireCodec.encode(ServerMessage.Command(command))
