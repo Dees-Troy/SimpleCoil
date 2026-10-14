@@ -198,7 +198,6 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                 mNetworkPlayerCountTV.setText(quantity(R.plurals.network_player_count, count));
             }
         });
-        mViewModel.startServerBeacon("SimpleCoil Server");
         mViewModel.getTeamModeLiveData().observe(this, this::showTeamMode);
 
         mServerIPTV = findViewById(R.id.server_ip_tv);
