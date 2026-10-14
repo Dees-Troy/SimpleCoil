@@ -261,7 +261,7 @@ class BlasterSessionEngine(
         eliminationCount = if (hasLivesLimit) lives else 0
         setEliminationDisplay(eliminationCount)
         health = config.fullHealth
-        _state.update { it.copy(health = health, maxHealth = health) }
+        _state.update { it.copy(gameInProgress = true, health = health, maxHealth = health) }
         startingGameLabel = true
         startGameTimer = true
         setShotMode(currentShotMode) // make sure that the shot mode is correctly set at the start of each game
@@ -286,7 +286,7 @@ class BlasterSessionEngine(
         } else {
             (_state.value.clock as? GameClock.Stopped)?.countdownText
         }
-        _state.update { it.copy(spawn = SpawnPhase.None, shieldSeconds = null, clock = GameClock.Stopped(countdownText)) }
+        _state.update { it.copy(gameInProgress = false, spawn = SpawnPhase.None, shieldSeconds = null, clock = GameClock.Stopped(countdownText)) }
         startReload(RELOADING_ELIMINATED)
     }
 

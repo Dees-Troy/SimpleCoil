@@ -366,6 +366,18 @@ class BlasterSessionEngineTest {
     }
 
     @Test
+    fun gameInProgress_fromStartGameUntilEndGame() {
+        h.connected()
+        assertFalse(h.state.gameInProgress)
+        h.engine.startGame()
+        assertTrue(h.state.gameInProgress) // spawning counts as in progress
+        h.advance(5_000)
+        assertTrue(h.state.gameInProgress)
+        h.engine.endGame()
+        assertFalse(h.state.gameInProgress)
+    }
+
+    @Test
     fun endGameDuringSpawn_cancelsTheRespawn() {
         h.connected()
         h.engine.startGame()

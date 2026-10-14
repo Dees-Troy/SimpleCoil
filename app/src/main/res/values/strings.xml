@@ -134,6 +134,8 @@
     <string name="server_notification_running">Game running</string>
     <string name="server_notification_post_game">Game over</string>
     <string name="server_notification_stop">Stop server</string>
+    <string name="blaster_notification_health">Health %1$d/%2$d</string>
+    <string name="blaster_notification_game_text_reloading">Health %1$d/%2$d · Reloading</string>
     <string name="dedicated_teams_sorted">Teams Sorted &amp; Randomized!</string>
     <string name="dedicated_player_kicked">Player kicked</string>
     <string name="dedicated_team_ratio_running">Cannot edit team ratios while a game is in progress</string>
@@ -239,6 +241,10 @@
     <plurals name="dedicated_reset_confirm">
         <item quantity="one">Reset scores and remove %1$d disconnected player?</item>
         <item quantity="other">Reset scores and remove %1$d disconnected players?</item>
+    </plurals>
+    <plurals name="blaster_notification_game_text">
+        <item quantity="one">Health %1$d/%2$d · %3$d shot</item>
+        <item quantity="other">Health %1$d/%2$d · %3$d shots</item>
     </plurals>
     <plurals name="server_notification_players">
         <item quantity="one">%1$d player · %2$s</item>

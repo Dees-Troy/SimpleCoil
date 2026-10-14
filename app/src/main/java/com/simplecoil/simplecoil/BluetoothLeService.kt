@@ -36,20 +36,28 @@ import android.os.Binder
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
+import android.view.View
+import android.widget.RemoteViews
 import androidx.annotation.VisibleForTesting
 import androidx.core.app.NotificationCompat
 import com.simplecoil.simplecoil.hardware.blaster.GattEvent
 import com.simplecoil.simplecoil.hardware.blaster.GattEventSink
 import com.simplecoil.simplecoil.hardware.blaster.GattIo
+import com.simplecoil.simplecoil.domain.session.SessionState
 import com.simplecoil.simplecoil.hardware.blaster.ProtocolTrace
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -62,6 +70,7 @@ open class BluetoothLeService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        sessionState = (application as SimpleCoilApp).container.sessionEngine.state
     }
 
     /**
@@ -92,21 +101,83 @@ open class BluetoothLeService : Service() {
         }
     }
 
-    private fun createPersistentNotification(contentText: String): Notification {
+    private fun notificationBuilder(): NotificationCompat.Builder {
         val notificationIntent = FullscreenActivity.resumeIntent(this)
         val pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("SimpleCoil Connected")
-            .setContentText(contentText)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
+    }
+
+    private fun createPersistentNotification(contentText: String): Notification =
+        notificationBuilder().setContentText(contentText).build()
+
+    /** The in-game notification: a health bar, and the shots left or a spinner while reloading. */
+    private fun createGameNotification(hud: GameHud): Notification {
+        val text = if (hud.reloading) {
+            getString(R.string.blaster_notification_game_text_reloading, hud.health, hud.maxHealth)
+        } else {
+            resources.getQuantityString(R.plurals.blaster_notification_game_text, hud.shots, hud.health, hud.maxHealth, hud.shots)
+        }
+        val views = RemoteViews(packageName, R.layout.notification_blaster_game).apply {
+            setTextViewText(R.id.notification_health_tv, getString(R.string.blaster_notification_health, hud.health, hud.maxHealth))
+            setProgressBar(R.id.notification_health_pb, hud.maxHealth, hud.health, false)
+            setTextViewText(R.id.notification_shots_tv, hud.shots.toString())
+            setViewVisibility(R.id.notification_shots_tv, if (hud.reloading) View.INVISIBLE else View.VISIBLE)
+            setViewVisibility(R.id.notification_reload_pb, if (hud.reloading) View.VISIBLE else View.GONE)
+        }
+        return notificationBuilder()
+            .setContentText(text) // where the custom view isn't shown
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setCustomContentView(views)
             .build()
     }
 
     open fun startAsForeground(statusText: String) {
         startForeground(NOTIFICATION_ID, createPersistentNotification(statusText))
+    }
+
+    /** What the in-game notification shows; null when no game is in progress. */
+    private data class GameHud(val health: Int, val maxHealth: Int, val shots: Int, val reloading: Boolean)
+
+    private fun SessionState.toHud(): GameHud? =
+        if (gameInProgress) GameHud(health.coerceAtLeast(0), maxHealth, shotsRemaining.toInt(), reloadBarShown == true) else null
+
+    /** The session the notification follows; null until onCreate (JVM tests never set it). */
+    private var sessionState: StateFlow<SessionState>? = null
+    private var sessionUpdates: Job? = null
+
+    /** Guards [showingConnected] so an update can't repost the notification after a disconnect removed it. */
+    private val notificationLock = Any()
+    private var showingConnected = false
+
+    /**
+     * While connected, keeps the notification in step with the game. Updates are throttled, since
+     * the system drops a burst of them (full auto) and could drop the last one.
+     */
+    private fun followSession() {
+        val state = sessionState ?: return
+        synchronized(notificationLock) { showingConnected = true }
+        sessionUpdates?.cancel()
+        sessionUpdates = scope.launch {
+            state.map { it.toHud() }.distinctUntilChanged().conflate().collect { hud ->
+                val notification = if (hud == null) createPersistentNotification(CONNECTED_TEXT) else createGameNotification(hud)
+                synchronized(notificationLock) {
+                    if (showingConnected) getSystemService(NotificationManager::class.java)?.notify(NOTIFICATION_ID, notification)
+                }
+                delay(NOTIFICATION_UPDATE_INTERVAL_MILLIS)
+            }
+        }
+    }
+
+    private fun stopFollowingSession() {
+        synchronized(notificationLock) { showingConnected = false }
+        sessionUpdates?.cancel()
+        sessionUpdates = null
     }
 
     private var bluetoothManager: BluetoothManager? = null
@@ -146,7 +217,8 @@ open class BluetoothLeService : Service() {
                 connectionState = STATE_CONNECTED
                 broadcastUpdate(ACTION_GATT_CONNECTED)
                 Log.i(TAG, "Connected to GATT server.")
-                startAsForeground("Connected to Blaster")
+                startAsForeground(CONNECTED_TEXT)
+                followSession()
                 // Attempts to discover services after successful connection with delay.
                 scope.launch {
                     delay(DISCOVER_SERVICES_DELAY_MILLIS)
@@ -158,6 +230,7 @@ open class BluetoothLeService : Service() {
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 connectionState = STATE_DISCONNECTED
                 Log.i(TAG, "Disconnected from GATT server: $status")
+                stopFollowingSession()
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                     stopForeground(STOP_FOREGROUND_REMOVE)
                 } else {
@@ -496,6 +569,10 @@ open class BluetoothLeService : Service() {
         private val TAG: String = BluetoothLeService::class.java.simpleName
         private const val NOTIFICATION_ID = 1337
         private const val CHANNEL_ID = "BluetoothLeServiceChannel"
+        private const val CONNECTED_TEXT = "Connected to Blaster"
+
+        /** At most this often; the system allows about 5 updates a second per app. */
+        private const val NOTIFICATION_UPDATE_INTERVAL_MILLIS = 250L
 
         /** About 25 s of telemetry; a full buffer means a stalled collector. */
         private const val EVENT_BUFFER = 256

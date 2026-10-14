@@ -44,6 +44,8 @@ sealed interface GameClock {
 
 /** Everything the play screen shows from the blaster session. */
 data class SessionState(
+    /** A game has started and not yet ended (the player may be eliminated or respawning). */
+    val gameInProgress: Boolean = false,
     val health: Int,
     val maxHealth: Int,
     val shotsRemaining: Byte = 0,
