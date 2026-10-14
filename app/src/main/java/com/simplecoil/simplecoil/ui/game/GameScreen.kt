@@ -113,7 +113,7 @@ interface GameView {
     fun showServerSearching()
     fun showNotReady()
     fun setKeepScreenOn(on: Boolean)
-    fun setPlayerDataButtonVisible(visible: Boolean)
+    fun setScoreboardAvailable(available: Boolean)
     fun showPlayerCount(count: Int)
     fun showOnlyOnePlayer()
     fun showConnectedToServer(ip: String)

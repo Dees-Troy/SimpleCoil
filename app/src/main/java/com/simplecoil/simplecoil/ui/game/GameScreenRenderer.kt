@@ -21,6 +21,8 @@ import android.graphics.drawable.AnimationDrawable
 import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.view.animation.AnimationUtils
+import androidx.core.view.ViewCompat
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat
 import androidx.core.view.isVisible
 import com.simplecoil.simplecoil.R
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
@@ -47,6 +49,8 @@ class GameScreenRenderer(
     private val scope: CoroutineScope,
     /** No blaster on this device (a Chromebook): the connect screen shows only the dedicated server. */
     private val serverOnly: Boolean = false,
+    /** The score readout was tapped while a scoreboard is available. */
+    private val onScoresTapped: () -> Unit = {},
 ) : GameView {
 
     private val context get() = b.root.context
@@ -127,10 +131,28 @@ class GameScreenRenderer(
 
     override fun showScore(score: Int) {
         b.scoreTv.text = number(score)
+        updateScoresDescription()
     }
 
     override fun showTeamScore(teamScore: Int) {
         b.teamScoreTv.text = number(teamScore)
+        updateScoresDescription()
+    }
+
+    /** Lets TalkBack read the score readout as one item, e.g. "TEAM: 40, SCORE: 12". */
+    private fun updateScoresDescription() {
+        val entries = listOfNotNull(
+            if (b.teamScoreTv.isVisible) context.getString(R.string.cd_score_entry, b.teamScoreLabelTv.text, b.teamScoreTv.text) else null,
+            context.getString(R.string.cd_score_entry, b.scoreLabelTv.text, b.scoreTv.text),
+        )
+        b.scoresChip.contentDescription = entries.joinToString(", ")
+    }
+
+    private fun setTeamScoreVisible(visible: Boolean) {
+        val visibility = if (visible) View.VISIBLE else View.GONE
+        b.teamScoreLabelTv.visibility = visibility
+        b.teamScoreTv.visibility = visibility
+        updateScoresDescription()
     }
 
     override fun showGameLimit(timeLimitMinutes: Int?, livesLabel: Boolean, scoreLimit: Int?) {
@@ -150,6 +172,7 @@ class GameScreenRenderer(
             b.scoreLabelTv.setText(R.string.score_label)
             b.teamScoreLabelTv.setText(R.string.team_score_label)
         }
+        updateScoresDescription()
     }
 
     override fun showPlayerSettings(fullHealth: Int, fullReload: Byte, damage: Int) {
@@ -195,9 +218,7 @@ class GameScreenRenderer(
                 clearTeamLabelStyle()
             }
             b.teamTv.text = team.playerName ?: context.getString(R.string.network_team, team.player)
-            val visibility = if (team.teamScoreVisible) View.VISIBLE else View.INVISIBLE
-            b.teamScoreLabelTv.visibility = visibility
-            b.teamScoreTv.visibility = visibility
+            setTeamScoreVisible(team.teamScoreVisible)
             return
         }
         b.teamLabelTv.setText(R.string.team_label)
@@ -207,8 +228,7 @@ class GameScreenRenderer(
         } else {
             b.teamTv.setText(R.string.auto_sort_team)
         }
-        b.teamScoreLabelTv.visibility = View.INVISIBLE
-        b.teamScoreTv.visibility = View.INVISIBLE
+        setTeamScoreVisible(false)
     }
 
     private fun clearTeamLabelStyle() {
@@ -251,26 +271,19 @@ class GameScreenRenderer(
         val visibility = if (enabled) View.VISIBLE else View.INVISIBLE
         // The team mode stays visible offline too; showTeamModeSelectable picks button or label.
         b.teamModeLabelTv.visibility = View.VISIBLE
-        b.scoreLabelTv.visibility = visibility
-        b.scoreTv.visibility = visibility
+        b.scoresChip.visibility = visibility
         b.playerNameLabelTv.visibility = visibility
         b.serverIpTv.visibility = View.GONE
-        val teamScoreVisibility = if (!freeForAll) visibility else View.INVISIBLE
-        b.teamScoreLabelTv.visibility = teamScoreVisibility
-        b.teamScoreTv.visibility = teamScoreVisibility
+        setTeamScoreVisible(enabled && !freeForAll)
     }
 
     private fun displayInGameNetworkingOptions(isAdmin: Boolean, freeForAll: Boolean) {
         displayAllNetworkingOptions(false, freeForAll)
         b.playerCountTv.visibility = View.VISIBLE
         b.teamModeLabelTv.visibility = View.VISIBLE
-        b.scoreLabelTv.visibility = View.VISIBLE
-        b.scoreTv.visibility = View.VISIBLE
+        b.scoresChip.visibility = View.VISIBLE
         b.endNetworkGameButton.visibility = if (isAdmin) View.VISIBLE else View.GONE
-        if (!freeForAll) {
-            b.teamScoreLabelTv.visibility = View.VISIBLE
-            b.teamScoreTv.visibility = View.VISIBLE
-        }
+        if (!freeForAll) setTeamScoreVisible(true)
     }
 
     override fun showNetworkOptions(enabled: Boolean, freeForAll: Boolean) {
@@ -302,8 +315,23 @@ class GameScreenRenderer(
         window.setKeepScreenOn(on)
     }
 
-    override fun setPlayerDataButtonVisible(visible: Boolean) {
-        b.playerDataButton.visibility = if (visible) View.VISIBLE else View.GONE
+    /**
+     * While joined to a server the score readout doubles as the scoreboard button: an outlined
+     * chip that ripples on press. Otherwise it is a plain readout.
+     */
+    override fun setScoreboardAvailable(available: Boolean) {
+        val chip = b.scoresChip
+        if (available) {
+            chip.setBackgroundResource(R.drawable.scores_chip_background)
+            chip.setOnClickListener { onScoresTapped() }
+            ViewCompat.replaceAccessibilityAction(chip, AccessibilityActionCompat.ACTION_CLICK,
+                context.getString(R.string.scores_chip_action), null)
+        } else {
+            chip.background = null
+            chip.setOnClickListener(null)
+            chip.isClickable = false
+        }
+        chip.isFocusable = available
     }
 
     override fun showPlayerCount(count: Int) {
@@ -318,7 +346,7 @@ class GameScreenRenderer(
     override fun showConnectedToServer(ip: String) {
         b.serverIpTv.text = context.getString(R.string.server_status_connected_to, ip)
         b.serverIpTv.visibility = View.VISIBLE
-        b.playerDataButton.visibility = View.VISIBLE
+        setScoreboardAvailable(true)
         b.networkStatusIv.visibility = View.VISIBLE
         b.networkStatusIv.setImageResource(R.drawable.ic_network_connected_24dp)
     }

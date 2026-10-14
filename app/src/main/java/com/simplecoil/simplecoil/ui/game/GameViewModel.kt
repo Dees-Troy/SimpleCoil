@@ -655,7 +655,7 @@ class GameViewModel(
         updatePreGameButtonVisibilities()
         if (ready && net.useNetwork) {
             setNetworkMenu(NETWORK_TYPE_JOINED)
-            screen?.setPlayerDataButtonVisible(true)
+            screen?.setScoreboardAvailable(true)
         } else {
             setNetworkMenu(NETWORK_TYPE_ENABLED)
         }
@@ -798,7 +798,7 @@ class GameViewModel(
             serverPhase = SessionPhase.LOBBY
             screen?.showNotReady()
             setNetworkMenu(NETWORK_TYPE_ENABLED)
-            screen?.setPlayerDataButtonVisible(false)
+            screen?.setScoreboardAvailable(false)
         }
         updatePreGameButtonVisibilities()
         publishGpsSetting()

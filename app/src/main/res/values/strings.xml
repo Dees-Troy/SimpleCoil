@@ -157,7 +157,10 @@
     <string name="gps_mode_disabled">GPS Disabled</string>
     <string name="gps_mode_teammate">GPS Teammates Only</string>
     <string name="gps_mode_all">GPS All Enabled</string>
-    <string name="scoreboard_button">Scores</string>
+    <!-- TalkBack's name for tapping the score readout ("double-tap to open scoreboard"). -->
+    <string name="scores_chip_action">open scoreboard</string>
+    <!-- One score in the score readout's spoken description, e.g. "SCORE (50): 12". -->
+    <string name="cd_score_entry">%1$s: %2$s</string>
 
     <string name="player_list_id_label">ID</string>
     <string name="player_list_name_label">Name</string>
