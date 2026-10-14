@@ -219,6 +219,15 @@ class GameViewModelTest {
     }
 
     @Test
+    fun disconnectQuit_closesAnOpenScoreboard() {
+        net.useNetwork = true
+        vm.openScoreboard()
+        vm.onDisconnectQuit()
+        assertFalse(vm.scoreboardVisible)
+        verify(screen).closeScoreboard()
+    }
+
+    @Test
     fun qrPayload_setsAddressAndNameThenConnects() {
         vm.onQrScanned("AA:BB:CC:DD:EE:FF-Bob")
         assertEquals("AA:BB:CC:DD:EE:FF", vm.deviceAddress)

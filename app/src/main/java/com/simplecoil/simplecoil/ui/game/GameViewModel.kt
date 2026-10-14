@@ -368,6 +368,7 @@ class GameViewModel(
         ble.cancelScanTimeout()
         ble.stopScan()
         stopServerSearch(true)
+        closeScoreboard()
         endGame()
         handleDisconnect()
         disconnectDialogShowing = false
