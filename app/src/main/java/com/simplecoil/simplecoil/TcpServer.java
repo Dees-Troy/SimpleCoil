@@ -94,7 +94,7 @@ public class TcpServer extends Service {
     private volatile boolean keepListening = false;
     private volatile boolean mAccepting = false;
     private volatile ServerSocket mServerSocket = null;
-    private final GameRoster mRoster = new GameRoster();
+    private final GameRoster mRoster = new GameRoster(GameSettingsRepository.getInstance(), PlayerRepository.getInstance());
     private final MessageHandler mHandler = new MessageHandler();
     /** Drop a connection after this long without a byte from it; ping it after 1 s and 2 s. */
     static final long SILENCE_DROP_MS = 3500;

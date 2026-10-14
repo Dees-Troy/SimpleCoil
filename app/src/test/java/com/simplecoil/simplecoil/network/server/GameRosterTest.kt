@@ -17,6 +17,7 @@
 package com.simplecoil.simplecoil.network.server
 
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
+import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.domain.team.TeamMode
 import org.junit.Assert.assertEquals
@@ -31,18 +32,17 @@ import org.junit.Test
 /** GameRoster's rules on the JVM, with socket-less connections. */
 class GameRosterTest {
 
+    private lateinit var settings: GameSettingsRepository
+    private lateinit var repo: PlayerRepository
     private lateinit var roster: GameRoster
-    private val repo get() = PlayerRepository.getInstance()
 
     @Before
     fun setUp() {
-        GameSettingsRepository.getInstance().teamMode = TeamMode.TWO_TEAMS
-        PlayerRepository.getInstance().playerID = 0
-        GameSettingsRepository.getInstance().resetDefaultTeamSizes()
-        GameSettingsRepository.getInstance().setAllowJoinInProgress(true)
-        repo.setPlayerID(0)
-        repo.clearAllPlayers()
-        roster = GameRoster()
+        settings = GameSettingsRepository()
+        settings.teamMode = TeamMode.TWO_TEAMS
+        settings.setAllowJoinInProgress(true)
+        repo = PlayerRepository(settings, GameStateRepository())
+        roster = GameRoster(settings, repo)
     }
 
     private fun connect(): Connection = roster.accept(null)
@@ -54,7 +54,7 @@ class GameRosterTest {
         val connection = connect()
         val result = hello(name, mac, requestedId, connection)
         assertEquals(GameRoster.HelloResult.Kind.JOINED, result.kind)
-        return connection to result.record
+        return connection to result.record!!
     }
 
     // ------------------------------------------------------------------------------------------
@@ -108,7 +108,7 @@ class GameRosterTest {
         val (connection, a) = join("Alpha", "AA")
         val (shooter, _) = join("Bravo", "BB")
         roster.startGame()
-        roster.onEliminated(shooter, a.playerId)
+        roster.onEliminated(shooter, a.playerId)!!
         assertEquals(GameRoster.Disconnect.KEPT, roster.onDisconnect(connection))
         val score = roster.score(a.playerId)!!
         assertFalse(score.connected)
@@ -120,8 +120,8 @@ class GameRosterTest {
         val (old, a) = join("Alpha", "AA")
         val (shooter, b) = join("Bravo", "BB")
         roster.startGame()
-        roster.onEliminated(old, b.playerId)
-        roster.onEliminated(shooter, a.playerId)
+        roster.onEliminated(old, b.playerId)!!
+        roster.onEliminated(shooter, a.playerId)!!
 
         val fresh = connect()
         val result = hello("Somebody", "AA", 0, fresh)
@@ -142,9 +142,9 @@ class GameRosterTest {
     fun running_newPlayer_refusedWithoutJoinInProgress_elseCached() {
         join("Alpha", "AA")
         roster.startGame()
-        GameSettingsRepository.getInstance().setAllowJoinInProgress(false)
+        settings.setAllowJoinInProgress(false)
         assertEquals(GameRoster.HelloResult.Kind.REFUSED_IN_PROGRESS, hello("Late", "LL").kind)
-        GameSettingsRepository.getInstance().setAllowJoinInProgress(true)
+        settings.setAllowJoinInProgress(true)
         val (_, late) = join("Late", "LL")
         assertTrue(roster.isCached("LL"))
         assertTrue(late.playerId != 1.toByte())
@@ -155,7 +155,7 @@ class GameRosterTest {
         val (ca, a) = join("Alpha", "AA")
         join("NoMac", null)
         roster.startGame()
-        roster.onEliminated(ca, 17)
+        roster.onEliminated(ca, 17)!!
         roster.endGame()
         roster.reset()
         roster.startGame()
@@ -183,7 +183,7 @@ class GameRosterTest {
         val (ca, a) = join("Alpha", "AA")
         val (cb, b) = join("Bravo", "BB")
         roster.startGame()
-        roster.onEliminated(ca, b.playerId)
+        roster.onEliminated(ca, b.playerId)!!
         roster.onDisconnect(cb)
         roster.endGame()
         val result = hello("Bravo", "BB")
@@ -201,7 +201,7 @@ class GameRosterTest {
         roster.startGame()
         roster.onDisconnect(cb)
         roster.endGame()
-        GameSettingsRepository.getInstance().setAllowJoinInProgress(false) // not consulted after the game
+        settings.setAllowJoinInProgress(false) // not consulted after the game
         val (_, late) = join("Late", "LL", requestedId = b.playerId.toInt())
         assertTrue(late.playerId != a.playerId && late.playerId != b.playerId)
         assertFalse(roster.isCached("LL"))
@@ -228,7 +228,7 @@ class GameRosterTest {
         val (cb, b) = join("Bravo", "BB")
         assertNull(roster.reset()) // only after a game
         roster.startGame()
-        roster.onEliminated(ca, b.playerId)
+        roster.onEliminated(ca, b.playerId)!!
         roster.onDisconnect(ca)
         roster.endGame()
         repo.setGrenadePairing(3, a.playerId.toInt())
@@ -334,7 +334,7 @@ class GameRosterTest {
         val (cb, b) = join("Bravo", "BB")
         roster.startGame()
         roster.onDisconnect(cb)
-        val elimination = roster.onEliminated(ca, b.playerId)
+        val elimination = roster.onEliminated(ca, b.playerId)!!
         assertEquals(a.playerId, elimination.victimId)
         assertEquals(1, elimination.shooterPoints)
         assertEquals(1, roster.score(b.playerId)!!.points)
@@ -347,26 +347,26 @@ class GameRosterTest {
         val (_, b) = join("Bravo", "BB") // 17, team 2
         val (_, c) = join("Charlie", "CC") // 2, team 1
         roster.startGame()
-        val teammate = roster.onEliminated(ca, c.playerId)
+        val teammate = roster.onEliminated(ca, c.playerId)!!
         assertFalse(teammate.credited)
         assertEquals(0, teammate.shooterPoints)
-        val own = roster.onEliminated(ca, a.playerId)
+        val own = roster.onEliminated(ca, a.playerId)!!
         assertFalse(own.credited)
         assertEquals(2, a.eliminated)
         assertEquals(0, c.points)
         assertEquals(0, a.points)
-        assertTrue(roster.onEliminated(ca, b.playerId).credited)
+        assertTrue(roster.onEliminated(ca, b.playerId)!!.credited)
         assertEquals(1, b.points)
     }
 
     @Test
     fun freeForAll_onlyAnOwnKillScoresNothing() {
-        GameSettingsRepository.getInstance().teamMode = TeamMode.FREE_FOR_ALL
+        settings.teamMode = TeamMode.FREE_FOR_ALL
         val (ca, a) = join("Alpha", "AA")
         val (_, b) = join("Bravo", "BB")
         roster.startGame()
-        assertFalse(roster.onEliminated(ca, a.playerId).credited)
-        assertTrue(roster.onEliminated(ca, b.playerId).credited)
+        assertFalse(roster.onEliminated(ca, a.playerId)!!.credited)
+        assertTrue(roster.onEliminated(ca, b.playerId)!!.credited)
         assertEquals(2, a.eliminated)
         assertEquals(1, b.points)
     }
@@ -376,7 +376,7 @@ class GameRosterTest {
         val (_, b) = join("Bravo", "BB")
         roster.startGame()
         val stranger = connect()
-        val elimination = roster.onEliminated(stranger, b.playerId)
+        val elimination = roster.onEliminated(stranger, b.playerId)!!
         assertEquals(0.toByte(), elimination.victimId)
         assertEquals(1, b.points)
     }
@@ -421,7 +421,7 @@ class GameRosterTest {
 
     @Test
     fun rebalance_freeForAll_numbersPlayersInOrder() {
-        GameSettingsRepository.getInstance().teamMode = TeamMode.FREE_FOR_ALL
+        settings.teamMode = TeamMode.FREE_FOR_ALL
         join("Alpha", "AA", requestedId = 9)
         join("Bravo", "BB", requestedId = 12)
         val result = roster.rebalance(false)
