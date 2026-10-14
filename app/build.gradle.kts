@@ -44,6 +44,15 @@ android {
     testOptions {
         unitTests.isReturnDefaultValues = true
     }
+
+    lint {
+        // What was left after the platform cleanup, map-owned warnings included (platform design §8.2)
+        baseline = file("lint-baseline.xml")
+        // The cleaned categories fail the build, so they don't come back
+        error += setOf("HardcodedText", "SetTextI18n", "DefaultLocale", "UseSwitchCompatOrMaterialXml",
+            "UseSwitchCompatOrMaterialCode")
+        checkReleaseBuilds = true
+    }
 }
 
 dependencies {
