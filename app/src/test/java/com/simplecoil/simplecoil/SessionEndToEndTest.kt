@@ -123,13 +123,20 @@ class SessionEndToEndTest {
         return captor.allValues.map { toHex(it) }
     }
 
+    /** [captor].capture() for a Kotlin parameter that can't take the null it returns. */
+    @Suppress("UNCHECKED_CAST")
+    private fun <T> capture(captor: ArgumentCaptor<T>): T {
+        captor.capture()
+        return null as T
+    }
+
     private fun sent(): List<String> {
         val strings = mutableListOf<String>()
-        val single = ArgumentCaptor.forClass(String::class.java)
-        verify(client, org.mockito.Mockito.atLeast(0)).sendTCPMessage(single.capture())
+        val single: ArgumentCaptor<String> = ArgumentCaptor.forClass(String::class.java)
+        verify(client, org.mockito.Mockito.atLeast(0)).sendTCPMessage(capture(single))
         strings += single.allValues
-        val reliable = ArgumentCaptor.forClass(String::class.java)
-        verify(client, org.mockito.Mockito.atLeast(0)).sendReliable(reliable.capture())
+        val reliable: ArgumentCaptor<String> = ArgumentCaptor.forClass(String::class.java)
+        verify(client, org.mockito.Mockito.atLeast(0)).sendReliable(capture(reliable))
         strings += reliable.allValues.map { "$it (reliable)" }
         return strings
     }

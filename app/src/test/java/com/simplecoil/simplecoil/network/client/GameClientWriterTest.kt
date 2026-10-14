@@ -14,14 +14,18 @@
  * limitations under the License.
  */
 
-package com.simplecoil.simplecoil
+package com.simplecoil.simplecoil.network.client
 
+import com.simplecoil.simplecoil.LoopbackClient
+import com.simplecoil.simplecoil.NetworkSessionGateway
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
+import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.network.ClientCommand
-import org.json.JSONObject
-import com.simplecoil.simplecoil.data.repository.GameStateRepository
+import com.simplecoil.simplecoil.network.EventBus
 import com.simplecoil.simplecoil.network.WireKeys
 import com.simplecoil.simplecoil.network.WireProtocol
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -33,8 +37,17 @@ import java.io.EOFException
 import java.net.InetAddress
 import java.net.ServerSocket
 
-/** TcpClient writes on one thread, in the order sent (D3), over an in-memory stream. */
-class TcpClientWriterTest {
+/** The client writes on one thread, in the order sent (D3), over an in-memory stream. */
+class GameClientWriterTest {
+
+    private val settings = GameSettingsRepository()
+    private val gameState = GameStateRepository()
+    private val players = PlayerRepository(settings, gameState)
+
+    private fun newClient() = GameClient(settings, players, gameState, EventBus(), object : GameClient.Foreground {
+        override fun start(statusText: String) {} // notifications are stubs here
+        override fun stop() {}
+    })
 
     private val bytes = ByteArrayOutputStream()
 
@@ -51,7 +64,7 @@ class TcpClientWriterTest {
 
     @Test
     fun messages_areWrittenInTheOrderSent() {
-        val client = TcpClient()
+        val client = newClient()
         client.attachOutputForTest(DataOutputStream(bytes))
         val sent = (0 until 500).map { "message $it" }
         sent.forEach { client.sendTCPMessage(it) }
@@ -64,11 +77,11 @@ class TcpClientWriterTest {
     @Test
     fun eliminationsWhileDisconnected_rideInsideTheHello() {
         // D3: queued eliminations used to race the hello; now they are part of it.
-        PlayerRepository.getInstance().playerID = 7
-        PlayerRepository.getInstance().playerName = "Rook"
-        PlayerRepository.getInstance().deviceAddress = "AA:BB"
-        PlayerRepository.getInstance().pairedGrenadeID = 0
-        val client = TcpClient()
+        players.playerID = 7
+        players.playerName = "Rook"
+        players.deviceAddress = "AA:BB"
+        players.pairedGrenadeID = 0
+        val client = newClient()
         client.sendReliable(WireProtocol.NETMSG_ELIMINATED + 3) // no connection: only in the outbox
         client.sendTCPMessage(NetworkSessionGateway.command(ClientCommand.Hit(3))) // no connection: dropped
         client.awaitWritesForTest()
@@ -91,7 +104,7 @@ class TcpClientWriterTest {
     @Test
     fun aReliableMessageStaysInTheOutbox_evenWhenItsWriteSucceeds() {
         // D1: a write into the socket buffer during the 3.5 s detection window is no delivery.
-        val client = TcpClient()
+        val client = newClient()
         client.attachOutputForTest(DataOutputStream(bytes))
         client.sendReliable(WireProtocol.NETMSG_ELIMINATED + 3)
         client.awaitWritesForTest()
@@ -105,14 +118,12 @@ class TcpClientWriterTest {
     fun leaveServer_writesLeaveLast_thenCloses_withoutBlockingTheCaller() {
         // N11: stopTcpClient slept 75 ms on the main thread and hoped LEAVE had gone out by then.
         LoopbackClient.awaitPortFree()
-        GameStateRepository.getInstance().serverIP = InetAddress.getByName("127.0.0.1")
-        PlayerRepository.getInstance().pairedGrenadeID = 0
+        gameState.serverIP = InetAddress.getByName("127.0.0.1")
+        players.pairedGrenadeID = 0
         ServerSocket(WireProtocol.TCP_SERVER_PORT).use { server ->
             server.soTimeout = 5_000
-            val client = object : TcpClient() {
-                override fun startAsForeground(statusText: String?) {} // notifications are stubs here
-            }
-            client.startTcpClient()
+            val client = newClient()
+            client.start()
             val socket = server.accept()
             socket.soTimeout = 5_000
             val input = DataInputStream(socket.getInputStream())

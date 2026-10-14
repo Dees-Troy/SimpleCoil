@@ -18,14 +18,18 @@ package com.simplecoil.simplecoil
 
 import android.content.Context
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
+import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.network.ClientCommand
+import com.simplecoil.simplecoil.network.EventBus
 import com.simplecoil.simplecoil.network.WireFixtures
 import com.simplecoil.simplecoil.network.WireProtocol
+import com.simplecoil.simplecoil.network.client.GameClient
 import kotlinx.coroutines.test.TestScope
-import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import org.mockito.ArgumentMatchers.anyString
+import org.mockito.Mockito.doAnswer
 import org.mockito.Mockito.mock
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -35,14 +39,18 @@ import java.io.EOFException
 
 /**
  * Every client → server frame against its golden fixture (network design §7.2), built by the
- * client's own code from fixed inputs.
+ * client's own code (GameClient, NetworkSessionGateway) from fixed inputs.
  */
 class ClientWireFixturesTest {
 
-    private val settings = GameSettingsRepository.getInstance()
-    private val players = PlayerRepository.getInstance()
+    private val settings = GameSettingsRepository()
+    private val gameState = GameStateRepository()
+    private val players = PlayerRepository(settings, gameState)
     private val bytes = ByteArrayOutputStream()
-    private val client = TcpClient()
+    private val client = GameClient(settings, players, gameState, EventBus(), object : GameClient.Foreground {
+        override fun start(statusText: String) {}
+        override fun stop() {}
+    })
 
     @Before
     fun setUp() {
@@ -64,13 +72,6 @@ class ClientWireFixturesTest {
         settings.setAllowBurst3ShotMode(false)
         settings.setAllowAutoShotMode(true)
         settings.setCurrentFiringMode(GameSettingsRepository.FIRING_MODE_INDOOR_NO_CONE)
-    }
-
-    @After
-    fun tearDown() {
-        players.playerID = 0
-        players.pairedGrenadeID = 0
-        settings.setOverrideLives(false)
     }
 
     /** The frames [block] writes. */
@@ -106,7 +107,7 @@ class ClientWireFixturesTest {
     @Test
     fun hello_rejoinWithPending() {
         // The server's game info gives the outbox its game; two eliminations wait for their ack.
-        client.handleFrame(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON +
+        client.handleFrameForTest(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON +
             """{"players":[],"limits":{},"gamemode":2,"onlyserversettings":false,"sessionphase":1,"gameid":418873301}""")
         client.sendReliable(WireProtocol.NETMSG_ELIMINATED + 17)
         client.sendReliable(WireProtocol.NETMSG_ELIMINATED + 18)
@@ -124,7 +125,7 @@ class ClientWireFixturesTest {
 
     @Test
     fun reliableEnvelope() {
-        client.handleFrame(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON +
+        client.handleFrameForTest(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON +
             """{"players":[],"limits":{},"gamemode":2,"onlyserversettings":false,"sessionphase":1,"gameid":418873301}""")
         WireFixtures.assertFrame("client/reliable.frame", single { client.sendReliable(WireProtocol.NETMSG_ELIMINATED + 17) })
     }
@@ -160,8 +161,10 @@ class ClientWireFixturesTest {
 
     @Test
     fun commands() {
+        val service = mock(TcpClient::class.java)
+        doAnswer { client.sendTCPMessage(it.getArgument(0)) }.`when`(service).sendTCPMessage(anyString())
         val gateway = NetworkSessionGateway(mock(Context::class.java), TestScope(), settings, players)
-        gateway.attachForTest(null, client)
+        gateway.attachForTest(null, service)
         val frames = written {
             gateway.sendShotFired()
             gateway.sendHit(17)

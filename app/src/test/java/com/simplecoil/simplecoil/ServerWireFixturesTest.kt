@@ -80,6 +80,7 @@ class ServerWireFixturesTest {
         gameState.gameState = GameStateRepository.GAME_STATE_NONE
         settings.gameLimit = GameSettingsRepository.GAME_LIMIT_NONE
         settings.setUseGPS(false)
+        settings.setAllowPlayerSettings(true)
         players.clearAllPlayers()
     }
 

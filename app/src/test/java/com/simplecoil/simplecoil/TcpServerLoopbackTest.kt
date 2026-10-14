@@ -29,6 +29,7 @@ import com.simplecoil.simplecoil.network.WireCodec
 import com.simplecoil.simplecoil.network.WireKeys
 import com.simplecoil.simplecoil.network.WireProtocol
 import com.simplecoil.simplecoil.network.client.ClientOutbox
+import com.simplecoil.simplecoil.network.client.GameClient
 import com.simplecoil.simplecoil.network.server.ClockState
 import com.simplecoil.simplecoil.network.server.SessionPhase
 import kotlinx.coroutines.CoroutineScope
@@ -76,6 +77,7 @@ class TcpServerLoopbackTest {
         PlayerRepository.getInstance().playerID = 0
         GameSettingsRepository.getInstance().resetDefaultTeamSizes()
         GameSettingsRepository.getInstance().setAllowJoinInProgress(true)
+        GameSettingsRepository.getInstance().setAllowPlayerSettings(true)
         GameStateRepository.getInstance().setGameState(GameStateRepository.GAME_STATE_NONE)
         PlayerRepository.getInstance().setPlayerID(0)
         PlayerRepository.getInstance().clearAllPlayers()
@@ -511,7 +513,7 @@ class TcpServerLoopbackTest {
     }
 
     private fun LoopbackClient.rejoin(name: String, mac: String, outbox: ClientOutbox) =
-        send(WireCodec.encode(TcpClient.hello(0, name, mac, true, outbox)))
+        send(WireCodec.encode(GameClient.hello(0, name, mac, true, outbox)))
 
     @Test
     fun reliableEliminations_lostAckAndOfflineKills_countOnceAfterTheRejoin() {

@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-package com.simplecoil.simplecoil
+package com.simplecoil.simplecoil.network.client
 
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.network.ClientEvent
@@ -28,50 +29,42 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * TcpClient's handling of single frames from the server (network design §5.1, N5), and the client
+ * The client's handling of single frames from the server (network design §5.1, N5), and the client
  * events each one publishes (§6.5). The defaults the broadcasts' extras used to supply are now in
  * the parsing code, so they are pinned here.
  */
-class TcpClientFrameTest {
+class ClientMessageHandlerTest {
 
     private val mesg = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG
     private val json = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON
-    private val repo = PlayerRepository.getInstance()
-
-    @After
-    fun tearDown() {
-        repo.gpsData.clear()
-        repo.playerID = 0
-    }
+    private val settings = GameSettingsRepository()
+    private val repo = PlayerRepository(settings, GameStateRepository())
 
     /** The client events [block] publishes. */
-    private fun eventsDuring(block: (TcpClient) -> Unit): List<ClientEvent> = runBlocking {
+    private fun eventsDuring(block: (ClientMessageHandler) -> Unit): List<ClientEvent> = runBlocking {
         val bus = EventBus<ClientEvent>()
         val received = mutableListOf<ClientEvent>()
         val collector = launch(start = CoroutineStart.UNDISPATCHED) { bus.events.toList(received) }
-        val client = TcpClient()
-        client.setEventsForTest(bus)
-        block(client)
+        block(ClientMessageHandler(settings, repo, ClientOutbox(), bus))
         yield() // the collector drains what was published
         collector.cancel()
         received
     }
 
     /** The events one frame publishes. */
-    private fun eventsFor(raw: String): List<ClientEvent> = eventsDuring { it.handleFrame(raw) }
+    private fun eventsFor(raw: String): List<ClientEvent> = eventsDuring { it.handle(raw) }
 
     @Test
     fun versionError_publishesTheVersionError_andEndsTheSession() {
         // It used to throw in substring before reaching its branch
         var ended = false
-        val events = eventsDuring { ended = it.handleFrame(WireProtocol.NETMSG_VERSIONERROR) }
+        val events = eventsDuring { ended = it.handle(WireProtocol.NETMSG_VERSIONERROR) }
         assertTrue(ended)
         assertEquals(listOf(ClientEvent.VersionError), events)
     }
@@ -80,7 +73,7 @@ class TcpClientFrameTest {
     fun shortAndGarbageFrames_areIgnored() {
         val events = eventsDuring {
             for (raw in listOf("", "Simple", WireProtocol.TCPMESSAGE_PREFIX, WireProtocol.TCPMESSAGE_PREFIX + "JS", "SimpleCoil:06MESGSTARTGAME"))
-                assertFalse(raw, it.handleFrame(raw))
+                assertFalse(raw, it.handle(raw))
         }
         assertEquals(emptyList<ClientEvent>(), events)
     }
@@ -88,9 +81,9 @@ class TcpClientFrameTest {
     @Test
     fun eliminatedWithoutAnId_isIgnored() {
         val events = eventsDuring {
-            assertFalse(it.handleFrame(mesg + WireProtocol.NETMSG_ELIMINATED))
-            assertFalse(it.handleFrame(mesg + WireProtocol.NETMSG_ELIMINATED + "x"))
-            assertFalse(it.handleFrame(mesg + WireProtocol.NETMSG_ELIMINATED + "7"))
+            assertFalse(it.handle(mesg + WireProtocol.NETMSG_ELIMINATED))
+            assertFalse(it.handle(mesg + WireProtocol.NETMSG_ELIMINATED + "x"))
+            assertFalse(it.handle(mesg + WireProtocol.NETMSG_ELIMINATED + "7"))
         }
         assertEquals(listOf(ClientEvent.Eliminated(7)), events)
     }
@@ -98,7 +91,7 @@ class TcpClientFrameTest {
     @Test
     fun serverCancel_endsTheSession() {
         var ended = false
-        val events = eventsDuring { ended = it.handleFrame(mesg + WireProtocol.NETMSG_SERVERCANCEL) }
+        val events = eventsDuring { ended = it.handle(mesg + WireProtocol.NETMSG_SERVERCANCEL) }
         assertTrue(ended)
         assertEquals(listOf(ClientEvent.ServerCancel), events)
     }
@@ -166,8 +159,8 @@ class TcpClientFrameTest {
     fun gpsUpdate_storesThePositions_andPublishesGpsData() {
         repo.playerID = 1
         val events = eventsDuring {
-            it.handleFrame(json + """{"gpsupdate":[{"playerID":3,"team":1,"gpslongitude":4.5,"gpslatitude":6.5}]}""")
-            it.handleFrame(json + """{"gpsupdate":[{"playerID":1,"team":1,"gpslongitude":0,"gpslatitude":0}],"gpsfullupdate":true}""")
+            it.handle(json + """{"gpsupdate":[{"playerID":3,"team":1,"gpslongitude":4.5,"gpslatitude":6.5}]}""")
+            it.handle(json + """{"gpsupdate":[{"playerID":1,"team":1,"gpslongitude":0,"gpslatitude":0}],"gpsfullupdate":true}""")
         }
         assertEquals(listOf(ClientEvent.GpsData(false), ClientEvent.GpsData(true)), events)
         assertTrue(repo.gpsData.isEmpty()) // the full update replaced everything, and we are player 1

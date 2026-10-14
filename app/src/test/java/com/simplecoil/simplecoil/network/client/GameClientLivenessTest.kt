@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
-package com.simplecoil.simplecoil
+package com.simplecoil.simplecoil.network.client
 
+import com.simplecoil.simplecoil.LoopbackClient
+import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.network.EventBus
 import com.simplecoil.simplecoil.network.WireKeys
 import com.simplecoil.simplecoil.network.WireProtocol
 import org.json.JSONObject
@@ -30,20 +33,27 @@ import java.io.DataOutputStream
 import java.net.InetAddress
 import java.net.ServerSocket
 
-/** TcpClient notices a dead server even while it is half-way through a frame (N4, network design §5.3). */
-class TcpClientLivenessTest {
+/** The client notices a dead server even while it is half-way through a frame (N4, network design §5.3). */
+class GameClientLivenessTest {
+
+    private val settings = GameSettingsRepository()
+    private val gameState = GameStateRepository()
+    private val players = PlayerRepository(settings, gameState)
+
+    private fun newClient() = GameClient(settings, players, gameState, EventBus(), object : GameClient.Foreground {
+        override fun start(statusText: String) {} // notifications are stubs here
+        override fun stop() {}
+    })
 
     @Test
     fun aHalfReceivedFrame_dropsTheConnectionAfterTheSilenceLimit_andTheClientRetries() {
         LoopbackClient.awaitPortFree()
-        GameStateRepository.getInstance().serverIP = InetAddress.getByName("127.0.0.1")
-        PlayerRepository.getInstance().pairedGrenadeID = 0
+        gameState.serverIP = InetAddress.getByName("127.0.0.1")
+        players.pairedGrenadeID = 0
         ServerSocket(WireProtocol.TCP_SERVER_PORT).use { server ->
             server.soTimeout = 10_000
-            val client = object : TcpClient() {
-                override fun startAsForeground(statusText: String?) {} // notifications are stubs here
-            }
-            client.startTcpClient()
+            val client = newClient()
+            client.start()
             try {
                 val first = server.accept()
                 first.soTimeout = 10_000
@@ -68,7 +78,7 @@ class TcpClientLivenessTest {
                 second.close()
                 first.close()
             } finally {
-                client.stopTcpClient()
+                client.stop()
             }
         }
     }
