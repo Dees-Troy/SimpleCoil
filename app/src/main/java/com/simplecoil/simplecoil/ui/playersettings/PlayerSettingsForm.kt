@@ -80,7 +80,7 @@ data class PlayerSettingsValues(
         @JvmStatic
         fun of(settings: PlayerSettings) = PlayerSettingsValues(
             health = settings.health,
-            shots = settings.shots.toInt(),
+            shots = settings.shots.toInt() and 0xFF,
             reloadTimeMillis = settings.reloadTime,
             reloadOnEmpty = settings.reloadOnEmpty,
             manualRespawn = settings.manualRespawn,
@@ -101,7 +101,7 @@ data class PlayerSettingsValues(
         @JvmStatic
         fun of(settings: GameSettingsRepository) = PlayerSettingsValues(
             health = settings.fullHealth,
-            shots = settings.fullReload.toInt(),
+            shots = settings.fullReload.toInt() and 0xFF,
             reloadTimeMillis = settings.reloadTime,
             reloadOnEmpty = settings.isReloadOnEmpty,
             manualRespawn = settings.isManualRespawn,

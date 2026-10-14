@@ -176,7 +176,7 @@ class GameScreenRenderer(
 
     override fun showPlayerSettings(fullHealth: Int, fullReload: Byte, damage: Int) {
         b.healthLabelTv.text = context.getString(R.string.health_label, fullHealth)
-        b.shotsLabelTv.text = context.getString(R.string.shots_remaining_label, fullReload, damage)
+        b.shotsLabelTv.text = context.getString(R.string.shots_remaining_label, fullReload.toInt() and 0xFF, damage)
     }
 
     override fun showFiringMode(firingMode: Int) {
@@ -428,7 +428,7 @@ class GameScreenRenderer(
         rendered = s
         if (p == null || p.maxHealth != s.maxHealth) b.healthPb.max = s.maxHealth
         if (p == null || p.health != s.health) b.healthPb.progress = s.health
-        if (p == null || p.shotsRemaining != s.shotsRemaining) b.shotsRemainingTv.text = number(s.shotsRemaining.toInt())
+        if (p == null || p.shotsRemaining != s.shotsRemaining) b.shotsRemainingTv.text = number(s.shotsRemaining.toInt() and 0xFF)
         val reloadBarShown = s.reloadBarShown
         if (reloadBarShown != null && (p == null || reloadBarShown != p.reloadBarShown)) {
             if (reloadBarShown) {

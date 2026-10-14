@@ -111,7 +111,7 @@ class GameClient(
         send(ClientMessage.Settings(playerId, WirePlayerSettings(
             playerId = playerId,
             health = settings.fullHealth,
-            reloadShots = settings.fullReload.toInt(),
+            reloadShots = settings.fullReload.toInt() and 0xFF,
             reloadTime = settings.reloadTime,
             reloadOnEmpty = settings.isReloadOnEmpty,
             manualRespawn = settings.isManualRespawn,

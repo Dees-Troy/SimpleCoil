@@ -144,7 +144,7 @@ data class WirePlayerSettings(
         fun of(playerId: Int, settings: PlayerSettings) = WirePlayerSettings(
             playerId = playerId,
             health = settings.health,
-            reloadShots = settings.shots.toInt(),
+            reloadShots = settings.shots.toInt() and 0xFF,
             reloadTime = settings.reloadTime,
             reloadOnEmpty = settings.reloadOnEmpty,
             manualRespawn = settings.manualRespawn,

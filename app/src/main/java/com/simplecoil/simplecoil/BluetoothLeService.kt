@@ -145,7 +145,7 @@ open class BluetoothLeService : Service() {
     private data class GameHud(val health: Int, val maxHealth: Int, val shots: Int, val reloading: Boolean)
 
     private fun SessionState.toHud(): GameHud? =
-        if (gameInProgress) GameHud(health.coerceAtLeast(0), maxHealth, shotsRemaining.toInt(), reloadBarShown == true) else null
+        if (gameInProgress) GameHud(health.coerceAtLeast(0), maxHealth, shotsRemaining.toInt() and 0xFF, reloadBarShown == true) else null
 
     /** The session the notification follows; null until onCreate (JVM tests never set it). */
     private var sessionState: StateFlow<SessionState>? = null
