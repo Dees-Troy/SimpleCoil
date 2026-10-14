@@ -1,6 +1,6 @@
 # SimpleCoil Modernization Roadmap (after V2 refactor)
 
-Status: **Stages 0–2 DONE (2026-10-13), device checks included. Stage 3 DONE in code (2026-10-13); its device checks are next.** All four documents are approved and their decisions resolved.
+Status: **Stages 0–3 DONE (2026-10-13), device checks included; Stage 4 next.** All four documents are approved and their decisions resolved.
 Branch audited: `V2-refactor` @ `b460c02`. The on-device checklists in `REFACTOR_DESIGN.md` §6.5 and
 `STATE_CONSOLIDATION_DESIGN.md` §8.6 have been completed.
 Date: 2026-10-13
@@ -139,7 +139,7 @@ item 1 for the clock (a timed game ends on time with the screen closed, and the 
 - **Network Phase 3**: golden wire fixtures, `WireCodec`, then the class-by-class conversion, injecting
   dependencies as each class is converted (app container step 4).
 
-**Done in code (2026-10-13), one commit per step; device checks pending.** 542 unit tests pass,
+**Done (2026-10-13), one commit per step; device checks passed.** 542 unit tests pass,
 `assembleDebug` and `assembleRelease` (R8) are green, and `lintDebug` is down from 26 warnings to 24 (0 errors).
 The network package has no Java left.
 
@@ -181,7 +181,7 @@ Notes:
 - `ServerEvent.PlayerDataChanged` and `ClientEvent.PlayerDataUpdate` still carry the player data's JSON, which
   the screens decode through `WireCodec.decodePlayerData`; `ServerSnapshot` (Stage 4) can type them.
 
-Device checks (pending): the full network smoke test (`NETWORK_STACK_DESIGN.md` §9.1, items 1–7, with a v07
+Device checks (passed, 2026-10-13): the full network smoke test (`NETWORK_STACK_DESIGN.md` §9.1, items 1–7, with a v07
 build from before this stage in the same game for ground rule 1); the dedicated server screen's join, leave,
 start, end and reset updates, the GPS map, and a timed game; discovery answers once per query (S5).
 
