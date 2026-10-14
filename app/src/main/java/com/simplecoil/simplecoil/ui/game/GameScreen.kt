@@ -65,11 +65,12 @@ sealed interface TeamDisplay {
 /** Lobby buttons shown while no game is running. */
 data class PreGameButtons(
     val ready: Boolean,
+    /** Networking is off: the offline controls (team +/-, Start Game, Game Limit, team mode button) show. */
+    val offline: Boolean,
+    /** Joined to a server: Player Settings and the firing mode show too, unless [serverSettingsOnly]. */
+    val joined: Boolean,
     val startVisible: Boolean,
-    val startEnabled: Boolean,
     val serverSettingsOnly: Boolean,
-    /** Not on a server, so this player chooses 2 teams / 4 teams / FFA. */
-    val teamModeSelectable: Boolean,
 )
 
 /**

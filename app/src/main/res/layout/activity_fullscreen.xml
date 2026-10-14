@@ -448,23 +448,24 @@
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="7dp"
+            android:layout_marginTop="5dp"
             android:layout_marginStart="15dp"
-            android:layout_below="@id/health_pb"
+            android:layout_below="@+id/firing_mode_button"
             android:text="@string/start_game_button" />
 
+        <!-- Start Game's row, on the right, so it stays clear of the server status line. -->
         <Button
             android:id="@+id/player_settings_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="7dp"
+            android:layout_marginTop="5dp"
             android:layout_marginEnd="15dp"
             android:layout_alignParentEnd="true"
-            android:layout_below="@id/health_pb"
+            android:layout_below="@+id/firing_mode_button"
             android:text="@string/player_settings_button" />
 
-        <!-- Offline, or for a network admin. In Game Limit's spot, which is hidden during a game. -->
+        <!-- Offline, or for a network admin. Above the eliminations count. -->
         <Button
             android:id="@+id/end_game_button"
             style="@style/Widget.AppCompat.Button.Colored"
@@ -475,14 +476,15 @@
             android:visibility="gone"
             android:text="@string/end_game_button" />
 
+        <!-- Always the first row under the health bar, whether searching, joined or offline. -->
         <Button
             android:id="@+id/use_network_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/start_game_button"
+            android:layout_below="@id/health_pb"
             android:layout_marginStart="15dp"
-            android:layout_marginTop="5dp"
+            android:layout_marginTop="7dp"
             android:text="@string/use_network_button" />
 
         <TextView
@@ -490,32 +492,34 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_toEndOf="@id/use_network_button"
-            android:layout_toStartOf="@id/player_settings_button"
+            android:layout_alignParentEnd="true"
             android:layout_alignBaseline="@+id/use_network_button"
             android:layout_marginStart="5dp"
-            android:layout_marginEnd="5dp"
+            android:layout_marginEnd="15dp"
             android:singleLine="true"
             android:ellipsize="end"
             android:text=""
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
+        <!-- Start Game's spot on a server, where Start Game is hidden. -->
         <Button
             android:id="@+id/admin_controls_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/use_network_button"
+            android:layout_below="@+id/start_game_button"
             android:layout_marginStart="15dp"
             android:layout_marginTop="5dp"
             android:visibility="gone"
             android:text="@string/admin_controls_button" />
 
+        <!-- Right under the network button, offline and on a server alike. -->
         <Button
             android:id="@+id/firing_mode_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/admin_controls_button"
+            android:layout_below="@id/use_network_button"
             android:layout_marginStart="15dp"
             android:layout_marginTop="5dp"
             android:text="@string/firing_mode_outdoor_no_cone" />
@@ -579,14 +583,16 @@
                 android:text="@string/team_mode_2teams" />
         </FrameLayout>
 
+        <!-- The firing mode's row, on the right. -->
         <Button
             android:id="@+id/game_limit_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="0dp"
-            android:layout_marginStart="15dp"
-            android:layout_above="@id/eliminations_count_label_tv"
+            android:layout_below="@id/use_network_button"
+            android:layout_marginTop="5dp"
+            android:layout_marginEnd="15dp"
+            android:layout_alignParentEnd="true"
             android:text="@string/game_limit_button" />
 
         <!-- The score readout. Once connected to a server it becomes a tappable chip that opens the

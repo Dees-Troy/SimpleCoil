@@ -439,6 +439,7 @@ class GameViewModel(
             SessionEffect.CommunicationStarted -> {
                 setConnectStatus(null)
                 screen?.showPlayScreen()
+                updatePreGameButtonVisibilities()
                 autoStartServerScan()
             }
             SessionEffect.TeamSent -> saveTeamAndDisplay()
@@ -695,13 +696,12 @@ class GameViewModel(
     private fun updatePreGameButtonVisibilities() {
         if (gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) return
         val connectedClient = net.useNetwork && networkMenuType == NETWORK_TYPE_JOINED
-        val searching = net.useNetwork && networkMenuType == NETWORK_TYPE_JOINING
         screen?.showPreGameButtons(PreGameButtons(
             ready = ready,
+            offline = !net.useNetwork,
+            joined = connectedClient,
             startVisible = !(settingsRepo.isOnlyServerSettings || connectedClient || serverPhase == SessionPhase.POST_GAME),
-            startEnabled = !searching,
             serverSettingsOnly = settingsRepo.isOnlyServerSettings,
-            teamModeSelectable = !connectedClient,
         ))
         updateAdminButtonVisibility()
     }
@@ -858,6 +858,7 @@ class GameViewModel(
             screen?.showNetworkOptions(false, freeForAll())
             net.useNetwork = false
             screen?.showNetworkButton(NetworkButton.USE_NETWORK)
+            updatePreGameButtonVisibilities()
             if (playerRepo.playerID.toInt() == 0) {
                 playerRepo.playerID = if (selectedPlayerId.toInt() != 0) selectedPlayerId else 1
             }

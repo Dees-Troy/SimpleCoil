@@ -197,10 +197,14 @@ class GameScreenRenderer(
         b.teamModeButton.setText(text)
     }
 
-    /** The team mode is a button for a server-less client before the game, otherwise a label. */
-    private fun showTeamModeSelectable(selectable: Boolean) {
-        b.teamModeButton.visibility = if (selectable) View.VISIBLE else View.GONE
-        b.teamModeTv.visibility = if (selectable) View.GONE else View.VISIBLE
+    /**
+     * The team mode is a button offline before the game, otherwise a label. Not [shown] while
+     * networking is on without a server yet; kept INVISIBLE so the QR button above stays put.
+     */
+    private fun showTeamModeSelectable(selectable: Boolean, shown: Boolean = true) {
+        b.teamModeLabelTv.visibility = if (shown) View.VISIBLE else View.INVISIBLE
+        b.teamModeButton.visibility = if (!shown) View.INVISIBLE else if (selectable) View.VISIBLE else View.GONE
+        b.teamModeTv.visibility = if (shown && !selectable) View.VISIBLE else View.GONE
     }
 
     override fun showTeam(team: TeamDisplay) {
@@ -254,21 +258,17 @@ class GameScreenRenderer(
     }
 
     override fun showPreGameButtons(buttons: PreGameButtons) {
-        val lobbyVisibility = if (buttons.ready) View.INVISIBLE else View.VISIBLE
+        val offlineLobby = buttons.offline && !buttons.ready
+        val lobbyVisibility = if (offlineLobby) View.VISIBLE else View.INVISIBLE
         b.teamMinusButton.visibility = lobbyVisibility
         b.teamPlusButton.visibility = lobbyVisibility
-        b.gameLimitButton.visibility = if (buttons.ready) View.GONE else View.VISIBLE
-        if (!buttons.startVisible) {
-            b.startGameButton.visibility = View.GONE
-        } else {
-            b.startGameButton.visibility = View.VISIBLE
-            b.startGameButton.isEnabled = buttons.startEnabled
-        }
-        val playerSettingsVisibility = if (buttons.serverSettingsOnly) View.GONE else View.VISIBLE
+        b.gameLimitButton.visibility = if (offlineLobby) View.VISIBLE else View.GONE
+        b.startGameButton.visibility = if (buttons.offline && buttons.startVisible) View.VISIBLE else View.GONE
+        val playerSettingsVisibility = if ((buttons.offline || buttons.joined) && !buttons.serverSettingsOnly) View.VISIBLE else View.GONE
         b.firingModeButton.visibility = playerSettingsVisibility
         b.playerSettingsButton.visibility = playerSettingsVisibility
         b.shuffleTeamsButton.visibility = View.GONE
-        showTeamModeSelectable(buttons.teamModeSelectable)
+        showTeamModeSelectable(buttons.offline, shown = buttons.offline || buttons.joined)
     }
 
     override fun showAdminButton(visible: Boolean) {
@@ -281,8 +281,6 @@ class GameScreenRenderer(
 
     private fun displayAllNetworkingOptions(enabled: Boolean, freeForAll: Boolean) {
         val visibility = if (enabled) View.VISIBLE else View.INVISIBLE
-        // The team mode stays visible offline too; showTeamModeSelectable picks button or label.
-        b.teamModeLabelTv.visibility = View.VISIBLE
         b.scoresChip.visibility = visibility
         b.serverIpTv.visibility = View.GONE
         setTeamScoreVisible(enabled && !freeForAll)
@@ -291,7 +289,6 @@ class GameScreenRenderer(
     private fun displayInGameNetworkingOptions(isAdmin: Boolean, freeForAll: Boolean) {
         displayAllNetworkingOptions(false, freeForAll)
         b.playerCountTv.visibility = View.VISIBLE
-        b.teamModeLabelTv.visibility = View.VISIBLE
         b.scoresChip.visibility = View.VISIBLE
         b.endGameButton.visibility = if (isAdmin) View.VISIBLE else View.GONE
         if (!freeForAll) setTeamScoreVisible(true)
