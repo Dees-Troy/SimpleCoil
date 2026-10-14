@@ -31,6 +31,7 @@ import com.simplecoil.simplecoil.network.WireProtocol
 import com.simplecoil.simplecoil.network.client.ClientOutbox
 import com.simplecoil.simplecoil.network.client.GameClient
 import com.simplecoil.simplecoil.network.server.ClockState
+import com.simplecoil.simplecoil.network.server.Connection
 import com.simplecoil.simplecoil.network.server.GameServer
 import com.simplecoil.simplecoil.network.server.SessionPhase
 import kotlinx.coroutines.CoroutineScope
@@ -675,14 +676,17 @@ class TcpServerLoopbackTest {
     fun messagesToOneClient_arriveInEachSendersOrder() {
         // N1: every send used to start its own thread, so two sends could arrive swapped.
         val (a, _) = join("Alpha", "AA:00")
+        // Both bursts fit in the writer's queue even if its thread doesn't run until they're done:
+        // a full queue closes the connection (Q1), which is what a stalled phone should get.
+        val perSender = (Connection.MAX_QUEUED_FRAMES - 16) / 2
         val senders = listOf("x", "y").map { name ->
-            Thread { repeat(300) { server.sendToAll("$name$it") } }
+            Thread { repeat(perSender) { server.sendToAll("$name$it") } }
         }
         senders.forEach { it.start() }
         senders.forEach { it.join() }
-        awaitTrue { a.received.count { it.startsWith("x") || it.startsWith("y") } == 600 }
+        awaitTrue { a.received.count { it.startsWith("x") || it.startsWith("y") } == 2 * perSender }
         for (name in listOf("x", "y")) {
-            assertEquals((0 until 300).map { "$name$it" }, a.received.filter { it.startsWith(name) })
+            assertEquals((0 until perSender).map { "$name$it" }, a.received.filter { it.startsWith(name) })
         }
     }
 
