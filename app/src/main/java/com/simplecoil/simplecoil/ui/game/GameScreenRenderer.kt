@@ -64,7 +64,8 @@ class GameScreenRenderer(
             b.connectWeaponButton.visibility = View.GONE
             b.connectQrWeaponButton.visibility = View.GONE
             b.qrLearnMoreTv.visibility = View.GONE
-            b.connectStatusTv.visibility = View.GONE
+            b.connectIntroTv.visibility = View.GONE
+            b.dedicatedServerTopDivider.visibility = View.GONE
         }
         setReconnectVisible(reconnectVisible)
     }
@@ -83,15 +84,6 @@ class GameScreenRenderer(
         b.reconnectWeaponButton.isEnabled = enabled
         b.dedicatedServerButton.isEnabled = enabled
         b.connectQrWeaponButton.isEnabled = enabled
-    }
-
-    override fun showConnectStatus(status: ConnectStatus) {
-        b.connectStatusTv.setText(when (status) {
-            ConnectStatus.SCANNING -> R.string.connect_status_scanning
-            ConnectStatus.CONNECTING -> R.string.connect_status_connecting
-            ConnectStatus.COMMUNICATING -> R.string.connect_status_communicating
-            ConnectStatus.NOT_CONNECTED -> R.string.connect_status_not_connected
-        })
     }
 
     // ---------------------------------------------------------------------------------------

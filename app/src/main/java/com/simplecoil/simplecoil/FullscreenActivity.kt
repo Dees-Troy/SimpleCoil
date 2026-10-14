@@ -40,6 +40,7 @@ import com.simplecoil.simplecoil.ui.game.GameNavigator
 import com.simplecoil.simplecoil.ui.game.GameScreenRenderer
 import com.simplecoil.simplecoil.ui.game.GameViewModel
 import com.simplecoil.simplecoil.ui.game.GameViewModelFactory
+import com.simplecoil.simplecoil.ui.game.InfoSheet
 import com.simplecoil.simplecoil.ui.game.SavedGameScreen
 import com.simplecoil.simplecoil.ui.game.WindowController
 import com.simplecoil.simplecoil.ui.permissions.BlePermissionController
@@ -116,13 +117,12 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
         binding.endNetworkGameButton.setOnClickListener { vm.onEndGamePressed() }
         binding.startRespawnButton.setOnClickListener { vm.onStartRespawnPressed() }
         binding.generateQrButton.setOnClickListener { vm.onGenerateQrPressed() }
-        binding.infoWv.loadUrl("file:///android_asset/simplecoil.html")
-        binding.infoWv.visibility = View.VISIBLE
+        InfoSheet(this, binding)
         binding.firingModeButton.setOnClickListener(dialogs::showFiringModeMenu)
 
         try {
             // Display app version
-            binding.versionTv.text = packageManager.getPackageInfo(packageName, 0).versionName
+            title = getString(R.string.app_name_with_version, packageManager.getPackageInfo(packageName, 0).versionName)
         } catch (e: PackageManager.NameNotFoundException) {
             Log.e(TAG, "Unable to get app information from PackageManager: " + e.message)
         }

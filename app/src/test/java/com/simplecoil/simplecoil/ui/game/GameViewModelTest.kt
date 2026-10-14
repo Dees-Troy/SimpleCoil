@@ -49,6 +49,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -187,7 +188,7 @@ class GameViewModelTest {
     fun linkLost_beforeEverConnecting_resetsToConnectScreen() {
         blasterEvents.tryEmit(BlasterEvent.Disconnected)
         verify(screen).setConnectButtonsEnabled(true)
-        verify(screen).showConnectStatus(ConnectStatus.NOT_CONNECTED)
+        assertNull(vm.connectStatus)
         assertEquals(listOf(SessionSound.ELIMINATED), sounds)
         verify(screen, never()).showDisconnectDialog()
     }
@@ -208,13 +209,54 @@ class GameViewModelTest {
     }
 
     @Test
+    fun connectStatusPopup_showsWhileConnecting_andClosesOnFirstPacket() {
+        blasterEvents.tryEmit(BlasterEvent.ServicesDiscovered)
+        assertEquals(ConnectStatus.COMMUNICATING, vm.connectStatus)
+        verify(screen).showConnectStatus(ConnectStatus.COMMUNICATING)
+
+        engine.onBlasterEvent(BlasterEvent.Connected("AA"))
+        engine.onBlasterEvent(BlasterEvent.Telemetry(com.simplecoil.simplecoil.hardware.blaster.GattProtocolHandler
+            .parseTelemetry(com.simplecoil.simplecoil.hardware.blaster.RecoilProtocolFixtures.GOLDEN_IDLE)!!))
+        scope.testScheduler.runCurrent()
+        assertNull(vm.connectStatus)
+        verify(screen).showConnectStatus(null)
+    }
+
+    @Test
+    fun connectStatusPopup_closesWhenTheLinkIsLost() {
+        blasterEvents.tryEmit(BlasterEvent.ServicesDiscovered)
+        blasterEvents.tryEmit(BlasterEvent.Disconnected)
+        assertNull(vm.connectStatus)
+        verify(screen).showConnectStatus(null)
+    }
+
+    @Test
+    fun connectStatusPopup_cancel_returnsToConnectScreenQuietly() {
+        blasterEvents.tryEmit(BlasterEvent.ServicesDiscovered)
+        vm.onConnectCancelled()
+        assertNull(vm.connectStatus)
+        verify(screen).showConnectStatus(null)
+        verify(screen).setConnectButtonsEnabled(true)
+        assertTrue(sounds.isEmpty())
+    }
+
+    @Test
+    fun connectStatusPopup_staysClosedBehindTheDisconnectDialog() {
+        vm.onStartGamePressed()
+        blasterEvents.tryEmit(BlasterEvent.Disconnected)
+        blasterEvents.tryEmit(BlasterEvent.ServicesDiscovered)
+        assertNull(vm.connectStatus)
+        verify(screen, never()).showConnectStatus(ConnectStatus.COMMUNICATING)
+    }
+
+    @Test
     fun disconnectQuit_endsGameAndNetworkAndReturnsToConnectScreen() {
         net.useNetwork = true
         vm.onStartGamePressed()
         vm.onDisconnectQuit()
         assertEquals(GameStateRepository.GAME_STATE_NONE, gameState.gameState)
         assertFalse(net.useNetwork)
-        verify(screen).showConnectStatus(ConnectStatus.NOT_CONNECTED)
+        assertNull(vm.connectStatus)
         verify(client, org.mockito.Mockito.atLeastOnce()).leaveServer()
     }
 

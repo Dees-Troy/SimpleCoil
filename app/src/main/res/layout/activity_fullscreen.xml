@@ -9,95 +9,170 @@
 
     <!-- This FrameLayout insets its children based on system windows using
          android:fitsSystemWindows. -->
-    <RelativeLayout
+    <FrameLayout
         android:id="@+id/connect_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="gone"
         android:fitsSystemWindows="true">
 
-        <TextView
-            android:id="@+id/version_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:layout_marginEnd="5dp"
-            android:layout_alignParentEnd="true"
-            android:text=""
-            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
-
-        <Button
-            android:id="@+id/reconnect_weapon_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:layout_centerHorizontal="true"
-            android:visibility="gone"
-            android:text="@string/reconnect_weapon_button" />
-
-        <Button
-            android:id="@+id/connect_weapon_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:layout_centerHorizontal="true"
-            android:layout_below="@id/reconnect_weapon_button"
-            android:text="@string/connect_weapon_button" />
-
-        <Button
-            android:id="@+id/connect_qr_weapon_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:layout_centerHorizontal="true"
-            android:layout_below="@id/connect_weapon_button"
-            android:text="@string/connect_qr_weapon_button" />
-
-        <TextView
-            android:id="@+id/qr_learn_more_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/connect_qr_weapon_button"
-            android:layout_centerHorizontal="true"
-            android:layout_marginTop="4dp"
-            android:padding="6dp"
-            android:background="?android:attr/selectableItemBackground"
-            android:text="@string/qr_learn_more_link"
-            android:textColor="@color/colorPrimary"
-            android:textAppearance="@android:style/TextAppearance.Material.Small" />
-
-        <TextView
-            android:id="@+id/connect_status_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_below="@+id/qr_learn_more_tv"
-            android:layout_marginTop="15dp"
-            android:layout_centerHorizontal="true"
-            android:text="@string/connect_status_not_connected"
-            android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
-
-        <Button
-            android:id="@+id/dedicated_server_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:layout_centerHorizontal="true"
-            android:layout_below="@+id/connect_status_tv"
-            android:text="@string/dedicated_server_button" />
-
-        <WebView
-            android:id="@+id/info_wv"
-            android:visibility="gone"
+        <androidx.coordinatorlayout.widget.CoordinatorLayout
+            android:id="@+id/connect_coordinator"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_alignParentStart="true"
-            android:layout_below="@+id/dedicated_server_button"
-            android:layout_marginTop="16dp" />
-    </RelativeLayout>
+            android:layout_height="match_parent">
+
+            <!-- Bottom padding is set to the info sheet's peek height, so nothing hides behind it. -->
+            <ScrollView
+                android:id="@+id/connect_scroll"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false">
+
+                <LinearLayout
+                    android:id="@+id/connect_content"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal"
+                    android:paddingBottom="16dp">
+
+                    <TextView
+                        android:id="@+id/connect_intro_tv"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="24dp"
+                        android:paddingStart="24dp"
+                        android:paddingEnd="24dp"
+                        android:gravity="center_horizontal"
+                        android:text="@string/connect_intro"
+                        android:textAppearance="@android:style/TextAppearance.Material.Medium.Inverse" />
+
+                    <Button
+                        android:id="@+id/reconnect_weapon_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="20dp"
+                        android:visibility="gone"
+                        android:text="@string/reconnect_weapon_button" />
+
+                    <Button
+                        android:id="@+id/connect_weapon_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="20dp"
+                        android:text="@string/connect_weapon_button" />
+
+                    <Button
+                        android:id="@+id/connect_qr_weapon_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="20dp"
+                        android:text="@string/connect_qr_weapon_button" />
+
+                    <TextView
+                        android:id="@+id/qr_learn_more_tv"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:padding="6dp"
+                        android:background="?android:attr/selectableItemBackground"
+                        android:text="@string/qr_learn_more_link"
+                        android:textColor="@color/colorPrimary"
+                        android:textAppearance="@android:style/TextAppearance.Material.Small" />
+
+                    <View
+                        android:id="@+id/dedicated_server_top_divider"
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginStart="24dp"
+                        android:layout_marginEnd="24dp"
+                        android:background="#444444" />
+
+                    <TextView
+                        android:id="@+id/dedicated_server_intro_tv"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:paddingStart="24dp"
+                        android:paddingEnd="24dp"
+                        android:gravity="center_horizontal"
+                        android:text="@string/dedicated_server_intro"
+                        android:textColor="#CCCCCC"
+                        android:textAppearance="@android:style/TextAppearance.Material.Small" />
+
+                    <Button
+                        android:id="@+id/dedicated_server_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/dedicated_server_button" />
+
+                    <View
+                        android:id="@+id/dedicated_server_bottom_divider"
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginStart="24dp"
+                        android:layout_marginEnd="24dp"
+                        android:background="#444444" />
+                </LinearLayout>
+            </ScrollView>
+
+            <!-- About SimpleCoil: peeks into the space left below the buttons; drag or tap the header to expand. -->
+            <LinearLayout
+                android:id="@+id/info_sheet"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:background="@drawable/info_sheet_background"
+                app:behavior_peekHeight="@dimen/info_sheet_min_peek"
+                app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
+
+                <LinearLayout
+                    android:id="@+id/info_sheet_header"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
+                    android:background="?android:attr/selectableItemBackground">
+
+                    <View
+                        android:layout_width="36dp"
+                        android:layout_height="4dp"
+                        android:background="@drawable/info_sheet_handle" />
+
+                    <TextView
+                        android:id="@+id/info_sheet_title_tv"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="@string/info_sheet_title"
+                        android:textColor="#CCCCCC"
+                        android:textAppearance="@android:style/TextAppearance.Material.Small" />
+                </LinearLayout>
+
+                <androidx.core.widget.NestedScrollView
+                    android:id="@+id/info_scroll"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent">
+
+                    <!-- Full height inside the NestedScrollView so the sheet can tell when it is scrolled to the top. -->
+                    <WebView
+                        android:id="@+id/info_wv"
+                        android:visibility="gone"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+                </androidx.core.widget.NestedScrollView>
+            </LinearLayout>
+        </androidx.coordinatorlayout.widget.CoordinatorLayout>
+    </FrameLayout>
 
     <RelativeLayout
         android:id="@+id/play_layout"

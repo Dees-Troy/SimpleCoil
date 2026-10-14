@@ -28,6 +28,7 @@ import com.simplecoil.simplecoil.R
 import com.simplecoil.simplecoil.SimpleCoilApp
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.databinding.BlasterDisconnectedDialogBinding
+import com.simplecoil.simplecoil.databinding.ConnectStatusDialogBinding
 import com.simplecoil.simplecoil.databinding.PlayerDataDialogBinding
 import com.simplecoil.simplecoil.databinding.PlayerNameDialogBinding
 import com.simplecoil.simplecoil.databinding.ServerIpDialogBinding
@@ -46,6 +47,37 @@ abstract class GameDialogFragment : AppDialogFragment() {
     protected val vm: GameViewModel by lazy {
         val activity = requireActivity()
         ViewModelProvider(activity, GameViewModelFactory(activity.application as SimpleCoilApp))[GameViewModel::class.java]
+    }
+}
+
+/** Progress while connecting to a blaster; shows [GameViewModel.connectStatus], with Cancel. */
+class ConnectStatusDialog : GameDialogFragment() {
+    private var binding: ConnectStatusDialogBinding? = null
+
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+        isCancelable = false
+        val b = ConnectStatusDialogBinding.inflate(appInflater)
+        binding = b
+        refresh()
+        return alertBuilder()
+            .setView(b.root)
+            .setNegativeButton(R.string.cancel) { _, _ -> vm.onConnectCancelled() }
+            .create()
+    }
+
+    /** Show the view model's current status. */
+    fun refresh() {
+        val status = vm.connectStatus ?: return
+        binding?.connectStatusTv?.setText(when (status) {
+            ConnectStatus.SCANNING -> R.string.connect_status_scanning
+            ConnectStatus.CONNECTING -> R.string.connect_status_connecting
+            ConnectStatus.COMMUNICATING -> R.string.connect_status_communicating
+        })
+    }
+
+    override fun onDestroy() {
+        binding = null
+        super.onDestroy()
     }
 }
 

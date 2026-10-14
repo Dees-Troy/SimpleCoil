@@ -2,4 +2,6 @@
 <resources>
     <!-- The window inset of the dialogs, as AppCompat's abc_dialog_padding_material. -->
     <dimen name="dialog_inset">24dp</dimen>
+    <!-- The least the About sheet on the connect screen peeks up: its header and a few lines. -->
+    <dimen name="info_sheet_min_peek">120dp</dimen>
 </resources>

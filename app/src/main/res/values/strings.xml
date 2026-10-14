@@ -1,5 +1,7 @@
 <resources>
     <string name="app_name">SimpleCoil</string>
+    <string name="app_name_with_version">SimpleCoil v%1$s</string>
+    <string name="info_sheet_title">About SimpleCoil</string>
 
     <string name="reconnect_weapon_button">Reconnect Same Blaster Only</string>
     <string name="connect_weapon_button">Connect Blaster</string>
@@ -7,7 +9,7 @@
     <string name="start_game_button">Start Game!</string>
     <string name="end_game_button">End Game!</string>
 
-    <string name="connect_status_not_connected">Not Connected</string>
+    <string name="connect_intro">Ready to play? Power on your blaster and tap a connect button!</string>
     <string name="connect_status_scanning">Scanning&#8230;</string>
     <string name="connect_status_connecting">Connecting&#8230;</string>
     <string name="connect_status_communicating">Communicating&#8230;</string>
@@ -127,6 +129,7 @@
     <string name="grenade_paired_toast">Grenade Paired!</string>
 
     <string name="dedicated_server_button">Dedicated Server</string>
+    <string name="dedicated_server_intro">Have a spare device and Wi-Fi or a RECOIL hub and want a more complete experience including live scoring? Use this device as a dedicated server!</string>
     <string name="title_activity_dedicated_server">DedicatedServerActivity</string>
     <string name="server_notification_channel">SimpleCoil Dedicated Server</string>
     <string name="server_notification_title">SimpleCoil Dedicated Server</string>

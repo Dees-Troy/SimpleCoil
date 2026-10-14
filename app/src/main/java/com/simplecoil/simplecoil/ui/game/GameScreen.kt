@@ -21,7 +21,7 @@ import com.simplecoil.simplecoil.domain.session.SessionToast
 import com.simplecoil.simplecoil.domain.team.TeamMode
 
 /** Status line on the connect screen. */
-enum class ConnectStatus { SCANNING, CONNECTING, COMMUNICATING, NOT_CONNECTED }
+enum class ConnectStatus { SCANNING, CONNECTING, COMMUNICATING }
 
 /** Text of the network button. */
 enum class NetworkButton { USE_NETWORK, MENU, SEARCHING, CONNECTED }
@@ -91,7 +91,6 @@ interface GameView {
     fun showPlayScreen()
     fun setReconnectVisible(visible: Boolean)
     fun setConnectButtonsEnabled(enabled: Boolean)
-    fun showConnectStatus(status: ConnectStatus)
 
     // Game
     /** [isAdmin]: a network admin also gets the in-game End Game button. */
@@ -127,6 +126,8 @@ interface GameView {
 
 /** Dialogs, toasts and popup menus. */
 interface GameDialogs {
+    /** The connecting popup with [status]; null closes it. */
+    fun showConnectStatus(status: ConnectStatus?)
     fun showDisconnectDialog()
     fun dismissDisconnectDialog()
     fun showBlasterType(rifle: Boolean, address: String)

@@ -79,6 +79,7 @@ class DialogCoordinator(
         }
         // Bring restored dialogs in line with the view model (it may have outlived them, or not).
         if (vm.disconnectDialogShowing) showDisconnectDialog() else remove(TAG_DISCONNECTED)
+        if (vm.connectStatus != null) showConnectStatus(vm.connectStatus) else remove(TAG_CONNECT_STATUS)
         if (!vm.scoreboardVisible) remove(TAG_SCOREBOARD)
     }
 
@@ -102,6 +103,13 @@ class DialogCoordinator(
     // ---------------------------------------------------------------------------------------
     // Connection
     // ---------------------------------------------------------------------------------------
+
+    override fun showConnectStatus(status: ConnectStatus?) {
+        if (status == null) return dismiss(TAG_CONNECT_STATUS)
+        // The dialog reads the status from the view model, so an open one only needs a refresh.
+        (fm.findFragmentByTag(TAG_CONNECT_STATUS) as? ConnectStatusDialog)?.refresh()
+            ?: show(TAG_CONNECT_STATUS) { ConnectStatusDialog() }
+    }
 
     override fun showDisconnectDialog() = show(TAG_DISCONNECTED) { BlasterDisconnectedDialog() }
 
@@ -322,6 +330,7 @@ class DialogCoordinator(
 
     companion object {
         private const val TAG = "scmain"
+        private const val TAG_CONNECT_STATUS = "connectStatus"
         private const val TAG_DISCONNECTED = "blasterDisconnected"
         private const val TAG_END_GAME = "endGame"
         private const val TAG_RESET = "resetGame"

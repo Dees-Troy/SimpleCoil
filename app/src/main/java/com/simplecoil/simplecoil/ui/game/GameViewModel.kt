@@ -110,6 +110,9 @@ class GameViewModel(
     private var autoScanStarted = false
     private var resumed = false
 
+    /** The connecting popup's status; null when it should be closed. */
+    var connectStatus: ConnectStatus? = null
+        private set
     /** The blaster disconnected dialog should be showing. */
     var disconnectDialogShowing = false
         private set
@@ -289,7 +292,7 @@ class GameViewModel(
     fun startScan(adapter: BluetoothAdapter): Boolean {
         if (ble.startScan(adapter, deviceAddress) == BleConnectionManager.ScanStart.PERMISSION_DENIED) return false
         screen?.setConnectButtonsEnabled(false)
-        screen?.showConnectStatus(ConnectStatus.SCANNING)
+        setConnectStatus(ConnectStatus.SCANNING)
         return true
     }
 
@@ -301,7 +304,7 @@ class GameViewModel(
     private fun onConnectionEvent(event: BleConnectionEvent) {
         when (event) {
             is BleConnectionEvent.ScanMatched -> {
-                screen?.showConnectStatus(ConnectStatus.CONNECTING)
+                setConnectStatus(ConnectStatus.CONNECTING)
                 setDeviceAddress(event.address)
             }
             BleConnectionEvent.ScanTimedOut, BleConnectionEvent.WatchdogTimedOut -> handleDisconnect()
@@ -315,7 +318,7 @@ class GameViewModel(
         when (event) {
             BlasterEvent.Disconnected -> handleDisconnect()
             BlasterEvent.ServicesDiscovered -> {
-                screen?.showConnectStatus(ConnectStatus.COMMUNICATING)
+                setConnectStatus(ConnectStatus.COMMUNICATING)
                 hideWeaponDisconnect()
             }
             is BlasterEvent.TypeDiscovered -> screen?.showBlasterType(event.blasterType == GattProtocolHandler.BLASTER_TYPE_RIFLE, deviceAddress)
@@ -333,13 +336,33 @@ class GameViewModel(
             showWeaponDisconnect()
             return
         }
+        resetToConnectScreen()
+        endGame()
+        sounds.play(SessionSound.ELIMINATED)
+    }
+
+    /** Cancel on the connecting popup: stop scanning or connecting and go back to the connect screen. */
+    fun onConnectCancelled() {
+        Log.d(TAG, "Connect cancelled")
+        ble.cancelScanTimeout()
+        ble.stopScan()
+        resetToConnectScreen()
+    }
+
+    private fun resetToConnectScreen() {
         ble.reset()
         showConnectLayout()
         screen?.setConnectButtonsEnabled(true)
-        screen?.showConnectStatus(ConnectStatus.NOT_CONNECTED)
+        setConnectStatus(null)
         engine.onBlasterReset()
-        endGame()
-        sounds.play(SessionSound.ELIMINATED)
+    }
+
+    /** Reconnecting mid-game is covered by the disconnected dialog, so the popup stays closed then. */
+    private fun setConnectStatus(status: ConnectStatus?) {
+        val shown = status.takeUnless { disconnectDialogShowing }
+        if (shown == connectStatus) return
+        connectStatus = shown
+        screen?.showConnectStatus(shown)
     }
 
     private fun showConnectLayout() {
@@ -349,6 +372,7 @@ class GameViewModel(
     private fun showWeaponDisconnect() {
         if (disconnectDialogShowing) return
         disconnectDialogShowing = true
+        setConnectStatus(null)
         screen?.showDisconnectDialog()
     }
 
@@ -382,6 +406,7 @@ class GameViewModel(
         when (effect) {
             is SessionEffect.Toast -> screen?.showSessionToast(effect.toast)
             SessionEffect.CommunicationStarted -> {
+                setConnectStatus(null)
                 screen?.showPlayScreen()
                 autoStartServerScan()
             }
