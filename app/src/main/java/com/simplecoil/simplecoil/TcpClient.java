@@ -52,6 +52,8 @@ import com.simplecoil.simplecoil.network.Frame;
 import com.simplecoil.simplecoil.network.GameUpdate;
 import com.simplecoil.simplecoil.network.ServerCommand;
 import com.simplecoil.simplecoil.network.WireCodec;
+import com.simplecoil.simplecoil.network.WirePending;
+import com.simplecoil.simplecoil.network.WirePlayerSettings;
 import com.simplecoil.simplecoil.network.FrameReader;
 import com.simplecoil.simplecoil.network.WireKeys;
 import com.simplecoil.simplecoil.network.WireProtocol;
@@ -73,6 +75,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -298,20 +302,7 @@ public class TcpClient extends Service {
      */
     public void sendReliable(String rmsg) {
         ClientOutbox.Entry entry = mOutbox.add(rmsg, mGameId);
-        try {
-            sendTCPMessage(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + reliableJson(entry, mOutbox.getGameId()));
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-    }
-
-    /** The reliable envelope: {"rmsg": "ELIMINATED7", "seq": 12, "gameid": 418873301}. */
-    static JSONObject reliableJson(ClientOutbox.Entry entry, long gameId) throws JSONException {
-        JSONObject envelope = new JSONObject();
-        envelope.put(WireKeys.RMSG, entry.getRmsg());
-        envelope.put(WireKeys.SEQ, entry.getSeq());
-        envelope.put(WireKeys.GAMEID, gameId);
-        return envelope;
+        sendTCPMessage(WireCodec.encode(new ClientMessage.Reliable(entry.getRmsg(), entry.getSeq(), mOutbox.getGameId())));
     }
 
     @VisibleForTesting
@@ -547,29 +538,16 @@ public class TcpClient extends Service {
     }
 
     public void sendPlayerNameChange() {
-        try {
-            JSONObject playerInfo = new JSONObject();
-            playerInfo.put(WireKeys.PLAYERID, (int) PlayerRepository.getInstance().getPlayerID());
-            playerInfo.put(WireKeys.PLAYERNAMECHANGE, PlayerRepository.getInstance().getPlayerName());
-            String message = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + playerInfo.toString();
-            sendTCPMessage(message);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
+        PlayerRepository players = PlayerRepository.getInstance();
+        sendTCPMessage(WireCodec.encode(new ClientMessage.NameChange(players.getPlayerID(), players.getPlayerName())));
     }
 
     public void sendPlayerInfo(boolean rejoin) {
         if (rejoin)
             Log.d(TAG, "Attempting to rejoin server");
-        try {
-            JSONObject playerInfo = helloJson(PlayerRepository.getInstance().getPlayerID(), PlayerRepository.getInstance().getPlayerName(),
-                    PlayerRepository.getInstance().getDeviceAddress(), rejoin, mOutbox);
-            String message = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + playerInfo.toString();
-            sendTCPMessage(message);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-        if (PlayerRepository.getInstance().getPairedGrenadeID() != 0)
+        PlayerRepository players = PlayerRepository.getInstance();
+        sendTCPMessage(WireCodec.encode(hello(players.getPlayerID(), players.getPlayerName(), players.getDeviceAddress(), rejoin, mOutbox)));
+        if (players.getPairedGrenadeID() != 0)
             sendPlayerGrenade();
     }
 
@@ -578,80 +556,38 @@ public class TcpClient extends Service {
      * hello so the server applies them once it knows who we are and before it builds our
      * snapshot (D2, D3).
      */
-    static JSONObject helloJson(byte playerId, String name, String mac, boolean rejoin, ClientOutbox outbox) throws JSONException {
-        JSONObject playerInfo = new JSONObject();
-        playerInfo.put(WireKeys.PLAYERID, (int) playerId);
-        playerInfo.put(WireKeys.PLAYERNAME, name);
-        if (mac != null && !mac.isEmpty()) {
-            playerInfo.put(WireKeys.BLASTER_MAC, mac);
-        }
-        if (rejoin) {
-            playerInfo.put(WireKeys.REJOIN, true);
-        }
-        if (outbox.getGameId() != 0)
-            playerInfo.put(WireKeys.GAMEID, outbox.getGameId());
-        JSONArray pending = new JSONArray();
+    static ClientMessage.Hello hello(byte playerId, String name, String mac, boolean rejoin, ClientOutbox outbox) {
+        List<WirePending> pending = new ArrayList<>();
         for (ClientOutbox.Entry entry : outbox.pending()) {
-            JSONObject item = new JSONObject();
-            item.put(WireKeys.RMSG, entry.getRmsg());
-            item.put(WireKeys.SEQ, entry.getSeq());
-            pending.put(item);
+            pending.add(new WirePending(entry.getRmsg(), entry.getSeq()));
         }
-        if (pending.length() > 0) {
-            Log.d(TAG, "Replaying " + pending.length() + " unacknowledged messages");
-            playerInfo.put(WireKeys.PENDING, pending);
-        }
-        return playerInfo;
+        if (!pending.isEmpty())
+            Log.d(TAG, "Replaying " + pending.size() + " unacknowledged messages");
+        Long gameId = outbox.getGameId() != 0 ? outbox.getGameId() : null;
+        return new ClientMessage.Hello(playerId, name, mac, rejoin, gameId, pending);
     }
 
+    /** Our own settings, for the server to apply when it allows player settings. */
     public void sendPlayerSettings() {
-        try {
-            JSONObject playerSettings = new JSONObject();
-            playerSettings.put(WireKeys.PLAYERSETTINGS, true);
-            playerSettings.put(WireKeys.PLAYERID, (int) PlayerRepository.getInstance().getPlayerID());
-            playerSettings.put(WireKeys.HEALTH, GameSettingsRepository.getInstance().getFullHealth());
-            playerSettings.put(WireKeys.RELOAD_SHOTS, GameSettingsRepository.getInstance().getFullReload());
-            playerSettings.put(WireKeys.RELOAD_TIME, GameSettingsRepository.getInstance().getReloadTime());
-            playerSettings.put(WireKeys.RELOAD_ON_EMPTY, GameSettingsRepository.getInstance().isReloadOnEmpty());
-            playerSettings.put(WireKeys.MANUAL_RESPAWN, GameSettingsRepository.getInstance().isManualRespawn());
-            playerSettings.put(WireKeys.SPAWN_TIME, GameSettingsRepository.getInstance().getRespawnTime());
-            playerSettings.put(WireKeys.RESPAWN_SHIELD_TIME, GameSettingsRepository.getInstance().getRespawnShieldTime());
-            playerSettings.put(WireKeys.DAMAGE, GameSettingsRepository.getInstance().getDamage());
-            if (GameSettingsRepository.getInstance().isOverrideLives())
-                playerSettings.put(WireKeys.LIVESLIMIT, GameSettingsRepository.getInstance().getOverrideLivesVal());
-            playerSettings.put(WireKeys.SHOT_MODE_SINGLE, GameSettingsRepository.getInstance().isAllowSingleShotMode());
-            playerSettings.put(WireKeys.SHOT_MODE_BURST3, GameSettingsRepository.getInstance().isAllowBurst3ShotMode());
-            playerSettings.put(WireKeys.SHOT_MODE_AUTO, GameSettingsRepository.getInstance().isAllowAutoShotMode());
-            playerSettings.put(WireKeys.FIRING_MODE, GameSettingsRepository.getInstance().getCurrentFiringMode());
-            String message = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + playerSettings.toString();
-            sendTCPMessage(message);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
+        GameSettingsRepository settings = GameSettingsRepository.getInstance();
+        int playerId = PlayerRepository.getInstance().getPlayerID();
+        WirePlayerSettings wire = new WirePlayerSettings(playerId, settings.getFullHealth(), settings.getFullReload(),
+                settings.getReloadTime(), settings.isReloadOnEmpty(), settings.isManualRespawn(), settings.getRespawnTime(),
+                settings.getRespawnShieldTime(), settings.getDamage(),
+                settings.isOverrideLives() ? Integer.valueOf(settings.getOverrideLivesVal()) : null,
+                settings.isAllowSingleShotMode(), settings.isAllowBurst3ShotMode(), settings.isAllowAutoShotMode(),
+                settings.getCurrentFiringMode(), null, null);
+        sendTCPMessage(WireCodec.encode(new ClientMessage.Settings(playerId, wire)));
     }
 
     public void sendPlayerGrenade() {
-        try {
-            JSONObject playerGrenade = new JSONObject();
-            playerGrenade.put(WireKeys.PLAYERID, (int) PlayerRepository.getInstance().getPlayerID());
-            playerGrenade.put(WireKeys.PAIRED_GRENADE_ID, (int) PlayerRepository.getInstance().getPairedGrenadeID());
-            String message = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + playerGrenade.toString();
-            sendTCPMessage(message);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
+        PlayerRepository players = PlayerRepository.getInstance();
+        sendTCPMessage(WireCodec.encode(new ClientMessage.GrenadePairing(players.getPlayerID(), players.getPairedGrenadeID())));
     }
 
     /** Reports our position (the map's location updates) to the server. */
     public void sendLocation(double latitude, double longitude) {
-        try {
-            JSONObject gpsUpdate = new JSONObject();
-            gpsUpdate.put(WireKeys.GPSLONGITUDE, longitude);
-            gpsUpdate.put(WireKeys.GPSLATITUDE, latitude);
-            sendTCPMessage(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + gpsUpdate.toString());
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
+        sendTCPMessage(WireCodec.encode(new ClientMessage.GpsLocation(latitude, longitude)));
     }
 
     /**

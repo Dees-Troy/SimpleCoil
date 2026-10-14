@@ -37,6 +37,9 @@ import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_SERVERREPLY
 import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_SHOTFIRED
 import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_STARTGAME
 import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_TEAMELIMINATED
+import org.json.JSONArray
+import org.json.JSONException
+import org.json.JSONObject
 
 /**
  * The v07 wire format (network design §7): typed messages to frames and back. The only code
@@ -49,6 +52,7 @@ object WireCodec {
     private const val TAG = "WireCodec"
     private const val ADMIN_PREFIX = "ADMIN_"
     private const val MESG_HEADER = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG
+    private const val JSON_HEADER = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON
 
     // ---------------------------------------------------------------------------------------
     // Frames
@@ -57,6 +61,42 @@ object WireCodec {
     @JvmStatic
     fun encode(message: ClientMessage): String = when (message) {
         is ClientMessage.Command -> MESG_HEADER + text(message.command)
+        is ClientMessage.Hello -> json {
+            put(WireKeys.PLAYERID, message.playerId)
+            put(WireKeys.PLAYERNAME, message.name)
+            if (!message.mac.isNullOrEmpty()) put(WireKeys.BLASTER_MAC, message.mac)
+            if (message.rejoin) put(WireKeys.REJOIN, true)
+            if (message.gameId != null) put(WireKeys.GAMEID, message.gameId)
+            if (message.pending.isNotEmpty()) {
+                put(WireKeys.PENDING, JSONArray(message.pending.map { JSONObject().put(WireKeys.RMSG, it.rmsg).put(WireKeys.SEQ, it.seq) }))
+            }
+        }
+        is ClientMessage.Reliable -> json {
+            put(WireKeys.RMSG, message.rmsg)
+            put(WireKeys.SEQ, message.seq)
+            put(WireKeys.GAMEID, message.gameId)
+        }
+        is ClientMessage.NameChange -> json {
+            put(WireKeys.PLAYERID, message.playerId)
+            put(WireKeys.PLAYERNAMECHANGE, message.name)
+        }
+        is ClientMessage.Settings -> json {
+            put(WireKeys.PLAYERSETTINGS, true)
+            message.settings?.let { putSettings(it) }
+            put(WireKeys.PLAYERID, message.playerId)
+        }
+        is ClientMessage.TeamChangeRequest -> json {
+            put(WireKeys.PLAYERID, message.playerId)
+            put(WireKeys.REQUEST_TEAM_CHANGE, message.team)
+        }
+        is ClientMessage.GrenadePairing -> json {
+            put(WireKeys.PLAYERID, message.playerId)
+            put(WireKeys.PAIRED_GRENADE_ID, message.grenadeId)
+        }
+        is ClientMessage.GpsLocation -> json {
+            put(WireKeys.GPSLONGITUDE, message.longitude)
+            put(WireKeys.GPSLATITUDE, message.latitude)
+        }
     }
 
     @JvmStatic
@@ -69,6 +109,7 @@ object WireCodec {
     @JvmStatic
     fun decodeClient(frame: Frame): ClientMessage? = when (frame.kind) {
         Frame.Kind.MESG -> ClientMessage.Command(decodeClientCommand(frame.body))
+        Frame.Kind.JSON -> parse(frame.body) { decodeClientJson(it) }
         else -> null
     }
 
@@ -79,6 +120,98 @@ object WireCodec {
         Frame.Kind.VERSION_ERROR -> ServerMessage.VersionError
         else -> null
     }
+
+    // ---------------------------------------------------------------------------------------
+    // JSON
+    // ---------------------------------------------------------------------------------------
+
+    private inline fun json(build: JSONObject.() -> Unit): String = JSON_HEADER + JSONObject().apply(build)
+
+    /** [decode]'s result for [body]'s JSON, or null (logged) when the JSON or a required key is bad. */
+    private inline fun <T> parse(body: String, decode: (JSONObject) -> T): T? = orNull { decode(JSONObject(body)) }
+
+    /** A client's JSON frame, told apart by its keys in the order the server has always checked them. */
+    private fun decodeClientJson(json: JSONObject): ClientMessage = when {
+        json.has(WireKeys.RMSG) ->
+            ClientMessage.Reliable(json.getString(WireKeys.RMSG), json.getInt(WireKeys.SEQ), json.optLong(WireKeys.GAMEID, 0))
+        json.has(WireKeys.REQUEST_TEAM_CHANGE) ->
+            ClientMessage.TeamChangeRequest(json.optInt(WireKeys.PLAYERID, 0), json.getInt(WireKeys.REQUEST_TEAM_CHANGE))
+        json.has(WireKeys.PAIRED_GRENADE_ID) ->
+            ClientMessage.GrenadePairing(json.getInt(WireKeys.PLAYERID), json.getInt(WireKeys.PAIRED_GRENADE_ID))
+        json.has(WireKeys.GPSLONGITUDE) ->
+            ClientMessage.GpsLocation(json.getDouble(WireKeys.GPSLATITUDE), json.getDouble(WireKeys.GPSLONGITUDE))
+        json.has(WireKeys.PLAYERSETTINGS) -> {
+            val playerId = json.optInt(WireKeys.PLAYERID, 0)
+            ClientMessage.Settings(playerId, orNull { readSettings(json, playerId) })
+        }
+        json.has(WireKeys.PLAYERNAMECHANGE) ->
+            ClientMessage.NameChange(json.optInt(WireKeys.PLAYERID, 0), json.getString(WireKeys.PLAYERNAMECHANGE))
+        else -> {
+            val pending = ArrayList<WirePending>()
+            val entries = json.optJSONArray(WireKeys.PENDING)
+            if (entries != null) {
+                for (i in 0 until entries.length()) {
+                    val entry = entries.optJSONObject(i) ?: continue
+                    if (!entry.has(WireKeys.RMSG) || !entry.has(WireKeys.SEQ)) continue
+                    pending += WirePending(entry.optString(WireKeys.RMSG), entry.optInt(WireKeys.SEQ))
+                }
+            }
+            ClientMessage.Hello(
+                playerId = json.getInt(WireKeys.PLAYERID),
+                name = json.getString(WireKeys.PLAYERNAME),
+                mac = if (json.has(WireKeys.BLASTER_MAC)) json.getString(WireKeys.BLASTER_MAC) else null,
+                rejoin = json.optBoolean(WireKeys.REJOIN, false),
+                gameId = if (json.has(WireKeys.GAMEID)) json.optLong(WireKeys.GAMEID, 0) else null,
+                pending = pending,
+            )
+        }
+    }
+
+    /** [decode]'s result, or null (logged) when a required key is missing or of the wrong type. */
+    private inline fun <T> orNull(decode: () -> T): T? = try {
+        decode()
+    } catch (e: JSONException) {
+        Log.w(TAG, "Bad JSON frame: ${e.message}")
+        null
+    }
+
+    private fun JSONObject.putSettings(settings: WirePlayerSettings) {
+        put(WireKeys.HEALTH, settings.health)
+        put(WireKeys.RELOAD_SHOTS, settings.reloadShots)
+        put(WireKeys.RELOAD_TIME, settings.reloadTime)
+        put(WireKeys.RELOAD_ON_EMPTY, settings.reloadOnEmpty)
+        put(WireKeys.MANUAL_RESPAWN, settings.manualRespawn)
+        put(WireKeys.SPAWN_TIME, settings.spawnTime)
+        settings.respawnShieldTime?.let { put(WireKeys.RESPAWN_SHIELD_TIME, it) }
+        put(WireKeys.DAMAGE, settings.damage)
+        settings.livesLimit?.let { put(WireKeys.LIVESLIMIT, it) }
+        put(WireKeys.SHOT_MODE_SINGLE, settings.shotModeSingle)
+        put(WireKeys.SHOT_MODE_BURST3, settings.shotModeBurst3)
+        put(WireKeys.SHOT_MODE_AUTO, settings.shotModeAuto)
+        put(WireKeys.FIRING_MODE, settings.firingMode)
+        settings.recoilSetting?.let { put(WireKeys.RECOIL_SETTING, it) }
+        settings.isAdmin?.let { put(WireKeys.IS_ADMIN, it) }
+    }
+
+    /** One player's settings; the optional keys as both parsers have always treated them. */
+    private fun readSettings(json: JSONObject, playerId: Int) = WirePlayerSettings(
+        playerId = playerId,
+        health = json.getInt(WireKeys.HEALTH),
+        reloadShots = json.getInt(WireKeys.RELOAD_SHOTS),
+        reloadTime = json.getLong(WireKeys.RELOAD_TIME),
+        reloadOnEmpty = json.getBoolean(WireKeys.RELOAD_ON_EMPTY),
+        manualRespawn = json.optBoolean(WireKeys.MANUAL_RESPAWN, false),
+        spawnTime = json.getLong(WireKeys.SPAWN_TIME),
+        respawnShieldTime = if (json.has(WireKeys.RESPAWN_SHIELD_TIME)) json.getLong(WireKeys.RESPAWN_SHIELD_TIME) else null,
+        damage = json.getInt(WireKeys.DAMAGE),
+        livesLimit = if (json.has(WireKeys.LIVESLIMIT)) json.getInt(WireKeys.LIVESLIMIT) else null,
+        shotModeSingle = json.getBoolean(WireKeys.SHOT_MODE_SINGLE),
+        shotModeBurst3 = json.getBoolean(WireKeys.SHOT_MODE_BURST3),
+        shotModeAuto = json.getBoolean(WireKeys.SHOT_MODE_AUTO),
+        firingMode = json.getInt(WireKeys.FIRING_MODE),
+        recoilSetting = if (json.has(WireKeys.RECOIL_SETTING)) json.getInt(WireKeys.RECOIL_SETTING) else null,
+        isAdmin = if (json.has(WireKeys.IS_ADMIN)) json.getBoolean(WireKeys.IS_ADMIN) else null,
+    )
 
     // ---------------------------------------------------------------------------------------
     // Commands

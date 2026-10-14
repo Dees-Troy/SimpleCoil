@@ -282,18 +282,9 @@ class NetworkSessionGateway(
         @JvmStatic
         fun command(command: ClientCommand): String = WireCodec.encode(ClientMessage.Command(command))
 
-        /** TCP message carrying JSON: prefix + version + "JSON" + [json]. */
-        @JvmStatic
-        fun jsonMessage(json: JSONObject): String = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + json
-
         /** Team change request for [playerId] to [targetTeam]. */
         @JvmStatic
-        @Throws(JSONException::class)
-        fun teamChangeRequest(playerId: Byte, targetTeam: Int): String {
-            val json = JSONObject()
-            json.put(WireKeys.PLAYERID, playerId.toInt())
-            json.put(WireKeys.REQUEST_TEAM_CHANGE, targetTeam)
-            return jsonMessage(json)
-        }
+        fun teamChangeRequest(playerId: Byte, targetTeam: Int): String =
+            WireCodec.encode(ClientMessage.TeamChangeRequest(playerId.toInt(), targetTeam))
     }
 }

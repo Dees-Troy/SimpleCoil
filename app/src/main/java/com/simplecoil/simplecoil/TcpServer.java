@@ -43,6 +43,7 @@ import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.domain.team.TeamLayout;
 import com.simplecoil.simplecoil.domain.team.TeamMode;
 import com.simplecoil.simplecoil.network.ClientCommand;
+import com.simplecoil.simplecoil.network.ClientMessage;
 import com.simplecoil.simplecoil.network.EventBus;
 import com.simplecoil.simplecoil.network.Frame;
 import com.simplecoil.simplecoil.network.ServerCommand;
@@ -50,6 +51,8 @@ import com.simplecoil.simplecoil.network.ServerEvent;
 import com.simplecoil.simplecoil.network.ServerMessage;
 import com.simplecoil.simplecoil.network.WireCodec;
 import com.simplecoil.simplecoil.network.WireKeys;
+import com.simplecoil.simplecoil.network.WirePending;
+import com.simplecoil.simplecoil.network.WirePlayerSettings;
 import com.simplecoil.simplecoil.network.WireProtocol;
 import com.simplecoil.simplecoil.network.server.ClockState;
 import com.simplecoil.simplecoil.network.server.Connection;
@@ -1028,13 +1031,13 @@ public class TcpServer extends Service {
         }
 
         private void handleFrameUnguarded(Connection client, String raw) {
-            String message = raw;
-            Frame frame = Frame.parse(message);
+            Frame frame = Frame.parse(raw);
             if (frame.kind != Frame.Kind.PONG) {
-                Log.i(TAG, "received: '" + message + "' from " + client.getConnectionId());
+                Log.i(TAG, "received: '" + raw + "' from " + client.getConnectionId());
                 if (frame.kind == Frame.Kind.JSON) {
-                    // Handle JSON Data
-                    parsePlayerInfo(frame.body, client);
+                    ClientMessage message = WireCodec.decodeClient(frame);
+                    if (message != null)
+                        handleMessage(client, message);
                     return;
                 } else if (frame.kind == Frame.Kind.MESG) {
                     if (handleCommand(client, WireCodec.decodeClientCommand(frame.body)))
@@ -1248,67 +1251,31 @@ public class TcpServer extends Service {
         }
 
         /** The entries a (re)joining client hadn't had acknowledged, applied before its snapshot is built. */
-        private void applyPending(Connection client, JSONObject hello) {
-            JSONArray pending = hello.optJSONArray(WireKeys.PENDING);
-            if (pending == null)
-                return;
-            long gameId = hello.optLong(WireKeys.GAMEID, 0);
-            for (int i = 0; i < pending.length(); i++) {
-                JSONObject entry = pending.optJSONObject(i);
-                if (entry == null || !entry.has(WireKeys.RMSG) || !entry.has(WireKeys.SEQ))
-                    continue;
-                handleReliable(client, entry.optString(WireKeys.RMSG), entry.optInt(WireKeys.SEQ), gameId);
+        private void applyPending(Connection client, ClientMessage.Hello hello) {
+            long gameId = hello.getGameId() != null ? hello.getGameId() : 0;
+            for (WirePending entry : hello.getPending()) {
+                handleReliable(client, entry.getRmsg(), entry.getSeq(), gameId);
             }
         }
 
-        private void parsePlayerInfo(String message, Connection client) {
-            JSONObject player;
-            try {
-                player = new JSONObject(message);
-            } catch (JSONException e) {
-                e.printStackTrace();
-                return;
-            }
-            if (player.has(WireKeys.RMSG)) {
-                try {
-                    int ack = handleReliable(client, player.getString(WireKeys.RMSG), player.getInt(WireKeys.SEQ), player.optLong(WireKeys.GAMEID, 0));
-                    if (ack >= 0)
-                        client.send(command(new ServerCommand.Ack(ack)));
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-                return;
-            }
-            if (player.has(WireKeys.REQUEST_TEAM_CHANGE)) {
-                try {
-                    int targetTeam = player.getInt(WireKeys.REQUEST_TEAM_CHANGE);
-                    handleClientTeamChangeRequest(client, targetTeam);
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-                return;
-            }
-            if (player.has(WireKeys.PAIRED_GRENADE_ID)) {
+        /** A client's JSON message. */
+        private void handleMessage(Connection client, ClientMessage message) {
+            if (message instanceof ClientMessage.Reliable) {
+                ClientMessage.Reliable reliable = (ClientMessage.Reliable) message;
+                int ack = handleReliable(client, reliable.getRmsg(), reliable.getSeq(), reliable.getGameId());
+                if (ack >= 0)
+                    client.send(command(new ServerCommand.Ack(ack)));
+            } else if (message instanceof ClientMessage.TeamChangeRequest) {
+                handleClientTeamChangeRequest(client, ((ClientMessage.TeamChangeRequest) message).getTeam());
+            } else if (message instanceof ClientMessage.GrenadePairing) {
                 // Pairing and announcing run on the dispatcher, so two pairings can't go out in the wrong order.
-                try {
-                    PlayerRepository.getInstance().pairGrenade(player.getInt(WireKeys.PAIRED_GRENADE_ID), player.getInt(WireKeys.PLAYERID));
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
+                ClientMessage.GrenadePairing pairing = (ClientMessage.GrenadePairing) message;
+                PlayerRepository.getInstance().pairGrenade(pairing.getGrenadeId(), pairing.getPlayerId());
                 sendGrenadePairings();
-                return;
-            }
-            if (player.has(WireKeys.GPSLONGITUDE)) {
+            } else if (message instanceof ClientMessage.GpsLocation) {
+                ClientMessage.GpsLocation location = (ClientMessage.GpsLocation) message;
                 byte playerId = playerIdOf(client);
                 PlayerRecord record = client.getPlayer();
-                double longitude, latitude;
-                try {
-                    longitude = player.getDouble(WireKeys.GPSLONGITUDE);
-                    latitude = player.getDouble(WireKeys.GPSLATITUDE);
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                    return;
-                }
                 int team = record != null ? record.getTeam() : 0;
                 PlayerRepository repo = PlayerRepository.getInstance();
                 synchronized (repo) {
@@ -1317,87 +1284,47 @@ public class TcpServer extends Service {
                         gps = new GpsData();
                         repo.getGpsData().put(playerId, gps);
                     }
-                    gps.longitude = longitude;
-                    gps.latitude = latitude;
+                    gps.longitude = location.getLongitude();
+                    gps.latitude = location.getLatitude();
                     gps.team = team;
                     gps.hasUpdate = true; // Client takes care of making sure that it is only sending us changes in coordinates
                 }
-                return;
-            }
-            if (player.has(WireKeys.PLAYERSETTINGS)) {
+            } else if (message instanceof ClientMessage.Settings) {
                 if (!GameSettingsRepository.getInstance().isAllowPlayerSettings()) {
                     Log.e(TAG, "Player " + playerIdOf(client) + "not allowed to send player settings");
                     sendPlayerSettings((byte)SEND_ALL, false, true);
                     return;
                 }
-                byte playerId = playerIdOf(client);
-                PlayerRepository repo = PlayerRepository.getInstance();
-                synchronized (repo) {
-                    PlayerSettings settings = repo.getPlayerSettings().get(playerId);
-                    if (settings == null) {
-                        settings = new PlayerSettings();
-                        repo.getPlayerSettings().put(playerId, settings);
-                    }
-                    try {
-                        settings.health = player.getInt(WireKeys.HEALTH);
-                        settings.shots = (byte)player.getInt(WireKeys.RELOAD_SHOTS);
-                        settings.reloadTime = player.getLong(WireKeys.RELOAD_TIME);
-                        settings.reloadOnEmpty = player.getBoolean(WireKeys.RELOAD_ON_EMPTY);
-                        settings.manualRespawn = player.optBoolean(WireKeys.MANUAL_RESPAWN, false);
-                        settings.spawnTime = player.getLong(WireKeys.SPAWN_TIME);
-                        if (player.has(WireKeys.RESPAWN_SHIELD_TIME)) {
-                            settings.respawnShieldTime = player.getLong(WireKeys.RESPAWN_SHIELD_TIME);
+                WirePlayerSettings wire = ((ClientMessage.Settings) message).getSettings();
+                if (wire != null) {
+                    byte playerId = playerIdOf(client);
+                    PlayerRepository repo = PlayerRepository.getInstance();
+                    synchronized (repo) {
+                        PlayerSettings settings = repo.getPlayerSettings().get(playerId);
+                        if (settings == null) {
+                            settings = new PlayerSettings();
+                            repo.getPlayerSettings().put(playerId, settings);
                         }
-                        settings.damage = player.getInt(WireKeys.DAMAGE);
-                        if (player.has(WireKeys.LIVESLIMIT)) {
-                            settings.overrideLives = true;
-                            settings.lives = player.getInt(WireKeys.LIVESLIMIT);
-                        } else {
-                            settings.overrideLives = false;
-                            settings.lives = 0;
-                        }
-                        settings.allowShotModeAuto = player.getBoolean(WireKeys.SHOT_MODE_AUTO);
-                        settings.allowShotModeBurst3 = player.getBoolean(WireKeys.SHOT_MODE_BURST3);
-                        settings.allowShotModeSingle = player.getBoolean(WireKeys.SHOT_MODE_SINGLE);
-                        settings.firingMode = player.getInt(WireKeys.FIRING_MODE);
-                        if (player.has(WireKeys.RECOIL_SETTING)) {
-                            settings.recoilSetting = player.getInt(WireKeys.RECOIL_SETTING);
-                        }
-                        // WireKeys.IS_ADMIN is ignored: only the server operator grants admin rights (D14)
-                    } catch (JSONException e) {
-                        e.printStackTrace();
+                        // Admin rights are ignored: only the server operator grants them (D14)
+                        wire.applyTo(settings, false);
                     }
                 }
                 sendPlayerSettings((byte)SEND_ALL, false, true);
                 mEvents.publish(new ServerEvent.PlayerDataChanged(null));
-                return;
-            }
-            if (player.has(WireKeys.PLAYERNAMECHANGE)) {
-                String playerName;
-                try {
-                    playerName = player.getString(WireKeys.PLAYERNAMECHANGE);
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                    return;
-                }
-                mRoster.onNameChange(client, playerName);
-
+            } else if (message instanceof ClientMessage.NameChange) {
+                mRoster.onNameChange(client, ((ClientMessage.NameChange) message).getName());
                 sendAllGameInfo(SEND_ALL);
                 mEvents.publish(new ServerEvent.PlayerDataChanged(null));
-                return;
+            } else if (message instanceof ClientMessage.Hello) {
+                handleHello(client, (ClientMessage.Hello) message);
             }
+        }
+
+        private void handleHello(Connection client, ClientMessage.Hello hello) {
             mGPSIntervalCount.set(SEND_ALL_GPS_INTERVAL); // Send all GPS info because of the new client
-            byte id;
-            String playerName;
-            String blasterMac;
-            try {
-                id = (byte) player.getInt(WireKeys.PLAYERID);
-                playerName = player.getString(WireKeys.PLAYERNAME);
-                blasterMac = player.has(WireKeys.BLASTER_MAC) ? player.getString(WireKeys.BLASTER_MAC) : "";
-            } catch (JSONException e) {
-                e.printStackTrace();
-                return;
-            }
+            byte id = (byte) hello.getPlayerId();
+            String playerName = hello.getName();
+            String blasterMac = hello.getMac() != null ? hello.getMac() : "";
 
             GameRoster.HelloResult result = mRoster.onHello(client, id, playerName, blasterMac, client.getInetAddress());
 
@@ -1418,7 +1345,7 @@ public class TcpServer extends Service {
                     Log.d(TAG, "rejoining client " + client.getConnectionId() + " to player ID " + existingPlayerId + " (MAC: " + blasterMac + ")");
                     if (result.displaced != null)
                         result.displaced.close();
-                    applyPending(client, player);
+                    applyPending(client, hello);
                     client.send(command(new ServerCommand.ServerReply(existingPlayerId)));
                     sendAllGameInfo(existingPlayerId);
                     mEvents.publish(new ServerEvent.PlayerDataChanged(null));
@@ -1431,7 +1358,7 @@ public class TcpServer extends Service {
 
             PlayerRecord record = result.record;
             id = record.getPlayerId();
-            applyPending(client, player);
+            applyPending(client, hello);
             client.send(command(new ServerCommand.ServerReply(id)));
             Log.e(TAG, "network team is " + record.getTeam());
             InetAddress inetAddress = client.getInetAddress();

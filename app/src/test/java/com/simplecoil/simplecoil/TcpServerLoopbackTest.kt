@@ -22,8 +22,10 @@ import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.domain.team.TeamMode
+import com.simplecoil.simplecoil.network.ClientMessage
 import com.simplecoil.simplecoil.network.EventBus
 import com.simplecoil.simplecoil.network.ServerEvent
+import com.simplecoil.simplecoil.network.WireCodec
 import com.simplecoil.simplecoil.network.WireKeys
 import com.simplecoil.simplecoil.network.WireProtocol
 import com.simplecoil.simplecoil.network.client.ClientOutbox
@@ -504,12 +506,12 @@ class TcpServerLoopbackTest {
 
     private fun LoopbackClient.reliable(outbox: ClientOutbox, rmsg: String): ClientOutbox.Entry {
         val entry = outbox.add(rmsg, outbox.gameId)
-        json(TcpClient.reliableJson(entry, outbox.gameId))
+        send(WireCodec.encode(ClientMessage.Reliable(entry.rmsg, entry.seq, outbox.gameId)))
         return entry
     }
 
     private fun LoopbackClient.rejoin(name: String, mac: String, outbox: ClientOutbox) =
-        json(TcpClient.helloJson(0, name, mac, true, outbox))
+        send(WireCodec.encode(TcpClient.hello(0, name, mac, true, outbox)))
 
     @Test
     fun reliableEliminations_lostAckAndOfflineKills_countOnceAfterTheRejoin() {

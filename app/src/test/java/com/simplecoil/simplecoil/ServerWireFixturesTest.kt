@@ -23,6 +23,8 @@ import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.domain.team.TeamMode
+import com.simplecoil.simplecoil.network.ClientMessage
+import com.simplecoil.simplecoil.network.WireCodec
 import com.simplecoil.simplecoil.network.WireFixtures
 import com.simplecoil.simplecoil.network.WireKeys
 import com.simplecoil.simplecoil.network.WireProtocol
@@ -184,7 +186,8 @@ class ServerWireFixturesTest {
         charlie.awaitMesg(WireProtocol.NETMSG_SHOTFIRED)
         val outbox = ClientOutbox()
         outbox.onGameId(server.roster.gameId())
-        alpha.json(TcpClient.reliableJson(outbox.add(WireProtocol.NETMSG_ELIMINATED + 17, outbox.gameId), outbox.gameId))
+        val entry = outbox.add(WireProtocol.NETMSG_ELIMINATED + 17, outbox.gameId)
+        alpha.send(WireCodec.encode(ClientMessage.Reliable(entry.rmsg, entry.seq, outbox.gameId)))
         alpha.awaitMesg(WireProtocol.NETMSG_ACK)
         bravo.awaitMesg(WireProtocol.NETMSG_ELIMINATED)
         alpha.mesg(WireProtocol.NETMSG_TEAMELIMINATED)

@@ -16,6 +16,8 @@
 
 package com.simplecoil.simplecoil.network
 
+import com.simplecoil.simplecoil.data.model.PlayerSettings
+
 // The typed v07 wire model (network design §7.3). WireCodec is the only code that turns these
 // into frames and back; nothing else knows the header strings or the JSON keys.
 
@@ -87,9 +89,108 @@ sealed interface ServerCommand {
     data class Other(val text: String) : ServerCommand
 }
 
+/**
+ * One player's settings, in both directions: the one wire mapping (N10). The client sends its
+ * own without [recoilSetting] and [isAdmin]; the server sends everyone's with them. A null
+ * optional field is left out of the frame.
+ */
+data class WirePlayerSettings(
+    val playerId: Int,
+    val health: Int,
+    val reloadShots: Int,
+    val reloadTime: Long,
+    val reloadOnEmpty: Boolean,
+    val manualRespawn: Boolean,
+    val spawnTime: Long,
+    val respawnShieldTime: Long?,
+    val damage: Int,
+    /** The player's own lives limit; null for the game's. */
+    val livesLimit: Int?,
+    val shotModeSingle: Boolean,
+    val shotModeBurst3: Boolean,
+    val shotModeAuto: Boolean,
+    val firingMode: Int,
+    val recoilSetting: Int?,
+    val isAdmin: Boolean?,
+) {
+    /**
+     * Writes these settings into [target]. A field the frame left out keeps its value, except
+     * the lives limit, which is then off. [isAdmin] only counts when [acceptAdmin]: only the
+     * server operator grants admin rights (D14).
+     */
+    fun applyTo(target: PlayerSettings, acceptAdmin: Boolean) {
+        target.health = health
+        target.shots = reloadShots.toByte()
+        target.reloadTime = reloadTime
+        target.reloadOnEmpty = reloadOnEmpty
+        target.manualRespawn = manualRespawn
+        target.spawnTime = spawnTime
+        if (respawnShieldTime != null) target.respawnShieldTime = respawnShieldTime
+        target.damage = damage
+        target.overrideLives = livesLimit != null
+        target.lives = livesLimit ?: 0
+        target.allowShotModeAuto = shotModeAuto
+        target.allowShotModeBurst3 = shotModeBurst3
+        target.allowShotModeSingle = shotModeSingle
+        target.firingMode = firingMode
+        if (recoilSetting != null) target.recoilSetting = recoilSetting
+        if (acceptAdmin && isAdmin != null) target.isAdmin = isAdmin
+    }
+
+    companion object {
+        /** Everything [settings] holds, as the server sends it for [playerId]. */
+        @JvmStatic
+        fun of(playerId: Int, settings: PlayerSettings) = WirePlayerSettings(
+            playerId = playerId,
+            health = settings.health,
+            reloadShots = settings.shots.toInt(),
+            reloadTime = settings.reloadTime,
+            reloadOnEmpty = settings.reloadOnEmpty,
+            manualRespawn = settings.manualRespawn,
+            spawnTime = settings.spawnTime,
+            respawnShieldTime = settings.respawnShieldTime,
+            damage = settings.damage,
+            livesLimit = if (settings.overrideLives) settings.lives else null,
+            shotModeSingle = settings.allowShotModeSingle,
+            shotModeBurst3 = settings.allowShotModeBurst3,
+            shotModeAuto = settings.allowShotModeAuto,
+            firingMode = settings.firingMode,
+            recoilSetting = settings.recoilSetting,
+            isAdmin = settings.isAdmin,
+        )
+    }
+}
+
+/** A reliable message the server hasn't acknowledged, replayed in the hello (reconnect design §3.4). */
+data class WirePending(val rmsg: String, val seq: Int)
+
 /** What a client sends the server. */
 sealed interface ClientMessage {
     data class Command(val command: ClientCommand) : ClientMessage
+
+    /**
+     * Who the client is (the hello). [playerId] 0 asks the server to choose; [gameId] and
+     * [pending] carry the reliable messages the server hasn't acknowledged (D2, D3).
+     */
+    data class Hello(
+        val playerId: Int,
+        val name: String,
+        /** Null or "" when the client has no blaster. */
+        val mac: String?,
+        val rejoin: Boolean,
+        val gameId: Long?,
+        val pending: List<WirePending>,
+    ) : ClientMessage
+
+    /** A reliable message (§3.4): [rmsg] is a command's text, such as ELIMINATED7. */
+    data class Reliable(val rmsg: String, val seq: Int, val gameId: Long) : ClientMessage
+    data class NameChange(val playerId: Int, val name: String) : ClientMessage
+
+    /** The client's own settings; null when the frame's settings don't decode. */
+    data class Settings(val playerId: Int, val settings: WirePlayerSettings?) : ClientMessage
+    data class TeamChangeRequest(val playerId: Int, val team: Int) : ClientMessage
+    data class GrenadePairing(val playerId: Int, val grenadeId: Int) : ClientMessage
+    data class GpsLocation(val latitude: Double, val longitude: Double) : ClientMessage
 }
 
 /** What the server sends a client. */

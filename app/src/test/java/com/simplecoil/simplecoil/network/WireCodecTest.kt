@@ -114,4 +114,67 @@ class WireCodecTest {
             assertNull(raw, decodeServer(raw))
         }
     }
+
+    // ------------------------------------------------------------------------------------------
+    // Client JSON
+    // ------------------------------------------------------------------------------------------
+
+    private val mac = "AA:BB:CC:DD:EE:FF"
+
+    private fun settings(livesLimit: Int?) = WirePlayerSettings(
+        playerId = 5, health = 20, reloadShots = 30, reloadTime = 1500, reloadOnEmpty = true, manualRespawn = false,
+        spawnTime = 10, respawnShieldTime = 3, damage = -2, livesLimit = livesLimit, shotModeSingle = true,
+        shotModeBurst3 = false, shotModeAuto = true, firingMode = 2, recoilSetting = null, isAdmin = null,
+    )
+
+    private val clientFixtures = mapOf(
+        "client/hello_fresh.frame" to ClientMessage.Hello(0, "Rook", mac, false, null, emptyList()),
+        "client/hello_fresh_id5.frame" to ClientMessage.Hello(5, "Rook", mac, false, null, emptyList()),
+        "client/hello_rejoin_pending.frame" to ClientMessage.Hello(5, "Rook", mac, true, 418873301,
+            listOf(WirePending("ELIMINATED17", 1), WirePending("ELIMINATED18", 2))),
+        "client/hello_without_mac.frame" to ClientMessage.Hello(5, "Rook", null, false, null, emptyList()),
+        "client/reliable.frame" to ClientMessage.Reliable("ELIMINATED17", 1, 418873301),
+        "client/name_change.frame" to ClientMessage.NameChange(5, "Rook"),
+        "client/player_settings.frame" to ClientMessage.Settings(5, settings(null)),
+        "client/player_settings_lives.frame" to ClientMessage.Settings(5, settings(4)),
+        "client/team_change.frame" to ClientMessage.TeamChangeRequest(5, 2),
+        "client/grenade_pairing.frame" to ClientMessage.GrenadePairing(5, 3),
+        "client/gps_location.frame" to ClientMessage.GpsLocation(40.5, -74.25),
+    )
+
+    @Test
+    fun clientJson_encodesToTheFixtures_andDecodesBack() {
+        for ((name, message) in clientFixtures) {
+            WireFixtures.assertFrame(name, WireCodec.encode(message))
+            assertEquals(name, message, decodeClient(WireFixtures.frame(name)))
+        }
+        // An empty MAC is left out, like none
+        WireFixtures.assertFrame("client/hello_without_mac.frame", WireCodec.encode(ClientMessage.Hello(5, "Rook", "", false, null, emptyList())))
+    }
+
+    private fun clientJson(json: String) = decodeClient(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + json)
+
+    @Test
+    fun clientJson_isToldApartByItsKeys_inTheServersOrder() {
+        assertEquals(ClientMessage.Reliable("ELIMINATED3", 1, 0), clientJson("""{"rmsg":"ELIMINATED3","seq":1,"gpslongitude":1}"""))
+        assertEquals(ClientMessage.GpsLocation(2.0, 1.0), clientJson("""{"gpslongitude":1,"gpslatitude":2,"playersettings":true}"""))
+        assertEquals(ClientMessage.NameChange(0, "X"), clientJson("""{"playernamechange":"X","playername":"Y"}"""))
+        // Anything else is a hello
+        assertEquals(ClientMessage.Hello(-1, "X", null, false, null, emptyList()), clientJson("""{"playerID":-1,"playername":"X"}"""))
+    }
+
+    @Test
+    fun badClientJson_decodesAsNull_butBadSettingsStillAskForTheSettings() {
+        for (json in listOf("{", "[]", """{"playerID":"x","playername":"X"}""", """{"rmsg":"ELIMINATED","gameid":1}""",
+                """{"gpslongitude":1}""", """{"playerID":1}""")) {
+            assertNull(json, clientJson(json))
+        }
+        assertEquals(ClientMessage.Settings(1, null), clientJson("""{"playerID":1,"playersettings":"x"}"""))
+    }
+
+    @Test
+    fun aHellosPendingEntries_skipTheIncompleteOnes() {
+        val hello = clientJson("""{"playerID":1,"playername":"X","gameid":7,"pending":[{"rmsg":"ELIMINATED2"},5,{"rmsg":"ELIMINATED3","seq":4}]}""")
+        assertEquals(ClientMessage.Hello(1, "X", null, false, 7, listOf(WirePending("ELIMINATED3", 4))), hello)
+    }
 }
