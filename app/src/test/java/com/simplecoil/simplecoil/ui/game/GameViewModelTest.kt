@@ -227,6 +227,33 @@ class GameViewModelTest {
     }
 
     @Test
+    fun generateQr_withoutABlasterAddress_saysToConnectFirst() {
+        vm.onGenerateQrPressed()
+        verify(screen).showMessage(GameMessage.QR_NO_BLASTER, 0)
+        verify(screen, never()).showQrNameDialog(org.mockito.ArgumentMatchers.anyString())
+    }
+
+    @Test
+    fun generateQr_offersTheCurrentName_andEncodesTheEnteredOne() {
+        vm.onQrScanned("AA:BB:CC:DD:EE:FF")
+        vm.onGenerateQrPressed()
+        verify(screen).showQrNameDialog("Tester")
+        vm.onQrNameEntered("  Mary-Jane ")
+        verify(screen).showQrCode("AA:BB:CC:DD:EE:FF-Mary-Jane", "Mary-Jane")
+        vm.onQrNameEntered("   ")
+        verify(screen).showQrCode("AA:BB:CC:DD:EE:FF", "")
+        assertEquals("Tester", players.playerName) // the label's name isn't this player's
+    }
+
+    @Test
+    fun generateQr_ignoredDuringAGame() {
+        vm.onQrScanned("AA:BB:CC:DD:EE:FF")
+        vm.onStartGamePressed()
+        vm.onGenerateQrPressed()
+        verify(screen, never()).showQrNameDialog(org.mockito.ArgumentMatchers.anyString())
+    }
+
+    @Test
     fun reconnectButton_withoutSavedAddress_hidesItself() {
         vm.onReconnectPressed()
         verify(screen, never()).requestConnect()

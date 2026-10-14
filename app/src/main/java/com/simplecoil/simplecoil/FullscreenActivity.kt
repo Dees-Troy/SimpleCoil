@@ -103,6 +103,7 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
         binding.reconnectWeaponButton.setOnClickListener { vm.onReconnectPressed() }
         binding.connectWeaponButton.setOnClickListener { vm.onConnectPressed() }
         binding.connectQrWeaponButton.setOnClickListener { permissions.scanQr() }
+        binding.qrLearnMoreTv.setOnClickListener { dialogs.showQrInfo() }
         binding.dedicatedServerButton.setOnClickListener { permissions.hostServer() }
         binding.teamMinusButton.visibility = View.VISIBLE
         binding.teamMinusButton.setOnClickListener { vm.onTeamMinusPressed() }
@@ -113,6 +114,7 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
         binding.endGameButton.setOnClickListener { vm.onEndGamePressed() }
         binding.endNetworkGameButton.setOnClickListener { vm.onEndGamePressed() }
         binding.startRespawnButton.setOnClickListener { vm.onStartRespawnPressed() }
+        binding.generateQrButton.setOnClickListener { vm.onGenerateQrPressed() }
         binding.infoWv.loadUrl("file:///android_asset/simplecoil.html")
         binding.infoWv.visibility = View.VISIBLE
         binding.firingModeButton.setOnClickListener(dialogs::showFiringModeMenu)

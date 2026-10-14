@@ -103,4 +103,4 @@ Both protocols are frozen: the blaster firmware and phones running older builds 
 | `design/NETWORK_STACK_DESIGN.md`, `design/NETWORK_RECONNECT_DESIGN.md` | The server and client internals |
 | `design/DEDICATED_SERVER_DESIGN.md` | The server's lifecycle and screen |
 | `design/PLATFORM_COMPAT_DESIGN.md` | Android version support |
-| `BLE_PROTOCOL.md`, `NETWORK_PROTOCOL.md`, `GRENADES.md` | Wire formats |
+| `BLE_PROTOCOL.md`, `NETWORK_PROTOCOL.md`, `GRENADES.md`, `QR_CODES.md` | Wire formats |

@@ -148,6 +148,7 @@ class DialogCoordinator(
             GameMessage.RATIOS_TOTAL ->
                 activityToast("Total player slots across all teams must equal " + GameSettingsRepository.MAX_PLAYER_ID + " (current sum: " + arg + ")", Toast.LENGTH_LONG)
             GameMessage.KICK_SENT -> activityToast("Kick command sent")
+            GameMessage.QR_NO_BLASTER -> toast(appContext.getString(R.string.qr_no_blaster_toast))
         }
     }
 
@@ -292,6 +293,13 @@ class DialogCoordinator(
 
     override fun showPlayerNameDialog(current: String) = show(TAG_PLAYER_NAME) { PlayerNameDialog.newInstance(current) }
 
+    override fun showQrNameDialog(current: String) = show(TAG_QR_NAME) { QrNameDialog.newInstance(current) }
+
+    override fun showQrCode(payload: String, playerName: String) = show(TAG_QR_CODE) { QrCodeDialog.newInstance(payload, playerName) }
+
+    /** The "Learn more about using QR codes" link on the connect screen. */
+    fun showQrInfo() = show(TAG_QR_INFO) { QrInfoDialog() }
+
     override fun showServerIpDialog(suggestion: String) = show(TAG_SERVER_IP) { ServerIpDialog.newInstance(suggestion) }
 
     override fun showGameLimitDialog(allowScoreLimit: Boolean) = show(TAG_GAME_LIMIT) { GameLimitDialog.newInstance(allowScoreLimit) }
@@ -319,6 +327,9 @@ class DialogCoordinator(
         private const val TAG_RESET = "resetGame"
         private const val TAG_PLAYER_NAME = "playerName"
         private const val TAG_SERVER_IP = "serverIp"
+        private const val TAG_QR_NAME = "qrName"
+        private const val TAG_QR_CODE = "qrCode"
+        private const val TAG_QR_INFO = "qrInfo"
         private const val TAG_GAME_LIMIT = "gameLimit"
         private const val TAG_TEAM_RATIO = "teamRatio"
         private const val TAG_PLAYER_SETTINGS = "playerSettings"

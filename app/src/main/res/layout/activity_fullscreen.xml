@@ -57,10 +57,23 @@
             android:text="@string/connect_qr_weapon_button" />
 
         <TextView
+            android:id="@+id/qr_learn_more_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/connect_qr_weapon_button"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="4dp"
+            android:padding="6dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:text="@string/qr_learn_more_link"
+            android:textColor="@color/colorPrimary"
+            android:textAppearance="@android:style/TextAppearance.Material.Small" />
+
+        <TextView
             android:id="@+id/connect_status_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/connect_qr_weapon_button"
+            android:layout_below="@+id/qr_learn_more_tv"
             android:layout_marginTop="15dp"
             android:layout_centerHorizontal="true"
             android:text="@string/connect_status_not_connected"
@@ -453,6 +466,17 @@
             android:layout_marginTop="5dp"
             android:visibility="gone"
             android:text="@string/shuffle_teams_button" />
+
+        <!-- Between games only; End Game takes this spot during one. -->
+        <Button
+            android:id="@+id/generate_qr_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerHorizontal="true"
+            android:layout_marginBottom="10dp"
+            android:layout_above="@+id/team_mode_label_tv"
+            android:text="@string/generate_qr_button" />
 
         <TextView
             android:id="@+id/team_mode_label_tv"

@@ -10,7 +10,7 @@ the format, so none of the UUIDs, byte offsets or delays below can change. The c
 - **First connection:** the phone scans and connects to the first device whose name starts
   with `SRG1`.
 - **After that:** it connects only to the saved MAC address. A QR code can set that address.
-  The code holds `MAC` or `MAC-PlayerName`.
+  The code holds `MAC` or `MAC-PlayerName` (`QR_CODES.md`).
 - **Scan time limit:** the scan gives up after 30 s.
 
 ## 2. The GATT service

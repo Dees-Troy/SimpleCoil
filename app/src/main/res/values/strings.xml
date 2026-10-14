@@ -12,6 +12,24 @@
     <string name="connect_status_connecting">Connecting&#8230;</string>
     <string name="connect_status_communicating">Communicating&#8230;</string>
     <string name="scan_qr_prompt">Scan Blaster QR Code</string>
+    <string name="qr_learn_more_link">Learn more about using QR codes</string>
+    <string name="qr_info_title">Using QR Codes</string>
+    <string name="qr_info_body">A SimpleCoil QR code holds a blaster\'s Bluetooth address, and optionally a player name. Scanning it with Connect Blaster Using QR connects straight to that blaster instead of searching for the nearest one, and sets your player name.\n\nThis helps most when lots of players are pairing at the same time: a normal connect may pick up someone else\'s blaster, while a QR code always finds the right one.\n\nTo make one, connect to the blaster once, then tap Generate QR on the game screen before a game starts. Enter a player name (or leave it blank), save the image, then print it and tape it to the side of the blaster. The code prints about 1 inch (25 mm) wide.\n\nSee docs/QR_CODES.md in the SimpleCoil source for the code format.</string>
+    <string name="generate_qr_button">Generate QR</string>
+    <string name="qr_generate_title">Generate QR Code</string>
+    <string name="qr_generate_explanation">Generate a QR code with a unique player name to speed up connection setup when lots of players are trying to pair devices and blasters at the same time. Print and tape the QR code to the side of your blasters.</string>
+    <string name="qr_player_name_label">Player Name</string>
+    <string name="qr_player_name_hint">Leave blank for the blaster only</string>
+    <string name="qr_generate_button">Generate</string>
+    <string name="qr_code_title">Blaster QR Code</string>
+    <string name="qr_code_print_hint">Prints with the code about 1 inch (25 mm) wide. Print at actual size, not fit to page.</string>
+    <string name="qr_save_button">Save</string>
+    <string name="qr_close_button">Close</string>
+    <string name="qr_saved_toast">QR code saved</string>
+    <string name="qr_save_failed_toast">Could not save the QR code</string>
+    <string name="qr_no_blaster_toast">Connect to a blaster first to generate its QR code</string>
+    <string name="qr_file_name">SimpleCoil-QR-%1$s.png</string>
+    <string name="cd_qr_code">Blaster pairing QR code</string>
     <string name="network_searching_status">SEARCHING FOR SERVER…</string>
     <string name="network_connected_status">CONNECTED (LEAVE)</string>
 

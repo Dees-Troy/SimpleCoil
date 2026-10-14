@@ -260,6 +260,26 @@ class GameViewModel(
         screen?.requestConnect()
     }
 
+    /** The Generate QR button: a pairing label for this blaster, offered between games. */
+    fun onGenerateQrPressed() {
+        if (gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) return
+        if (deviceAddress.isEmpty()) {
+            screen?.showMessage(GameMessage.QR_NO_BLASTER)
+            return
+        }
+        screen?.showQrNameDialog(playerRepo.playerName ?: "")
+    }
+
+    /** A name for the QR label; blank makes a MAC-only code (docs/QR_CODES.md). */
+    fun onQrNameEntered(name: String) {
+        val trimmed = name.trim()
+        if (ProfanityFilter.containsProfanity(trimmed)) {
+            screen?.showMessage(GameMessage.INAPPROPRIATE_NAME)
+            return
+        }
+        screen?.showQrCode(QrPairingPayload.encode(deviceAddress, trimmed), trimmed)
+    }
+
     fun onLocationPermissionsGranted() {
         screen?.requestConnect()
         publishGpsSetting()

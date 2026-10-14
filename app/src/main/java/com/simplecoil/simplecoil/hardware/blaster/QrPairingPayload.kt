@@ -16,12 +16,19 @@
 package com.simplecoil.simplecoil.hardware.blaster
 
 /**
- * QR pairing payload: `MAC` or `MAC-PlayerName`. Extracted verbatim from
+ * QR pairing payload: `MAC` or `MAC-PlayerName` (docs/QR_CODES.md). Extracted verbatim from
  * FullscreenActivity.processQrResult().
  */
 data class QrPairingPayload(val macAddress: String, val playerName: String) {
     companion object {
         private const val MAC_LENGTH = 17
+
+        /** The payload [parse] reads back: `MAC`, or `MAC-PlayerName` when [playerName] isn't blank. */
+        @JvmStatic
+        fun encode(macAddress: String, playerName: String): String {
+            val name = playerName.trim()
+            return if (name.isEmpty()) macAddress else "$macAddress-$name"
+        }
 
         /** Returns null when the payload is empty or has no MAC part. [playerName] is "" when absent. */
         @JvmStatic

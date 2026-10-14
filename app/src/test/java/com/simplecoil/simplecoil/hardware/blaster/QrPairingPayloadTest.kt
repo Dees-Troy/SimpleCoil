@@ -68,4 +68,23 @@ class QrPairingPayloadTest {
         assertNull(parse("-Bob"))
         assertNull(parse(" - Bob"))
     }
+
+    @Test
+    fun encode_macOnly_whenNameIsBlank() {
+        assertEquals("AA:BB:CC:DD:EE:FF", QrPairingPayload.encode("AA:BB:CC:DD:EE:FF", ""))
+        assertEquals("AA:BB:CC:DD:EE:FF", QrPairingPayload.encode("AA:BB:CC:DD:EE:FF", "   "))
+    }
+
+    @Test
+    fun encode_appendsTrimmedName() {
+        assertEquals("AA:BB:CC:DD:EE:FF-Bob", QrPairingPayload.encode("AA:BB:CC:DD:EE:FF", " Bob "))
+    }
+
+    @Test
+    fun encode_roundTripsThroughParse() {
+        for (name in listOf("", "Bob", "Mary-Jane", "-Dash-", "A b.c!?_")) {
+            val encoded = QrPairingPayload.encode("AA:BB:CC:DD:EE:FF", name)
+            assertEquals(QrPairingPayload("AA:BB:CC:DD:EE:FF", name), parse(encoded))
+        }
+    }
 }

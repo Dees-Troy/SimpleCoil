@@ -34,6 +34,8 @@ enum class GameMessage {
     /** Team sizes don't add up; arg = the entered total. */
     RATIOS_TOTAL,
     KICK_SENT,
+    /** Generate QR without a blaster address to put in the code. */
+    QR_NO_BLASTER,
 }
 
 /** Entries of the network popup menu, in display order. */
@@ -143,6 +145,10 @@ interface GameDialogs {
     fun showTeamModeMenu()
     fun showServerIpDialog(suggestion: String)
     fun showPlayerNameDialog(current: String)
+    /** Ask for the name to put in a pairing QR code, after explaining what it is for. */
+    fun showQrNameDialog(current: String)
+    /** A pairing QR code for [payload], labeled with [playerName] (may be blank). */
+    fun showQrCode(payload: String, playerName: String)
     fun showGameLimitDialog(allowScoreLimit: Boolean)
     fun showTeamRatioDialog(numTeams: Int, sizes: IntArray)
     fun showLocalPlayerSettings()

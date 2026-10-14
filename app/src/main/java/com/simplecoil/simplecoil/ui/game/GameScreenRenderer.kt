@@ -63,6 +63,7 @@ class GameScreenRenderer(
         if (serverOnly) {
             b.connectWeaponButton.visibility = View.GONE
             b.connectQrWeaponButton.visibility = View.GONE
+            b.qrLearnMoreTv.visibility = View.GONE
             b.connectStatusTv.visibility = View.GONE
         }
         setReconnectVisible(reconnectVisible)
@@ -108,6 +109,7 @@ class GameScreenRenderer(
         b.playerSettingsButton.visibility = View.GONE
         b.shuffleTeamsButton.isEnabled = false
         b.shuffleTeamsButton.visibility = View.GONE
+        b.generateQrButton.visibility = View.GONE
         showTeamModeSelectable(false)
         if (useNetwork) {
             displayInGameNetworkingOptions(isAdmin, freeForAll)
@@ -123,6 +125,7 @@ class GameScreenRenderer(
         window.exitGame()
         b.endGameButton.visibility = View.GONE
         b.endNetworkGameButton.visibility = View.GONE
+        b.generateQrButton.visibility = View.VISIBLE
         displayAllNetworkingOptions(useNetwork, freeForAll)
         b.useNetworkButton.visibility = View.VISIBLE
         b.hitPlayerIv.visibility = View.GONE
