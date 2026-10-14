@@ -126,6 +126,7 @@ class PlayerNameDialog : GameDialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         isCancelable = false
         val binding = PlayerNameDialogBinding.inflate(appInflater)
+        binding.playerNameEt.filters = arrayOf(PlayerNameInputFilter())
         binding.playerNameEt.setText(requireArguments().getString(ARG_TEXT))
         return alertBuilder()
             .setView(binding.root)

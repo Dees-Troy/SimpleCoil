@@ -20,6 +20,7 @@ import com.simplecoil.simplecoil.NameGenerator
 import com.simplecoil.simplecoil.ProfanityFilter
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.domain.player.PlayerNames
 import java.net.InetAddress
 import java.net.Socket
 import java.util.Random
@@ -322,16 +323,17 @@ class GameRoster @JvmOverloads constructor(
     }
 
     /**
-     * [requested] unless it is empty, "Player", profane or (ignoring case) another player's
-     * name; then a random unused name.
+     * [rawRequested], sanitized ([PlayerNames]), unless that is empty, "Player", profane or
+     * (ignoring case) another player's name; then a random unused name.
      */
-    private fun uniqueName(playerId: Byte, requested: String?): String {
+    private fun uniqueName(playerId: Byte, rawRequested: String?): String {
+        val requested = PlayerNames.sanitize(rawRequested)
         val usedNames = HashSet<String>()
         for ((id, name) in repo.teamPlayerNameMap) {
             if (id != playerId) usedNames += name
         }
         val isDuplicate = usedNames.any { it != null && it.equals(requested, ignoreCase = true) }
-        if (requested.isNullOrEmpty() || requested.equals("Player", ignoreCase = true)
+        if (requested.isEmpty() || requested.equals("Player", ignoreCase = true)
             || ProfanityFilter.containsProfanity(requested) || isDuplicate) {
             return NameGenerator.getRandomUniqueName(usedNames)
         }

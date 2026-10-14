@@ -39,11 +39,9 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:inputType="textPersonName"
-        android:maxLength="20"
         android:hint="@string/qr_player_name_hint"
         android:textColor="#FFFFFF"
         android:textColorHint="#AAAAAA"
-        android:backgroundTint="@color/colorPrimary"
-        android:digits="0123456789.!?-_ abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" />
+        android:backgroundTint="@color/colorPrimary" />
 
 </LinearLayout>

@@ -21,6 +21,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.DataOutputStream
 
 /** WireCodec against the golden fixtures (network design §7.2): encode gives the fixture, decoding it gives the message. */
 class WireCodecTest {
@@ -150,6 +153,15 @@ class WireCodecTest {
         }
         // An empty MAC is left out, like none
         WireFixtures.assertFrame("client/hello_without_mac.frame", WireCodec.encode(ClientMessage.Hello(5, "Rook", "", false, null, emptyList())))
+    }
+
+    @Test
+    fun specialCharacterNames_surviveTheJsonAndTheFraming() {
+        val name = "\"},{\\\"x\": 1 </b> 🔥Zoë\u2028東京"
+        val frame = WireCodec.encode(ClientMessage.NameChange(5, name))
+        val bytes = ByteArrayOutputStream().also { DataOutputStream(it).writeUTF(frame) }.toByteArray()
+        val received = FrameReader(ByteArrayInputStream(bytes)).poll()
+        assertEquals(ClientMessage.NameChange(5, name), decodeClient(received!!))
     }
 
     private fun clientJson(json: String) = decodeClient(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + json)

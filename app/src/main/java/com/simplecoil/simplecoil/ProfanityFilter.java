@@ -1,5 +1,6 @@
 package com.simplecoil.simplecoil;
 
+import java.text.Normalizer;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
@@ -22,7 +23,9 @@ public class ProfanityFilter {
         if (text == null || text.trim().isEmpty())
             return false;
 
-        String normalized = text.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", " ");
+        // NFKD folds look-alikes onto plain letters (fullwidth "ｆ" to "f", "ü" to "u" plus a mark)
+        String folded = Normalizer.normalize(text, Normalizer.Form.NFKD).replaceAll("\\p{M}", "");
+        String normalized = folded.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", " ");
         String[] words = normalized.split("\\s+");
 
         for (String word : words) {

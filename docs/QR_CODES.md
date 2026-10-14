@@ -64,15 +64,15 @@ and sets the player name, as if it had been typed in the network menu.
    MAC.
 5. Both parts are trimmed again. An empty MAC is rejected. An empty name means "no name".
 
-Names go through the same checks as typed names: "Player" or an inappropriate name is replaced
-with a random one.
+Names go through the same checks as typed names (`PlayerNames.sanitize`): disallowed
+characters are dropped, and "Player" or an inappropriate name is replaced with a random one.
 
 ### 2.4 Encoding
 
 | Setting | Value |
 |---|---|
 | Symbology | QR Code |
-| Content | Text from §2.1 or §2.2, ISO-8859-1 (names use letters, digits, space and `.!?-_`) |
+| Content | Text from §2.1 or §2.2: ISO-8859-1 when it fits, otherwise UTF-8 with an ECI header |
 | Error correction | M (15%) |
 | Quiet zone | 2 modules |
 

@@ -29,6 +29,7 @@ import com.simplecoil.simplecoil.data.preferences.UserPreferencesRepository
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.domain.player.PlayerNames
 import com.simplecoil.simplecoil.domain.rules.GameLimitRules
 import com.simplecoil.simplecoil.domain.rules.LimitKind
 import com.simplecoil.simplecoil.domain.rules.Limits
@@ -168,7 +169,7 @@ class GameViewModel(
     /** The rest of onCreate, once the views exist. */
     fun onViewsCreated() {
         showConnectLayout()
-        playerRepo.playerName = prefs.playerName("Player")
+        playerRepo.playerName = PlayerNames.sanitize(prefs.playerName("Player"))
         if (playerRepo.playerName.isEmpty() || playerRepo.playerName.equals("Player", ignoreCase = true) ||
             ProfanityFilter.containsProfanity(playerRepo.playerName)) {
             val randomName = NameGenerator.getRandomName()
@@ -275,7 +276,7 @@ class GameViewModel(
 
     /** A name for the QR label; blank makes a MAC-only code (docs/QR_CODES.md). */
     fun onQrNameEntered(name: String) {
-        val trimmed = name.trim()
+        val trimmed = PlayerNames.sanitize(name)
         if (ProfanityFilter.containsProfanity(trimmed)) {
             screen?.showMessage(GameMessage.INAPPROPRIATE_NAME)
             return
@@ -491,8 +492,8 @@ class GameViewModel(
     fun onPlayerNameEntered(name: String) = setPlayerName(name)
 
     private fun setPlayerName(name: String?) {
-        if (name == null || name.trim().isEmpty()) return
-        var trimmed = name.trim()
+        var trimmed = PlayerNames.sanitize(name)
+        if (trimmed.isEmpty()) return
         if (trimmed.equals("Player", ignoreCase = true) || ProfanityFilter.containsProfanity(trimmed)) {
             if (ProfanityFilter.containsProfanity(trimmed)) screen?.showMessage(GameMessage.INAPPROPRIATE_NAME)
             trimmed = NameGenerator.getRandomName()

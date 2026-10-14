@@ -71,7 +71,16 @@ class QrLabelMatrixTest {
 
     @Test
     fun matrixDecodesBackToThePayload() {
-        val payload = "AA:BB:CC:DD:EE:FF-Mary-Jane"
+        assertEquals("AA:BB:CC:DD:EE:FF-Mary-Jane", decode("AA:BB:CC:DD:EE:FF-Mary-Jane"))
+        assertEquals("AA:BB:CC:DD:EE:FF-Zoë", decode("AA:BB:CC:DD:EE:FF-Zoë"))
+    }
+
+    @Test
+    fun nonLatin1Names_areEncodedAsUtf8() {
+        assertEquals("AA:BB:CC:DD:EE:FF-東京🔥", decode("AA:BB:CC:DD:EE:FF-東京🔥"))
+    }
+
+    private fun decode(payload: String): String {
         val matrix = QrLabel.matrix(payload)
         val scale = 4
         val size = matrix.width * scale
@@ -79,6 +88,6 @@ class QrLabelMatrixTest {
             if (matrix[(i % size) / scale, (i / size) / scale]) 0xFF000000.toInt() else -1
         }
         val bitmap = BinaryBitmap(HybridBinarizer(RGBLuminanceSource(size, size, pixels)))
-        assertEquals(payload, QRCodeReader().decode(bitmap).text)
+        return QRCodeReader().decode(bitmap).text
     }
 }

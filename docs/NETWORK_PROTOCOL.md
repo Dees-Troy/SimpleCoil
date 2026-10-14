@@ -57,8 +57,13 @@ nothing from the server for 3.5 s, then tries to reconnect (see §5).
    - `blaster_mac` identifies the player across reconnects.
    - `rejoin`, `gameid` and `pending` appear only when they apply (see §5).
    - If the player has a paired grenade, a `pairedgrenadeID` message follows (see §4.2).
-2. The server picks the player's ID and team and makes the name unique. A name that is empty,
-   "Player", profane, or already taken is replaced with a random one.
+2. The server picks the player's ID and team and makes the name unique. It first cleans the
+   name up the same way the app does when a name is typed (`PlayerNames.sanitize`): any
+   printable Unicode is kept, but control and format characters (bidi overrides, zero-width
+   characters), invisible fillers and broken code points are dropped, spaces are collapsed, and
+   the name is cut to 20 code points. A name that is then empty, "Player", profane, or already
+   taken is replaced with a random one. Names are ordinary JSON strings, so `"` and `\` in a
+   name are escaped like any other.
 3. The server replies with `MESG SERVERREPLY<id>`, the player's assigned ID.
 4. The server sends a **game info** snapshot (§4.2) to everyone. The new player's copy includes
    their own score.

@@ -21,11 +21,10 @@
         android:autofillHints="username"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:maxLength="20"
+        android:inputType="textPersonName"
         android:textColor="#FFFFFF"
         android:textColorHint="#AAAAAA"
-        android:backgroundTint="@color/colorPrimary"
-        android:digits="0123456789.!?-_ abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" >
+        android:backgroundTint="@color/colorPrimary" >
 
         <requestFocus />
 

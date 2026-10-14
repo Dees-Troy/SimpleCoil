@@ -54,10 +54,18 @@ class QrLabel private constructor(val bitmap: Bitmap, private val dpi: Double) {
         private const val TEXT_POINTS = 9.0
         private const val POINTS_PER_INCH = 72.0
 
-        /** The modules of [payload], quiet zone included, one bit per module. */
+        /**
+         * The modules of [payload], quiet zone included, one bit per module. ISO-8859-1 (ZXing's
+         * default) when the payload fits it; otherwise UTF-8, flagged with an ECI so scanners
+         * decode it as such.
+         */
         fun matrix(payload: String): BitMatrix = QRCodeWriter().encode(
             payload, BarcodeFormat.QR_CODE, 0, 0,
-            mapOf(EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M, EncodeHintType.MARGIN to QUIET_ZONE_MODULES),
+            buildMap<EncodeHintType, Any> {
+                put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M)
+                put(EncodeHintType.MARGIN, QUIET_ZONE_MODULES)
+                if (!Charsets.ISO_8859_1.newEncoder().canEncode(payload)) put(EncodeHintType.CHARACTER_SET, Charsets.UTF_8.name())
+            },
         )
 
         /** The print density that makes a code of [matrixWidth] modules (quiet zone included) [SYMBOL_INCHES] wide. */

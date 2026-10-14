@@ -83,6 +83,14 @@ class GameRosterTest {
     }
 
     @Test
+    fun names_areSanitizedByTheServer() {
+        val (connection, a) = join("\u202EZo\u00EB\n🔥", "AA")
+        assertEquals("Zoë 🔥", a.name)
+        assertEquals("Ace \"1\"", roster.onNameChange(connection, " Ace\t\"1\"\u0000 "))
+        assertFalse(roster.onNameChange(connection, "\u200B\u3164").isNullOrBlank())
+    }
+
+    @Test
     fun hello_again_onTheSameConnection_keepsThePlayer() {
         val (connection, a) = join("Alpha", "AA")
         val again = hello("Alpha", "AA", a.playerId.toInt(), connection)

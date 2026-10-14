@@ -45,6 +45,7 @@ import kotlinx.coroutines.withContext
 class QrNameDialog : GameDialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val binding = QrNameDialogBinding.inflate(appInflater)
+        binding.qrPlayerNameEt.filters = arrayOf(PlayerNameInputFilter())
         if (savedInstanceState == null) binding.qrPlayerNameEt.setText(requireArguments().getString(ARG_NAME))
         return alertBuilder()
             .setView(binding.root)
