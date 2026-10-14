@@ -479,6 +479,7 @@ class GameServer(
         storeLimits(limitFlags(saved.timeLimit, saved.livesLimit, saved.scoreLimit), saved.timeLimit, saved.livesLimit, saved.scoreLimit)
         settings.startTime = saved.startTimeSeconds
         settings.isAllowChooseTeams = saved.allowChooseTeams
+        settings.isAllowJoinInProgress = false // the screen's switch has always started off
         applyGpsMode(saved.gpsMode)
     }
 

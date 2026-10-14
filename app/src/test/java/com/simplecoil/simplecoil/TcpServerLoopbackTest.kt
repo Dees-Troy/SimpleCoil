@@ -851,6 +851,7 @@ class TcpServerLoopbackTest {
         assertEquals(GameSettingsRepository.GPS_TEAMMATE, saved.gpsMode)
         assertFalse(saved.useGps)
         assertFalse(saved.allowChooseTeams)
+        assertFalse(saved.allowJoinInProgress)
     }
 
     @Test

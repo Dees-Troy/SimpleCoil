@@ -82,9 +82,6 @@ sealed interface ServerEvent {
     /** Scores, players or settings changed; [json] is the player data sent to the clients, when there is one. */
     data class PlayerDataChanged(val json: String?) : ServerEvent
 
-    /** The discovery beacon is up; the server listens on [ip]. */
-    data class ServerCreated(val ip: String) : ServerEvent
-
     /** The game clock moved to [state]. */
     data class ClockChanged(val state: ClockState) : ServerEvent
 

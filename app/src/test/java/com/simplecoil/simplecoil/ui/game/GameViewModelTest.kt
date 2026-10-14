@@ -18,10 +18,10 @@ package com.simplecoil.simplecoil.ui.game
 
 import android.content.Context
 import android.content.ServiceConnection
-import android.content.SharedPreferences
 import com.simplecoil.simplecoil.NetworkSessionGateway
 import com.simplecoil.simplecoil.PlayerDisplayData
 import com.simplecoil.simplecoil.TcpClient
+import com.simplecoil.simplecoil.MemoryPrefs
 import com.simplecoil.simplecoil.UDPListenerService
 import com.simplecoil.simplecoil.data.preferences.UserPreferencesRepository
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
@@ -79,33 +79,6 @@ class GameViewModelTest {
     private lateinit var vm: GameViewModel
     private var wifi = true
     private var gpsSettingChanges = 0
-
-    /** In-memory SharedPreferences. */
-    private class MemoryPrefs : SharedPreferences {
-        val values = mutableMapOf<String, Any?>()
-        override fun getAll() = values
-        override fun getString(key: String, defValue: String?) = values[key] as String? ?: defValue
-        override fun getStringSet(key: String, defValues: MutableSet<String>?) = defValues
-        override fun getInt(key: String, defValue: Int) = values[key] as Int? ?: defValue
-        override fun getLong(key: String, defValue: Long) = values[key] as Long? ?: defValue
-        override fun getFloat(key: String, defValue: Float) = values[key] as Float? ?: defValue
-        override fun getBoolean(key: String, defValue: Boolean) = values[key] as Boolean? ?: defValue
-        override fun contains(key: String) = values.containsKey(key)
-        override fun registerOnSharedPreferenceChangeListener(l: SharedPreferences.OnSharedPreferenceChangeListener?) = Unit
-        override fun unregisterOnSharedPreferenceChangeListener(l: SharedPreferences.OnSharedPreferenceChangeListener?) = Unit
-        override fun edit(): SharedPreferences.Editor = object : SharedPreferences.Editor {
-            override fun putString(key: String, value: String?) = apply { values[key] = value }
-            override fun putStringSet(key: String, value: MutableSet<String>?) = apply { values[key] = value }
-            override fun putInt(key: String, value: Int) = apply { values[key] = value }
-            override fun putLong(key: String, value: Long) = apply { values[key] = value }
-            override fun putFloat(key: String, value: Float) = apply { values[key] = value }
-            override fun putBoolean(key: String, value: Boolean) = apply { values[key] = value }
-            override fun remove(key: String) = apply { values.remove(key) }
-            override fun clear() = apply { values.clear() }
-            override fun commit() = true
-            override fun apply() = Unit
-        }
-    }
 
     private val prefs = MemoryPrefs()
     private val settings = GameSettingsRepository()
@@ -349,7 +322,6 @@ class GameViewModelTest {
         net.useNetwork = true
         emitNetwork(ClientEvent.StartGame)
         verify(screen).showGameStarted(true, false, false)
-        verify(udp).startGame()
         emitNetwork(ClientEvent.EndGame)
         assertEquals(GameStateRepository.GAME_STATE_NONE, gameState.gameState)
         verify(client).sendTCPMessage("SimpleCoil:07MESGPLAYERDATAREQUEST")

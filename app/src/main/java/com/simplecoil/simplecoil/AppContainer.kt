@@ -117,6 +117,9 @@ class AppContainer(private val app: Application) {
     /** What the dedicated server reports to its screen. */
     val serverEvents = EventBus<ServerEvent>(name = "ServerEvents")
 
+    /** Starts, stops and commands the dedicated server (dedicated server design §5.1). */
+    val serverController: ServerController by lazy { TcpServerController(app, appScope) { userPreferences } }
+
     /** Network services, client events and the network session state (R13/R14). */
     val networkGateway: NetworkSessionGateway by lazy {
         NetworkSessionGateway(app, appScope, settings, players, bus = clientEvents)

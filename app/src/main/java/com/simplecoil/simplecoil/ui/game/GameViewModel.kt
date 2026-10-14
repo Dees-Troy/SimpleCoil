@@ -574,7 +574,6 @@ class GameViewModel(
         net.score = 0
         net.teamScore = 0
         screen?.showGameStarted(net.useNetwork, playerRepo.isAdmin, freeForAll())
-        if (net.useNetwork) net.udp?.startGame()
         // Lives/eliminations, health, shot mode, first spawn
         engine.startGame()
     }

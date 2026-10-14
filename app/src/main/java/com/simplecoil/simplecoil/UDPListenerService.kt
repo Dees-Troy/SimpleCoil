@@ -25,28 +25,21 @@ import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.network.ClientEvent
 import com.simplecoil.simplecoil.network.EventBus
-import com.simplecoil.simplecoil.network.ServerEvent
-import com.simplecoil.simplecoil.network.discovery.DiscoveryBeacon
 import com.simplecoil.simplecoil.network.discovery.DiscoveryClient
 import java.net.InetAddress
 import java.net.UnknownHostException
 
 /**
- * LAN server discovery, as a service: the [DiscoveryClient] that finds a server for the play
- * screen, and the [DiscoveryBeacon] that announces the dedicated server. The game itself runs
- * over TCP.
+ * LAN server discovery for the play screen, as a service: the [DiscoveryClient] that finds a
+ * server. The dedicated server's beacon lives in TcpServer. The game itself runs over TCP.
  */
 class UDPListenerService : Service() {
 
     private lateinit var gameState: GameStateRepository
     private lateinit var client: DiscoveryClient
-    private lateinit var beacon: DiscoveryBeacon
 
-    /** Discovery's results for the play screen (the client role). */
+    /** Discovery's results for the play screen. */
     private lateinit var clientEvents: EventBus<ClientEvent>
-
-    /** The beacon's start, for the dedicated server's screen (the server role). */
-    private lateinit var serverEvents: EventBus<ServerEvent>
 
     inner class LocalBinder : Binder() {
         val service: UDPListenerService get() = this@UDPListenerService
@@ -59,9 +52,7 @@ class UDPListenerService : Service() {
         val container = (application as SimpleCoilApp).container
         gameState = container.gameState
         clientEvents = container.clientEvents
-        serverEvents = container.serverEvents
         client = DiscoveryClient(this, localAddress = { PlayerRepository.getIPAddress() })
-        beacon = DiscoveryBeacon(this)
         Log.d(TAG, "UDP Service initialized")
     }
 
@@ -73,15 +64,6 @@ class UDPListenerService : Service() {
         stopListen()
         super.onDestroy()
     }
-
-    /** Announces the dedicated server, which listens on this device's address. */
-    fun createServer() {
-        beacon.start(SERVER_NAME)
-        PlayerRepository.getIPAddress()?.let { gameState.serverIP = it }
-        gameState.serverIP?.let { serverEvents.publish(ServerEvent.ServerCreated(it.hostAddress ?: return@let)) }
-    }
-
-    fun cancelServer() = beacon.stop()
 
     /** Looks for a server on the LAN. */
     fun joinServer() = startDiscovery()
@@ -128,24 +110,10 @@ class UDPListenerService : Service() {
         })
     }
 
-    /** Stops looking for a server and stops announcing one. */
-    fun stopListen() {
-        client.stop()
-        beacon.stop()
-    }
+    /** Stops looking for a server. */
+    fun stopListen() = client.stop()
 
     fun endScanning() = stopListen()
-
-    /** Announces the server while new players may join through discovery. */
-    fun allowJoin(allowed: Boolean) {
-        if (allowed) beacon.start(SERVER_NAME) else beacon.stop()
-    }
-
-    /** Disallow discovery joins during active game. */
-    fun startGame() = allowJoin(false)
-
-    /** Allow discovery after game end. */
-    fun endGame() = allowJoin(true)
 
     private fun sendFailedJoin() {
         clientEvents.publish(ClientEvent.FailedToJoin)
@@ -153,6 +121,5 @@ class UDPListenerService : Service() {
 
     private companion object {
         const val TAG = "UDPSvc"
-        const val SERVER_NAME = "SimpleCoil Dedicated Server"
     }
 }

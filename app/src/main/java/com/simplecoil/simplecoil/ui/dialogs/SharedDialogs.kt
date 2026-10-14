@@ -22,6 +22,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.Toast
+import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.core.os.bundleOf
 import androidx.fragment.app.DialogFragment
@@ -201,5 +202,29 @@ class StartingTimerDialog : AppDialogFragment() {
 
         @JvmStatic
         fun text(result: Bundle): String = result.getString(RESULT_TEXT, "")
+    }
+}
+
+/** A question with a confirming button and Cancel. Confirming sends an empty result under the request key it was made with. */
+class ConfirmDialog : AppDialogFragment() {
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+        val args = requireArguments()
+        return alertBuilder()
+            .setMessage(args.getString(ARG_MESSAGE))
+            .setPositiveButton(args.getInt(ARG_CONFIRM)) { _, _ ->
+                parentFragmentManager.setFragmentResult(args.getString(ARG_REQUEST_KEY)!!, Bundle.EMPTY)
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .create()
+    }
+
+    companion object {
+        private const val ARG_REQUEST_KEY = "requestKey"
+        private const val ARG_MESSAGE = "message"
+        private const val ARG_CONFIRM = "confirm"
+
+        fun newInstance(requestKey: String, message: String, @StringRes confirm: Int) = ConfirmDialog().apply {
+            arguments = bundleOf(ARG_REQUEST_KEY to requestKey, ARG_MESSAGE to message, ARG_CONFIRM to confirm)
+        }
     }
 }

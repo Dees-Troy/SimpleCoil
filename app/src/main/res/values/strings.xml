@@ -112,7 +112,15 @@
     <string name="title_activity_dedicated_server">DedicatedServerActivity</string>
     <string name="server_notification_channel">SimpleCoil Dedicated Server</string>
     <string name="server_notification_title">SimpleCoil Dedicated Server</string>
-    <string name="server_notification_text">The server is running</string>
+    <string name="server_notification_lobby">Waiting to start</string>
+    <string name="server_notification_running">Game running</string>
+    <string name="server_notification_post_game">Game over</string>
+    <string name="server_notification_stop">Stop server</string>
+    <string name="dedicated_teams_sorted">Teams Sorted &amp; Randomized!</string>
+    <string name="dedicated_player_kicked">Player kicked</string>
+    <string name="dedicated_team_ratio_running">Cannot edit team ratios while a game is in progress</string>
+    <string name="dedicated_team_ratio_ffa">Team ratios are not applicable in Free For All mode</string>
+    <string name="dedicated_stop_button">Stop</string>
     <string name="dedicated_unlimited">Unlimited</string>
     <string name="dedicated_limit_separator">, </string>
     <string name="dedicated_game_running">Game Running</string>
@@ -213,5 +221,13 @@
     <plurals name="dedicated_reset_confirm">
         <item quantity="one">Reset scores and remove %1$d disconnected player?</item>
         <item quantity="other">Reset scores and remove %1$d disconnected players?</item>
+    </plurals>
+    <plurals name="server_notification_players">
+        <item quantity="one">%1$d player · %2$s</item>
+        <item quantity="other">%1$d players · %2$s</item>
+    </plurals>
+    <plurals name="dedicated_stop_confirm">
+        <item quantity="one">Stop the server? %1$d player will be disconnected.</item>
+        <item quantity="other">Stop the server? %1$d players will be disconnected.</item>
     </plurals>
 </resources>
