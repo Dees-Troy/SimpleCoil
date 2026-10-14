@@ -1,6 +1,6 @@
 # SimpleCoil Modernization Roadmap (after V2 refactor)
 
-Status: **Stages 0–4 DONE (2026-10-13), device checks included; Stage 5 done in code, its device checks still to run.** All four documents are approved and their decisions resolved.
+Status: **ALL STAGES DONE (2026-10-13), device checks included.** The GPS/map feature work can start. All four documents are approved and their decisions resolved.
 Branch audited: `V2-refactor` @ `b460c02`. The on-device checklists in `REFACTOR_DESIGN.md` §6.5 and
 `STATE_CONSOLIDATION_DESIGN.md` §8.6 have been completed.
 Date: 2026-10-13
@@ -244,7 +244,7 @@ portrait.
   state.
 - **Platform step 9**: lint policy (promote the cleaned categories to errors and baseline the rest).
 
-**Done in code (2026-10-13), one commit per step.** 552 unit tests pass (the three install-shim tests went with
+**Done (2026-10-13), one commit per step; device checks passed.** 552 unit tests pass (the three install-shim tests went with
 the shim), `assembleDebug` and `assembleRelease` (R8) are green, and `lintDebug` reports no new issues: 0 errors,
 with the 26 remaining warnings in the baseline.
 
@@ -276,7 +276,7 @@ Notes:
 - `assembleRelease` prints that the baseline's 26 entries were "not found" for `lintVitalRelease`. That is lint
   comparing the full baseline with the vital checks only; it doesn't fail the build.
 
-Device checks still to run: the BLE and network smoke tests for step 7 (`REFACTOR_DESIGN.md` §3.0,
+Device checks (passed, 2026-10-13): the BLE and network smoke tests for step 7 (`REFACTOR_DESIGN.md` §3.0,
 `NETWORK_STACK_DESIGN.md` §9.1), and for step 8 the Q3 round trip: play screen → dedicated server → back to the
 play screen keeps the player's name, id, settings and saved blaster. The map's GPS markers after step 6 are covered
 by the network smoke test's GPS item.
@@ -299,4 +299,4 @@ default.
 | App container | Q1 | Hilt | No DI framework: the app stays small and simple, in one module, and must run well on old and slow devices |
 | App container | Q3 | Separate server-scoped state | Yes, as the last step |
 
-The GPS/map feature work starts after Stage 5.
+The GPS/map feature work starts after Stage 5, which is now done.
