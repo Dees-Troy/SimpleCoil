@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 9.4.1" type="baseline" client="gradle" dependencies="false" name="AGP (9.4.1)" variant="all" version="9.4.1">
+
+    <issue
+        id="FragmentTagUsage"
+        message="Replace the &lt;fragment> tag with FragmentContainerView."
+        errorLine1="        &lt;fragment"
+        errorLine2="         ~~~~~~~~">
+        <location
+            file="src/main/res/layout/activity_fullscreen.xml"
+            line="96"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.recyclerview:recyclerview than 1.2.1 is available: 1.4.0"
+        errorLine1="androidx-recyclerview = { module = &quot;androidx.recyclerview:recyclerview&quot;, version = &quot;1.2.1&quot; }"
+        errorLine2="                                                                                   ~~~~~~~">
+        <location
+            file="$HOME/src/brenbo/gradle/libs.versions.toml"
+            line="20"
+            column="84"/>
+    </issue>
+
+    <issue
+        id="LockedOrientationActivity"
+        message="Expecting `android:screenOrientation=&quot;unspecified&quot;` or `&quot;fullSensor&quot;` for this activity so the user can use the application in any orientation and provide a great experience on Chrome OS devices"
+        errorLine1="            android:screenOrientation=&quot;portrait&quot;"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/AndroidManifest.xml"
+            line="58"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="LockedOrientationActivity"
+        message="Expecting `android:screenOrientation=&quot;unspecified&quot;` or `&quot;fullSensor&quot;` for this activity so the user can use the application in any orientation and provide a great experience on Chrome OS devices"
+        errorLine1="            android:screenOrientation=&quot;portrait&quot;"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/AndroidManifest.xml"
+            line="88"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="DiscouragedApi"
+        message="Fixed screen orientations will be ignored in most cases, starting from Android 16. Android is moving toward a model where apps are expected to adapt to various orientations, display sizes, and aspect ratios."
+        errorLine1="            android:screenOrientation=&quot;portrait&quot;"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/AndroidManifest.xml"
+            line="58"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="DiscouragedApi"
+        message="Fixed screen orientations will be ignored in most cases, starting from Android 16. Android is moving toward a model where apps are expected to adapt to various orientations, display sizes, and aspect ratios."
+        errorLine1="            android:screenOrientation=&quot;portrait&quot;"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/AndroidManifest.xml"
+            line="88"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="DrawAllocation"
+        message="Avoid object allocations during draw/layout operations (preallocate and reuse instead)"
+        errorLine1="                    canvas.drawBitmap(marker.image, null, new RectF(x - w / 2, y - h / 2, x + w / 2, y + h / 2), null);"
+        errorLine2="                                                          ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/java/com/mousebird/maply/MaplyBaseController.java"
+            line="98"
+            column="59"/>
+    </issue>
+
+    <issue
+        id="Overdraw"
+        message="Possible overdraw: Root element paints background `#080808` with a theme that also paints a background (inferred theme is `@style/AppTheme`)"
+        errorLine1="    android:background=&quot;#080808&quot;"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/blaster_disconnected_dialog.xml"
+            line="8"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="Overdraw"
+        message="Possible overdraw: Root element paints background `#080808` with a theme that also paints a background (inferred theme is `@style/AppTheme`)"
+        errorLine1="    android:background=&quot;#080808&quot;"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/game_limit_dialog.xml"
+            line="7"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="Overdraw"
+        message="Possible overdraw: Root element paints background `#080808` with a theme that also paints a background (inferred theme is `@style/AppTheme`)"
+        errorLine1="    android:background=&quot;#080808&quot;"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/player_data_dialog.xml"
+            line="7"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="Overdraw"
+        message="Possible overdraw: Root element paints background `#222222` with a theme that also paints a background (inferred theme is `@style/AppTheme`)"
+        errorLine1="    android:background=&quot;#222222&quot;"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/player_display_team_header.xml"
+            line="7"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="Overdraw"
+        message="Possible overdraw: Root element paints background `#080808` with a theme that also paints a background (inferred theme is `@style/AppTheme`)"
+        errorLine1="    android:background=&quot;#080808&quot;"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/player_name_dialog.xml"
+            line="7"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="Overdraw"
+        message="Possible overdraw: Root element paints background `#080808` with a theme that also paints a background (inferred theme is `@style/AppTheme`)"
+        errorLine1="    android:background=&quot;#080808&quot;"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/player_settings_dialog.xml"
+            line="5"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="Overdraw"
+        message="Possible overdraw: Root element paints background `#080808` with a theme that also paints a background (inferred theme is `@style/AppTheme`)"
+        errorLine1="    android:background=&quot;#080808&quot;"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/server_ip_dialog.xml"
+            line="7"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="Overdraw"
+        message="Possible overdraw: Root element paints background `#080808` with a theme that also paints a background (inferred theme is `@style/AppTheme`)"
+        errorLine1="    android:background=&quot;#080808&quot;"
+        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/starting_timer_dialog.xml"
+            line="7"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UselessParent"
+        message="This `RelativeLayout` layout or its `FrameLayout` parent is possibly unnecessary; transfer the `background` attribute to the other view"
+        errorLine1="    &lt;RelativeLayout"
+        errorLine2="     ~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/layout/activity_dedicated_server.xml"
+            line="12"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="TextFields"
+        message="This text field does not specify an `inputType`"
+        errorLine1="    &lt;EditText"
+        errorLine2="     ~~~~~~~~">
+        <location
+            file="src/main/res/layout/player_name_dialog.xml"
+            line="19"
+            column="6"/>
+    </issue>
+
+    <issue
+        id="ViewConstructor"
+        message="Custom view `MapView` is missing constructor used by tools: `(Context)` or `(Context,AttributeSet)` or `(Context,AttributeSet,int)`"
+        errorLine1="    public static class MapView extends View {"
+        errorLine2="                        ~~~~~~~">
+        <location
+            file="src/main/java/com/mousebird/maply/MaplyBaseController.java"
+            line="46"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="RelativeOverlap"
+        message="`@id/version_tv` can overlap `@id/game_countdown_tv` if @id/game_countdown_tv, @id/version_tv grow due to localized text expansion"
+        errorLine1="        &lt;TextView"
+        errorLine2="         ~~~~~~~~">
+        <location
+            file="src/main/res/layout/activity_dedicated_server.xml"
+            line="19"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="RelativeOverlap"
+        message="`@id/version_tv` can overlap `@id/game_timer_chronometer` if @id/version_tv grows due to localized text expansion"
+        errorLine1="        &lt;TextView"
+        errorLine2="         ~~~~~~~~">
+        <location
+            file="src/main/res/layout/activity_dedicated_server.xml"
+            line="19"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="RelativeOverlap"
+        message="`@id/version_tv` can overlap `@id/server_ip_tv` if @id/server_ip_tv, @id/version_tv grow due to localized text expansion"
+        errorLine1="        &lt;TextView"
+        errorLine2="         ~~~~~~~~">
+        <location
+            file="src/main/res/layout/activity_dedicated_server.xml"
+            line="19"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="RelativeOverlap"
+        message="`@id/version_tv` can overlap `@id/game_countdown_tv` if @id/game_countdown_tv, @id/version_tv grow due to localized text expansion"
+        errorLine1="                    &lt;TextView"
+        errorLine2="                     ~~~~~~~~">
+        <location
+            file="src/main/res/layout-sw600dp-land/activity_dedicated_server.xml"
+            line="37"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="RelativeOverlap"
+        message="`@id/version_tv` can overlap `@id/game_timer_chronometer` if @id/version_tv grows due to localized text expansion"
+        errorLine1="                    &lt;TextView"
+        errorLine2="                     ~~~~~~~~">
+        <location
+            file="src/main/res/layout-sw600dp-land/activity_dedicated_server.xml"
+            line="37"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="RelativeOverlap"
+        message="`@id/version_tv` can overlap `@id/server_ip_tv` if @id/server_ip_tv, @id/version_tv grow due to localized text expansion"
+        errorLine1="                    &lt;TextView"
+        errorLine2="                     ~~~~~~~~">
+        <location
+            file="src/main/res/layout-sw600dp-land/activity_dedicated_server.xml"
+            line="37"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="RelativeOverlap"
+        message="`@id/score_tv` can overlap `@id/eliminations_count_tv` if @string/count_zero, @string/count_zero grow due to localized text expansion"
+        errorLine1="        &lt;TextView"
+        errorLine2="         ~~~~~~~~">
+        <location
+            file="src/main/res/layout/activity_fullscreen.xml"
+            line="513"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="RelativeOverlap"
+        message="`@id/score_tv` can overlap `@id/team_mode_container` if @id/team_mode_container, @string/count_zero grow due to localized text expansion"
+        errorLine1="        &lt;TextView"
+        errorLine2="         ~~~~~~~~">
+        <location
+            file="src/main/res/layout/activity_fullscreen.xml"
+            line="513"
+            column="10"/>
+    </issue>
+
+</issues>

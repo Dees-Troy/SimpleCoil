@@ -4,7 +4,10 @@
 /.idea/workspace.xml
 /.idea/vcs.xml
 /.idea/libraries
+.idea/deploymentTargetSelector.xml
+.idea/caches/deviceStreaming.xml
 .DS_Store
 /build
 /captures
 .externalNativeBuild
+app/debug

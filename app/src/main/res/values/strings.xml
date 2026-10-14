@@ -1,21 +1,54 @@
 <resources>
     <string name="app_name">SimpleCoil</string>
+    <string name="app_name_with_version">SimpleCoil v%1$s</string>
+    <string name="info_sheet_title">About SimpleCoil</string>
 
-    <string name="reconnect_weapon_button">Reconnect Same Weapon Only</string>
-    <string name="connect_weapon_button">Connect Weapon</string>
-    <string name="connect_qr_weapon_button">Connect Weapon Using QR</string>
-    <string name="disconnect_weapon_button">Disconnect Weapon</string>
+    <string name="reconnect_weapon_button">Reconnect Same Blaster Only</string>
+    <string name="connect_weapon_button">Connect Blaster</string>
+    <string name="connect_qr_weapon_button">Connect Blaster Using QR</string>
     <string name="start_game_button">Start Game!</string>
     <string name="end_game_button">End Game!</string>
 
-    <string name="connect_status_not_connected">Not Connected</string>
+    <string name="connect_intro">Ready to play? Power on your blaster and tap a connect button!</string>
     <string name="connect_status_scanning">Scanning&#8230;</string>
     <string name="connect_status_connecting">Connecting&#8230;</string>
     <string name="connect_status_communicating">Communicating&#8230;</string>
+    <string name="scan_qr_prompt">Scan Blaster QR Code</string>
+    <string name="qr_learn_more_link">Learn more about using QR codes</string>
+    <string name="qr_info_title">Using QR Codes</string>
+    <string name="qr_info_body">A SimpleCoil QR code holds a blaster\'s Bluetooth address, and optionally a player name. Scanning it with Connect Blaster Using QR connects straight to that blaster instead of searching for the nearest one, and sets your player name.\n\nThis helps most when lots of players are pairing at the same time: a normal connect may pick up someone else\'s blaster, while a QR code always finds the right one.\n\nTo make one, connect to the blaster once, then tap Generate QR on the game screen before a game starts. Enter a player name (or leave it blank), save the image, then print it and tape it to the side of the blaster. The code prints about 1 inch (25 mm) wide.\n\nSee docs/QR_CODES.md in the SimpleCoil source for the code format.</string>
+    <string name="generate_qr_button">Generate QR</string>
+    <string name="qr_generate_title">Generate QR Code</string>
+    <string name="qr_generate_explanation">Generate a QR code with a unique player name to speed up connection setup when lots of players are trying to pair devices and blasters at the same time. Print and tape the QR code to the side of your blasters.</string>
+    <string name="qr_player_name_label">Player Name</string>
+    <string name="qr_player_name_hint">Leave blank for the blaster only</string>
+    <string name="qr_generate_button">Generate</string>
+    <string name="qr_code_title">Blaster QR Code</string>
+    <string name="qr_code_print_hint">Prints with the code about 1 inch (25 mm) wide. Print at actual size, not fit to page.</string>
+    <string name="qr_save_button">Save</string>
+    <string name="qr_close_button">Close</string>
+    <string name="qr_saved_toast">QR code saved</string>
+    <string name="qr_save_failed_toast">Could not save the QR code</string>
+    <string name="qr_no_blaster_toast">Connect to a blaster first to generate its QR code</string>
+    <string name="qr_file_name">SimpleCoil-QR-%1$s.png</string>
+    <string name="cd_qr_code">Blaster pairing QR code</string>
+    <string name="network_searching_status">SEARCHING FOR SERVER…</string>
+    <string name="network_connected_status">CONNECTED (LEAVE)</string>
 
     <string name="team_label">TEAM</string>
     <string name="team_number_label">TEAM %1$d</string>
-    <string name="no_team">No Team</string>
+    <string name="no_team">Auto Sort</string>
+    <string name="auto_sort_team">Auto Sort</string>
+    <string name="switch_team_button">Switch Team</string>
+    <string name="shuffle_teams_button">Sort Teams</string>
+    <string name="error_team_full">Team %1$d is full</string>
+    <string name="player_settings_recoil_default">Recoil: Let Player Choose</string>
+    <string name="player_settings_recoil_enabled">Recoil: Force Enabled</string>
+    <string name="player_settings_recoil_disabled">Recoil: Force Disabled</string>
+    <string name="kick_player_button">Kick Player</string>
+    <string name="kicked_by_server_toast">You were kicked by the server</string>
+    <string name="player_settings_admin">Admin Player (Server Controls)</string>
+    <string name="admin_controls_button">Server Controls</string>
 
     <string name="eliminations_count_label">ELIMINATIONS</string>
     <string name="lives_count_label">LIVES</string>
@@ -42,19 +75,18 @@
     <string name="starting_game_label">STARTING!</string>
     <string name="eliminated_label">ELIMINATED!</string>
     <string name="spawn_in_label">Spawn in %1$d</string>
+    <string name="start_respawn_button">Start Respawn</string>
+    <string name="manual_respawn_hint">Hold reload to respawn</string>
+    <string name="respawn_shield_label">Shield: %1$d</string>
 
     <string name="ble_not_supported">BLE is not supported</string>
     <string name="error_bluetooth_not_supported">Bluetooth not supported.</string>
     <string name="error_location_permission_required">Location permission required for Bluetooth scanning.</string>
-    <string name="error_select_team">Select a team first!</string>
-    <string name="error_same_id">Two players are using the same ID!</string>
     <string name="error_udp_version">Network client version mismatch. Please update the app!</string>
     <string name="error_no_wifi">Wi-Fi must be connected!</string>
-    <string name="error_join">Unable to find server lobby!</string>
-    <string name="error_server_cancel">Server was canceled!</string>
     <string name="error_limit_too_high">Limit is too high!</string>
     <string name="dialog_game_time_expired">Time limit reached!</string>
-    <string name="dialog_out_of_lives">Out of lives!</string>
+    <string name="dialog_out_of_lives">Out of Lives!</string>
 
     <string name="end_game_dialog_title">End Game?</string>
     <string name="end_game_dialog_message">Are you sure you want to stop playing?</string>
@@ -63,32 +95,26 @@
     <string name="ok">OK</string>
     <string name="cancel">Cancel</string>
 
-    <string name="server_status_serving_on">Serving on %1$s</string>
-    <string name="server_status_connected_to">Connected to %1$s</string>
+    <string name="server_status_serving_on">%1$s</string>
+    <string name="server_status_connected_to">%1$s</string>
     <string name="server_status_searching">Searching for server&#8230;</string>
 
     <string name="use_network_button">Enable Networking</string>
     <string name="network_menu_button">Network Options</string>
     <string name="no_network_button">Disable Network</string>
-    <string name="ready_button">Join Lobby</string>
     <string name="join_button">Join Lobby</string>
-    <string name="not_ready_button">Leave Lobby</string>
-    <string name="leave_button">Leave Lobby</string>
-    <string name="create_server_button">Create Lobby</string>
-    <string name="cancel_server_button">Cancel Lobby</string>
     <string name="join_ip_button">Join IP&#8230;</string>
     <string name="player_name_button">Player Name: %1$s</string>
-    <string name="game_mode_toggle_button">Set Game Mode</string>
-    <string name="game_mode_label">Game Mode</string>
-    <string name="game_mode_ffa">Free For All</string>
-    <string name="game_mode_2teams">2 Teams</string>
-    <string name="game_mode_4teams">4 Teams</string>
-    <string name="scan_players_button">Search For Players</string>
-    <string name="scan_started_toast">Player scan started!</string>
+    <string name="team_mode_toggle_button">Set Team Mode</string>
+    <string name="team_mode_label">Team Mode</string>
+    <string name="team_mode_ffa">Free For All</string>
+    <string name="team_mode_2teams">2 Teams</string>
+    <string name="team_mode_4teams">4 Teams</string>
     <string name="network_player_1count">1 Player</string>
-    <string name="network_player_count">%1$d Players</string>
     <string name="not_enough_players_toast">Not enough players!</string>
     <string name="network_team">Player %1$d</string>
+    <string name="player_id_team_label">(%1$d-%2$d)</string>
+    <string name="player_id_ffa_label">(%1$d)</string>
     <string name="player_name">Player Name:</string>
     <string name="server_ip">Server IP:</string>
     <string name="game_limit_button">Game Limit</string>
@@ -96,43 +122,109 @@
     <string name="game_limit_time">Time in minutes</string>
     <string name="game_limit_lives">Lives</string>
     <string name="game_limit_score">Score</string>
+    <string name="starting_timer_button">Starting Timer</string>
+    <string name="starting_timer_title">Set Game Start Countdown (Seconds):</string>
 
-    <string name="please_wait">Please Wait</string>
 
     <string name="pistol_detected_toast">Pistol Detected! (%1$s)</string>
     <string name="rifle_detected_toast">Rifle Detected! (%1$s)</string>
     <string name="grenade_paired_toast">Grenade Paired!</string>
 
     <string name="dedicated_server_button">Dedicated Server</string>
+    <string name="dedicated_server_intro">Have a spare device and Wi-Fi or a RECOIL hub and want a more complete experience including live scoring? Use this device as a dedicated server!</string>
     <string name="title_activity_dedicated_server">DedicatedServerActivity</string>
-    <string name="dedicated_time_limit">%1$d minutes</string>
-    <string name="dedicated_lives_limit">%1$d lives</string>
-    <string name="dedicated_score_limit">%1$d points</string>
+    <string name="server_notification_channel">SimpleCoil Dedicated Server</string>
+    <string name="server_notification_title">SimpleCoil Dedicated Server</string>
+    <string name="server_notification_lobby">Waiting to start</string>
+    <string name="server_notification_running">Game running</string>
+    <string name="server_notification_post_game">Game over</string>
+    <string name="server_notification_stop">Stop server</string>
+    <string name="blaster_notification_health">Health %1$d/%2$d</string>
+    <string name="blaster_notification_game_text_reloading">Health %1$d/%2$d · Reloading</string>
+    <string name="dedicated_teams_sorted">Teams Sorted &amp; Randomized!</string>
+    <string name="dedicated_player_kicked">Player kicked</string>
+    <string name="dedicated_team_ratio_running">Cannot edit team ratios while a game is in progress</string>
+    <string name="dedicated_team_ratio_ffa">Team ratios are not applicable in Free For All mode</string>
+    <string name="dedicated_stop_button">Stop</string>
     <string name="dedicated_unlimited">Unlimited</string>
     <string name="dedicated_limit_separator">, </string>
     <string name="dedicated_game_running">Game Running</string>
     <string name="dedicated_game_waiting">Waiting to Start</string>
+    <string name="dedicated_game_over">Game over. Players can still reconnect. Tap Reset for a new game.</string>
+    <string name="reset_game_button">Reset</string>
+    <string name="reset_game_admin">Reset game</string>
+    <string name="dedicated_game_reset_toast">Game reset</string>
     <string name="dedicated_allow_join">Allow players to join after game has started?</string>
     <string name="dedicated_server_settings_only">Only allow server settings?</string>
     <string name="gps_mode_disabled">GPS Disabled</string>
     <string name="gps_mode_teammate">GPS Teammates Only</string>
     <string name="gps_mode_all">GPS All Enabled</string>
-    <string name="player_name_not_connected">{Not Connected}</string>
-    <string name="scoreboard_button">Scoreboard</string>
+    <!-- TalkBack's name for tapping the score readout ("double-tap to open scoreboard"). -->
+    <string name="scores_chip_action">open scoreboard</string>
+    <!-- One score in the score readout's spoken description, e.g. "SCORE (50): 12". -->
+    <string name="cd_score_entry">%1$s: %2$s</string>
 
     <string name="player_list_id_label">ID</string>
     <string name="player_list_name_label">Name</string>
     <string name="player_list_points_label">Score</string>
     <string name="player_list_eliminated_label">Eliminated</string>
-    <string name="player_list_team2_total">Team Totals &#8212; One:%1$d  Two:%2$d</string>
-    <string name="player_list_team4_total">Team Totals &#8212; One:%1$d  Two:%2$d  Three:%3$d  Four:%4$d</string>
+    <string name="player_list_team_header">TEAM %1$d (Limit %2$d/%3$d) Score: %4$d</string>
+    <string name="team_ratio_dialog_title">Configure Team Sizes</string>
+    <string name="team_ratio_instructions">Enter player limit/ratio for each team (e.g. 1 and 31 for 1:31 ratio). Total slots = 32.</string>
+    <string name="team_ratio_team1">Team 1:</string>
+    <string name="team_ratio_team2">Team 2:</string>
+    <string name="team_ratio_team3">Team 3:</string>
+    <string name="team_ratio_team4">Team 4:</string>
+    <string name="team_ratio_hint_two_teams">16</string>
+    <string name="team_ratio_hint_four_teams">8</string>
+    <string name="count_zero">0</string>
+    <string name="team_minus_button">-</string>
+    <string name="team_plus_button">+</string>
+    <string name="team_ratio_min_one">Team limits must be at least 1 player slot</string>
+    <string name="team_ratio_total">Total player slots across all teams must equal %1$d (current sum: %2$d)</string>
+    <string name="scoreboard_players_header">PLAYERS</string>
+    <string name="scoreboard_edit_ratio">Tap to edit ratio</string>
+    <!-- A number shown on its own, in the locale's digits. -->
+    <string name="number">%1$d</string>
+    <string name="scoreboard_connected">Connected</string>
+    <string name="cd_blaster_battery">Blaster battery</string>
+    <string name="cd_network_status">Network status</string>
+    <string name="cd_kick_player">Kick player</string>
+    <string name="scoreboard_disconnected">Disconnected</string>
+    <!-- The score matrix (who eliminated whom) on the scoreboard dialog. -->
+    <string name="score_matrix">SCORE MATRIX</string>
+    <string name="scoreboard">SCOREBOARD</string>
+    <string name="score_matrix_empty">No eliminations yet</string>
+    <string name="score_matrix_unsupported">This server doesn\'t support the score matrix</string>
+    <!-- Heads the totals row and column. -->
+    <string name="score_matrix_total">Σ</string>
+    <string name="score_matrix_total_row_description">Totals: times each player was eliminated</string>
+    <string name="score_matrix_total_column_description">Totals: eliminations each player made</string>
+    <plurals name="score_matrix_cell_description">
+        <item quantity="one">%1$s eliminated %2$s %3$d time</item>
+        <item quantity="other">%1$s eliminated %2$s %3$d times</item>
+    </plurals>
+    <plurals name="score_matrix_row_total_description">
+        <item quantity="one">%1$s made %2$d elimination</item>
+        <item quantity="other">%1$s made %2$d eliminations</item>
+    </plurals>
+    <plurals name="score_matrix_column_total_description">
+        <item quantity="one">%1$s was eliminated %2$d time</item>
+        <item quantity="other">%1$s was eliminated %2$d times</item>
+    </plurals>
+    <plurals name="score_matrix_grand_total_description">
+        <item quantity="one">%1$d elimination in total</item>
+        <item quantity="other">%1$d eliminations in total</item>
+    </plurals>
 
     <string name="player_settings_title">Player Settings</string>
     <string name="player_settings_id_title">Player Settings (%1$d)</string>
     <string name="player_settings_team_title">Player Settings (%1$d-%2$d)</string>
     <string name="player_settings_button">Player Settings</string>
     <string name="player_settings_health_title">Health</string>
+    <string name="player_settings_manual_respawn">Manual respawn?</string>
     <string name="player_settings_spawn_time">Respawn Time (Seconds)</string>
+    <string name="player_settings_respawn_shield_time">Respawn Shield Time (Seconds)</string>
     <string name="player_settings_reload_time">Reload Time (Milliseconds)</string>
     <string name="player_settings_reload_shots">Shots Per Reload</string>
     <string name="player_settings_reload_on_empty">Reload on empty?</string>
@@ -141,11 +233,58 @@
     <string name="player_settings_lives">Lives</string>
     <string name="player_settings_reset">Reset Defaults</string>
     <string name="player_settings_apply_to_all">Apply to all players?</string>
-    <string name="player_settings_allow_player_settings">Allow players to set their own settings?</string>
+    <string name="player_settings_apply_to_team">Apply to Team?</string>
     <string name="player_settings_not_allowed_toast">Players are not allowed to change player settings on this server.</string>
     <string name="player_settings_shot_modes_allowed">Shot Modes Allowed</string>
     <string name="player_settings_shot_mode_error">Must allow at least one shot mode!</string>
 
     <string name="blaster_disconnected_dialog">Blaster Disconnected! Trying to reconnect&#8230;</string>
-    <string name="blaster_disconnected_cancel_quit">Cancel &amp; Quit</string>
+    <string name="blaster_disconnected_suggestion">You can power cycle your blaster if the reconnect process is taking too long.</string>
+    <string name="blaster_disconnected_disconnect_quit">Disconnect &amp; Quit</string>
+
+    <string name="dedicated_allow_choose_teams">Allow players to choose teams</string>
+    <string name="switch_to_team">Switch to Team %1$d</string>
+    <string name="permission_rationale_title">Permissions needed</string>
+    <string name="permission_rationale_ble">SimpleCoil needs these permissions to find and connect to your blaster: Bluetooth, location (for Bluetooth scanning and the game map) and notifications (to keep the blaster connected while the app is in the background).</string>
+    <string name="permission_rationale_camera">SimpleCoil uses the camera to scan your blaster\'s QR code.</string>
+    <string name="permission_settings_title">Permissions turned off</string>
+    <string name="permission_settings_ble">The permissions SimpleCoil needs to connect to your blaster are turned off. Open the app settings to allow them, then connect again.</string>
+    <string name="permission_settings_camera">Camera permission is turned off for SimpleCoil. Open the app settings to allow it to scan QR codes.</string>
+    <string name="permission_rationale_network">SimpleCoil needs access to devices on your local network to host or join a network game, and notifications to show that the game network is running.</string>
+    <string name="permission_settings_network">Local network access is turned off for SimpleCoil. Open the app settings to allow it, then try again.</string>
+    <string name="error_local_network_permission_required">Local network access is required for network games.</string>
+    <string name="permission_continue">Continue</string>
+    <string name="permission_open_settings">Open settings</string>
+    <plurals name="network_player_count">
+        <item quantity="one">%1$d Player</item>
+        <item quantity="other">%1$d Players</item>
+    </plurals>
+    <plurals name="dedicated_time_limit">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+    <plurals name="dedicated_lives_limit">
+        <item quantity="one">%1$d life</item>
+        <item quantity="other">%1$d lives</item>
+    </plurals>
+    <plurals name="dedicated_score_limit">
+        <item quantity="one">%1$d point</item>
+        <item quantity="other">%1$d points</item>
+    </plurals>
+    <plurals name="dedicated_reset_confirm">
+        <item quantity="one">Reset scores and remove %1$d disconnected player?</item>
+        <item quantity="other">Reset scores and remove %1$d disconnected players?</item>
+    </plurals>
+    <plurals name="blaster_notification_game_text">
+        <item quantity="one">Health %1$d/%2$d · %3$d shot</item>
+        <item quantity="other">Health %1$d/%2$d · %3$d shots</item>
+    </plurals>
+    <plurals name="server_notification_players">
+        <item quantity="one">%1$d player · %2$s</item>
+        <item quantity="other">%1$d players · %2$s</item>
+    </plurals>
+    <plurals name="dedicated_stop_confirm">
+        <item quantity="one">Stop the server? %1$d player will be disconnected.</item>
+        <item quantity="other">Stop the server? %1$d players will be disconnected.</item>
+    </plurals>
 </resources>

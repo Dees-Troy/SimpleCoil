@@ -1,0 +1,19 @@
+SimpleCoil:07JSON
+{"playerdata": [
+  {
+    "connected": true,
+    "eliminated": 1,
+    "playername": "Alpha",
+    "playerIP": "/127.0.0.1",
+    "playerID": 1,
+    "points": 0
+  },
+  {
+    "connected": true,
+    "eliminated": 0,
+    "playername": "Bravo",
+    "playerIP": "/127.0.0.1",
+    "playerID": 17,
+    "points": 1
+  }
+]}

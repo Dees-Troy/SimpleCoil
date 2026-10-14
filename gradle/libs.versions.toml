@@ -1,0 +1,29 @@
+[versions]
+agp = "9.4.1"
+kotlin = "2.4.21"
+coroutines = "1.11.0"
+lifecycle = "2.11.0"
+
+[libraries]
+kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+androidx-core-ktx = { module = "androidx.core:core-ktx", version = "1.19.1" }
+androidx-appcompat = { module = "androidx.appcompat:appcompat", version = "1.8.0" }
+androidx-constraintlayout = { module = "androidx.constraintlayout:constraintlayout", version = "2.2.2" }
+material = { module = "com.google.android.material:material", version = "1.14.0" }
+zxing-android-embedded = { module = "com.journeyapps:zxing-android-embedded", version = "4.3.0" }
+zxing-core = { module = "com.google.zxing:core", version = "3.5.4" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
+androidx-lifecycle-viewmodel-ktx = { module = "androidx.lifecycle:lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
+androidx-lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
+androidx-activity-ktx = { module = "androidx.activity:activity-ktx", version = "1.13.0" }
+androidx-recyclerview = { module = "androidx.recyclerview:recyclerview", version = "1.2.1" }
+junit = { module = "junit:junit", version = "4.13.2" }
+mockito-core = { module = "org.mockito:mockito-core", version = "5.24.0" }
+# Real org.json for JVM tests (android.jar only has stubs)
+json = { module = "org.json:json", version = "20260814" }
+androidx-test-runner = { module = "androidx.test:runner", version = "1.7.0" }
+androidx-test-espresso-core = { module = "androidx.test.espresso:espresso-core", version = "3.7.0" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }

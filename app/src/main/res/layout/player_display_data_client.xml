@@ -2,52 +2,72 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
     android:id="@+id/main_view"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="#080808"
     tools:context="com.simplecoil.simplecoil.FullscreenActivity">
 
-        <RelativeLayout
-            android:id="@+id/connect_layout"
-            android:layout_width="match_parent"
-            android:layout_height="30dp"
-            android:visibility="visible"
-            android:fitsSystemWindows="true">
+    <LinearLayout
+        android:id="@+id/connect_layout"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:background="#080808"
+        android:fitsSystemWindows="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp"
+        android:visibility="visible">
 
-                <TextView
-                    android:id="@+id/player_id_tv"
-                    android:layout_width="wrap_content"
-                    android:layout_height="30dp"
-                    android:layout_marginStart="0dp"
-                    android:background="#FFFFFF"
-                    android:textColor="#000000"
-                    android:textAppearance="@android:style/TextAppearance.Material.Small" />
+        <TextView
+            android:id="@+id/player_id_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="28dp"
+            android:gravity="start|center_vertical"
+            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
-                <TextView
-                    android:id="@+id/player_name_tv"
-                    android:layout_width="wrap_content"
-                    android:layout_height="30dp"
-                    android:layout_marginStart="22dp"
-                    android:background="#FFFFFF"
-                    android:textColor="#000000"
-                    android:textAppearance="@android:style/TextAppearance.Material.Small" />
+        <TextView
+            android:id="@+id/player_name_tv"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:gravity="start|center_vertical"
+            android:maxLines="1"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
-                <TextView
-                    android:id="@+id/player_points_tv"
-                    android:layout_width="wrap_content"
-                    android:layout_height="30dp"
-                    android:layout_marginStart="170dp"
-                    android:background="#FFFFFF"
-                    android:textColor="#000000"
-                    android:textAppearance="@android:style/TextAppearance.Material.Small" />
+        <TextView
+            android:id="@+id/player_points_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="55dp"
+            android:gravity="center"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
-                <TextView
-                    android:id="@+id/player_eliminated_tv"
-                    android:layout_width="wrap_content"
-                    android:layout_height="30dp"
-                    android:layout_marginStart="240dp"
-                    android:background="#FFFFFF"
-                    android:textColor="#000000"
-                    android:textAppearance="@android:style/TextAppearance.Material.Small" />
-        </RelativeLayout>
+        <TextView
+            android:id="@+id/player_eliminated_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="65dp"
+            android:gravity="center"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp"
+            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+        <ImageView
+            android:id="@+id/kick_player_iv"
+            android:contentDescription="@string/cd_kick_player"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_gravity="center_vertical"
+            android:layout_marginStart="4dp"
+            android:visibility="gone"
+            app:srcCompat="@drawable/ic_skull_red" />
+    </LinearLayout>
 </FrameLayout>

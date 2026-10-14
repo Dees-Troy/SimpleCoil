@@ -4,25 +4,27 @@
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
     android:orientation="vertical"
+    android:background="#080808"
     android:padding="10dp" >
 
     <TextView
         android:id="@+id/title_tv"
+        android:labelFor="@+id/player_name_et"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/player_name"
-        android:background="#FFFFFF"
-        android:textColor="#000000"
+        android:textColor="#FFFFFF"
         android:textAppearance="?android:attr/textAppearanceLarge" />
 
     <EditText
         android:id="@+id/player_name_et"
+        android:autofillHints="username"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:maxLength="20"
-        android:background="#FFFFFF"
-        android:textColor="#000000"
-        android:digits="0123456789.!?-_ abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" >
+        android:inputType="textPersonName"
+        android:textColor="#FFFFFF"
+        android:textColorHint="#AAAAAA"
+        android:backgroundTint="@color/colorPrimary" >
 
         <requestFocus />
 

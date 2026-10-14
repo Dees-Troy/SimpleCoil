@@ -1,20 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.simplecoil.simplecoil">
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!--
-    Declare this required feature if you want to make the app available to BLE-capable
-    devices only.  If you want to make your app available to devices that don't support BLE,
-    you should omit this in the manifest.  Instead, determine BLE capability by using
-    PackageManager.hasSystemFeature(FEATURE_BLUETOOTH_LE)
+    BLE is optional so the app installs on Chromebooks to run the dedicated server. Without BLE
+    (or on a Chromebook) the connect screen hides the blaster options; see BlasterSupport.
     -->
     <uses-feature
         android:name="android.hardware.bluetooth_le"
-        android:required="true" />
+        android:required="false" />
+    <!-- Many Chromebooks have no touchscreen; without this Play would filter them out. -->
+    <uses-feature
+        android:name="android.hardware.touchscreen"
+        android:required="false" />
 
-    <uses-permission android:name="android.permission.BLUETOOTH" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-    <uses-permission android:name="android.permission.BLUETOOTH_PRIVILEGED" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <uses-permission android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -22,19 +33,28 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Android 17+: required to reach devices on the local network (the game server and its players). -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- The dedicated server's Wi-Fi lock while its screen is in the foreground -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
+        android:name=".SimpleCoilApp"
         android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:screenOrientation="portrait"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
         <activity
             android:name=".FullscreenActivity"
-            android:configChanges="orientation|keyboardHidden|screenSize"
-            android:label="@string/app_name"
+            android:exported="true"
+            android:configChanges="orientation|keyboardHidden|screenSize|smallestScreenSize|screenLayout"
             android:screenOrientation="portrait"
             android:theme="@style/FullscreenTheme">
             <intent-filter>
@@ -46,21 +66,27 @@
 
         <service
             android:name=".BluetoothLeService"
-            android:enabled="true" />
+            android:enabled="true"
+            android:foregroundServiceType="connectedDevice" />
         <service
             android:name=".UDPListenerService"
             android:enabled="true" />
         <service
             android:name=".TcpClient"
-            android:enabled="true" />
+            android:enabled="true"
+            android:foregroundServiceType="connectedDevice" />
         <service
             android:name=".TcpServer"
-            android:enabled="true" />
+            android:enabled="true"
+            android:foregroundServiceType="connectedDevice" />
 
         <activity
             android:name=".DedicatedServerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|uiMode|density|keyboard|keyboardHidden|navigation|locale|layoutDirection"
             android:label="@string/title_activity_dedicated_server"
-            android:theme="@style/AppTheme.NoActionBar"></activity>
+            android:screenOrientation="portrait"
+            android:theme="@style/AppTheme.NoActionBar" />
     </application>
 
 </manifest>

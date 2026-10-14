@@ -1,0 +1,218 @@
+/*
+ * Copyright (C) 2018
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.simplecoil.simplecoil
+
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.util.Log
+import android.view.View
+import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
+import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
+import com.journeyapps.barcodescanner.CaptureActivity
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
+import com.simplecoil.simplecoil.databinding.ActivityFullscreenBinding
+import com.simplecoil.simplecoil.hardware.blaster.BlasterSupport
+import com.simplecoil.simplecoil.ui.game.CompositeGameScreen
+import com.simplecoil.simplecoil.ui.game.DialogCoordinator
+import com.simplecoil.simplecoil.ui.game.GameNavigator
+import com.simplecoil.simplecoil.ui.game.GameScreenRenderer
+import com.simplecoil.simplecoil.ui.game.GameViewModel
+import com.simplecoil.simplecoil.ui.game.GameViewModelFactory
+import com.simplecoil.simplecoil.ui.game.InfoSheet
+import com.simplecoil.simplecoil.ui.game.SavedGameScreen
+import com.simplecoil.simplecoil.ui.game.WindowController
+import com.simplecoil.simplecoil.ui.permissions.BlePermissionController
+import kotlinx.coroutines.launch
+
+/**
+ * The play screen: wires the views to [GameViewModel], which makes every decision and tells the
+ * screen what to show through its GameScreen. Views, window flags and session values are drawn by
+ * [GameScreenRenderer]; dialogs, toasts and menus are shown by [DialogCoordinator]. The permission
+ * and Bluetooth flow in front of a connect is run by [BlePermissionController].
+ */
+class FullscreenActivity : AppCompatActivity(), GameNavigator {
+
+    private val barcodeLauncher = registerForActivityResult(ScanContract()) { result ->
+        if (result.contents != null) {
+            vm.onQrScanned(result.contents)
+        } else {
+            Log.e(TAG, "QR scan cancelled or no result")
+        }
+    }
+
+    private lateinit var vm: GameViewModel
+    private lateinit var binding: ActivityFullscreenBinding
+    private lateinit var renderer: GameScreenRenderer
+    private lateinit var dialogs: DialogCoordinator
+    private lateinit var permissions: BlePermissionController
+    private var serverOnly = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        binding = ActivityFullscreenBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        // Back keeps the session running: send the task to the background instead of finishing.
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                moveTaskToBack(true)
+            }
+        })
+        serverOnly = BlasterSupport.isServerOnly(packageManager)
+        renderer = GameScreenRenderer(binding, WindowController(window), lifecycleScope, serverOnly) { vm.openScoreboard() }
+        vm = ViewModelProvider(this, GameViewModelFactory(application as SimpleCoilApp))[GameViewModel::class.java]
+        dialogs = DialogCoordinator(this, vm, binding.useNetworkButton, binding.teamModeButton)
+        vm.screen = CompositeGameScreen(renderer, dialogs, this)
+        permissions = BlePermissionController(this, vm, ::startQRScan)
+        val saved = savedInstanceState?.let {
+            SavedGameScreen(
+                it.getByte("mSelectedPlayerID", 0),
+                it.getString("mDeviceAddress", ""),
+                it.getBoolean("mUseNetwork", false),
+                it.getInt("mNetworkMenuType", GameViewModel.NETWORK_TYPE_ENABLED),
+            )
+        }
+        vm.onCreate(saved)
+
+        // The session runs app-scoped (D4); render it whenever this screen exists.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.CREATED) {
+                vm.session.collect(renderer::render)
+            }
+        }
+
+        binding.reconnectWeaponButton.setOnClickListener { vm.onReconnectPressed() }
+        binding.connectWeaponButton.setOnClickListener { vm.onConnectPressed() }
+        binding.connectQrWeaponButton.setOnClickListener { permissions.scanQr() }
+        binding.qrLearnMoreTv.setOnClickListener { dialogs.showQrInfo() }
+        binding.dedicatedServerButton.setOnClickListener { permissions.hostServer() }
+        binding.teamMinusButton.visibility = View.VISIBLE
+        binding.teamMinusButton.setOnClickListener { vm.onTeamMinusPressed() }
+        binding.teamPlusButton.visibility = View.VISIBLE
+        binding.teamPlusButton.setOnClickListener { vm.onTeamPlusPressed() }
+        binding.startGameButton.setOnClickListener { vm.onStartGamePressed() }
+        binding.playerSettingsButton.setOnClickListener { vm.onPlayerSettingsPressed() }
+        binding.endGameButton.setOnClickListener { vm.onEndGamePressed() }
+        binding.startRespawnButton.setOnClickListener { vm.onStartRespawnPressed() }
+        binding.generateQrButton.setOnClickListener { vm.onGenerateQrPressed() }
+        InfoSheet(this, binding)
+        binding.firingModeButton.setOnClickListener(dialogs::showFiringModeMenu)
+
+        try {
+            // Display app version
+            title = getString(R.string.app_name_with_version, packageManager.getPackageInfo(packageName, 0).versionName)
+        } catch (e: PackageManager.NameNotFoundException) {
+            Log.e(TAG, "Unable to get app information from PackageManager: " + e.message)
+        }
+
+        binding.useNetworkButton.setOnClickListener { permissions.joinNetwork() }
+        binding.gameLimitButton.setOnClickListener { vm.onGameLimitPressed() }
+        binding.teamModeButton.setOnClickListener { vm.onTeamModePressed() }
+        binding.adminControlsButton.setOnClickListener(dialogs::showAdminMenu)
+        binding.useNetworkButton.visibility = View.VISIBLE
+        vm.onViewsCreated()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        val saved = vm.saveState()
+        outState.putByte("mSelectedPlayerID", saved.selectedPlayerId)
+        outState.putString("mDeviceAddress", saved.deviceAddress)
+        outState.putBoolean("mUseNetwork", saved.useNetwork)
+        outState.putInt("mNetworkMenuType", saved.networkMenuType)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        vm.onResume()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        vm.onPause()
+    }
+
+    override fun onDestroy() {
+        vm.onScreenDestroyed()
+        super.onDestroy()
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // QR pairing
+    // ---------------------------------------------------------------------------------------
+
+    private fun startQRScan() {
+        try {
+            val options = ScanOptions()
+            options.setPrompt(getString(R.string.scan_qr_prompt))
+            options.setOrientationLocked(false)
+            options.setBeepEnabled(true)
+            options.captureActivity = CaptureActivity::class.java
+            barcodeLauncher.launch(options)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch built-in QR scanner: " + e.message)
+            Toast.makeText(this, "Could not launch QR scanner", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // GameNavigator
+    // ---------------------------------------------------------------------------------------
+
+    override fun requestConnect() {
+        // No blaster here, so no Bluetooth prompts (e.g. from the adapter turning on).
+        if (serverOnly) return
+        if (GameViewModel.TEST_NETWORK) {
+            renderer.showPlayScreen()
+            return
+        }
+        permissions.connect()
+    }
+
+    override fun finishScreen() {
+        finish()
+    }
+
+    override fun openDedicatedServer() {
+        startActivity(Intent(this, DedicatedServerActivity::class.java))
+    }
+
+    companion object {
+        private const val TAG = "scmain"
+
+        /**
+         * Brings the running task back as it was, like tapping the launcher icon. A plain intent
+         * for this class would stack a second, fresh copy of the screen (back on the connect
+         * layout) on top of the one holding the session.
+         */
+        fun resumeIntent(context: Context): Intent =
+            asResumeIntent(Intent(context, FullscreenActivity::class.java))
+
+        /** The launcher's action and category are what let Android match the existing task. */
+        internal fun asResumeIntent(intent: Intent): Intent =
+            intent.setAction(Intent.ACTION_MAIN)
+                .addCategory(Intent.CATEGORY_LAUNCHER)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+    }
+}

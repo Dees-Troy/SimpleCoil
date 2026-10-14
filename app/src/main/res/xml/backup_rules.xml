@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Auto Backup on Android 6-11: the "SimpleCoil" preferences and nothing else. -->
+<full-backup-content>
+    <include domain="sharedpref" path="SimpleCoil.xml" />
+</full-backup-content>

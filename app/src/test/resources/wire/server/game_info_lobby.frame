@@ -1,0 +1,28 @@
+SimpleCoil:07JSON
+{
+  "allowplayersettings": false,
+  "players": [
+    {
+      "playername": "Alpha",
+      "playerIP": "/127.0.0.1",
+      "playerID": 1
+    },
+    {
+      "playername": "Bravo",
+      "playerIP": "/127.0.0.1",
+      "playerID": 17
+    }
+  ],
+  "sessionphase": 0,
+  "playersettings": [],
+  "gamestate": 0,
+  "starttime": 5,
+  "gamemode": 2,
+  "limits": {},
+  "teamsizes": [
+    16,
+    16
+  ],
+  "onlyserversettings": false,
+  "allowchooseteams": true
+}

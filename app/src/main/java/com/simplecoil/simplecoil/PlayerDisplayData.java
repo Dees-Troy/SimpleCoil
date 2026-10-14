@@ -17,11 +17,11 @@
 package com.simplecoil.simplecoil;
 
 public class PlayerDisplayData {
-    byte playerID;
-    String playerName;
-    int points;
-    int eliminated;
-    boolean overrideLives;
-    int lives;
-    boolean isConnected;
+    public byte playerID;
+    public String playerName;
+    public int points;
+    public int eliminated;
+    public boolean overrideLives;
+    public int lives;
+    public boolean isConnected;
 }

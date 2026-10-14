@@ -9,82 +9,170 @@
 
     <!-- This FrameLayout insets its children based on system windows using
          android:fitsSystemWindows. -->
-    <RelativeLayout
+    <FrameLayout
         android:id="@+id/connect_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="gone"
         android:fitsSystemWindows="true">
 
-        <TextView
-            android:id="@+id/version_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:layout_marginEnd="5dp"
-            android:layout_alignParentEnd="true"
-            android:text=""
-            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
-
-        <Button
-            android:id="@+id/reconnect_weapon_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:layout_centerHorizontal="true"
-            android:visibility="gone"
-            android:text="@string/reconnect_weapon_button" />
-
-        <Button
-            android:id="@+id/connect_weapon_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:layout_centerHorizontal="true"
-            android:layout_below="@id/reconnect_weapon_button"
-            android:text="@string/connect_weapon_button" />
-
-        <Button
-            android:id="@+id/connect_qr_weapon_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:layout_centerHorizontal="true"
-            android:layout_below="@id/connect_weapon_button"
-            android:text="@string/connect_qr_weapon_button" />
-
-        <TextView
-            android:id="@+id/connect_status_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_below="@+id/connect_qr_weapon_button"
-            android:layout_marginTop="15dp"
-            android:layout_centerHorizontal="true"
-            android:text="@string/connect_status_not_connected"
-            android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
-
-        <Button
-            android:id="@+id/dedicated_server_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:layout_centerHorizontal="true"
-            android:layout_below="@+id/connect_status_tv"
-            android:text="@string/dedicated_server_button" />
-
-        <WebView
-            android:id="@+id/info_wv"
-            android:visibility="gone"
+        <androidx.coordinatorlayout.widget.CoordinatorLayout
+            android:id="@+id/connect_coordinator"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:layout_alignParentStart="true"
-            android:layout_below="@+id/dedicated_server_button"
-            android:layout_marginTop="16dp" />
-    </RelativeLayout>
+            android:layout_height="match_parent">
+
+            <!-- Bottom padding is set to the info sheet's peek height, so nothing hides behind it. -->
+            <ScrollView
+                android:id="@+id/connect_scroll"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false">
+
+                <LinearLayout
+                    android:id="@+id/connect_content"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal"
+                    android:paddingBottom="16dp">
+
+                    <TextView
+                        android:id="@+id/connect_intro_tv"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="24dp"
+                        android:paddingStart="24dp"
+                        android:paddingEnd="24dp"
+                        android:gravity="center_horizontal"
+                        android:text="@string/connect_intro"
+                        android:textAppearance="@android:style/TextAppearance.Material.Medium.Inverse" />
+
+                    <Button
+                        android:id="@+id/reconnect_weapon_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="20dp"
+                        android:visibility="gone"
+                        android:text="@string/reconnect_weapon_button" />
+
+                    <Button
+                        android:id="@+id/connect_weapon_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="20dp"
+                        android:text="@string/connect_weapon_button" />
+
+                    <Button
+                        android:id="@+id/connect_qr_weapon_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="20dp"
+                        android:text="@string/connect_qr_weapon_button" />
+
+                    <TextView
+                        android:id="@+id/qr_learn_more_tv"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:padding="6dp"
+                        android:background="?android:attr/selectableItemBackground"
+                        android:text="@string/qr_learn_more_link"
+                        android:textColor="@color/colorPrimary"
+                        android:textAppearance="@android:style/TextAppearance.Material.Small" />
+
+                    <View
+                        android:id="@+id/dedicated_server_top_divider"
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginStart="24dp"
+                        android:layout_marginEnd="24dp"
+                        android:background="#444444" />
+
+                    <TextView
+                        android:id="@+id/dedicated_server_intro_tv"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp"
+                        android:paddingStart="24dp"
+                        android:paddingEnd="24dp"
+                        android:gravity="center_horizontal"
+                        android:text="@string/dedicated_server_intro"
+                        android:textColor="#CCCCCC"
+                        android:textAppearance="@android:style/TextAppearance.Material.Small" />
+
+                    <Button
+                        android:id="@+id/dedicated_server_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:text="@string/dedicated_server_button" />
+
+                    <View
+                        android:id="@+id/dedicated_server_bottom_divider"
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginStart="24dp"
+                        android:layout_marginEnd="24dp"
+                        android:background="#444444" />
+                </LinearLayout>
+            </ScrollView>
+
+            <!-- About SimpleCoil: peeks into the space left below the buttons; drag or tap the header to expand. -->
+            <LinearLayout
+                android:id="@+id/info_sheet"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:background="@drawable/info_sheet_background"
+                app:behavior_peekHeight="@dimen/info_sheet_min_peek"
+                app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
+
+                <LinearLayout
+                    android:id="@+id/info_sheet_header"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
+                    android:background="?android:attr/selectableItemBackground">
+
+                    <View
+                        android:layout_width="36dp"
+                        android:layout_height="4dp"
+                        android:background="@drawable/info_sheet_handle" />
+
+                    <TextView
+                        android:id="@+id/info_sheet_title_tv"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="@string/info_sheet_title"
+                        android:textColor="#CCCCCC"
+                        android:textAppearance="@android:style/TextAppearance.Material.Small" />
+                </LinearLayout>
+
+                <androidx.core.widget.NestedScrollView
+                    android:id="@+id/info_scroll"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent">
+
+                    <!-- Full height inside the NestedScrollView so the sheet can tell when it is scrolled to the top. -->
+                    <WebView
+                        android:id="@+id/info_wv"
+                        android:visibility="gone"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content" />
+                </androidx.core.widget.NestedScrollView>
+            </LinearLayout>
+        </androidx.coordinatorlayout.widget.CoordinatorLayout>
+    </FrameLayout>
 
     <RelativeLayout
         android:id="@+id/play_layout"
@@ -104,6 +192,7 @@
 
         <ImageView
             android:id="@+id/battery_iv"
+            android:contentDescription="@string/cd_blaster_battery"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
@@ -112,6 +201,7 @@
 
         <ImageView
             android:id="@+id/network_status_iv"
+            android:contentDescription="@string/cd_network_status"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
@@ -127,6 +217,16 @@
             android:layout_marginTop="5dp"
             android:layout_marginEnd="10dp"
             android:layout_alignParentEnd="true"
+            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+        <TextView
+            android:id="@+id/player_id_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/player_count_tv"
+            android:layout_marginEnd="10dp"
+            android:layout_alignParentEnd="true"
+            android:visibility="gone"
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
         <TextView
@@ -146,7 +246,7 @@
             android:layout_alignParentBottom="true"
             android:layout_marginBottom="10dp"
             android:layout_marginStart="30dp"
-            android:text="0"
+            android:text="@string/count_zero"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
 
         <TextView
@@ -166,7 +266,7 @@
             android:layout_marginTop="35dp"
             android:layout_marginStart="15dp"
             android:visibility="invisible"
-            android:text="-" />
+            android:text="@string/team_minus_button" />
 
         <Button
             android:id="@+id/team_plus_button"
@@ -177,17 +277,7 @@
             android:layout_marginEnd="15dp"
             android:layout_alignParentEnd="true"
             android:visibility="invisible"
-            android:text="+" />
-
-        <Button
-            android:id="@+id/player_data_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="35dp"
-            android:layout_marginStart="15dp"
-            android:visibility="gone"
-            android:text="@string/scoreboard_button" />
+            android:text="@string/team_plus_button" />
 
         <TextView
             android:id="@+id/team_tv"
@@ -215,7 +305,7 @@
             android:layout_below="@+id/shots_label_tv"
             android:layout_marginTop="0dp"
             android:layout_marginStart="30dp"
-            android:text="0"
+            android:text="@string/count_zero"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
 
         <ProgressBar
@@ -276,7 +366,7 @@
             android:layout_marginEnd="30dp"
             android:layout_alignParentEnd="true"
             android:visibility="gone"
-            android:text="0"
+            android:text="@string/count_zero"
             android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
 
         <TextView
@@ -287,16 +377,6 @@
             android:layout_centerHorizontal="true"
             android:layout_marginTop="5dp"
             android:text="@string/health_label"
-            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
-
-        <TextView
-            android:id="@+id/player_name_label_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_below="@+id/shot_mode_tv"
-            android:layout_alignParentEnd="true"
-            android:layout_marginTop="5dp"
-            android:layout_marginEnd="15dp"
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
         <ProgressBar
@@ -314,11 +394,22 @@
 
         <ImageView
             android:id="@+id/hit_animation_iv"
+            android:contentDescription="@null"
             android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_centerHorizontal="true"
             android:layout_centerVertical="true"/>
+
+        <TextView
+            android:id="@+id/respawn_shield_countdown_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerHorizontal="true"
+            android:layout_centerVertical="true"
+            android:visibility="gone"
+            android:textColor="#00FFFF"
+            android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
 
         <TextView
             android:id="@+id/eliminated_tv"
@@ -357,41 +448,43 @@
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="7dp"
+            android:layout_marginTop="5dp"
             android:layout_marginStart="15dp"
-            android:layout_below="@id/health_pb"
+            android:layout_below="@+id/firing_mode_button"
             android:text="@string/start_game_button" />
 
+        <!-- Start Game's row, on the right, so it stays clear of the server status line. -->
         <Button
             android:id="@+id/player_settings_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="7dp"
+            android:layout_marginTop="5dp"
             android:layout_marginEnd="15dp"
             android:layout_alignParentEnd="true"
-            android:layout_below="@id/health_pb"
+            android:layout_below="@+id/firing_mode_button"
             android:text="@string/player_settings_button" />
 
+        <!-- Offline, or for a network admin. Above the eliminations count. -->
         <Button
             android:id="@+id/end_game_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_centerHorizontal="true"
-            android:layout_marginBottom="10dp"
-            android:layout_alignParentBottom="true"
+            android:layout_marginStart="15dp"
+            android:layout_above="@+id/eliminations_count_label_tv"
             android:visibility="gone"
             android:text="@string/end_game_button" />
 
+        <!-- Always the first row under the health bar, whether searching, joined or offline. -->
         <Button
             android:id="@+id/use_network_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/start_game_button"
+            android:layout_below="@id/health_pb"
             android:layout_marginStart="15dp"
-            android:layout_marginTop="5dp"
+            android:layout_marginTop="7dp"
             android:text="@string/use_network_button" />
 
         <TextView
@@ -399,107 +492,187 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_toEndOf="@id/use_network_button"
+            android:layout_alignParentEnd="true"
             android:layout_alignBaseline="@+id/use_network_button"
             android:layout_marginStart="5dp"
+            android:layout_marginEnd="15dp"
+            android:singleLine="true"
+            android:ellipsize="end"
             android:text=""
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
+        <!-- Start Game's spot on a server, where Start Game is hidden. -->
+        <Button
+            android:id="@+id/admin_controls_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/start_game_button"
+            android:layout_marginStart="15dp"
+            android:layout_marginTop="5dp"
+            android:visibility="gone"
+            android:text="@string/admin_controls_button" />
+
+        <!-- Right under the network button, offline and on a server alike. -->
         <Button
             android:id="@+id/firing_mode_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/use_network_button"
+            android:layout_below="@id/use_network_button"
             android:layout_marginStart="15dp"
             android:layout_marginTop="5dp"
             android:text="@string/firing_mode_outdoor_no_cone" />
 
-        <TextView
-            android:id="@+id/game_mode_label_tv"
+        <Button
+            android:id="@+id/shuffle_teams_button"
+            style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_above="@id/game_mode_tv"
+            android:layout_below="@+id/player_settings_button"
+            android:layout_marginEnd="15dp"
+            android:layout_alignParentEnd="true"
+            android:layout_marginTop="5dp"
+            android:visibility="gone"
+            android:text="@string/shuffle_teams_button" />
+
+        <!-- Between games only. -->
+        <Button
+            android:id="@+id/generate_qr_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
             android:layout_centerHorizontal="true"
-            android:text="@string/game_mode_label"
-            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+            android:layout_marginBottom="10dp"
+            android:layout_above="@+id/team_mode_label_tv"
+            android:text="@string/generate_qr_button" />
 
         <TextView
-            android:id="@+id/game_mode_tv"
+            android:id="@+id/team_mode_label_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_above="@+id/team_mode_container"
+            android:layout_centerHorizontal="true"
+            android:text="@string/team_mode_label"
+            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+        <!-- Server-less clients pick the mode with the button before a game; otherwise it's a label. -->
+        <FrameLayout
+            android:id="@+id/team_mode_container"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentBottom="true"
             android:layout_marginBottom="10dp"
-            android:layout_centerHorizontal="true"
-            android:text="@string/game_mode_2teams"
-            android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
+            android:layout_centerHorizontal="true">
 
+            <TextView
+                android:id="@+id/team_mode_tv"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:visibility="gone"
+                android:text="@string/team_mode_2teams"
+                android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
+
+            <Button
+                android:id="@+id/team_mode_button"
+                style="@style/Widget.AppCompat.Button.Colored"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:text="@string/team_mode_2teams" />
+        </FrameLayout>
+
+        <!-- The firing mode's row, on the right. -->
         <Button
             android:id="@+id/game_limit_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="0dp"
-            android:layout_marginStart="15dp"
-            android:layout_above="@id/eliminations_count_label_tv"
-            android:text="@string/game_limit_button" />
-
-        <TextView
-            android:id="@+id/score_label_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_above="@id/score_tv"
+            android:layout_below="@id/use_network_button"
+            android:layout_marginTop="5dp"
             android:layout_marginEnd="15dp"
             android:layout_alignParentEnd="true"
-            android:text="@string/score_label"
-            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+            android:text="@string/game_limit_button" />
 
-        <TextView
-            android:id="@+id/score_tv"
+        <!-- The score readout. Once connected to a server it becomes a tappable chip that opens the
+             scoreboard; GameScreenRenderer.setScoreboardAvailable adds the background and click. -->
+        <LinearLayout
+            android:id="@+id/scores_chip"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentBottom="true"
-            android:layout_marginEnd="15dp"
-            android:layout_marginBottom="10dp"
             android:layout_alignParentEnd="true"
-            android:text="0"
-            android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
+            android:layout_marginEnd="8dp"
+            android:layout_marginBottom="6dp"
+            android:minWidth="48dp"
+            android:minHeight="48dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="4dp"
+            android:paddingBottom="4dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:clickable="false"
+            android:focusable="false">
 
-        <TextView
-            android:id="@+id/team_score_label_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_above="@id/team_score_tv"
-            android:layout_marginEnd="15dp"
-            android:layout_alignParentEnd="true"
-            android:text="@string/team_score_label"
-            android:visibility="invisible"
-            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="end">
 
-        <TextView
-            android:id="@+id/team_score_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="15dp"
-            android:layout_marginBottom="10dp"
-            android:layout_alignParentEnd="true"
-            android:layout_above="@id/score_label_tv"
-            android:text="0"
-            android:visibility="invisible"
-            android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
+                <TextView
+                    android:id="@+id/team_score_label_tv"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:importantForAccessibility="no"
+                    android:text="@string/team_score_label"
+                    android:visibility="gone"
+                    android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
+                <TextView
+                    android:id="@+id/team_score_tv"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:importantForAccessibility="no"
+                    android:text="@string/count_zero"
+                    android:visibility="gone"
+                    android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
+
+                <TextView
+                    android:id="@+id/score_label_tv"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:importantForAccessibility="no"
+                    android:text="@string/score_label"
+                    android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+                <TextView
+                    android:id="@+id/score_tv"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:importantForAccessibility="no"
+                    android:text="@string/count_zero"
+                    android:textAppearance="@android:style/TextAppearance.Material.Large.Inverse" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Manual respawn: above the team mode label. -->
         <Button
-            android:id="@+id/end_network_game_button"
+            android:id="@+id/start_respawn_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_centerHorizontal="true"
             android:layout_marginBottom="10dp"
-            android:layout_above="@id/game_mode_label_tv"
+            android:layout_above="@id/team_mode_label_tv"
             android:visibility="gone"
-            android:text="@string/end_game_button" />
+            android:text="@string/start_respawn_button" />
 
         <ImageView
             android:id="@+id/hit_player_iv"
+            android:contentDescription="@null"
             android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -520,6 +693,7 @@
 
         <ImageView
             android:id="@+id/shots_fired_iv"
+            android:contentDescription="@null"
             android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -531,13 +705,13 @@
 
         <ImageView
             android:id="@+id/score_increase_iv"
+            android:contentDescription="@null"
             android:visibility="gone"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_toStartOf="@id/team_score_label_tv"
+            android:layout_toStartOf="@id/scores_chip"
             android:layout_marginEnd="10dp"
-            android:layout_marginTop="10dp"
-            android:layout_above="@+id/score_label_tv"
+            android:layout_alignBottom="@id/scores_chip"
             app:srcCompat="@drawable/ic_add_circle_green_50dp" />
 
         <TextView
@@ -546,7 +720,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_above="@+id/score_increase_iv"
-            android:layout_toStartOf="@id/team_score_label_tv"
+            android:layout_toStartOf="@id/scores_chip"
             android:layout_marginEnd="10dp"
             android:layout_marginBottom="5dp"
             android:text=""

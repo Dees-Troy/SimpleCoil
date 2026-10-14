@@ -30,7 +30,7 @@
             android:id="@+id/server_ip_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_toEndOf="@id/use_network_button"
+            android:layout_alignParentStart="true"
             android:layout_marginTop="10dp"
             android:layout_marginStart="5dp"
             android:text=""
@@ -66,13 +66,13 @@
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
         <Button
-            android:id="@+id/game_mode_toggle_button"
+            android:id="@+id/team_mode_toggle_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
             android:layout_below="@id/player_count_tv"
-            android:text="@string/game_mode_toggle_button" />
+            android:text="@string/team_mode_toggle_button" />
 
         <TextView
             android:id="@+id/game_limit_tv"
@@ -93,11 +93,21 @@
             android:layout_below="@id/player_count_tv"
             android:text="@string/game_limit_button" />
 
+        <Button
+            android:id="@+id/starting_timer_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="10dp"
+            android:layout_alignParentEnd="true"
+            android:layout_below="@id/game_limit_button"
+            android:text="@string/starting_timer_button" />
+
         <TextView
             android:id="@+id/game_status_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignBaseline="@id/game_mode_toggle_button"
+            android:layout_alignBaseline="@id/team_mode_toggle_button"
             android:layout_centerHorizontal="true"
             android:text="@string/dedicated_game_waiting"
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
@@ -108,8 +118,28 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="10dp"
-            android:layout_below="@id/game_mode_toggle_button"
+            android:layout_below="@id/team_mode_toggle_button"
             android:text="@string/gps_mode_disabled" />
+
+        <Button
+            android:id="@+id/start_game_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_below="@id/gps_mode_button"
+            android:enabled="true"
+            android:text="@string/start_game_button" />
+
+        <Button
+            android:id="@+id/reset_game_button"
+            style="@style/Widget.AppCompat.Button.Colored"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_below="@id/gps_mode_button"
+            android:visibility="invisible"
+            android:text="@string/reset_game_button" />
 
         <Button
             android:id="@+id/end_game_button"
@@ -118,32 +148,23 @@
             android:layout_height="wrap_content"
             android:layout_marginEnd="10dp"
             android:layout_alignParentEnd="true"
-            android:layout_below="@id/game_limit_button"
+            android:layout_below="@id/starting_timer_button"
+            android:layout_alignBaseline="@id/start_game_button"
             android:enabled="false"
             android:text="@string/end_game_button" />
 
-        <Button
-            android:id="@+id/start_game_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="10dp"
-            android:layout_toStartOf="@id/end_game_button"
-            android:layout_below="@id/game_limit_button"
-            android:enabled="true"
-            android:text="@string/start_game_button" />
-
-        <Switch
+        <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/allow_join_switch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/gps_mode_button"
+            android:layout_below="@id/start_game_button"
             android:layout_marginStart="10dp"
             android:layout_marginEnd="10dp"
+            android:layout_marginTop="5dp"
             android:text="@string/dedicated_allow_join"
             android:textColor="#FFFFFF"/>
 
-        <Switch
+        <androidx.appcompat.widget.SwitchCompat
             android:id="@+id/only_server_settings_switch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -153,10 +174,20 @@
             android:text="@string/dedicated_server_settings_only"
             android:textColor="#FFFFFF"/>
 
-        <ListView
-            android:id="@+id/player_list"
-            android:layout_width="wrap_content"
+        <androidx.appcompat.widget.SwitchCompat
+            android:id="@+id/allow_choose_teams_switch"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_below="@id/only_server_settings_switch" />
+            android:layout_below="@id/only_server_settings_switch"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp"
+            android:text="@string/dedicated_allow_choose_teams"
+            android:textColor="#FFFFFF"/>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/player_list"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/allow_choose_teams_switch" />
     </RelativeLayout>
 </FrameLayout>

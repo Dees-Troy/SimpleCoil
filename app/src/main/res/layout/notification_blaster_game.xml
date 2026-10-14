@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The blaster notification during a game: a health bar, and the shots left or a reload spinner. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:baselineAligned="false"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/notification_health_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textAppearance="@style/TextAppearance.Compat.Notification.Title" />
+
+        <ProgressBar
+            android:id="@+id/notification_health_pb"
+            style="@android:style/Widget.ProgressBar.Horizontal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:maxHeight="8dp"
+            android:minHeight="8dp" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="56dp"
+        android:layout_height="40dp"
+        android:layout_marginStart="16dp">
+
+        <TextView
+            android:id="@+id/notification_shots_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:textAppearance="@style/TextAppearance.Compat.Notification.Title"
+            android:textSize="24sp" />
+
+        <ProgressBar
+            android:id="@+id/notification_reload_pb"
+            style="@android:style/Widget.ProgressBar.Small"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="center"
+            android:indeterminate="true"
+            android:visibility="gone" />
+    </FrameLayout>
+</LinearLayout>

@@ -1,0 +1,18 @@
+SimpleCoil:07JSON
+{
+  "damage": -2,
+  "reloadtime": 1500,
+  "reloadonempty": true,
+  "manualrespawn": false,
+  "playersettings": true,
+  "health": 20,
+  "shotmodeauto": true,
+  "firingmode": 2,
+  "shotmodeburst3": false,
+  "reloadshots": 30,
+  "respawnshieldtime": 3,
+  "liveslimit": 4,
+  "spawntime": 10,
+  "shotmodesingle": true,
+  "playerID": 5
+}

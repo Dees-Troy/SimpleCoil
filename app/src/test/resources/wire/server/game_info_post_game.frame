@@ -1,0 +1,51 @@
+SimpleCoil:07JSON
+{
+  "gameid": 418873301,
+  "allowplayersettings": false,
+  "players": [
+    {
+      "playername": "Alpha",
+      "playerIP": "/127.0.0.1",
+      "playerID": 1
+    },
+    {
+      "playername": "Bravo",
+      "playerIP": "/127.0.0.1",
+      "playerID": 17
+    }
+  ],
+  "sessionphase": 2,
+  "usegps": 2,
+  "playersettings": [{
+    "damage": -1,
+    "reloadtime": 1500,
+    "reloadonempty": false,
+    "manualrespawn": false,
+    "health": 20,
+    "shotmodeauto": true,
+    "recoilsetting": 0,
+    "firingmode": 0,
+    "shotmodeburst3": true,
+    "isadmin": false,
+    "reloadshots": 30,
+    "respawnshieldtime": 3,
+    "liveslimit": 2,
+    "spawntime": 10,
+    "shotmodesingle": true,
+    "playerID": 1
+  }],
+  "starttime": 5,
+  "gamemode": 2,
+  "teamsizes": [
+    16,
+    16
+  ],
+  "allowchooseteams": true,
+  "gamestate": 0,
+  "limits": {
+    "scorelimit": 25,
+    "liveslimit": 3,
+    "timelimit": 10
+  },
+  "onlyserversettings": false
+}
