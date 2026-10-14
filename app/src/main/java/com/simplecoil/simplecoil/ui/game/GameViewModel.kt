@@ -1209,8 +1209,13 @@ class GameViewModel(
                     playerRepo.playerID = assigned
                     setTeam()
                 }
-                ready = true
-                setReady()
+                // A rejoin (on resume, or after the connection drops) answers a session already
+                // shown as joined. setReady would put the "searching" label back, and mid-game no
+                // player list clears it.
+                if (networkMenuType != NETWORK_TYPE_JOINED) {
+                    ready = true
+                    setReady()
+                }
                 net.startTcpClient()
                 setNetworkMenu(NETWORK_TYPE_JOINED)
             }

@@ -57,6 +57,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.mockito.Mockito.clearInvocations
 import org.mockito.Mockito.inOrder
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
@@ -400,6 +401,22 @@ class GameViewModelTest {
         // Joined: no more automatic re-scans.
         advance(30_000)
         verify(udp, times(2)).joinServer()
+    }
+
+    @Test
+    fun rejoinServerReply_whileJoined_doesNotShowSearchingAgain() {
+        vm.onNetworkButtonPressed()
+        vm.onNetworkMenuEntry(NetworkMenuEntry.Join)
+        emitNetwork(ClientEvent.ServerReply(7))
+        clearInvocations(screen)
+
+        // Back from the background mid-game: the hello's reply must leave the label alone.
+        gameState.gameState = GameStateRepository.GAME_STATE_RUNNING
+        vm.onPause()
+        vm.onResume()
+        emitNetwork(ClientEvent.ServerReply(7))
+        verify(screen, never()).showServerSearching()
+        assertEquals(GameViewModel.NETWORK_TYPE_JOINED, vm.networkMenuType)
     }
 
     @Test
