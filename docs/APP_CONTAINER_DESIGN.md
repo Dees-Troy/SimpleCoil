@@ -1,6 +1,6 @@
 # SimpleCoil Dependency Injection: One App Container — Design Document
 
-Status: **APPROVED (2026-10-13); steps 1–4 IMPLEMENTED and verified on devices (roadmap Stages 1 and 3; step 4 with the network conversions); step 5 implemented with the server screen (roadmap Stage 4), its device checks to run.** All decisions in §6 are resolved.
+Status: **APPROVED (2026-10-13); steps 1–4 IMPLEMENTED and verified on devices (roadmap Stages 1 and 3; step 4 with the network conversions); step 5 implemented with the server screen and verified on devices (roadmap Stage 4).** All decisions in §6 are resolved.
 
 Revision 2 (2026-10-13): decisions recorded (§6). No Hilt (Q1): the app is meant to stay small and simple and to
 run well on old and slow devices, so it won't be split into modules. The dedicated server gets its own state (Q3).

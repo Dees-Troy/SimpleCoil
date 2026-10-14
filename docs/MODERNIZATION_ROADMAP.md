@@ -1,6 +1,6 @@
 # SimpleCoil Modernization Roadmap (after V2 refactor)
 
-Status: **Stages 0–3 DONE (2026-10-13), device checks included; Stage 4 done in code, its device checks to run.** All four documents are approved and their decisions resolved.
+Status: **Stages 0–4 DONE (2026-10-13), device checks included; Stage 5 next.** All four documents are approved and their decisions resolved.
 Branch audited: `V2-refactor` @ `b460c02`. The on-device checklists in `REFACTOR_DESIGN.md` §6.5 and
 `STATE_CONSOLIDATION_DESIGN.md` §8.6 have been completed.
 Date: 2026-10-13
@@ -191,7 +191,7 @@ start, end and reset updates, the GPS map, and a timed game; discovery answers o
   confirmation (app container step 5 happens here).
 - **Platform step 8**: large-screen layouts and the insets check, now that the server layout is final.
 
-**Done in code (2026-10-13), one commit per step; device checks still to run.** 555 unit tests pass,
+**Done (2026-10-13), one commit per step; device checks passed.** 555 unit tests pass,
 `assembleDebug` is green, and `lintDebug` has 0 errors and 27 warnings (24 before, plus the portrait server layout's
 three `RelativeOverlap` warnings copied into the landscape one).
 
@@ -231,8 +231,8 @@ Notes:
   scroller on phones too, a visual change ground rule 1 rules out. The play layout keeps its 400dp map (Q2).
 - The `getInstance()` callers left are `MapFragment` and `MapLocationManager` (Stage 5).
 
-Device checks to run: the dedicated-server check (`DEDICATED_SERVER_DESIGN.md` §10, items 1–9, with the Wi-Fi lock
-and keep-screen-on of item 1 and the notification's Stop of item 3); the network smoke test
+Device checks (passed, 2026-10-13): the dedicated-server check (`DEDICATED_SERVER_DESIGN.md` §10, items 1–9, with the
+Wi-Fi lock and keep-screen-on of item 1 and the notification's Stop of item 3); the network smoke test
 (`NETWORK_STACK_DESIGN.md` §9.1); and platform step 8's matrix (`PLATFORM_COMPAT_DESIGN.md` §3.2, §4.2): the server
 screen in portrait, landscape (two panes) and a free-form window at its minimum size on a tablet or the resizable
 emulator and a Chromebook, with no overlap at the display cutout or a side navigation bar; on a phone, still
