@@ -42,9 +42,13 @@ import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.domain.team.TeamLayout;
 import com.simplecoil.simplecoil.domain.team.TeamMode;
+import com.simplecoil.simplecoil.network.ClientCommand;
 import com.simplecoil.simplecoil.network.EventBus;
 import com.simplecoil.simplecoil.network.Frame;
+import com.simplecoil.simplecoil.network.ServerCommand;
 import com.simplecoil.simplecoil.network.ServerEvent;
+import com.simplecoil.simplecoil.network.ServerMessage;
+import com.simplecoil.simplecoil.network.WireCodec;
 import com.simplecoil.simplecoil.network.WireKeys;
 import com.simplecoil.simplecoil.network.WireProtocol;
 import com.simplecoil.simplecoil.network.server.ClockState;
@@ -89,7 +93,6 @@ public class TcpServer extends Service {
 
     // Read timeout on every socket: the granularity of ping and drop timing (network design Q5)
     public static final int TCP_DEDICATED_READ_WAIT_MS = 100;
-    private static final String ADMIN_PREFIX = "ADMIN_";
 
     private volatile boolean keepListening = false;
     private volatile boolean mAccepting = false;
@@ -284,6 +287,11 @@ public class TcpServer extends Service {
 
     private final IBinder mBinder = new LocalBinder();
 
+    /** A MESG frame carrying [command]. */
+    private static String command(ServerCommand command) {
+        return WireCodec.encode(new ServerMessage.Command(command));
+    }
+
     /** Queues [message] for every connection. Never blocks: each connection has its own writer (N1, N2). */
     public void sendTCPMessageAll(final String message) {
         for (Connection connection : mRoster.connections()) {
@@ -339,7 +347,7 @@ public class TcpServer extends Service {
             return false;
         syncGameState();
         // we want to make sure that we have sent the start game message to all clients before publishing that the game has started locally
-        sendTCPMessageAll(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_STARTGAME);
+        sendTCPMessageAll(command(ServerCommand.StartGame.INSTANCE));
         sendAllGameInfo(SEND_ALL);
         mEvents.publish(ServerEvent.GameStarted.INSTANCE);
         mEvents.publish(new ServerEvent.PlayerDataChanged(null));
@@ -362,7 +370,7 @@ public class TcpServer extends Service {
                 syncGameState();
                 mClock.stop();
                 sendPlayerData(SEND_ALL);
-                sendTCPMessageAll(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_ENDGAME);
+                sendTCPMessageAll(command(ServerCommand.EndGame.INSTANCE));
                 // after ENDGAME, so the clients have ended the game before they see game state NONE;
                 // carries the POST_GAME phase, which swaps End Game for Reset in the admin menu
                 sendAllGameInfo(SEND_ALL);
@@ -426,7 +434,7 @@ public class TcpServer extends Service {
                 Log.d(TAG, "switchPlayerTeam: moving player " + oldPlayerID + " to new ID " + newPlayerID);
                 PlayerRecord record = mRoster.movePlayer(oldPlayerID, newPlayerID);
                 if (record != null && record.getConnection() != null)
-                    record.getConnection().send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_SERVERREPLY + newPlayerID);
+                    record.getConnection().send(command(new ServerCommand.ServerReply(newPlayerID)));
                 sendPlayerData(SEND_ALL);
                 sendAllGameInfo(SEND_ALL);
                 mEvents.publish(new ServerEvent.PlayerDataChanged(null));
@@ -440,7 +448,7 @@ public class TcpServer extends Service {
                 Log.d(TAG, "kickPlayer: kicking player " + playerID);
                 Connection connection = mRoster.kick(playerID);
                 if (connection != null) {
-                    connection.send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_SERVERCANCEL);
+                    connection.send(command(ServerCommand.ServerCancel.INSTANCE));
                     connection.closeAfterPending();
                 }
                 mGPSIntervalCount.set(SEND_ALL_GPS_INTERVAL);
@@ -468,7 +476,7 @@ public class TcpServer extends Service {
                 for (PlayerRecord record : result.assigned) {
                     Connection connection = record.getConnection();
                     if (connection != null)
-                        connection.send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_SERVERREPLY + record.getPlayerId());
+                        connection.send(command(new ServerCommand.ServerReply(record.getPlayerId())));
                 }
                 sendPlayerData(SEND_ALL);
                 sendAllGameInfo(SEND_ALL);
@@ -1029,120 +1037,99 @@ public class TcpServer extends Service {
                     parsePlayerInfo(frame.body, client);
                     return;
                 } else if (frame.kind == Frame.Kind.MESG) {
-                    // Handle messages
-                    message = frame.body;
-                    if (message.equals(WireProtocol.NETMSG_LEAVE)) {
-                        // A player in the game's roster stays on the scoreboard, disconnected (Q12)
-                        removeClient(client);
-                        if (mRoster.isRunning() && mRoster.connectedCount() <= 1)
-                            endGame();
+                    if (handleCommand(client, WireCodec.decodeClientCommand(frame.body)))
                         return;
-                    } else if (message.startsWith(WireProtocol.NETMSG_ELIMINATED)) {
-                        // Sent reliably since v07; a bare one is applied the same way, without de-dup
-                        handleEliminated(client, message);
-                    } else if (message.equals(WireProtocol.NETMSG_SHOTFIRED)) {
-                        sendTCPMessageAll(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_SHOTFIRED);
-                    } else if (message.startsWith(WireProtocol.NETMSG_HIT)) {
-                        message = message.substring(WireProtocol.NETMSG_HIT.length());
-                        try {
-                            byte shooterId = (byte) Integer.parseInt(message);
-                            byte targetId = playerIdOf(client);
-                            sendTCPMessageID(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_HIT + targetId, shooterId);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    } else if (message.startsWith(WireProtocol.NETMSG_OUT)) {
-                        message = message.substring(WireProtocol.NETMSG_OUT.length());
-                        try {
-                            byte shooterId = (byte) Integer.parseInt(message);
-                            byte targetId = playerIdOf(client);
-                            sendTCPMessageID(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_OUT + targetId, shooterId);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    } else if (message.equals(WireProtocol.NETMSG_TEAMELIMINATED)) {
-                        sendTCPMessageTeam(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_TEAMELIMINATED, playerIdOf(client), false);
-                    } else if (message.equals(WireProtocol.NETMSG_PLAYERDATAREQUEST)) {
-                        sendPlayerData(playerIdOf(client));
-                    } else if (isAdminCommand(message) && !isAdmin(client)) {
-                        // D14: only players the server operator made admins may run the game
-                        Log.w(TAG, "Ignoring '" + message + "' from non-admin client " + client.getConnectionId());
-                    } else if (message.equals(WireProtocol.NETMSG_STARTGAME) || message.startsWith(WireProtocol.NETMSG_ADMIN_STARTGAME)) {
-                        Log.d(TAG, "TcpServer received STARTGAME / ADMIN_STARTGAME command: '" + message + "'");
-                        if (!startGame() && mRoster.phase() == SessionPhase.POST_GAME)
-                            client.send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_ERROR + "Reset the game first");
-                    } else if (message.equals(WireProtocol.NETMSG_ENDGAME) || message.startsWith(WireProtocol.NETMSG_ADMIN_ENDGAME)) {
-                        Log.d(TAG, "TcpServer received ENDGAME / ADMIN_ENDGAME command: '" + message + "'");
-                        if (message.startsWith(WireProtocol.NETMSG_ADMIN_ENDGAME)) {
-                            endGame();
-                        } else {
-                            // Regular ENDGAME from a client is treated as the client leaving
-                            removeClient(client);
-                            if (mRoster.isRunning() && mRoster.connectedCount() <= 1)
-                                endGame();
-                            return;
-                        }
-                    } else if (message.startsWith(WireProtocol.NETMSG_ADMIN_RESET)) {
-                        Log.d(TAG, "TcpServer received ADMIN_RESET command: '" + message + "'");
-                        resetSession();
-                    } else if (message.startsWith(WireProtocol.NETMSG_ADMIN_SORTTEAMS)) {
-                        Log.d(TAG, "TcpServer received ADMIN_SORTTEAMS command: '" + message + "'");
-                        if (!mRoster.isRunning()) {
-                            resetIfPostGame();
-                            rebalanceAllPlayers(true);
-                        }
-                    } else if (message.startsWith(WireProtocol.NETMSG_ADMIN_GAMEMODE)) {
-                        Log.d(TAG, "TcpServer received ADMIN_GAMEMODE command: '" + message + "'");
-                        try {
-                            TeamMode mode = TeamMode.fromWire(Integer.parseInt(message.substring(WireProtocol.NETMSG_ADMIN_GAMEMODE.length()).trim()));
-                            if (mode == null) {
-                                Log.w(TAG, "ADMIN_GAMEMODE ignored: unknown team mode");
-                            } else if (!mRoster.isRunning()) {
-                                resetIfPostGame();
-                                GameSettingsRepository.getInstance().setTeamMode(mode);
-                                new UserPreferencesRepository(TcpServer.this).saveTeamMode(mode);
-                                rebalanceAllPlayers(false);
-                            }
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    } else if (message.startsWith(WireProtocol.NETMSG_ADMIN_KICK)) {
-                        Log.d(TAG, "TcpServer received ADMIN_KICK command: '" + message + "'");
-                        try {
-                            byte targetID = (byte) Integer.parseInt(message.substring(WireProtocol.NETMSG_ADMIN_KICK.length()).trim());
-                            kickPlayer(targetID);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    } else if (message.startsWith(WireProtocol.NETMSG_ADMIN_TEAMSIZES)) {
-                        Log.d(TAG, "TcpServer received ADMIN_TEAMSIZES command: '" + message + "'");
-                        if (!mRoster.isRunning()) {
-                            try {
-                                String sizesStr = message.substring(WireProtocol.NETMSG_ADMIN_TEAMSIZES.length()).trim();
-                                String[] parts = sizesStr.split(",");
-                                int[] newSizes = new int[parts.length];
-                                int sum = 0;
-                                for (int i = 0; i < parts.length; i++) {
-                                    newSizes[i] = Integer.parseInt(parts[i].trim());
-                                    sum += newSizes[i];
-                                }
-                                if (sum == GameSettingsRepository.MAX_PLAYER_ID) {
-                                    resetIfPostGame();
-                                    GameSettingsRepository.getInstance().setTeamSizes(newSizes);
-                                    rebalanceAllPlayers(false);
-                                }
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                            }
-                        }
-                    }
                 } else if (frame.kind == Frame.Kind.OTHER_VERSION) {
-                    client.send(WireProtocol.NETMSG_VERSIONERROR);
+                    client.send(WireCodec.encode(ServerMessage.VersionError.INSTANCE));
                     return;
                 } else if (frame.kind != Frame.Kind.PING) {
                     Log.d(TAG, "unknown tcp message received");
                 }
             }
+        }
+
+        /** Handles a client's command; true once the client is gone (it left). */
+        private boolean handleCommand(Connection client, ClientCommand command) {
+            if (command instanceof ClientCommand.Leave || command instanceof ClientCommand.EndGame) {
+                // Leaving; a plain ENDGAME from a client is treated as the client leaving too. A
+                // player in the game's roster stays on the scoreboard, disconnected (Q12)
+                removeClient(client);
+                if (mRoster.isRunning() && mRoster.connectedCount() <= 1)
+                    endGame();
+                return true;
+            } else if (command instanceof ClientCommand.Eliminated) {
+                // Sent reliably since v07; a bare one is applied the same way, without de-dup
+                handleEliminated(client, (ClientCommand.Eliminated) command);
+            } else if (command instanceof ClientCommand.ShotFired) {
+                sendTCPMessageAll(command(ServerCommand.ShotFired.INSTANCE));
+            } else if (command instanceof ClientCommand.Hit) {
+                Byte shooterId = ((ClientCommand.Hit) command).getShooterId();
+                if (shooterId != null)
+                    sendTCPMessageID(command(new ServerCommand.Hit(playerIdOf(client))), shooterId);
+            } else if (command instanceof ClientCommand.Out) {
+                Byte shooterId = ((ClientCommand.Out) command).getShooterId();
+                if (shooterId != null)
+                    sendTCPMessageID(command(new ServerCommand.Out(playerIdOf(client))), shooterId);
+            } else if (command instanceof ClientCommand.TeamEliminated) {
+                sendTCPMessageTeam(command(ServerCommand.TeamEliminated.INSTANCE), playerIdOf(client), false);
+            } else if (command instanceof ClientCommand.PlayerDataRequest) {
+                sendPlayerData(playerIdOf(client));
+            } else if (WireCodec.isAdminCommand(command) && !isAdmin(client)) {
+                // D14: only players the server operator made admins may run the game
+                Log.w(TAG, "Ignoring '" + WireCodec.text(command) + "' from non-admin client " + client.getConnectionId());
+            } else if (command instanceof ClientCommand.StartGame || command instanceof ClientCommand.AdminStartGame) {
+                Log.d(TAG, "TcpServer received STARTGAME / ADMIN_STARTGAME command");
+                if (!startGame() && mRoster.phase() == SessionPhase.POST_GAME)
+                    client.send(command(new ServerCommand.Error("Reset the game first")));
+            } else if (command instanceof ClientCommand.AdminEndGame) {
+                Log.d(TAG, "TcpServer received ADMIN_ENDGAME command");
+                endGame();
+            } else if (command instanceof ClientCommand.AdminReset) {
+                Log.d(TAG, "TcpServer received ADMIN_RESET command");
+                resetSession();
+            } else if (command instanceof ClientCommand.AdminSortTeams) {
+                Log.d(TAG, "TcpServer received ADMIN_SORTTEAMS command");
+                if (!mRoster.isRunning()) {
+                    resetIfPostGame();
+                    rebalanceAllPlayers(true);
+                }
+            } else if (command instanceof ClientCommand.AdminGameMode) {
+                Integer wireValue = ((ClientCommand.AdminGameMode) command).getWireValue();
+                Log.d(TAG, "TcpServer received ADMIN_GAMEMODE command: " + wireValue);
+                if (wireValue == null)
+                    return false;
+                TeamMode mode = TeamMode.fromWire(wireValue);
+                if (mode == null) {
+                    Log.w(TAG, "ADMIN_GAMEMODE ignored: unknown team mode");
+                } else if (!mRoster.isRunning()) {
+                    resetIfPostGame();
+                    GameSettingsRepository.getInstance().setTeamMode(mode);
+                    new UserPreferencesRepository(TcpServer.this).saveTeamMode(mode);
+                    rebalanceAllPlayers(false);
+                }
+            } else if (command instanceof ClientCommand.AdminKick) {
+                Byte targetId = ((ClientCommand.AdminKick) command).getPlayerId();
+                Log.d(TAG, "TcpServer received ADMIN_KICK command: " + targetId);
+                if (targetId != null)
+                    kickPlayer(targetId);
+            } else if (command instanceof ClientCommand.AdminTeamSizes) {
+                List<Integer> sizes = ((ClientCommand.AdminTeamSizes) command).getSizes();
+                Log.d(TAG, "TcpServer received ADMIN_TEAMSIZES command: " + sizes);
+                if (!mRoster.isRunning() && sizes != null) {
+                    int[] newSizes = new int[sizes.size()];
+                    int sum = 0;
+                    for (int i = 0; i < newSizes.length; i++) {
+                        newSizes[i] = sizes.get(i);
+                        sum += newSizes[i];
+                    }
+                    if (sum == GameSettingsRepository.MAX_PLAYER_ID) {
+                        resetIfPostGame();
+                        GameSettingsRepository.getInstance().setTeamSizes(newSizes);
+                        rebalanceAllPlayers(false);
+                    }
+                }
+            }
+            return false;
         }
 
         private void sendGrenadePairings() {
@@ -1170,11 +1157,6 @@ public class TcpServer extends Service {
             }
         }
 
-        /** Messages that run the game: every ADMIN_* message, and a plain STARTGAME. */
-        private boolean isAdminCommand(String message) {
-            return message.equals(WireProtocol.NETMSG_STARTGAME) || message.startsWith(ADMIN_PREFIX);
-        }
-
         /** The server operator gave this player admin rights in its player settings. */
         private boolean isAdmin(Connection client) {
             PlayerRecord player = client.getPlayer();
@@ -1190,18 +1172,15 @@ public class TcpServer extends Service {
         }
 
         /**
-         * [message] ("ELIMINATED" + shooter id): the player behind [client] was eliminated. During
-         * the game: the shooter and its team are told and the limits checked. After the game it
-         * only counts in the final scores.
+         * The player behind [client] was eliminated by the command's shooter. During the game:
+         * the shooter and its team are told and the limits checked. After the game it only counts
+         * in the final scores.
          */
-        private void handleEliminated(Connection client, String message) {
-            byte id;
-            try {
-                id = (byte) Integer.parseInt(message.substring(WireProtocol.NETMSG_ELIMINATED.length()));
-            } catch (NumberFormatException e) {
-                e.printStackTrace();
+        private void handleEliminated(Connection client, ClientCommand.Eliminated command) {
+            Byte shooterId = command.getShooterId();
+            if (shooterId == null)
                 return;
-            }
+            byte id = shooterId;
             GameRoster.Elimination elimination = mRoster.onEliminated(client, id);
             if (elimination == null) {
                 Log.d(TAG, "elimination ignored outside a game");
@@ -1219,11 +1198,11 @@ public class TcpServer extends Service {
                 return;
             }
             int shooterScore = elimination.shooterPoints;
-            sendTCPMessageID(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_ELIMINATED + elimination.victimId, id);
+            sendTCPMessageID(command(new ServerCommand.Eliminated(elimination.victimId)), id);
             TeamLayout layout = GameSettingsRepository.getInstance().getTeamLayout();
             if (!layout.getMode().isFreeForAll()) {
                 // Send a message to all teammates about the score increase
-                sendTCPMessageTeam(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_TEAMELIMINATED, id, false);
+                sendTCPMessageTeam(command(ServerCommand.TeamEliminated.INSTANCE), id, false);
             }
             mEvents.publish(new ServerEvent.PlayerDataChanged(null));
             int scoreLimit = ((GameSettingsRepository.getInstance().getGameLimit() & GameSettingsRepository.GAME_LIMIT_SCORE) != 0 ? GameSettingsRepository.getInstance().getScoreLimit() : 0);
@@ -1257,8 +1236,9 @@ public class TcpServer extends Service {
                     Log.d(TAG, "dropping duplicate reliable message " + seq + ": " + rmsg);
                     break;
                 case APPLY:
-                    if (rmsg.startsWith(WireProtocol.NETMSG_ELIMINATED))
-                        handleEliminated(client, rmsg);
+                    ClientCommand command = WireCodec.decodeClientCommand(rmsg);
+                    if (command instanceof ClientCommand.Eliminated)
+                        handleEliminated(client, (ClientCommand.Eliminated) command);
                     else
                         Log.w(TAG, "unknown reliable message: " + rmsg);
                     break;
@@ -1293,7 +1273,7 @@ public class TcpServer extends Service {
                 try {
                     int ack = handleReliable(client, player.getString(WireKeys.RMSG), player.getInt(WireKeys.SEQ), player.optLong(WireKeys.GAMEID, 0));
                     if (ack >= 0)
-                        client.send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_ACK + ack);
+                        client.send(command(new ServerCommand.Ack(ack)));
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
@@ -1424,7 +1404,7 @@ public class TcpServer extends Service {
             switch (result.kind) {
                 case REFUSED_IN_PROGRESS:
                     Log.d(TAG, "Rejecting client " + client.getConnectionId() + " (MAC: " + blasterMac + ") - Game in progress and allowJoin is false.");
-                    client.send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_ERROR + "Cannot join game in progress due to server settings.");
+                    client.send(command(new ServerCommand.Error("Cannot join game in progress due to server settings.")));
                     client.closeAfterPending();
                     mRoster.removeConnection(client);
                     return;
@@ -1439,7 +1419,7 @@ public class TcpServer extends Service {
                     if (result.displaced != null)
                         result.displaced.close();
                     applyPending(client, player);
-                    client.send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_SERVERREPLY + existingPlayerId);
+                    client.send(command(new ServerCommand.ServerReply(existingPlayerId)));
                     sendAllGameInfo(existingPlayerId);
                     mEvents.publish(new ServerEvent.PlayerDataChanged(null));
                     mEvents.publish(ServerEvent.PlayerJoined.INSTANCE);
@@ -1452,7 +1432,7 @@ public class TcpServer extends Service {
             PlayerRecord record = result.record;
             id = record.getPlayerId();
             applyPending(client, player);
-            client.send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_SERVERREPLY + id);
+            client.send(command(new ServerCommand.ServerReply(id)));
             Log.e(TAG, "network team is " + record.getTeam());
             InetAddress inetAddress = client.getInetAddress();
             Log.d(TAG, "client " + client.getConnectionId() + " player '" + record.getName() + "' (" + id + ") found at " + (inetAddress != null ? inetAddress.toString() : "null"));
@@ -1494,7 +1474,7 @@ public class TcpServer extends Service {
                 Log.w(TAG, "Team change rejected: No open slot on team " + targetTeam);
                 return;
             }
-            client.send(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_SERVERREPLY + moved.getPlayerId());
+            client.send(command(new ServerCommand.ServerReply(moved.getPlayerId())));
             sendPlayerData(SEND_ALL);
             sendAllGameInfo(SEND_ALL);
             mEvents.publish(new ServerEvent.PlayerDataChanged(null));

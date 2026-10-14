@@ -19,6 +19,7 @@ package com.simplecoil.simplecoil
 import android.content.Context
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.network.ClientCommand
 import com.simplecoil.simplecoil.network.WireFixtures
 import com.simplecoil.simplecoil.network.WireProtocol
 import kotlinx.coroutines.test.TestScope
@@ -166,14 +167,12 @@ class ClientWireFixturesTest {
             gateway.sendHit(17)
             gateway.sendOut(17)
             // The play screen's own commands (GameViewModel), built the same way
-            for (command in listOf(WireProtocol.NETMSG_TEAMELIMINATED, WireProtocol.NETMSG_PLAYERDATAREQUEST,
-                    WireProtocol.NETMSG_STARTGAME, WireProtocol.NETMSG_ADMIN_STARTGAME, WireProtocol.NETMSG_ADMIN_ENDGAME,
-                    WireProtocol.NETMSG_ADMIN_SORTTEAMS, WireProtocol.NETMSG_ADMIN_RESET, WireProtocol.NETMSG_ADMIN_GAMEMODE + 4,
-                    WireProtocol.NETMSG_ADMIN_KICK + 17, WireProtocol.NETMSG_ADMIN_TEAMSIZES + "10,6,8,8")) {
-                client.sendTCPMessage(NetworkSessionGateway.message(command))
+            for (command in listOf(ClientCommand.TeamEliminated, ClientCommand.PlayerDataRequest, ClientCommand.StartGame,
+                    ClientCommand.AdminStartGame, ClientCommand.AdminEndGame, ClientCommand.AdminSortTeams, ClientCommand.AdminReset,
+                    ClientCommand.AdminGameMode(4), ClientCommand.AdminKick(17), ClientCommand.AdminTeamSizes(listOf(10, 6, 8, 8)),
+                    ClientCommand.Leave)) { // leaveServer()'s LEAVE: it only writes while connected
+                client.sendTCPMessage(NetworkSessionGateway.command(command))
             }
-            // leaveServer()'s LEAVE (it only writes while connected)
-            client.sendTCPMessage(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_LEAVE)
         }
         WireFixtures.assertCommands("client/commands.txt", frames)
     }

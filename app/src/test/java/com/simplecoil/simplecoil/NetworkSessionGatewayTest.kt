@@ -21,8 +21,8 @@ import android.content.Intent
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.network.ClientCommand
 import com.simplecoil.simplecoil.network.ClientEvent
-import com.simplecoil.simplecoil.network.WireProtocol
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -55,16 +55,16 @@ class NetworkSessionGatewayTest {
 
     @Test
     fun messageFormat_isPrefixVersionMesgPayload() {
-        assertEquals("SimpleCoil:07MESGHIT2", NetworkSessionGateway.message(WireProtocol.NETMSG_HIT + 2.toByte()))
-        assertEquals("SimpleCoil:07MESGOUT32", NetworkSessionGateway.message(WireProtocol.NETMSG_OUT + 32.toByte()))
-        assertEquals("SimpleCoil:07MESGSHOTFIRED", NetworkSessionGateway.message(WireProtocol.NETMSG_SHOTFIRED))
-        assertEquals("SimpleCoil:07MESGELIMINATED7", NetworkSessionGateway.message(WireProtocol.NETMSG_ELIMINATED + 7.toByte()))
-        assertEquals("SimpleCoil:07MESGTEAMELIMINATED", NetworkSessionGateway.message(WireProtocol.NETMSG_TEAMELIMINATED))
-        assertEquals("SimpleCoil:07MESGPLAYERDATAREQUEST", NetworkSessionGateway.message(WireProtocol.NETMSG_PLAYERDATAREQUEST))
-        assertEquals("SimpleCoil:07MESGSTARTGAME", NetworkSessionGateway.message(WireProtocol.NETMSG_STARTGAME))
-        assertEquals("SimpleCoil:07MESGADMIN_GAMEMODE4", NetworkSessionGateway.message(WireProtocol.NETMSG_ADMIN_GAMEMODE + 4))
-        assertEquals("SimpleCoil:07MESGADMIN_TEAMSIZES16,16", NetworkSessionGateway.message(WireProtocol.NETMSG_ADMIN_TEAMSIZES + "16,16"))
-        assertEquals("SimpleCoil:07MESGADMIN_RESET", NetworkSessionGateway.message(WireProtocol.NETMSG_ADMIN_RESET))
+        assertEquals("SimpleCoil:07MESGHIT2", NetworkSessionGateway.command(ClientCommand.Hit(2)))
+        assertEquals("SimpleCoil:07MESGOUT32", NetworkSessionGateway.command(ClientCommand.Out(32)))
+        assertEquals("SimpleCoil:07MESGSHOTFIRED", NetworkSessionGateway.command(ClientCommand.ShotFired))
+        assertEquals("SimpleCoil:07MESGELIMINATED7", NetworkSessionGateway.command(ClientCommand.Eliminated(7)))
+        assertEquals("SimpleCoil:07MESGTEAMELIMINATED", NetworkSessionGateway.command(ClientCommand.TeamEliminated))
+        assertEquals("SimpleCoil:07MESGPLAYERDATAREQUEST", NetworkSessionGateway.command(ClientCommand.PlayerDataRequest))
+        assertEquals("SimpleCoil:07MESGSTARTGAME", NetworkSessionGateway.command(ClientCommand.StartGame))
+        assertEquals("SimpleCoil:07MESGADMIN_GAMEMODE4", NetworkSessionGateway.command(ClientCommand.AdminGameMode(4)))
+        assertEquals("SimpleCoil:07MESGADMIN_TEAMSIZES16,16", NetworkSessionGateway.command(ClientCommand.AdminTeamSizes(listOf(16, 16))))
+        assertEquals("SimpleCoil:07MESGADMIN_RESET", NetworkSessionGateway.command(ClientCommand.AdminReset))
     }
 
     private fun gateway(client: TcpClient? = mock(TcpClient::class.java)) =

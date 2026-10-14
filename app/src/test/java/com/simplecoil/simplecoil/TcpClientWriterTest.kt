@@ -17,6 +17,7 @@
 package com.simplecoil.simplecoil
 
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
+import com.simplecoil.simplecoil.network.ClientCommand
 import org.json.JSONObject
 import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.network.WireKeys
@@ -69,7 +70,7 @@ class TcpClientWriterTest {
         PlayerRepository.getInstance().pairedGrenadeID = 0
         val client = TcpClient()
         client.sendReliable(WireProtocol.NETMSG_ELIMINATED + 3) // no connection: only in the outbox
-        client.sendTCPMessage(NetworkSessionGateway.message(WireProtocol.NETMSG_HIT + 3)) // no connection: dropped
+        client.sendTCPMessage(NetworkSessionGateway.command(ClientCommand.Hit(3))) // no connection: dropped
         client.awaitWritesForTest()
 
         client.attachOutputForTest(DataOutputStream(bytes))
@@ -116,7 +117,7 @@ class TcpClientWriterTest {
             socket.soTimeout = 5_000
             val input = DataInputStream(socket.getInputStream())
             input.readUTF() // the hello
-            val chatter = (0 until 50).map { NetworkSessionGateway.message(WireProtocol.NETMSG_SHOTFIRED) }
+            val chatter = (0 until 50).map { NetworkSessionGateway.command(ClientCommand.ShotFired) }
             chatter.forEach { client.sendTCPMessage(it) }
             val startedAt = System.nanoTime()
             client.leaveServer()
@@ -128,7 +129,7 @@ class TcpClientWriterTest {
             } catch (e: EOFException) {
                 // the client closed its socket
             }
-            assertEquals(chatter + NetworkSessionGateway.message(WireProtocol.NETMSG_LEAVE), frames)
+            assertEquals(chatter + NetworkSessionGateway.command(ClientCommand.Leave), frames)
             socket.close()
         }
     }

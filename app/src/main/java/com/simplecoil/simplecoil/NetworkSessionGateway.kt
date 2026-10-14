@@ -26,8 +26,11 @@ import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.domain.team.TeamLayout
 import com.simplecoil.simplecoil.domain.session.SessionNetwork
+import com.simplecoil.simplecoil.network.ClientCommand
 import com.simplecoil.simplecoil.network.ClientEvent
+import com.simplecoil.simplecoil.network.ClientMessage
 import com.simplecoil.simplecoil.network.EventBus
+import com.simplecoil.simplecoil.network.WireCodec
 import com.simplecoil.simplecoil.network.WireKeys
 import com.simplecoil.simplecoil.network.WireProtocol
 import kotlinx.coroutines.CoroutineDispatcher
@@ -191,19 +194,19 @@ class NetworkSessionGateway(
     // ---------------------------------------------------------------------------------------
 
     override fun sendHit(playerId: Byte) {
-        tcpClient?.sendTCPMessage(message(WireProtocol.NETMSG_HIT + playerId))
+        tcpClient?.sendTCPMessage(command(ClientCommand.Hit(playerId)))
     }
 
     override fun sendOut(playerId: Byte) {
-        tcpClient?.sendTCPMessage(message(WireProtocol.NETMSG_OUT + playerId))
+        tcpClient?.sendTCPMessage(command(ClientCommand.Out(playerId)))
     }
 
     override fun sendShotFired() {
-        tcpClient?.sendTCPMessage(message(WireProtocol.NETMSG_SHOTFIRED))
+        tcpClient?.sendTCPMessage(command(ClientCommand.ShotFired))
     }
 
     override fun sendEliminated(playerId: Byte) {
-        tcpClient?.sendReliable(WireProtocol.NETMSG_ELIMINATED + playerId)
+        tcpClient?.sendReliable(WireCodec.text(ClientCommand.Eliminated(playerId)))
     }
 
     /** Our position, from the map's location updates. */
@@ -275,9 +278,9 @@ class NetworkSessionGateway(
             return ParsedPlayerData(finalData, myPoints, teamPoints)
         }
 
-        /** TCP message carrying a NETMSG: prefix + version + "MESG" + [netMsg]. */
+        /** The MESG frame carrying [command]. */
         @JvmStatic
-        fun message(netMsg: String): String = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + netMsg
+        fun command(command: ClientCommand): String = WireCodec.encode(ClientMessage.Command(command))
 
         /** TCP message carrying JSON: prefix + version + "JSON" + [json]. */
         @JvmStatic

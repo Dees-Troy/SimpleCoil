@@ -45,9 +45,9 @@ import com.simplecoil.simplecoil.hardware.blaster.BleConnectionEvent
 import com.simplecoil.simplecoil.hardware.blaster.BleConnectionManager
 import com.simplecoil.simplecoil.hardware.blaster.GattProtocolHandler
 import com.simplecoil.simplecoil.hardware.blaster.QrPairingPayload
+import com.simplecoil.simplecoil.network.ClientCommand
 import com.simplecoil.simplecoil.network.ClientEvent
 import com.simplecoil.simplecoil.network.GameUpdate
-import com.simplecoil.simplecoil.network.WireProtocol
 import com.simplecoil.simplecoil.network.server.SessionPhase
 import com.simplecoil.simplecoil.ui.playersettings.PlayerSettingsValues
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardContext
@@ -563,7 +563,7 @@ class GameViewModel(
                 screen?.showOnlyOnePlayer()
                 return
             }
-            net.tcpClient!!.sendTCPMessage(NetworkSessionGateway.message(WireProtocol.NETMSG_STARTGAME))
+            net.tcpClient!!.sendTCPMessage(NetworkSessionGateway.command(ClientCommand.StartGame))
         } else {
             if (net.useNetwork) stopServerSearch(true)
             startGame()
@@ -591,7 +591,7 @@ class GameViewModel(
     fun onEndGameConfirmed() {
         if (net.useNetwork) {
             if (playerRepo.isAdmin) {
-                net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(WireProtocol.NETMSG_ADMIN_ENDGAME))
+                net.tcpClient?.sendTCPMessage(NetworkSessionGateway.command(ClientCommand.AdminEndGame))
             } else {
                 net.tcpClient!!.leaveServer()
                 endGame()
@@ -838,34 +838,34 @@ class GameViewModel(
         when (action) {
             AdminAction.START_GAME -> {
                 Log.d(TAG, "Server Controls: Start Game clicked. mTcpClient=" + (client != null))
-                client?.sendTCPMessage(NetworkSessionGateway.message(WireProtocol.NETMSG_STARTGAME))
-                client?.sendTCPMessage(NetworkSessionGateway.message(WireProtocol.NETMSG_ADMIN_STARTGAME))
+                client?.sendTCPMessage(NetworkSessionGateway.command(ClientCommand.StartGame))
+                client?.sendTCPMessage(NetworkSessionGateway.command(ClientCommand.AdminStartGame))
             }
             AdminAction.END_GAME -> {
                 Log.d(TAG, "Server Controls: End Game clicked. mTcpClient=" + (client != null))
-                client?.sendTCPMessage(NetworkSessionGateway.message(WireProtocol.NETMSG_ADMIN_ENDGAME))
+                client?.sendTCPMessage(NetworkSessionGateway.command(ClientCommand.AdminEndGame))
             }
             AdminAction.TWO_TEAMS -> changeAdminTeamMode(TeamMode.TWO_TEAMS)
             AdminAction.FOUR_TEAMS -> changeAdminTeamMode(TeamMode.FOUR_TEAMS)
             AdminAction.FREE_FOR_ALL -> changeAdminTeamMode(TeamMode.FREE_FOR_ALL)
-            AdminAction.SHUFFLE_TEAMS -> client?.sendTCPMessage(NetworkSessionGateway.message(WireProtocol.NETMSG_ADMIN_SORTTEAMS))
+            AdminAction.SHUFFLE_TEAMS -> client?.sendTCPMessage(NetworkSessionGateway.command(ClientCommand.AdminSortTeams))
             AdminAction.RESET_GAME -> screen?.confirmReset(latestPlayerData?.count { it != null && !it.isConnected } ?: 0)
         }
     }
 
     /** The admin confirmed the reset. Team mode and sort after a game need no confirmation: the server resets first. */
     fun onResetConfirmed() {
-        net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(WireProtocol.NETMSG_ADMIN_RESET))
+        net.tcpClient?.sendTCPMessage(NetworkSessionGateway.command(ClientCommand.AdminReset))
     }
 
     private fun changeAdminTeamMode(mode: TeamMode) {
         Log.d(TAG, "changeAdminTeamMode: mode=" + mode + ", mTcpClient=" + (net.tcpClient != null))
-        net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(WireProtocol.NETMSG_ADMIN_GAMEMODE + mode.wireValue))
+        net.tcpClient?.sendTCPMessage(NetworkSessionGateway.command(ClientCommand.AdminGameMode(mode.wireValue)))
     }
 
     fun onKickPlayer(playerId: Byte) {
         val client = net.tcpClient ?: return
-        client.sendTCPMessage(NetworkSessionGateway.message(WireProtocol.NETMSG_ADMIN_KICK + playerId))
+        client.sendTCPMessage(NetworkSessionGateway.command(ClientCommand.AdminKick(playerId)))
         screen?.showMessage(GameMessage.KICK_SENT)
     }
 
@@ -900,7 +900,7 @@ class GameViewModel(
             is TeamSizes.Result.Valid -> result.sizes
         }
         settingsRepo.setTeamSizes(newSizes)
-        net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(WireProtocol.NETMSG_ADMIN_TEAMSIZES + newSizes.joinToString(",")))
+        net.tcpClient?.sendTCPMessage(NetworkSessionGateway.command(ClientCommand.AdminTeamSizes(newSizes.toList())))
         return true
     }
 
@@ -911,7 +911,7 @@ class GameViewModel(
     fun openScoreboard() {
         scoreboardVisible = true
         latestPlayerData?.let { screen?.showScoreboard(it) }
-        if (net.useNetwork) net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(WireProtocol.NETMSG_PLAYERDATAREQUEST))
+        if (net.useNetwork) net.tcpClient?.sendTCPMessage(NetworkSessionGateway.command(ClientCommand.PlayerDataRequest))
     }
 
     /** Thumb button long press: opens or closes the scoreboard while joined to a server. */
@@ -1058,7 +1058,7 @@ class GameViewModel(
         if (!settingsRepo.teamMode.isFreeForAll) {
             net.teamScore = net.teamScore + 1
             screen?.showTeamScore(net.teamScore)
-            net.tcpClient?.sendTCPMessage(NetworkSessionGateway.message(WireProtocol.NETMSG_TEAMELIMINATED))
+            net.tcpClient?.sendTCPMessage(NetworkSessionGateway.command(ClientCommand.TeamEliminated))
         }
         if (!net.useNetwork && (settingsRepo.gameLimit and GameSettingsRepository.GAME_LIMIT_SCORE) != 0) {
             val currentScore = if (!settingsRepo.teamMode.isFreeForAll) net.teamScore else net.score

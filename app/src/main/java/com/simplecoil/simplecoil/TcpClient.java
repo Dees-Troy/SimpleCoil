@@ -44,10 +44,14 @@ import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
 import com.simplecoil.simplecoil.data.repository.GameStateRepository;
 import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.domain.team.TeamMode;
+import com.simplecoil.simplecoil.network.ClientCommand;
 import com.simplecoil.simplecoil.network.ClientEvent;
+import com.simplecoil.simplecoil.network.ClientMessage;
 import com.simplecoil.simplecoil.network.EventBus;
 import com.simplecoil.simplecoil.network.Frame;
 import com.simplecoil.simplecoil.network.GameUpdate;
+import com.simplecoil.simplecoil.network.ServerCommand;
+import com.simplecoil.simplecoil.network.WireCodec;
 import com.simplecoil.simplecoil.network.FrameReader;
 import com.simplecoil.simplecoil.network.WireKeys;
 import com.simplecoil.simplecoil.network.WireProtocol;
@@ -481,43 +485,7 @@ public class TcpClient extends Service {
         if (frame.kind == Frame.Kind.JSON) {
             parseGameInfo(frame.body);
         } else if (frame.kind == Frame.Kind.MESG) {
-            String message = frame.body;
-            if (message.startsWith(WireProtocol.NETMSG_ELIMINATED)) {
-                Byte id = parseId(message.substring(WireProtocol.NETMSG_ELIMINATED.length()));
-                if (id != null)
-                    mEvents.publish(new ClientEvent.Eliminated(id));
-            } else if (message.startsWith(WireProtocol.NETMSG_HIT)) {
-                // Without an id the screen names player 0, as the broadcast's default did
-                Byte id = parseId(message.substring(WireProtocol.NETMSG_HIT.length()));
-                mEvents.publish(new ClientEvent.Hit(id != null ? id : 0));
-            } else if (message.startsWith(WireProtocol.NETMSG_OUT)) {
-                Byte id = parseId(message.substring(WireProtocol.NETMSG_OUT.length()));
-                mEvents.publish(new ClientEvent.Out(id != null ? id : 0));
-            } else if (message.equals(WireProtocol.NETMSG_SHOTFIRED)) {
-                mEvents.publish(ClientEvent.ShotFired.INSTANCE);
-            } else if (message.startsWith(WireProtocol.NETMSG_SERVERREPLY)) {
-                Byte assignedID = parseId(message.substring(WireProtocol.NETMSG_SERVERREPLY.length()));
-                if (assignedID != null)
-                    PlayerRepository.getInstance().setPlayerID(assignedID);
-                mEvents.publish(new ClientEvent.ServerReply(assignedID));
-            } else if (message.equals(WireProtocol.NETMSG_TEAMELIMINATED)) {
-                mEvents.publish(ClientEvent.TeamEliminated.INSTANCE);
-            } else if (message.equals(WireProtocol.NETMSG_ENDGAME)) {
-                mEvents.publish(ClientEvent.EndGame.INSTANCE);
-            } else if (message.equals(WireProtocol.NETMSG_STARTGAME)) {
-                mEvents.publish(ClientEvent.StartGame.INSTANCE);
-            } else if (message.equals(WireProtocol.NETMSG_SERVERCANCEL)) {
-                mEvents.publish(ClientEvent.ServerCancel.INSTANCE);
-                return true;
-            } else if (message.startsWith(WireProtocol.NETMSG_ACK)) {
-                try {
-                    mOutbox.ack(Integer.parseInt(message.substring(WireProtocol.NETMSG_ACK.length())));
-                } catch (NumberFormatException e) {
-                    e.printStackTrace();
-                }
-            } else if (message.startsWith(WireProtocol.NETMSG_ERROR)) {
-                mEvents.publish(new ClientEvent.Error(message.substring(WireProtocol.NETMSG_ERROR.length())));
-            }
+            return handleCommand(WireCodec.decodeServerCommand(frame.body));
         } else if (frame.kind == Frame.Kind.VERSION_ERROR) {
             mEvents.publish(ClientEvent.VersionError.INSTANCE);
             return true;
@@ -527,16 +495,43 @@ public class TcpClient extends Service {
         return false;
     }
 
-    /** A player id from a command's argument, or null (logged) when it is missing or not a number. */
-    private static Byte parseId(String text) {
-        if (text.isEmpty())
-            return null;
-        try {
-            return (byte) Integer.parseInt(text.trim());
-        } catch (NumberFormatException e) {
-            Log.w(TAG, "Bad player id '" + text + "'");
-            return null;
+    /** Handles a command from the server; true when it ended the session (SERVERCANCEL). */
+    private boolean handleCommand(ServerCommand command) {
+        if (command instanceof ServerCommand.Eliminated) {
+            Byte id = ((ServerCommand.Eliminated) command).getVictimId();
+            if (id != null)
+                mEvents.publish(new ClientEvent.Eliminated(id));
+        } else if (command instanceof ServerCommand.Hit) {
+            // Without an id the screen names player 0, as the broadcast's default did
+            Byte id = ((ServerCommand.Hit) command).getTargetId();
+            mEvents.publish(new ClientEvent.Hit(id != null ? id : 0));
+        } else if (command instanceof ServerCommand.Out) {
+            Byte id = ((ServerCommand.Out) command).getTargetId();
+            mEvents.publish(new ClientEvent.Out(id != null ? id : 0));
+        } else if (command instanceof ServerCommand.ShotFired) {
+            mEvents.publish(ClientEvent.ShotFired.INSTANCE);
+        } else if (command instanceof ServerCommand.ServerReply) {
+            Byte assignedID = ((ServerCommand.ServerReply) command).getPlayerId();
+            if (assignedID != null)
+                PlayerRepository.getInstance().setPlayerID(assignedID);
+            mEvents.publish(new ClientEvent.ServerReply(assignedID));
+        } else if (command instanceof ServerCommand.TeamEliminated) {
+            mEvents.publish(ClientEvent.TeamEliminated.INSTANCE);
+        } else if (command instanceof ServerCommand.EndGame) {
+            mEvents.publish(ClientEvent.EndGame.INSTANCE);
+        } else if (command instanceof ServerCommand.StartGame) {
+            mEvents.publish(ClientEvent.StartGame.INSTANCE);
+        } else if (command instanceof ServerCommand.ServerCancel) {
+            mEvents.publish(ClientEvent.ServerCancel.INSTANCE);
+            return true;
+        } else if (command instanceof ServerCommand.Ack) {
+            Integer seq = ((ServerCommand.Ack) command).getSeq();
+            if (seq != null)
+                mOutbox.ack(seq);
+        } else if (command instanceof ServerCommand.Error) {
+            mEvents.publish(new ClientEvent.Error(((ServerCommand.Error) command).getMessage()));
         }
+        return false;
     }
 
     /** Routes [socket] over Wi-Fi even when Android made mobile data the default network. */
@@ -692,8 +687,7 @@ public class TcpClient extends Service {
     public void leaveServer() {
         mOutbox.clear();
         if (keepListening) {
-            String message = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_MESG + WireProtocol.NETMSG_LEAVE;
-            sendTCPMessage(message);
+            sendTCPMessage(WireCodec.encode(new ClientMessage.Command(ClientCommand.Leave.INSTANCE)));
             stopTcpClient();
         }
     }
