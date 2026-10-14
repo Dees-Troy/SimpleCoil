@@ -53,7 +53,8 @@ public class MapLocationManager {
     public static final double PI180 = Math.PI / 180;
     public static final int TWO_MINUTES = 1000 * 60 * 2;
 
-    private static volatile MapLocationManager instance;
+    private final PlayerRepository playerRepo;
+    private final GameSettingsRepository settingsRepo;
 
     private Location currentBestLocation;
     private LocationManager locationManager;
@@ -62,17 +63,9 @@ public class MapLocationManager {
     private double lastLongitude = 0;
     private double lastLatitude = 0;
 
-    private MapLocationManager() {}
-
-    public static MapLocationManager getInstance() {
-        if (instance == null) {
-            synchronized (MapLocationManager.class) {
-                if (instance == null) {
-                    instance = new MapLocationManager();
-                }
-            }
-        }
-        return instance;
+    public MapLocationManager(PlayerRepository playerRepo, GameSettingsRepository settingsRepo) {
+        this.playerRepo = playerRepo;
+        this.settingsRepo = settingsRepo;
     }
 
     public synchronized void startLocationUpdates(Context context, LocationUpdateListener listener) {
@@ -245,8 +238,6 @@ public class MapLocationManager {
         MarkerInfo markerInfo = new MarkerInfo();
         Point2d markerSize = new Point2d(72, 72);
 
-        PlayerRepository playerRepo = PlayerRepository.getInstance();
-        GameSettingsRepository settingsRepo = GameSettingsRepository.getInstance();
         TeamLayout layout = settingsRepo.getTeamLayout();
         int gpsMode = settingsRepo.getGpsMode();
         byte currentPlayerId = playerRepo.getPlayerID();

@@ -33,6 +33,7 @@ import com.simplecoil.simplecoil.hardware.audio.SoundEffectPlayer
 import com.simplecoil.simplecoil.hardware.blaster.BlasterManager
 import com.simplecoil.simplecoil.hardware.blaster.BleConnectionManager
 import com.simplecoil.simplecoil.hardware.blaster.BleDeviceRepository
+import com.simplecoil.simplecoil.hardware.location.MapLocationManager
 import com.simplecoil.simplecoil.network.ClientEvent
 import com.simplecoil.simplecoil.network.EventBus
 import com.simplecoil.simplecoil.network.ServerEvent
@@ -98,6 +99,9 @@ class AppContainer(private val app: Application) {
     val soundEffects: SoundEffectPlayer get() = audioHaptics
 
     val haptics: HapticsPlayer get() = audioHaptics
+
+    /** The map's location tracking and markers; process-wide, as the map fragment comes and goes. */
+    val mapLocation: MapLocationManager by lazy { MapLocationManager(players, settings) }
 
     /**
      * Makes this container's repositories the ones getInstance() returns, for the code that

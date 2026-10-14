@@ -18,6 +18,8 @@ package com.simplecoil.simplecoil.hardware;
 
 import com.simplecoil.simplecoil.data.model.GpsData;
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository;
+import com.simplecoil.simplecoil.data.repository.GameStateRepository;
+import com.simplecoil.simplecoil.data.repository.PlayerRepository;
 import com.simplecoil.simplecoil.domain.team.TeamLayout;
 import com.simplecoil.simplecoil.domain.team.TeamMode;
 import com.simplecoil.simplecoil.hardware.location.MapLocationManager;
@@ -34,7 +36,8 @@ public class MapLocationManagerTest {
 
     @Before
     public void setUp() {
-        locationManager = MapLocationManager.getInstance();
+        GameSettingsRepository settings = new GameSettingsRepository();
+        locationManager = new MapLocationManager(new PlayerRepository(settings, new GameStateRepository()), settings);
     }
 
     @Test

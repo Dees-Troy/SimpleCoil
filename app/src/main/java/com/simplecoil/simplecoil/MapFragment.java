@@ -53,7 +53,9 @@ public class MapFragment extends GlobeMapFragment {
     private static final String TAG = "map";
     private static final int LOCATION_PERMISSION_REQUEST = 1;
 
-    private final MapLocationManager mLocation = MapLocationManager.getInstance();
+    private MapLocationManager mLocation;
+    private PlayerRepository mPlayers;
+    private GameSettingsRepository mSettings;
     private boolean mTracking = false;
     private ComponentObject[] mPlayerMarkers = null;
 
@@ -92,8 +94,12 @@ public class MapFragment extends GlobeMapFragment {
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        AppContainer container = container();
+        mLocation = container.getMapLocation();
+        mPlayers = container.getPlayers();
+        mSettings = container.getSettings();
         // While resumed, as the broadcast receiver it replaces was registered
-        container().getClientEvents().observe(this, Lifecycle.State.RESUMED, this::onClientEvent);
+        container.getClientEvents().observe(this, Lifecycle.State.RESUMED, this::onClientEvent);
     }
 
     @Override
@@ -134,7 +140,7 @@ public class MapFragment extends GlobeMapFragment {
     private void onClientEvent(ClientEvent event) {
         if (event instanceof ClientEvent.GpsData) {
             if (((ClientEvent.GpsData) event).getFullUpdate()) {
-                byte me = PlayerRepository.getInstance().getPlayerID();
+                byte me = mPlayers.getPlayerID();
                 for (int x = 0; x <= GameSettingsRepository.MAX_PLAYER_ID; x++) {
                     if (x != me)
                         mLocation.removePlayerMarker(mapControl, x, mPlayerMarkers);
@@ -142,7 +148,7 @@ public class MapFragment extends GlobeMapFragment {
             }
             insertPlayerMarkers();
         } else if (event instanceof ClientEvent.ListPlayers || event == ClientEvent.GpsSettingChanged.INSTANCE) {
-            enableGPS(GameSettingsRepository.getInstance().isUseGPS());
+            enableGPS(mSettings.isUseGPS());
         }
     }
 
@@ -173,7 +179,7 @@ public class MapFragment extends GlobeMapFragment {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == LOCATION_PERMISSION_REQUEST) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                enableGPS(GameSettingsRepository.getInstance().isUseGPS());
+                enableGPS(mSettings.isUseGPS());
             }
         }
     }
@@ -221,11 +227,11 @@ public class MapFragment extends GlobeMapFragment {
             removeYourMarker();
             return;
         }
-        mLocation.insertYourMarker(mapControl, getActivity(), best, PlayerRepository.getInstance().getPlayerID(), mPlayerMarkers);
+        mLocation.insertYourMarker(mapControl, getActivity(), best, mPlayers.getPlayerID(), mPlayerMarkers);
     }
 
     private void removeYourMarker() {
-        mLocation.removeYourMarker(mapControl, PlayerRepository.getInstance().getPlayerID(), mPlayerMarkers);
+        mLocation.removeYourMarker(mapControl, mPlayers.getPlayerID(), mPlayerMarkers);
     }
 
     private void insertPlayerMarkers() {
