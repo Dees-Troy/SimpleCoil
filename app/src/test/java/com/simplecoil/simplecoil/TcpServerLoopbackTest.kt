@@ -31,6 +31,7 @@ import com.simplecoil.simplecoil.network.WireProtocol
 import com.simplecoil.simplecoil.network.client.ClientOutbox
 import com.simplecoil.simplecoil.network.client.GameClient
 import com.simplecoil.simplecoil.network.server.ClockState
+import com.simplecoil.simplecoil.network.server.GameServer
 import com.simplecoil.simplecoil.network.server.SessionPhase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -57,7 +58,10 @@ import org.junit.Test
  */
 class TcpServerLoopbackTest {
 
-    private lateinit var server: TcpServer
+    private val settings = GameSettingsRepository()
+    private val gameState = GameStateRepository()
+    private val players = PlayerRepository(settings, gameState)
+    private lateinit var server: GameServer
     private val clients = mutableListOf<LoopbackClient>()
 
     /** The server's events, as published (collected on the publishing thread). */
@@ -70,34 +74,23 @@ class TcpServerLoopbackTest {
 
     @Before
     fun setUp() {
-        GameStateRepository.getInstance().gameState = GameStateRepository.GAME_STATE_NONE
-        GameSettingsRepository.getInstance().teamMode = TeamMode.TWO_TEAMS
-        GameSettingsRepository.getInstance().gameLimit = GameSettingsRepository.GAME_LIMIT_NONE
-        GameSettingsRepository.getInstance().isUseGPS = false
-        PlayerRepository.getInstance().playerID = 0
-        GameSettingsRepository.getInstance().resetDefaultTeamSizes()
-        GameSettingsRepository.getInstance().setAllowJoinInProgress(true)
-        GameSettingsRepository.getInstance().setAllowPlayerSettings(true)
-        GameStateRepository.getInstance().setGameState(GameStateRepository.GAME_STATE_NONE)
-        PlayerRepository.getInstance().setPlayerID(0)
-        PlayerRepository.getInstance().clearAllPlayers()
+        settings.teamMode = TeamMode.TWO_TEAMS
+        settings.setAllowJoinInProgress(true)
         LoopbackClient.awaitPortFree()
-        server = TcpServer { System.nanoTime() / 1_000_000 + clockOffset }
         val bus = EventBus<ServerEvent>()
         eventScope.launch(start = CoroutineStart.UNDISPATCHED) { bus.events.collect { synchronized(events) { events += it } } }
-        server.setEventsForTest(bus)
-        server.startTcpServer()
+        server = GameServer(settings, players, gameState, bus, clock = { System.nanoTime() / 1_000_000 + clockOffset })
+        server.start()
         awaitTrue(5000, "server socket") { server.isAccepting }
     }
 
     @After
     fun tearDown() {
         clients.forEach { it.close() }
-        server.stopTcpServer()
+        server.stop()
+        server.shutdown()
         eventScope.cancel()
         LoopbackClient.awaitPortFree()
-        GameStateRepository.getInstance().gameState = GameStateRepository.GAME_STATE_NONE
-        PlayerRepository.getInstance().clearAllPlayers()
     }
 
     private fun connect(): LoopbackClient = LoopbackClient().also { clients += it }
@@ -110,17 +103,17 @@ class TcpServerLoopbackTest {
         return client to id
     }
 
-    private fun score(id: Int) = server.getScore(id.toByte())
+    private fun score(id: Int) = server.score(id.toByte())
 
     /** What the operator's player settings dialog does for the admin switch. */
     private fun makeAdmin(id: Int) {
         val settings = PlayerSettings()
         settings.isAdmin = true
-        PlayerRepository.getInstance().playerSettings[id.toByte()] = settings
+        players.playerSettings[id.toByte()] = settings
     }
 
     private fun awaitDisconnected(id: Int) =
-        awaitTrue(6000, "player $id to show as disconnected") { score(id)?.isConnected == false }
+        awaitTrue(6000, "player $id to show as disconnected") { score(id)?.connected == false }
 
     // ------------------------------------------------------------------------------------------
     // Lobby
@@ -138,9 +131,9 @@ class TcpServerLoopbackTest {
         assertEquals(SessionPhase.LOBBY.wireValue, info.getInt(WireKeys.SESSIONPHASE))
         assertFalse(info.has(WireKeys.GAMEID))
         assertTrue(info.has(WireKeys.PLAYERGAMEUPDATE)) // the joiner gets its own update
-        awaitTrue { score(idA)?.isConnected == true && score(idB)?.isConnected == true }
-        assertEquals("Alpha", PlayerRepository.getInstance().getPlayerName(idA.toByte()))
-        assertEquals(idB.toByte(), PlayerRepository.getInstance().getPlayerIdByMac("BB:00"))
+        awaitTrue { score(idA)?.connected == true && score(idB)?.connected == true }
+        assertEquals("Alpha", players.getPlayerName(idA.toByte()))
+        assertEquals(idB.toByte(), players.getPlayerIdByMac("BB:00"))
         a.close()
     }
 
@@ -156,7 +149,7 @@ class TcpServerLoopbackTest {
     fun lobbyJoin_renamesADuplicateName() {
         join("Alpha", "AA:00")
         val (_, idB) = join("alpha", "BB:00")
-        val name = PlayerRepository.getInstance().getPlayerName(idB.toByte())
+        val name = players.getPlayerName(idB.toByte())
         assertFalse(name.equals("alpha", ignoreCase = true))
         assertTrue(name.isNotEmpty())
     }
@@ -167,7 +160,7 @@ class TcpServerLoopbackTest {
         awaitTrue { score(idA) != null }
         a.mesg(WireProtocol.NETMSG_LEAVE)
         awaitTrue { score(idA) == null }
-        assertNull(PlayerRepository.getInstance().teamIPMap[idA.toByte()])
+        assertNull(players.teamIPMap[idA.toByte()])
     }
 
     private fun eventsSoFar(): List<ServerEvent> = synchronized(events) { events.toList() }
@@ -195,24 +188,24 @@ class TcpServerLoopbackTest {
 
     @Test
     fun timeLimit_theServerEndsTheGame_andTellsTheClients() {
-        GameSettingsRepository.getInstance().gameLimit = GameSettingsRepository.GAME_LIMIT_TIME
-        GameSettingsRepository.getInstance().timeLimit = 1
-        GameSettingsRepository.getInstance().startTime = 5
+        settings.gameLimit = GameSettingsRepository.GAME_LIMIT_TIME
+        settings.timeLimit = 1
+        settings.startTime = 5
         try {
             val (a, _) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00").first()
             awaitTrue { server.clockState is ClockState.Counting }
-            awaitTrue { GameStateRepository.getInstance().serverGameTimeRemaining in 60..65 }
+            awaitTrue { gameState.serverGameTimeRemaining in 60..65 }
             clockOffset += 65_000
             a.awaitMesg(WireProtocol.NETMSG_ENDGAME)
             awaitTrue { server.clockState == ClockState.Idle }
             assertEquals(SessionPhase.POST_GAME, server.sessionPhase)
-            assertEquals(0, GameStateRepository.getInstance().serverGameTimeRemaining)
+            assertEquals(0, gameState.serverGameTimeRemaining)
             awaitTrue { ServerEvent.GameEnded in sessionEvents() }
             val events = sessionEvents()
             assertTrue(events.toString(), events.indexOf(ServerEvent.TimeExpired) in 0 until events.indexOf(ServerEvent.GameEnded))
         } finally {
-            GameSettingsRepository.getInstance().gameLimit = GameSettingsRepository.GAME_LIMIT_NONE
-            GameSettingsRepository.getInstance().startTime = GameSettingsRepository.START_TIME_SECONDS
+            settings.gameLimit = GameSettingsRepository.GAME_LIMIT_NONE
+            settings.startTime = GameSettingsRepository.START_TIME_SECONDS
         }
     }
 
@@ -250,7 +243,7 @@ class TcpServerLoopbackTest {
         val (a, _, c) = startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00", "Charlie" to "CC:00")
         val (clientA, idA) = a
         val (clientC, idC) = c
-        assertEquals(PlayerRepository.getInstance().calcNetworkTeam(idA.toByte()), PlayerRepository.getInstance().calcNetworkTeam(idC.toByte()))
+        assertEquals(players.calcNetworkTeam(idA.toByte()), players.calcNetworkTeam(idC.toByte()))
         clientA.mesg(WireProtocol.NETMSG_ELIMINATED + idC)
         clientA.mesg(WireProtocol.NETMSG_PLAYERDATAREQUEST) // answered after the elimination was handled
         clientA.awaitJson(WireKeys.PLAYERDATA)
@@ -277,7 +270,7 @@ class TcpServerLoopbackTest {
         assertEquals(idB, idBack)
         val update = back.awaitJson(WireKeys.PLAYERGAMEUPDATE).getJSONObject(WireKeys.PLAYERGAMEUPDATE)
         assertEquals(1, update.getInt(WireKeys.PLAYERPOINTS))
-        awaitTrue { score(idB)?.isConnected == true }
+        awaitTrue { score(idB)?.connected == true }
         assertEquals(1, score(idB)!!.points)
         assertEquals(1, score(idA)!!.eliminated)
     }
@@ -285,7 +278,7 @@ class TcpServerLoopbackTest {
     @Test
     fun runningGame_newPlayerIsRefusedWhenJoinInProgressIsOff() {
         startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
-        GameSettingsRepository.getInstance().setAllowJoinInProgress(false)
+        settings.setAllowJoinInProgress(false)
         val late = connect()
         late.hello(0, "Charlie", "CC:00")
         assertTrue(late.awaitMesg(WireProtocol.NETMSG_ERROR).startsWith(WireProtocol.NETMSG_ERROR))
@@ -334,10 +327,10 @@ class TcpServerLoopbackTest {
         server.endGame()
         clientA.awaitMesg(WireProtocol.NETMSG_ENDGAME)
         assertEquals(SessionPhase.POST_GAME, server.sessionPhase)
-        assertEquals(GameStateRepository.GAME_STATE_NONE, GameStateRepository.getInstance().gameState)
-        assertEquals(GameStateRepository.GAME_STATE_NONE, GameStateRepository.getInstance().gameState)
+        assertEquals(GameStateRepository.GAME_STATE_NONE, gameState.gameState)
+        assertEquals(GameStateRepository.GAME_STATE_NONE, gameState.gameState)
         assertTrue(server.roster.isCached("BB:00"))
-        assertFalse(score(idB)!!.isConnected)
+        assertFalse(score(idB)!!.connected)
 
         val (back, idBack) = join("Bravo", "BB:00")
         assertEquals(idB, idBack)
@@ -403,7 +396,7 @@ class TcpServerLoopbackTest {
         makeAdmin(idA)
         clientA.mesg(WireProtocol.NETMSG_ADMIN_GAMEMODE + TeamMode.FOUR_TEAMS.wireValue)
         awaitTrue { server.sessionPhase == SessionPhase.LOBBY }
-        awaitTrue { GameSettingsRepository.getInstance().teamMode == TeamMode.FOUR_TEAMS }
+        awaitTrue { settings.teamMode == TeamMode.FOUR_TEAMS }
         assertNull(score(idB))
     }
 
@@ -414,8 +407,8 @@ class TcpServerLoopbackTest {
         a.mesg(WireProtocol.NETMSG_ADMIN_GAMEMODE + 3)
         a.mesg(WireProtocol.NETMSG_PLAYERDATAREQUEST) // processed after the mode change
         a.awaitJson(WireKeys.PLAYERDATA)
-        assertEquals(TeamMode.TWO_TEAMS, GameSettingsRepository.getInstance().teamMode)
-        assertArrayEquals(intArrayOf(16, 16), GameSettingsRepository.getInstance().teamLayout.teamSizes())
+        assertEquals(TeamMode.TWO_TEAMS, settings.teamMode)
+        assertArrayEquals(intArrayOf(16, 16), settings.teamLayout.teamSizes())
     }
 
     // ------------------------------------------------------------------------------------------
@@ -434,7 +427,7 @@ class TcpServerLoopbackTest {
         a.awaitJson(WireKeys.PLAYERDATA)
         assertEquals(SessionPhase.LOBBY, server.sessionPhase)
         assertNotNull(score(idB))
-        assertEquals(TeamMode.TWO_TEAMS, GameSettingsRepository.getInstance().teamMode)
+        assertEquals(TeamMode.TWO_TEAMS, settings.teamMode)
 
         // A client can't make itself an admin through its player settings either.
         val settings = org.json.JSONObject()
@@ -452,8 +445,8 @@ class TcpServerLoopbackTest {
         settings.put(WireKeys.FIRING_MODE, 0)
         settings.put(WireKeys.IS_ADMIN, true)
         a.json(settings)
-        awaitTrue { PlayerRepository.getInstance().playerSettings[idA.toByte()] != null }
-        assertFalse(PlayerRepository.getInstance().playerSettings[idA.toByte()]!!.isAdmin)
+        awaitTrue { players.playerSettings[idA.toByte()] != null }
+        assertFalse(players.playerSettings[idA.toByte()]!!.isAdmin)
     }
 
     @Test
@@ -547,7 +540,7 @@ class TcpServerLoopbackTest {
         // D2: the lives the client shows equal its own count.
         assertEquals(4, outbox.reconcile(update.getInt(WireKeys.PLAYERELIMINATED), update.getInt(WireKeys.ACKSEQ)))
         assertTrue(outbox.pending().isEmpty())
-        awaitTrue { score(idA)?.isConnected == true }
+        awaitTrue { score(idA)?.connected == true }
         assertEquals(4, score(idA)!!.eliminated)
         assertEquals(4, score(idB)!!.points)
         // The shooter heard about each kill once.
@@ -572,7 +565,7 @@ class TcpServerLoopbackTest {
         val back = connect()
         back.rejoin("Alpha", "AA:00", outbox)
         back.awaitMesg(WireProtocol.NETMSG_SERVERREPLY)
-        awaitTrue { score(idA)?.isConnected == true }
+        awaitTrue { score(idA)?.connected == true }
         assertEquals(1, score(idA)!!.eliminated)
         assertEquals(1, score(idB)!!.points)
         assertEquals(SessionPhase.POST_GAME, server.sessionPhase)
@@ -589,7 +582,7 @@ class TcpServerLoopbackTest {
     fun startGame_syncsGameStateRepository() {
         // D8: GameStateRepository always said "not running".
         startGameWith("Alpha" to "AA:00", "Bravo" to "BB:00")
-        assertEquals(GameStateRepository.GAME_STATE_RUNNING, GameStateRepository.getInstance().gameState)
+        assertEquals(GameStateRepository.GAME_STATE_RUNNING, gameState.gameState)
     }
 
     @Test
@@ -625,7 +618,7 @@ class TcpServerLoopbackTest {
         repeat(15) { connect() }
         awaitTrue(3000, "17 connections") { server.roster.connectionCount() == 17 }
         assertNotNull(score(idB))
-        assertTrue(score(idB)!!.isConnected)
+        assertTrue(score(idB)!!.connected)
         assertNotNull(score(idA))
     }
 
@@ -683,7 +676,7 @@ class TcpServerLoopbackTest {
         // N1: every send used to start its own thread, so two sends could arrive swapped.
         val (a, _) = join("Alpha", "AA:00")
         val senders = listOf("x", "y").map { name ->
-            Thread { repeat(300) { server.sendTCPMessageAll("$name$it") } }
+            Thread { repeat(300) { server.sendToAll("$name$it") } }
         }
         senders.forEach { it.start() }
         senders.forEach { it.join() }
@@ -705,7 +698,7 @@ class TcpServerLoopbackTest {
             var sent = 0
             while (server.roster.connectionCount() == 2 && sent < 2_000) {
                 val startedAt = System.nanoTime()
-                repeat(100) { server.sendTCPMessageAll(big) }
+                repeat(100) { server.sendToAll(big) }
                 assertTrue("sending blocked", (System.nanoTime() - startedAt) / 1_000_000 < 1_000)
                 sent += 100
                 awaitTrue(5_000, "batch to reach the reading client") { a.received.count { it == big } == sent }
@@ -780,8 +773,8 @@ class TcpServerLoopbackTest {
     @Test
     fun aStopAndAnImmediateStart_servesAgain() {
         // N6: the old accept loop held the port for up to a second, so the new server failed to bind.
-        server.stopTcpServer()
-        server.startTcpServer()
+        server.stop()
+        server.start()
         awaitTrue(1_000, "server socket") { server.isAccepting }
         val (a, _) = join("Alpha", "AA:00")
         a.mesg(WireProtocol.NETMSG_SHOTFIRED)

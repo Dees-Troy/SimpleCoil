@@ -51,6 +51,7 @@ import com.simplecoil.simplecoil.network.ServerEvent;
 import com.simplecoil.simplecoil.network.ServerMessage;
 import com.simplecoil.simplecoil.network.WireCodec;
 import com.simplecoil.simplecoil.network.server.ClockState;
+import com.simplecoil.simplecoil.network.server.GameRoster;
 import com.simplecoil.simplecoil.network.server.SessionPhase;
 import com.simplecoil.simplecoil.ui.dialogs.GameLimitDialog;
 import com.simplecoil.simplecoil.ui.dialogs.StartingTimerDialog;
@@ -777,14 +778,14 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
 
     private void getPlayerDisplayData() {
         if (mTcpServer == null) return;
-        TcpServer.ScoreData[] scores = new TcpServer.ScoreData[GameSettingsRepository.MAX_PLAYER_ID + 1];
+        GameRoster.Score[] scores = new GameRoster.Score[GameSettingsRepository.MAX_PLAYER_ID + 1];
         for (byte x = 1; x <= GameSettingsRepository.MAX_PLAYER_ID; x++) {
             scores[x] = mTcpServer.getScore(x);
         }
         PlayerRepository repo = PlayerRepository.getInstance();
         synchronized (repo) {
             for (byte x = 1; x <= GameSettingsRepository.MAX_PLAYER_ID; x++) {
-                TcpServer.ScoreData scoreData = scores[x];
+                GameRoster.Score scoreData = scores[x];
                 if (scoreData == null) {
                     mPlayerDisplayData[x] = null;
                 } else {
@@ -793,7 +794,7 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
                     mPlayerDisplayData[x].playerName = repo.getTeamPlayerNameMap().get(x);
                     mPlayerDisplayData[x].points = scoreData.points;
                     mPlayerDisplayData[x].eliminated = scoreData.eliminated;
-                    mPlayerDisplayData[x].isConnected = scoreData.isConnected;
+                    mPlayerDisplayData[x].isConnected = scoreData.connected;
                     PlayerSettings settings = repo.getPlayerSettings().get(x);
                     if (settings == null) {
                         mPlayerDisplayData[x].overrideLives = false;

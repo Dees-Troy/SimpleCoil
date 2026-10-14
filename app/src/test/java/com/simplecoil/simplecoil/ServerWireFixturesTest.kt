@@ -24,11 +24,13 @@ import com.simplecoil.simplecoil.data.repository.GameStateRepository
 import com.simplecoil.simplecoil.data.repository.PlayerRepository
 import com.simplecoil.simplecoil.domain.team.TeamMode
 import com.simplecoil.simplecoil.network.ClientMessage
+import com.simplecoil.simplecoil.network.EventBus
 import com.simplecoil.simplecoil.network.WireCodec
 import com.simplecoil.simplecoil.network.WireFixtures
 import com.simplecoil.simplecoil.network.WireKeys
 import com.simplecoil.simplecoil.network.WireProtocol
 import com.simplecoil.simplecoil.network.client.ClientOutbox
+import com.simplecoil.simplecoil.network.server.GameServer
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Before
@@ -41,10 +43,10 @@ import org.junit.Test
  */
 class ServerWireFixturesTest {
 
-    private val settings = GameSettingsRepository.getInstance()
-    private val players = PlayerRepository.getInstance()
-    private val gameState = GameStateRepository.getInstance()
-    private lateinit var server: TcpServer
+    private val settings = GameSettingsRepository()
+    private val gameState = GameStateRepository()
+    private val players = PlayerRepository(settings, gameState)
+    private lateinit var server: GameServer
     private val clients = mutableListOf<LoopbackClient>()
 
     private val jsonHeader = WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON
@@ -52,36 +54,23 @@ class ServerWireFixturesTest {
 
     @Before
     fun setUp() {
-        gameState.gameState = GameStateRepository.GAME_STATE_NONE
-        gameState.serverGameTimeRemaining = 0
         settings.teamMode = TeamMode.TWO_TEAMS
-        settings.resetDefaultTeamSizes()
-        settings.gameLimit = GameSettingsRepository.GAME_LIMIT_NONE
-        settings.setUseGPS(false)
         settings.setGpsMode(GameSettingsRepository.GPS_DISABLED)
-        settings.setAllowJoinInProgress(true)
         settings.setAllowPlayerSettings(false)
         settings.setOnlyServerSettings(false)
-        settings.setAllowChooseTeams(true)
         settings.setStartTime(5)
-        players.playerID = 0
-        players.clearAllPlayers()
         LoopbackClient.awaitPortFree()
-        server = TcpServer()
-        server.startTcpServer()
+        server = GameServer(settings, players, gameState, EventBus(), clock = { System.nanoTime() / 1_000_000 })
+        server.start()
         awaitTrue(5000, "server socket") { server.isAccepting }
     }
 
     @After
     fun tearDown() {
         clients.forEach { it.close() }
-        server.stopTcpServer()
+        server.stop()
+        server.shutdown()
         LoopbackClient.awaitPortFree()
-        gameState.gameState = GameStateRepository.GAME_STATE_NONE
-        settings.gameLimit = GameSettingsRepository.GAME_LIMIT_NONE
-        settings.setUseGPS(false)
-        settings.setAllowPlayerSettings(true)
-        players.clearAllPlayers()
     }
 
     private fun connect(): LoopbackClient = LoopbackClient().also { clients += it }
@@ -165,7 +154,7 @@ class ServerWireFixturesTest {
             health = 30; shots = 12; reloadTime = 2500; reloadOnEmpty = true; manualRespawn = true; spawnTime = 15
             respawnShieldTime = 4; damage = -3; allowShotModeAuto = false; firingMode = 1; recoilSetting = 2
         }
-        server.sendPlayerSettings(TcpServer.SEND_ALL, false, true)
+        server.sendPlayerSettings(GameServer.SEND_ALL, applyAll = false, applyTeam = false, allowPlayerSettings = true)
         WireFixtures.assertFrame("server/player_settings.frame", awaitJsonFrame(bravo, WireKeys.ALLOWPLAYERSETTINGS))
 
         alpha.json(JSONObject().put(WireKeys.PLAYERID, 1).put(WireKeys.PAIRED_GRENADE_ID, 3))
