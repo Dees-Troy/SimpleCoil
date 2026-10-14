@@ -96,11 +96,11 @@ Both protocols are frozen: the blaster firmware and phones running older builds 
 
 | Document | Topic |
 |---|---|
-| `MODERNIZATION_ROADMAP.md` | The order the V2 refactor was done in |
-| `REFACTOR_DESIGN.md` | The play screen's split into view model, engine and renderer |
-| `STATE_CONSOLIDATION_DESIGN.md` | The shared repositories and their locking |
-| `APP_CONTAINER_DESIGN.md` | The app container and constructor injection |
-| `NETWORK_STACK_DESIGN.md`, `NETWORK_RECONNECT_DESIGN.md` | The server and client internals |
-| `DEDICATED_SERVER_DESIGN.md` | The server's lifecycle and screen |
-| `PLATFORM_COMPAT_DESIGN.md` | Android version support |
+| `design/MODERNIZATION_ROADMAP.md` | The order the V2 refactor was done in |
+| `design/REFACTOR_DESIGN.md` | The play screen's split into view model, engine and renderer |
+| `design/STATE_CONSOLIDATION_DESIGN.md` | The shared repositories and their locking |
+| `design/APP_CONTAINER_DESIGN.md` | The app container and constructor injection |
+| `design/NETWORK_STACK_DESIGN.md`, `design/NETWORK_RECONNECT_DESIGN.md` | The server and client internals |
+| `design/DEDICATED_SERVER_DESIGN.md` | The server's lifecycle and screen |
+| `design/PLATFORM_COMPAT_DESIGN.md` | Android version support |
 | `BLE_PROTOCOL.md`, `NETWORK_PROTOCOL.md`, `GRENADES.md` | Wire formats |
