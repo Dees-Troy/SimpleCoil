@@ -784,4 +784,33 @@ class TcpServerLoopbackTest {
         a.mesg(WireProtocol.NETMSG_SHOTFIRED)
         a.awaitMesg(WireProtocol.NETMSG_SHOTFIRED)
     }
+
+    @Test
+    fun applyPlayerSettings_switchTeamAndApplyToTeam_copiesToTheNewTeammates() {
+        // S11: the move used to run on its own thread after the copy had already read the old id
+        val (_, idA) = join("Alpha", "AA:00")
+        val (_, idB) = join("Bravo", "BB:00")
+        val (_, idC) = join("Charlie", "CC:00")
+        val layout = settings.teamLayout
+        assertEquals(layout.teamOf(idA), layout.teamOf(idC))
+        assertTrue(server.applyPlayerSettings(idA.toByte(), { it.health = 77 }, applyAll = false, applyTeam = true,
+            targetTeam = layout.teamOf(idB)))
+        val newIdA = players.getPlayerIdByMac("AA:00")
+        assertEquals(layout.teamOf(idB), layout.teamOf(newIdA))
+        assertEquals(77, players.playerSettings[newIdA]!!.health)
+        assertEquals(77, players.playerSettings[idB.toByte()]!!.health)
+        assertTrue((players.playerSettings[idC.toByte()]?.health ?: 0) != 77)
+    }
+
+    @Test
+    fun applyPlayerSettings_toAFullTeam_storesTheSettingsWhereThePlayerIs() {
+        settings.setTeamSizes(intArrayOf(31, 1))
+        val joined = listOf(join("Alpha", "AA:00").second, join("Bravo", "BB:00").second)
+        val layout = settings.teamLayout
+        val onSmallTeam = joined.single { layout.teamOf(it) == 2 } // the one slot on team 2 is taken
+        val mover = joined.single { it != onSmallTeam }
+        assertFalse(server.applyPlayerSettings(mover.toByte(), { it.health = 55 }, applyAll = false, applyTeam = false, targetTeam = 2))
+        assertEquals(1, layout.teamOf(mover))
+        assertEquals(55, players.playerSettings[mover.toByte()]!!.health)
+    }
 }

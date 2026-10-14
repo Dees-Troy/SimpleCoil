@@ -510,28 +510,11 @@ public class DedicatedServerActivity extends AppCompatActivity implements PopupM
         PlayerSettingsValues values = result.getValues();
         if (values == null)
             return;
-        PlayerRepository repo = PlayerRepository.getInstance();
-        synchronized (repo) {
-            PlayerSettings playerSettings = repo.getPlayerSettings().get(playerID);
-            if (playerSettings == null) {
-                playerSettings = new PlayerSettings();
-                repo.getPlayerSettings().put(playerID, playerSettings);
-            }
-            values.applyTo(playerSettings);
-        }
-        byte targetPlayerID = playerID;
-        if (result.getTargetTeam() != 0) {
-            byte newPlayerID = repo.findOpenPlayerIDOnTeam(result.getTargetTeam());
-            if (newPlayerID == 0) {
-                Toast.makeText(this, getString(R.string.error_team_full, result.getTargetTeam()), Toast.LENGTH_SHORT).show();
-            } else if (mTcpServer != null) {
-                mTcpServer.switchPlayerTeam(playerID, newPlayerID);
-                targetPlayerID = newPlayerID;
-            }
-        }
-        if (mTcpServer != null) {
-            mTcpServer.sendPlayerSettings(targetPlayerID, result.getApplyToAll(), result.getApplyToTeam(),
-                    GameSettingsRepository.getInstance().isAllowPlayerSettings());
+        if (mTcpServer != null && !mTcpServer.applyPlayerSettings(playerID, settings -> {
+                    values.applyTo(settings);
+                    return kotlin.Unit.INSTANCE;
+                }, result.getApplyToAll(), result.getApplyToTeam(), result.getTargetTeam())) {
+            Toast.makeText(this, getString(R.string.error_team_full, result.getTargetTeam()), Toast.LENGTH_SHORT).show();
         }
         mViewModel.updatePlayerCount();
         getPlayerDisplayData();

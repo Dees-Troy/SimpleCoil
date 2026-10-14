@@ -29,6 +29,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import com.simplecoil.simplecoil.data.model.PlayerSettings
 import com.simplecoil.simplecoil.network.server.ClockState
 import com.simplecoil.simplecoil.network.server.GameRoster
 import com.simplecoil.simplecoil.network.server.GameServer
@@ -131,8 +132,6 @@ class TcpServer : Service() {
 
     fun resetScores() = server.resetScores()
 
-    fun switchPlayerTeam(oldPlayerId: Byte, newPlayerId: Byte) = server.switchPlayerTeam(oldPlayerId, newPlayerId)
-
     fun kickPlayer(playerId: Byte) = server.kickPlayer(playerId)
 
     fun rebalanceAllPlayers(randomize: Boolean) = server.rebalanceAllPlayers(randomize)
@@ -143,8 +142,9 @@ class TcpServer : Service() {
     /** Starts relaying GPS while GPS is on. */
     fun sendGPSData() = server.startGpsRelay()
 
-    fun sendPlayerSettings(playerId: Int, applyAll: Boolean, applyTeam: Boolean, allowPlayerSettings: Boolean) =
-        server.sendPlayerSettings(playerId, applyAll, applyTeam, allowPlayerSettings)
+    /** Stores, moves, copies and sends a player's settings in one step; false if [targetTeam] is full. */
+    fun applyPlayerSettings(playerId: Byte, update: (PlayerSettings) -> Unit, applyAll: Boolean, applyTeam: Boolean, targetTeam: Int): Boolean =
+        server.applyPlayerSettings(playerId, update, applyAll, applyTeam, targetTeam)
 
     companion object {
         private const val TAG = "TCPServer"

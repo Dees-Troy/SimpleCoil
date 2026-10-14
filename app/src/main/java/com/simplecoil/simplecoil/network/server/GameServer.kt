@@ -331,6 +331,38 @@ class GameServer(
         sendToAll(WireCodec.encode(ServerMessage.PlayerSettings(allowPlayerSettings, list)))
     }
 
+    /**
+     * The operator saved [playerId]'s settings dialog, as one operation on the dispatcher (S11):
+     * stores the settings ([update] fills them in), moves the player to [targetTeam] (0: stay),
+     * copies the settings to everyone ([applyAll]) or the player's new team ([applyTeam]), and
+     * sends everyone's. Returns false if [targetTeam] had no open slot; the rest is still done,
+     * under the player's old id.
+     */
+    fun applyPlayerSettings(
+        playerId: Byte,
+        update: (PlayerSettings) -> Unit,
+        applyAll: Boolean,
+        applyTeam: Boolean,
+        targetTeam: Int,
+    ): Boolean = callOnDispatcher(false) {
+        synchronized(players) {
+            update(players.playerSettings.getOrPut(playerId) { PlayerSettings() })
+        }
+        var targetId = playerId
+        var moved = true
+        if (targetTeam != 0) {
+            val newId = players.findOpenPlayerIDOnTeam(targetTeam)
+            if (newId.toInt() == 0) {
+                moved = false
+            } else {
+                switchPlayerTeam(playerId, newId)
+                targetId = newId
+            }
+        }
+        sendPlayerSettings(targetId.toInt(), applyAll, applyTeam, settings.isAllowPlayerSettings)
+        moved
+    }
+
     /** Copies [playerId]'s settings to every other id, or to its teammates' ids. */
     private fun copyPlayerSettings(playerId: Int, applyAll: Boolean, applyTeam: Boolean) {
         if (playerId == SEND_ALL || !(applyAll || applyTeam)) return
