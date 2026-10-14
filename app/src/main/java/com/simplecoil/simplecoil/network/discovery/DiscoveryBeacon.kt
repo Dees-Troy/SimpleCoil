@@ -54,7 +54,7 @@ class DiscoveryBeacon(context: Context) {
         try {
             val s = DiscoveryNetwork.bindDiscoverySocket()
             socket = s
-            Log.i(TAG, "Server discovery beacon started on port ${WireProtocol.DISCOVERY_PORT}")
+            Log.d(TAG, "Server discovery beacon started on port ${WireProtocol.DISCOVERY_PORT}")
             val packet = DatagramPacket(ByteArray(DiscoveryNetwork.RECEIVE_BUFFER_SIZE), DiscoveryNetwork.RECEIVE_BUFFER_SIZE)
             var lastBeaconTime = 0L
             while (running) {
@@ -79,7 +79,7 @@ class DiscoveryBeacon(context: Context) {
         } finally {
             socket?.let { if (!it.isClosed) it.close() }
             network.releaseMulticastLock()
-            Log.i(TAG, "Server discovery beacon stopped")
+            Log.d(TAG, "Server discovery beacon stopped")
         }
     }
 

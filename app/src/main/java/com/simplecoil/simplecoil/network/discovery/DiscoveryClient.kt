@@ -63,7 +63,7 @@ class DiscoveryClient(
         try {
             val s = DiscoveryNetwork.bindDiscoverySocket()
             socket = s
-            Log.i(TAG, "Client discovery listening on port ${WireProtocol.DISCOVERY_PORT}")
+            Log.d(TAG, "Client discovery listening on port ${WireProtocol.DISCOVERY_PORT}")
             sendQuery()
             val packet = DatagramPacket(ByteArray(DiscoveryNetwork.RECEIVE_BUFFER_SIZE), DiscoveryNetwork.RECEIVE_BUFFER_SIZE)
             while (running) {
@@ -92,7 +92,7 @@ class DiscoveryClient(
         } finally {
             socket?.let { if (!it.isClosed) it.close() }
             network.releaseMulticastLock()
-            Log.i(TAG, "Client discovery stopped")
+            Log.d(TAG, "Client discovery stopped")
         }
     }
 

@@ -21,6 +21,7 @@ import android.util.Log
 import com.simplecoil.simplecoil.network.ClientEvent
 import com.simplecoil.simplecoil.network.EventBus
 import com.simplecoil.simplecoil.network.FrameReader
+import com.simplecoil.simplecoil.network.NetTrace
 import com.simplecoil.simplecoil.network.WireProtocol
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -107,7 +108,7 @@ class ClientConnection(
                 return
             }
             if (isListening) {
-                Log.e(TAG, "Please wait for client to stop listening")
+                Log.w(TAG, "Please wait for client to stop listening")
                 return
             }
             keepListening = true
@@ -138,9 +139,9 @@ class ClientConnection(
             try {
                 output.writeUTF(message)
                 output.flush()
-                if (message != WireProtocol.PONG) Log.i(TAG, "sent: $message")
+                NetTrace.sent("server", message)
             } catch (e: IOException) {
-                e.printStackTrace()
+                Log.w(TAG, "Write failed", e)
             }
         }
     }
@@ -246,11 +247,11 @@ class ClientConnection(
                     }
                 }
             } catch (e: UnknownHostException) {
-                e.printStackTrace()
+                Log.w(TAG, "Unknown server address", e)
             } catch (e: ConnectException) {
                 Log.d(TAG, "Server not running: " + e.localizedMessage)
             } catch (e: IOException) {
-                e.printStackTrace()
+                Log.w(TAG, "Connection failed", e)
             } catch (e: RuntimeException) {
                 // Drop the connection; the reconnect policy decides what happens next (N5)
                 Log.e(TAG, "Reader failed, dropping the connection", e)

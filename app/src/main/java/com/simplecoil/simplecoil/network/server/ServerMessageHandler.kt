@@ -27,6 +27,7 @@ import com.simplecoil.simplecoil.network.ClientCommand
 import com.simplecoil.simplecoil.network.ClientMessage
 import com.simplecoil.simplecoil.network.EventBus
 import com.simplecoil.simplecoil.network.Frame
+import com.simplecoil.simplecoil.network.NetTrace
 import com.simplecoil.simplecoil.network.ServerCommand
 import com.simplecoil.simplecoil.network.ServerEvent
 import com.simplecoil.simplecoil.network.ServerMessage
@@ -57,9 +58,9 @@ class ServerMessageHandler(
     }
 
     private fun handleFrameUnguarded(client: Connection, raw: String) {
+        NetTrace.received("c${client.connectionId}", raw)
         val frame = Frame.parse(raw)
         if (frame.kind == Frame.Kind.PONG) return
-        Log.i(TAG, "received: '$raw' from ${client.connectionId}")
         when (frame.kind) {
             Frame.Kind.JSON -> WireCodec.decodeClient(frame)?.let { handleMessage(client, it) }
             Frame.Kind.MESG -> handleCommand(client, WireCodec.decodeClientCommand(frame.body))
@@ -166,7 +167,7 @@ class ServerMessageHandler(
             }
             is ClientMessage.Settings -> {
                 if (!settings.isAllowPlayerSettings) {
-                    Log.e(TAG, "Player ${playerIdOf(client)}not allowed to send player settings")
+                    Log.w(TAG, "Player ${playerIdOf(client)} not allowed to send player settings")
                     server.sendPlayerSettings(GameServer.SEND_ALL, applyAll = false, applyTeam = false, allowPlayerSettings = true)
                     return
                 }
@@ -220,8 +221,7 @@ class ServerMessageHandler(
                 val id = record.playerId
                 applyPending(client, hello)
                 client.send(command(ServerCommand.ServerReply(id)))
-                Log.e(TAG, "network team is " + record.team)
-                Log.d(TAG, "client ${client.connectionId} player '${record.name}' ($id) found at ${client.inetAddress}")
+                Log.d(TAG, "client ${client.connectionId} player '${record.name}' ($id, team ${record.team}) found at ${client.inetAddress}")
                 server.sendAllGameInfo(id.toInt())
                 events.publish(ServerEvent.PlayerJoined)
             }

@@ -26,6 +26,7 @@ import com.simplecoil.simplecoil.network.ClientEvent
 import com.simplecoil.simplecoil.network.EventBus
 import com.simplecoil.simplecoil.network.Frame
 import com.simplecoil.simplecoil.network.GameUpdate
+import com.simplecoil.simplecoil.network.NetTrace
 import com.simplecoil.simplecoil.network.ServerCommand
 import com.simplecoil.simplecoil.network.ServerMessage
 import com.simplecoil.simplecoil.network.WireCodec
@@ -65,8 +66,8 @@ class ClientMessageHandler(
      * server ended the session (SERVERCANCEL or VERSIONERROR) and the client must not reconnect.
      */
     fun handle(raw: String): Boolean {
+        NetTrace.received("server", raw)
         val frame = Frame.parse(raw)
-        Log.i(TAG, "received: '$raw'")
         when (frame.kind) {
             Frame.Kind.JSON -> WireCodec.decodeServer(frame)?.let { handleMessage(it, frame.body) }
             Frame.Kind.MESG -> return handleCommand(WireCodec.decodeServerCommand(frame.body))
@@ -186,7 +187,7 @@ class ClientMessageHandler(
                 val address = try {
                     InetAddress.getByName(ip)
                 } catch (e: UnknownHostException) {
-                    e.printStackTrace()
+                    Log.w(TAG, "Bad address for player $playerId: $ip", e)
                     null
                 }
                 if (address != null) {
@@ -204,7 +205,7 @@ class ClientMessageHandler(
         info.limits.livesLimit?.let {
             gameLimit += GameSettingsRepository.GAME_LIMIT_LIVES
             settings.livesLimit = it
-            Log.e(TAG, "tcpClient set lives limit to ${settings.livesLimit}")
+            Log.d(TAG, "lives limit set to ${settings.livesLimit}")
         }
         info.limits.scoreLimit?.let {
             gameLimit += GameSettingsRepository.GAME_LIMIT_SCORE

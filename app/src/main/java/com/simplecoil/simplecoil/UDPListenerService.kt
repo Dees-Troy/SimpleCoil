@@ -62,7 +62,7 @@ class UDPListenerService : Service() {
         serverEvents = container.serverEvents
         client = DiscoveryClient(this, localAddress = { PlayerRepository.getIPAddress() })
         beacon = DiscoveryBeacon(this)
-        Log.i(TAG, "UDP Service initialized")
+        Log.d(TAG, "UDP Service initialized")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY

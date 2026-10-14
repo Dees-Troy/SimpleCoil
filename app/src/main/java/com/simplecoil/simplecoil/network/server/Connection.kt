@@ -18,6 +18,7 @@ package com.simplecoil.simplecoil.network.server
 
 import android.util.Log
 import com.simplecoil.simplecoil.network.FrameReader
+import com.simplecoil.simplecoil.network.NetTrace
 import com.simplecoil.simplecoil.network.WireProtocol
 import java.io.BufferedOutputStream
 import java.io.DataOutputStream
@@ -90,7 +91,7 @@ class Connection(val connectionId: Int, private val socket: Socket?) {
                 if (message === CLOSE) break
                 out.writeUTF(message)
                 if (queue.isEmpty()) out.flush()
-                if (message != WireProtocol.PING) Log.i(TAG, "sent($connectionId): $message")
+                NetTrace.sent("c$connectionId", message)
             }
             out.flush()
         } catch (e: InterruptedException) {

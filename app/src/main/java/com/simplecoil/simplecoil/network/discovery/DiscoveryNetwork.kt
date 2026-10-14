@@ -70,12 +70,12 @@ internal class DiscoveryNetwork(private val context: Context) {
         if (wifiManager == null) wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager?
         val manager = wifiManager
         if (manager == null) {
-            Log.e(TAG, "WifiManager unavailable")
+            Log.w(TAG, "WifiManager unavailable")
             return null
         }
         val dhcp = manager.dhcpInfo
         if (dhcp == null) {
-            Log.e(TAG, "DhcpInfo unavailable")
+            Log.w(TAG, "DhcpInfo unavailable")
             return null
         }
         val broadcast = (dhcp.ipAddress and dhcp.netmask) or dhcp.netmask.inv()
