@@ -60,10 +60,15 @@ class BleConnectionManagerTest {
     private var permission = true
 
     private var starts = 0
+    private var stops = 0
 
     private val binder = object : BleConnectionManager.ServiceBinder {
         override fun start() {
             starts++
+        }
+
+        override fun stop() {
+            stops++
         }
 
         override fun bind(connection: ServiceConnection) {
@@ -246,7 +251,7 @@ class BleConnectionManagerTest {
     }
 
     @Test
-    fun reset_disconnectsClosesAndUnbinds() {
+    fun reset_disconnectsClosesUnbindsAndStops() {
         manager.startScan(adapter, "")
         manager.scanCallback.onScanResult(0, scanResult(device("SRG1", "AA:BB:CC:DD:EE:FF")))
         onServiceConnected()
@@ -254,6 +259,8 @@ class BleConnectionManagerTest {
         verify(service).disconnect()
         verify(service).close()
         assertEquals(bound, unbound)
+        // Stopped, or its "Connected to Blaster" notification outlives the connection.
+        assertEquals(1, stops)
         assertFalse(manager.isConnected)
         assertEquals(BleConnectionState.Idle, manager.connectionState.value)
         manager.reconnect("AA:BB:CC:DD:EE:FF")

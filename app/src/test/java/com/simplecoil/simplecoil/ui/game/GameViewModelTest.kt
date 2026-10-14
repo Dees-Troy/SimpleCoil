@@ -98,6 +98,7 @@ class GameViewModelTest {
         engine.network = net
         val binder = object : BleConnectionManager.ServiceBinder {
             override fun start() = Unit
+            override fun stop() = Unit
             override fun bind(connection: ServiceConnection) = Unit
             override fun unbind(connection: ServiceConnection) = Unit
         }

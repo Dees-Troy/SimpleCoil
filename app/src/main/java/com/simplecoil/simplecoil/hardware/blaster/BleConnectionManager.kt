@@ -91,10 +91,12 @@ class BleConnectionManager(
     private val hasConnectPermission: () -> Boolean = { defaultHasConnectPermission(context) },
     private val saveDeviceAddress: (String) -> Unit,
 ) {
-    /** Starts/binds/unbinds BluetoothLeService. */
+    /** Starts/stops/binds/unbinds BluetoothLeService. */
     interface ServiceBinder {
         /** startForegroundService(): the service enters the foreground in onStartCommand. */
         fun start()
+        /** stopService(): with nothing bound, the service and its notification go away. */
+        fun stop()
         fun bind(connection: ServiceConnection)
         fun unbind(connection: ServiceConnection)
     }
@@ -208,7 +210,11 @@ class BleConnectionManager(
         Log.d(TAG, "Connect request result=$result")
     }
 
-    /** Disconnects, closes and unbinds the service (the activity's resetBluetoothServices). */
+    /**
+     * Disconnects, closes, unbinds and stops the service (the activity's resetBluetoothServices).
+     * The stop takes down the notification: close() right after disconnect() means GATT never
+     * reports the disconnect that would have removed it, so it kept saying "Connected".
+     */
     fun reset() {
         isConnected = false
         service?.let {
@@ -216,6 +222,7 @@ class BleConnectionManager(
             it.close()
         }
         serviceConnection?.let { serviceBinder.unbind(it) }
+        serviceBinder.stop()
         serviceConnection = null
         service = null
         _state.value = BleConnectionState.Idle
@@ -358,6 +365,10 @@ class BleConnectionManager(
     class AndroidServiceBinder(private val context: Context) : ServiceBinder {
         override fun start() {
             ContextCompat.startForegroundService(context, Intent(context, BluetoothLeService::class.java))
+        }
+
+        override fun stop() {
+            context.stopService(Intent(context, BluetoothLeService::class.java))
         }
 
         override fun bind(connection: ServiceConnection) {

@@ -71,7 +71,9 @@ open class BluetoothLeService : Service() {
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startAsForeground("Connecting to Blaster")
-        return super.onStartCommand(intent, flags, startId)
+        // Only the app's own connect can bring the link back; a restart after the process died
+        // would just show "Connecting to Blaster" with nothing connecting.
+        return START_NOT_STICKY
     }
 
     override fun onDestroy() {

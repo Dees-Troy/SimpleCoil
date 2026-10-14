@@ -16,6 +16,7 @@
 
 package com.simplecoil.simplecoil
 
+import android.app.Service
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
@@ -396,6 +397,13 @@ class BluetoothLeServiceGattTest {
         service.onStartCommand(null, 0, 1)
         assertEquals(listOf(START_FOREGROUND), actions)
         verifyNoInteractions(gatt)
+    }
+
+    @Test
+    fun startCommand_isNotSticky() {
+        // A sticky restart after the process died would show "Connecting to Blaster" with
+        // nothing connecting.
+        assertEquals(Service.START_NOT_STICKY, service.onStartCommand(null, 0, 1))
     }
 
     @Test
