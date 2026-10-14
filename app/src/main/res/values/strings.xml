@@ -113,6 +113,8 @@
     <string name="network_player_1count">1 Player</string>
     <string name="not_enough_players_toast">Not enough players!</string>
     <string name="network_team">Player %1$d</string>
+    <string name="player_id_team_label">(%1$d-%2$d)</string>
+    <string name="player_id_ffa_label">(%1$d)</string>
     <string name="player_name">Player Name:</string>
     <string name="server_ip">Server IP:</string>
     <string name="game_limit_button">Game Limit</string>

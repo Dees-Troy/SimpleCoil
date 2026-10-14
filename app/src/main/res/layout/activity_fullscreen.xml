@@ -220,6 +220,16 @@
             android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
         <TextView
+            android:id="@+id/player_id_tv"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/player_count_tv"
+            android:layout_marginEnd="10dp"
+            android:layout_alignParentEnd="true"
+            android:visibility="gone"
+            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+        <TextView
             android:id="@+id/eliminations_count_label_tv"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

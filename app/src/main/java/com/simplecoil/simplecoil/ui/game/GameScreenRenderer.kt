@@ -204,6 +204,8 @@ class GameScreenRenderer(
     }
 
     override fun showTeam(team: TeamDisplay) {
+        b.teamLabelTv.visibility = View.VISIBLE
+        b.playerIdTv.visibility = View.GONE
         if (team is TeamDisplay.Team) {
             b.teamLabelTv.text = context.getString(R.string.team_number_label, team.team)
             if (team.color != Color.TRANSPARENT) {
@@ -216,18 +218,33 @@ class GameScreenRenderer(
             } else {
                 clearTeamLabelStyle()
             }
-            b.teamTv.text = team.playerName ?: context.getString(R.string.network_team, team.player)
+            if (team.playerName != null) {
+                b.teamTv.text = team.playerName
+                showPlayerId(context.getString(R.string.player_id_team_label, team.team, team.player))
+            } else {
+                b.teamTv.text = context.getString(R.string.network_team, team.player)
+            }
             setTeamScoreVisible(team.teamScoreVisible)
             return
         }
         b.teamLabelTv.setText(R.string.team_label)
         clearTeamLabelStyle()
-        if (team is TeamDisplay.FreeForAll) {
+        if (team is TeamDisplay.FreeForAll && team.playerName != null) {
+            b.teamLabelTv.visibility = View.INVISIBLE
+            b.teamTv.text = team.playerName
+            showPlayerId(context.getString(R.string.player_id_ffa_label, team.playerId.toInt()))
+        } else if (team is TeamDisplay.FreeForAll) {
             b.teamTv.text = number(team.playerId.toInt())
         } else {
             b.teamTv.setText(R.string.auto_sort_team)
         }
         setTeamScoreVisible(false)
+    }
+
+    /** The dedicated-server player id, e.g. "(1-1)", shown under the player count. */
+    private fun showPlayerId(text: String) {
+        b.playerIdTv.text = text
+        b.playerIdTv.visibility = View.VISIBLE
     }
 
     private fun clearTeamLabelStyle() {

@@ -475,17 +475,17 @@ class GameViewModel(
             playerRepo.playerID = if (selectedPlayerId.toInt() != 0) selectedPlayerId else 1
         }
         val layout = settingsRepo.teamLayout
+        val dedicatedName = if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINED) {
+            playerRepo.playerName?.takeIf { it.isNotEmpty() }
+        } else null
         if (!layout.mode.isFreeForAll) {
             val networkTeam = layout.teamOf(playerRepo.playerID)
             engine.networkTeam = networkTeam
             val startID = layout.teamStartId(networkTeam)
             val player = playerRepo.playerID - startID + 1
-            val dedicatedName = if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINED) {
-                playerRepo.playerName?.takeIf { it.isNotEmpty() }?.let { "$it ($networkTeam-$player)" }
-            } else null
             screen?.showTeam(TeamDisplay.Team(networkTeam, player, TeamColors.colorOf(networkTeam), net.useNetwork, dedicatedName))
         } else {
-            screen?.showTeam(TeamDisplay.FreeForAll(playerRepo.playerID))
+            screen?.showTeam(TeamDisplay.FreeForAll(playerRepo.playerID, dedicatedName))
         }
     }
 

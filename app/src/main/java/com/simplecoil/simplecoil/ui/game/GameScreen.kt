@@ -56,10 +56,11 @@ sealed interface TeamDisplay {
     /** No player id yet: the server will sort the player into a team. */
     data object AutoSort : TeamDisplay
 
-    /** [playerName] when joined to a dedicated server (shown as "name (team-player)"). */
+    /** [playerName] when joined to a dedicated server; "(team-player)" then goes under the player count. */
     data class Team(val team: Int, val player: Int, val color: Int, val teamScoreVisible: Boolean, val playerName: String?) : TeamDisplay
 
-    data class FreeForAll(val playerId: Byte) : TeamDisplay
+    /** [playerName] when joined to a dedicated server; "(playerId)" then goes under the player count. */
+    data class FreeForAll(val playerId: Byte, val playerName: String? = null) : TeamDisplay
 }
 
 /** Lobby buttons shown while no game is running. */
