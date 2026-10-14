@@ -1,6 +1,6 @@
 # SimpleCoil Modernization Roadmap (after V2 refactor)
 
-Status: **Stages 0–4 DONE (2026-10-13), device checks included; Stage 5 next.** All four documents are approved and their decisions resolved.
+Status: **Stages 0–4 DONE (2026-10-13), device checks included; Stage 5 done in code, its device checks still to run.** All four documents are approved and their decisions resolved.
 Branch audited: `V2-refactor` @ `b460c02`. The on-device checklists in `REFACTOR_DESIGN.md` §6.5 and
 `STATE_CONSOLIDATION_DESIGN.md` §8.6 have been completed.
 Date: 2026-10-13
@@ -243,6 +243,43 @@ portrait.
 - **App container steps 6–8**: the map sweep (or leave it to the map work), delete `getInstance()`, server-scoped
   state.
 - **Platform step 9**: lint policy (promote the cleaned categories to errors and baseline the rest).
+
+**Done in code (2026-10-13), one commit per step.** 552 unit tests pass (the three install-shim tests went with
+the shim), `assembleDebug` and `assembleRelease` (R8) are green, and `lintDebug` reports no new issues: 0 errors,
+with the 26 remaining warnings in the baseline.
+
+- **App container step 6:** the map sweep `c77df61`. `MapFragment` reads `MapLocationManager` and the two
+  repositories from the container in `onCreate`; `MapLocationManager` takes the repositories through its
+  constructor and is a container member instead of a singleton. Nothing else in the map changed.
+- **App container step 7:** `getInstance()`, `install()` and the static holders deleted from the three repositories,
+  and `AudioHapticsManager` built by the container `8c509ed`. No singleton is left in the app; `RepositoryInstallTest`
+  went with the shim.
+- **App container step 8:** server-scoped state `8432b7f` (Q3). `TcpServer` builds its own
+  `GameSettingsRepository` / `GameStateRepository` / `PlayerRepository` for its `GameServer` when it is created; the
+  controller binds it from start to stop, so the state lives exactly as long as the server. The S14 zeroing of the
+  play screen's player id and game state is gone, and so is the server's write of its own address into the play
+  screen's server IP.
+- **Platform step 9:** the lint policy `1066c34`. `HardcodedText`, `SetTextI18n`, `DefaultLocale` and the two
+  `UseSwitchCompatOrMaterial` checks are errors (checked: a `String.format` without a locale fails `lintDebug`); the
+  rest is in `app/lint-baseline.xml`.
+
+Notes:
+
+- **The server's unsaved settings start at their defaults.** The operator's saved settings (team mode, limits, start
+  time, choose teams, GPS) are loaded as before. The two the operator sets only on the screen, only server settings
+  and allow player settings, used to start at whatever the play screen had left in the shared repository; now they
+  start at their defaults (both on), as they did in a fresh process.
+- **The baseline:** `Overdraw` 8 and `RelativeOverlap` 8 (still waiting for visual checks), `LockedOrientationActivity`
+  2 (intentional), `DiscouragedApi` 2, the map-owned `FragmentTagUsage` and `DrawAllocation`, and one each of
+  `GradleDependency`, `TextFields`, `UselessParent` and `ViewConstructor`. 26, not 27 as after Stage 4: the
+  `AudioHapticsManager` singleton's static field is gone.
+- `assembleRelease` prints that the baseline's 26 entries were "not found" for `lintVitalRelease`. That is lint
+  comparing the full baseline with the vital checks only; it doesn't fail the build.
+
+Device checks still to run: the BLE and network smoke tests for step 7 (`REFACTOR_DESIGN.md` §3.0,
+`NETWORK_STACK_DESIGN.md` §9.1), and for step 8 the Q3 round trip: play screen → dedicated server → back to the
+play screen keeps the player's name, id, settings and saved blaster. The map's GPS markers after step 6 are covered
+by the network smoke test's GPS item.
 
 ---
 
