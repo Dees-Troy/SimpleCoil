@@ -114,7 +114,6 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
         binding.startGameButton.setOnClickListener { vm.onStartGamePressed() }
         binding.playerSettingsButton.setOnClickListener { vm.onPlayerSettingsPressed() }
         binding.endGameButton.setOnClickListener { vm.onEndGamePressed() }
-        binding.endNetworkGameButton.setOnClickListener { vm.onEndGamePressed() }
         binding.startRespawnButton.setOnClickListener { vm.onStartRespawnPressed() }
         binding.generateQrButton.setOnClickListener { vm.onGenerateQrPressed() }
         InfoSheet(this, binding)

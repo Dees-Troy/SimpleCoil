@@ -464,14 +464,14 @@
             android:layout_below="@id/health_pb"
             android:text="@string/player_settings_button" />
 
+        <!-- Offline, or for a network admin. In Game Limit's spot, which is hidden during a game. -->
         <Button
             android:id="@+id/end_game_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_centerHorizontal="true"
-            android:layout_marginBottom="10dp"
-            android:layout_above="@+id/team_mode_label_tv"
+            android:layout_marginStart="15dp"
+            android:layout_above="@+id/eliminations_count_label_tv"
             android:visibility="gone"
             android:text="@string/end_game_button" />
 
@@ -532,7 +532,7 @@
             android:visibility="gone"
             android:text="@string/shuffle_teams_button" />
 
-        <!-- Between games only; End Game takes this spot during one. -->
+        <!-- Between games only. -->
         <Button
             android:id="@+id/generate_qr_button"
             style="@style/Widget.AppCompat.Button.Colored"
@@ -652,19 +652,7 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Above end_game_button, which is gone in network games, so it falls through to the team mode label. -->
-        <Button
-            android:id="@+id/end_network_game_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerHorizontal="true"
-            android:layout_marginBottom="10dp"
-            android:layout_above="@id/end_game_button"
-            android:visibility="gone"
-            android:text="@string/end_game_button" />
-
-        <!-- Manual respawn: above whichever End Game button is shown, else above the team mode label. -->
+        <!-- Manual respawn: above the team mode label. -->
         <Button
             android:id="@+id/start_respawn_button"
             style="@style/Widget.AppCompat.Button.Colored"
@@ -672,7 +660,7 @@
             android:layout_height="wrap_content"
             android:layout_centerHorizontal="true"
             android:layout_marginBottom="10dp"
-            android:layout_above="@id/end_network_game_button"
+            android:layout_above="@id/team_mode_label_tv"
             android:visibility="gone"
             android:text="@string/start_respawn_button" />
 

@@ -120,7 +120,6 @@ class GameScreenRenderer(
     override fun showGameEnded(useNetwork: Boolean, freeForAll: Boolean) {
         window.exitGame()
         b.endGameButton.visibility = View.GONE
-        b.endNetworkGameButton.visibility = View.GONE
         b.generateQrButton.visibility = View.VISIBLE
         displayAllNetworkingOptions(useNetwork, freeForAll)
         b.useNetworkButton.visibility = View.VISIBLE
@@ -282,7 +281,7 @@ class GameScreenRenderer(
         b.playerCountTv.visibility = View.VISIBLE
         b.teamModeLabelTv.visibility = View.VISIBLE
         b.scoresChip.visibility = View.VISIBLE
-        b.endNetworkGameButton.visibility = if (isAdmin) View.VISIBLE else View.GONE
+        b.endGameButton.visibility = if (isAdmin) View.VISIBLE else View.GONE
         if (!freeForAll) setTeamScoreVisible(true)
     }
 
