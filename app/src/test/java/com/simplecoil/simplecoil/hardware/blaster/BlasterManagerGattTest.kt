@@ -180,6 +180,16 @@ class BlasterManagerGattTest {
     }
 
     @Test
+    fun discovery_readsTheIdAgainAfterTheDescriptorWrite_untilItAnswers() {
+        connect()
+        manager.onEvent(BluetoothLeService.DESCRIPTOR_WRITE_FINISHED)
+        verify(service, times(2)).readCharacteristic(idChar)
+        deliverBlasterType(GattProtocolHandler.BLASTER_TYPE_RIFLE)
+        manager.onEvent(BluetoothLeService.DESCRIPTOR_WRITE_FINISHED)
+        verify(service, times(2)).readCharacteristic(idChar)
+    }
+
+    @Test
     fun discovery_writesCurrentRecoilSettingAfterExactly500ms() {
         manager.setRecoil(false) // dropped (not connected), but remembered
         connect()

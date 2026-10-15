@@ -53,6 +53,10 @@ class BlasterManager(private val scope: CoroutineScope) : GattEventSink {
     private var telemetryCharacteristic: BluetoothGattCharacteristic? = null
     private var commandCharacteristic: BluetoothGattCharacteristic? = null
     private var configCharacteristic: BluetoothGattCharacteristic? = null
+    private var idCharacteristic: BluetoothGattCharacteristic? = null
+
+    /** The ID characteristic hasn't answered since discovery. */
+    private var idPending = false
 
     private var commandId: Byte = 0x00
     private val weaponProfile: Byte = 0x00
@@ -160,6 +164,9 @@ class BlasterManager(private val scope: CoroutineScope) : GattEventSink {
                 emit(BlasterEvent.ServicesDiscovered)
             }
             BluetoothLeService.CHARACTERISTIC_WRITE_FINISHED -> emit(BlasterEvent.WriteFinished)
+            // Android runs one GATT operation at a time: the ID read made during discovery is
+            // refused while the telemetry descriptor write is in flight, so read it again now.
+            BluetoothLeService.DESCRIPTOR_WRITE_FINISHED -> if (idPending) idCharacteristic?.let { bluetoothLeService?.readCharacteristic(it) }
         }
     }
 
@@ -171,6 +178,7 @@ class BlasterManager(private val scope: CoroutineScope) : GattEventSink {
     }
 
     override fun onBlasterId(blasterType: Byte?) {
+        idPending = false
         this.blasterType = blasterType ?: GattProtocolHandler.BLASTER_TYPE_PISTOL
         emit(BlasterEvent.TypeDiscovered(this.blasterType))
     }
@@ -186,7 +194,9 @@ class BlasterManager(private val scope: CoroutineScope) : GattEventSink {
                 commandCharacteristic = gattService.getCharacteristic(UUID.fromString(GattAttributes.RECOIL_COMMAND_UUID))
                 configCharacteristic = gattService.getCharacteristic(UUID.fromString(GattAttributes.RECOIL_CONFIG_UUID))
 
-                gattService.getCharacteristic(UUID.fromString(GattAttributes.RECOIL_ID_UUID))?.let {
+                idCharacteristic = gattService.getCharacteristic(UUID.fromString(GattAttributes.RECOIL_ID_UUID))
+                idCharacteristic?.let {
+                    idPending = true
                     service.readCharacteristic(it)
                 }
 
