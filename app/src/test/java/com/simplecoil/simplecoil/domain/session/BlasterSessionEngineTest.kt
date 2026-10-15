@@ -685,6 +685,28 @@ class BlasterSessionEngineTest {
     }
 
     @Test
+    fun playerSettings_shotModeAndRecoilChangeableUnlessRestricted() {
+        h.engine.applyPlayerSettings()
+        assertTrue(h.state.shotModeChangeable)
+        assertTrue(h.state.recoilChangeable)
+        h.config.allowBurstShotMode = false
+        h.config.allowAutoShotMode = false
+        h.config.serverRecoilSetting = GameSettingsRepository.RECOIL_SETTING_ENABLED
+        h.engine.applyPlayerSettings()
+        assertFalse(h.state.shotModeChangeable)
+        assertFalse(h.state.recoilChangeable)
+    }
+
+    @Test
+    fun tiles_cycleShotModeAndToggleRecoilLikeTheButtons() {
+        h.engine.cycleShotMode()
+        assertEquals(burst, h.state.shotMode)
+        h.engine.toggleRecoil()
+        assertFalse(h.state.recoilEnabled)
+        assertEquals(listOf("shotMode:$burst/0", "recoil:false"), h.rec.ble)
+    }
+
+    @Test
     fun noNetwork_sendsNothing() {
         h.engine.network = null
         h.config.fullHealth = 1

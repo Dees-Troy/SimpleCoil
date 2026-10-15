@@ -56,6 +56,10 @@ data class SessionState(
     val eliminationDisplay: Int = 0,
     val shotMode: Int,
     val recoilEnabled: Boolean = true,
+    /** The player may change the shot mode: more than one mode is allowed. */
+    val shotModeChangeable: Boolean = true,
+    /** The player may toggle recoil: the server doesn't force it. */
+    val recoilChangeable: Boolean = true,
     val battery: BatteryLevelPolicy.Level? = null,
     val spawn: SpawnPhase = SpawnPhase.None,
     /** Name shown by the "you're hit" overlay while it plays; null when not playing. */

@@ -777,6 +777,12 @@ class GameViewModel(
         screen?.showPlayerNameDialog(playerRepo.playerName)
     }
 
+    /** The recoil tile, shown while the server lets the player choose: toggle recoil. */
+    fun onRecoilPressed() = engine.toggleRecoil()
+
+    /** The shot mode tile, shown while more than one mode is allowed: the next mode. */
+    fun onShotModePressed() = engine.cycleShotMode()
+
     fun onSwitchTeamChosen(team: Int) = requestSwitchTeam(team)
 
     fun onNetworkMenuEntry(entry: NetworkMenuEntry) {
@@ -901,6 +907,12 @@ class GameViewModel(
                 playerRepo.playerID = if (selectedPlayerId.toInt() != 0) selectedPlayerId else 1
             }
             setTeam()
+            // Drop the shot mode and recoil restrictions a server may have set.
+            settingsRepo.isAllowSingleShotMode = true
+            settingsRepo.isAllowBurst3ShotMode = true
+            settingsRepo.isAllowAutoShotMode = true
+            settingsRepo.serverRecoilSetting = GameSettingsRepository.RECOIL_SETTING_DEFAULT
+            updatePlayerSettings()
         } else {
             setNetworkMenu(NETWORK_TYPE_ENABLED)
             screen?.showNetworkOptions(true, freeForAll())

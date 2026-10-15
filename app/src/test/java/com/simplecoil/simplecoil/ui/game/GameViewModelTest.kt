@@ -447,6 +447,29 @@ class GameViewModelTest {
     }
 
     @Test
+    fun disableNetwork_dropsTheServersShotModeAndRecoilRestrictions_showsItsFiringMode() {
+        vm.onNetworkButtonPressed()
+        vm.onNetworkMenuEntry(NetworkMenuEntry.Join)
+        emitNetwork(ClientEvent.ServerReply(1))
+        settings.isAllowBurst3ShotMode = false
+        settings.isAllowAutoShotMode = false
+        settings.serverRecoilSetting = GameSettingsRepository.RECOIL_SETTING_DISABLED
+        settings.currentFiringMode = GameSettingsRepository.FIRING_MODE_INDOOR_NO_CONE
+        emitNetwork(ClientEvent.PlayerSettingsUpdate)
+        assertFalse(engine.state.value.shotModeChangeable)
+        assertFalse(engine.state.value.recoilChangeable)
+
+        clearInvocations(screen)
+        vm.onNetworkMenuEntry(NetworkMenuEntry.DisableNetwork)
+        // The server's firing mode stays, and the firing mode button shows it.
+        verify(screen).showFiringMode(GameSettingsRepository.FIRING_MODE_INDOOR_NO_CONE)
+        assertTrue(settings.isAllowSingleShotMode && settings.isAllowBurst3ShotMode && settings.isAllowAutoShotMode)
+        assertEquals(GameSettingsRepository.RECOIL_SETTING_DEFAULT, settings.serverRecoilSetting)
+        assertTrue(engine.state.value.shotModeChangeable)
+        assertTrue(engine.state.value.recoilChangeable)
+    }
+
+    @Test
     fun rejoinServerReply_whileJoined_doesNotShowSearchingAgain() {
         vm.onNetworkButtonPressed()
         vm.onNetworkMenuEntry(NetworkMenuEntry.Join)

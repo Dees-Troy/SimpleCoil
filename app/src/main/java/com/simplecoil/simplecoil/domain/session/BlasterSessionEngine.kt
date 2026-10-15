@@ -199,6 +199,26 @@ class BlasterSessionEngine(
         applyCurrentRecoilSetting()
         ShotModePolicy.coerceToAllowed(currentShotMode, config.allowSingleShotMode, config.allowBurstShotMode,
             config.allowAutoShotMode)?.let { setShotMode(it) }
+        val allowedModes = listOf(config.allowSingleShotMode, config.allowBurstShotMode, config.allowAutoShotMode).count { it }
+        _state.update {
+            it.copy(shotModeChangeable = allowedModes > 1,
+                recoilChangeable = config.serverRecoilSetting == GameSettingsRepository.RECOIL_SETTING_DEFAULT)
+        }
+    }
+
+    /** The power button or the recoil tile: toggle recoil, unless the server forces it. */
+    fun toggleRecoil() {
+        val recoil = RecoilPolicy.onPowerButton(config.serverRecoilSetting, recoilEnabled)
+        setRecoil(recoil.enabled)
+        if (recoil.forced) {
+            emit(SessionEffect.Toast(if (recoil.enabled) SessionToast.RECOIL_FORCED_ENABLED else SessionToast.RECOIL_FORCED_DISABLED))
+        }
+    }
+
+    /** The thumb button or the shot mode tile: move to the next allowed shot mode. */
+    fun cycleShotMode() {
+        ShotModePolicy.nextOnThumb(currentShotMode, config.allowSingleShotMode, config.allowBurstShotMode,
+            config.allowAutoShotMode)?.let { setShotMode(it) }
     }
 
     /** The "blaster disconnected" dialog was dismissed by a reconnect: re-send recoil (§1.6: +600 ms). */
@@ -516,11 +536,7 @@ class BlasterSessionEngine(
         processReloadHold(telemetry)
         if (telemetry.powerCounter != lastPowerButtonCount) {
             lastPowerButtonCount = telemetry.powerCounter
-            val recoil = RecoilPolicy.onPowerButton(config.serverRecoilSetting, recoilEnabled)
-            setRecoil(recoil.enabled)
-            if (recoil.forced) {
-                emit(SessionEffect.Toast(if (recoil.enabled) SessionToast.RECOIL_FORCED_ENABLED else SessionToast.RECOIL_FORCED_DISABLED))
-            }
+            toggleRecoil()
         }
         val averageBattery = battery.add(telemetry.batteryLevel)
         _state.update { it.copy(battery = BatteryLevelPolicy.level(averageBattery, blasterType)) }
@@ -610,10 +626,7 @@ class BlasterSessionEngine(
             shortPress = counted && !thumbLongPressReleased
             thumbLongPressReleased = false
         }
-        if (shortPress) {
-            ShotModePolicy.nextOnThumb(currentShotMode, config.allowSingleShotMode, config.allowBurstShotMode,
-                config.allowAutoShotMode)?.let { setShotMode(it) }
-        }
+        if (shortPress) cycleShotMode()
     }
 
     /** Manual respawn: holding reload for [RELOAD_LONG_PRESS_MILLIS] while awaiting respawn starts it. */

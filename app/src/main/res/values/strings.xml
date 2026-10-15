@@ -176,6 +176,8 @@
     <string name="scores_chip_action">open scoreboard</string>
     <string name="team_label_action">switch teams</string>
     <string name="player_name_action">change player name</string>
+    <string name="shot_mode_action">change shot mode</string>
+    <string name="recoil_action">toggle recoil</string>
     <!-- One score in the score readout's spoken description, e.g. "SCORE (50): 12". -->
     <string name="cd_score_entry">%1$s: %2$s</string>
 

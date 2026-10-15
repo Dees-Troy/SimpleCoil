@@ -24,6 +24,7 @@ import android.graphics.drawable.RippleDrawable
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AnimationUtils
+import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat
 import androidx.core.view.isVisible
@@ -56,6 +57,10 @@ class GameScreenRenderer(
     private val onTeamTapped: () -> Unit = {},
     /** The player name tile was tapped while joined to a dedicated server. */
     private val onPlayerNameTapped: () -> Unit = {},
+    /** The shot mode tile was tapped while more than one shot mode is allowed. */
+    private val onShotModeTapped: () -> Unit = {},
+    /** The recoil tile was tapped while the server lets the player choose. */
+    private val onRecoilTapped: () -> Unit = {},
     /** The score readout was tapped while a scoreboard is available. */
     private val onScoresTapped: () -> Unit = {},
 ) : GameView {
@@ -306,6 +311,38 @@ class GameScreenRenderer(
         name.layoutParams = params
     }
 
+    /**
+     * The shot mode and recoil values are tiles like the score readout's while the player may
+     * change them. The tile's padding comes out of the margins (and the end margin, for a view
+     * aligned to the parent's end) so the text stays put.
+     */
+    private fun setSettingTile(view: TextView, tile: Boolean, action: Int, onTapped: () -> Unit, endMarginDp: Int = 0) {
+        val params = view.layoutParams as ViewGroup.MarginLayoutParams
+        val dp = context.resources.displayMetrics.density
+        val padH = (12 * dp).toInt()
+        val padV = (2 * dp).toInt()
+        val endMargin = (endMarginDp * dp).toInt()
+        if (tile) {
+            view.setBackgroundResource(R.drawable.scores_chip_background)
+            view.setPadding(padH, padV, padH, padV)
+            params.topMargin = -padV
+            params.bottomMargin = -padV
+            params.marginEnd = if (endMargin > 0) endMargin - padH else 0
+            view.setOnClickListener { onTapped() }
+            ViewCompat.replaceAccessibilityAction(view, AccessibilityActionCompat.ACTION_CLICK, context.getString(action), null)
+        } else {
+            view.background = null
+            view.setPadding(0, 0, 0, 0)
+            params.topMargin = 0
+            params.bottomMargin = 0
+            params.marginEnd = endMargin
+            view.setOnClickListener(null)
+            view.isClickable = false
+        }
+        view.isFocusable = tile
+        view.layoutParams = params
+    }
+
     private fun clearTeamLabelStyle() {
         b.teamLabelTv.background = null
         b.teamLabelTv.setPadding(0, 0, 0, 0)
@@ -505,6 +542,12 @@ class GameScreenRenderer(
         }
         if (p == null || p.recoilEnabled != s.recoilEnabled) {
             b.recoilTv.setText(if (s.recoilEnabled) R.string.recoil_enabled else R.string.recoil_disabled)
+        }
+        if (p == null || p.shotModeChangeable != s.shotModeChangeable) {
+            setSettingTile(b.shotModeTv, s.shotModeChangeable, R.string.shot_mode_action, onShotModeTapped, endMarginDp = 15)
+        }
+        if (p == null || p.recoilChangeable != s.recoilChangeable) {
+            setSettingTile(b.recoilTv, s.recoilChangeable, R.string.recoil_action, onRecoilTapped)
         }
         val battery = s.battery
         if (battery != null && (p == null || battery != p.battery)) {
