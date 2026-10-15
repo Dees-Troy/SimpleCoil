@@ -238,6 +238,7 @@
         <Button
             android:id="@+id/firing_mode_button"
             style="@style/Widget.AppCompat.Button.Colored"
+            android:textColor="#FFFFFF"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
@@ -246,6 +247,7 @@
         <Button
             android:id="@+id/recoil_setting_button"
             style="@style/Widget.AppCompat.Button.Colored"
+            android:textColor="#FFFFFF"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
@@ -255,6 +257,7 @@
         <Button
             android:id="@+id/switch_team_button"
             style="@style/Widget.AppCompat.Button.Colored"
+            android:textColor="#FFFFFF"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
@@ -264,6 +267,7 @@
         <Button
             android:id="@+id/kick_player_button"
             style="@style/Widget.AppCompat.Button.Colored"
+            android:textColor="#FFFFFF"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
@@ -273,6 +277,7 @@
         <Button
             android:id="@+id/reset_defaults_button"
             style="@style/Widget.AppCompat.Button.Colored"
+            android:textColor="#FFFFFF"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
