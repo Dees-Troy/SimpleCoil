@@ -37,16 +37,14 @@ object GameLimitRules {
 
     sealed interface Result {
         data class Applied(val limits: Limits) : Result
-        /** Empty or not a number: nothing changes. */
+        /** Empty, not a number, or above [MAX_LIMIT] (the dialog doesn't allow that): nothing changes. */
         data object Ignored : Result
-        /** Above [MAX_LIMIT]: nothing changes, and the player is told. */
-        data object TooHigh : Result
     }
 
     fun apply(current: Limits, kind: LimitKind, text: String): Result {
         if (text.isEmpty()) return Result.Ignored
         val limit = text.toIntOrNull() ?: return Result.Ignored
-        if (limit > MAX_LIMIT) return Result.TooHigh
+        if (limit > MAX_LIMIT) return Result.Ignored
         val flag = when (kind) {
             LimitKind.TIME -> GameSettingsRepository.GAME_LIMIT_TIME
             LimitKind.LIVES -> GameSettingsRepository.GAME_LIMIT_LIVES
@@ -64,15 +62,14 @@ object GameLimitRules {
     }
 
     /**
-     * Every limit the dialog entered, at once. Any one above [MAX_LIMIT] and nothing changes; an
-     * empty or non-numeric field keeps its limit as it was.
+     * Every limit the dialog entered, at once. A field that is empty, not a number or above
+     * [MAX_LIMIT] keeps its limit as it was.
      */
     fun apply(current: Limits, texts: Map<LimitKind, String>): Result {
         var limits = current
         var changed = false
         for ((kind, text) in texts) {
             when (val result = apply(limits, kind, text)) {
-                Result.TooHigh -> return Result.TooHigh
                 Result.Ignored -> {}
                 is Result.Applied -> {
                     limits = result.limits

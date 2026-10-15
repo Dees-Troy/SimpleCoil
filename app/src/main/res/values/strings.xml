@@ -84,7 +84,8 @@
     <string name="error_bluetooth_not_supported">Bluetooth not supported.</string>
     <string name="error_location_permission_required">Location permission required for Bluetooth scanning.</string>
     <string name="error_udp_version">Network client version mismatch. Please update the app!</string>
-    <string name="error_limit_too_high">Limit is too high! The maximum is %1$d.</string>
+    <!-- Shown on a dialog field holding a number above its maximum. -->
+    <string name="error_maximum">Maximum is %1$d</string>
     <string name="dialog_game_time_expired">Time limit reached!</string>
     <string name="dialog_out_of_lives">Out of Lives!</string>
 

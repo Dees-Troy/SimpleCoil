@@ -179,7 +179,6 @@ class DedicatedServerViewModel(
     fun onGameLimitsEntered(texts: Map<LimitKind, String>) {
         val current = snapshot?.settings ?: return
         when (val result = GameLimitRules.apply(Limits(current.gameLimit, current.timeLimit, current.livesLimit, current.scoreLimit), texts)) {
-            GameLimitRules.Result.TooHigh -> toast(R.string.error_limit_too_high, GameLimitRules.MAX_LIMIT)
             GameLimitRules.Result.Ignored -> {}
             is GameLimitRules.Result.Applied -> {
                 toastIfReset(controller.changeLimits(result.limits))
@@ -188,13 +187,10 @@ class DedicatedServerViewModel(
         }
     }
 
-    /** The starting timer dialog's result: empty or not a number changes nothing. */
+    /** The starting timer dialog's result: empty, not a number or above the maximum changes nothing. */
     fun onStartTimeEntered(text: String) {
         val seconds = text.toLongOrNull() ?: return
-        if (seconds > MAX_START_TIME_SECONDS) {
-            toast(R.string.error_limit_too_high, MAX_START_TIME_SECONDS)
-            return
-        }
+        if (seconds > MAX_START_TIME_SECONDS) return
         toastIfReset(controller.changeStartTime(seconds))
         prefs.saveStartTime(seconds.toInt())
     }

@@ -304,7 +304,7 @@ calls `setFragmentResult(REQUEST_KEY, bundle)`, and each host routes the result 
 ### 7.3 Shared rules
 
 - `GameLimitRules.apply(current: Limits, kind, value): Limits`. Fixes S9: a value ≤ 0 turns the limit off, a value
-  > 0 turns it on, and > 100 is rejected with `LIMIT_TOO_HIGH` as today. Used by both VMs.
+  > 0 turns it on, and > 1000 is ignored (the dialog greys out OK and marks the field). Used by both VMs.
 - `TeamSizes.validate(texts, teamCount): Result<IntArray>`, with today's messages (each ≥ 1, the total must be 32).
 
 ### 7.4 Scoreboard

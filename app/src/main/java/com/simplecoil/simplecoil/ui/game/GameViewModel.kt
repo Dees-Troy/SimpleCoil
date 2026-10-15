@@ -618,10 +618,6 @@ class GameViewModel(
     fun onGameLimitsEntered(texts: Map<LimitKind, String>) {
         when (val result = GameLimitRules.apply(currentLimits, texts)) {
             GameLimitRules.Result.Ignored -> return
-            GameLimitRules.Result.TooHigh -> {
-                screen?.showMessage(GameMessage.LIMIT_TOO_HIGH)
-                return
-            }
             is GameLimitRules.Result.Applied -> {
                 val limits = result.limits
                 settingsRepo.timeLimit = limits.timeLimit

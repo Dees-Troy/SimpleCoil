@@ -59,10 +59,10 @@ class GameLimitRulesTest {
     }
 
     @Test
-    fun emptyOrNotANumber_isIgnored_andAboveTheMaximum_isTooHigh() {
+    fun emptyNotANumberOrAboveTheMaximum_isIgnored() {
         assertEquals(GameLimitRules.Result.Ignored, GameLimitRules.apply(none, LimitKind.TIME, ""))
         assertEquals(GameLimitRules.Result.Ignored, GameLimitRules.apply(none, LimitKind.TIME, "abc"))
-        assertEquals(GameLimitRules.Result.TooHigh, GameLimitRules.apply(none, LimitKind.LIVES, "1001"))
+        assertEquals(GameLimitRules.Result.Ignored, GameLimitRules.apply(none, LimitKind.LIVES, "1001"))
         assertEquals(Limits(GAME_LIMIT_LIVES, 10, 1000, 20), applied(none, LimitKind.LIVES, "1000"))
     }
 
@@ -74,8 +74,9 @@ class GameLimitRulesTest {
     }
 
     @Test
-    fun allAtOnce_anyTooHigh_changesNothing_andAllEmpty_isIgnored() {
-        assertEquals(GameLimitRules.Result.TooHigh, GameLimitRules.apply(none, mapOf(LimitKind.TIME to "15", LimitKind.LIVES to "1001")))
+    fun allAtOnce_keepsAFieldAboveTheMaximum_andAllEmpty_isIgnored() {
+        val texts = mapOf(LimitKind.TIME to "15", LimitKind.LIVES to "1001")
+        assertEquals(Limits(GAME_LIMIT_TIME, 15, 5, 20), (GameLimitRules.apply(none, texts) as GameLimitRules.Result.Applied).limits)
         assertEquals(GameLimitRules.Result.Ignored, GameLimitRules.apply(none, mapOf(LimitKind.TIME to "", LimitKind.LIVES to "x")))
     }
 

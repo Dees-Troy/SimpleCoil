@@ -199,28 +199,24 @@ class DedicatedServerViewModelTest {
     }
 
     @Test
-    fun gameLimit_appliesThroughTheRules_savesIt_andRejectsTooHigh() {
+    fun gameLimit_appliesThroughTheRules_andSavesIt() {
         publish()
         vm.onGameLimitsEntered(mapOf(LimitKind.TIME to "15", LimitKind.LIVES to "3", LimitKind.SCORE to "0"))
         val both = GameSettingsRepository.GAME_LIMIT_TIME or GameSettingsRepository.GAME_LIMIT_LIVES
         assertEquals("limits ${Limits(both, 15, 3, 0)}", controller.calls.last())
         assertEquals(15, prefs.timeLimit())
         assertEquals(3, prefs.livesLimit())
-        val calls = controller.calls.size
-        vm.onGameLimitsEntered(mapOf(LimitKind.TIME to "20", LimitKind.LIVES to "1001"))
-        assertEquals(listOf(R.string.error_limit_too_high), toasts())
-        assertEquals(calls, controller.calls.size)
         vm.onGameLimitsEntered(mapOf(LimitKind.SCORE to "0")) // S9: 0 leaves an unset limit off
         assertEquals("limits ${Limits(GameSettingsRepository.GAME_LIMIT_NONE, 0, 0, 0)}", controller.calls.last())
     }
 
     @Test
-    fun startTime_ignoresNonNumbers_andRejectsOver1000() {
+    fun startTime_ignoresNonNumbers_andOver1000() {
         publish()
         vm.onStartTimeEntered("")
         vm.onStartTimeEntered("abc")
         vm.onStartTimeEntered("1001")
-        assertEquals(listOf(R.string.error_limit_too_high), toasts())
+        assertTrue(controller.calls.none { it.startsWith("startTime") })
         vm.onStartTimeEntered("12")
         assertEquals("startTime 12", controller.calls.last())
         assertEquals(12, prefs.startTime(0))

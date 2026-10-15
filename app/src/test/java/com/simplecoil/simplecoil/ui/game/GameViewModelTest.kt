@@ -174,14 +174,13 @@ class GameViewModelTest {
     }
 
     @Test
-    fun gameLimit_parsesAndRejectsTooHigh() {
+    fun gameLimit_parsesAndIgnoresTooHigh() {
         vm.onGameLimitsEntered(mapOf(LimitKind.TIME to "10", LimitKind.LIVES to "0"))
         assertEquals(GameSettingsRepository.GAME_LIMIT_TIME, settings.gameLimit)
         assertEquals(10, prefs.values["TimeLimit"])
         verify(screen).showGameLimit(10, false, null)
-        vm.onGameLimitsEntered(mapOf(LimitKind.TIME to "20", LimitKind.LIVES to "1001"))
-        verify(screen).showMessage(GameMessage.LIMIT_TOO_HIGH, 0)
-        assertEquals(10, settings.timeLimit)
+        vm.onGameLimitsEntered(mapOf(LimitKind.LIVES to "1001"))
+        assertEquals(GameSettingsRepository.GAME_LIMIT_TIME, settings.gameLimit)
         vm.onGameLimitsEntered(mapOf(LimitKind.LIVES to "abc"))
         assertEquals(GameSettingsRepository.GAME_LIMIT_TIME, settings.gameLimit)
     }

@@ -21,16 +21,19 @@ import android.app.Dialog
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.EditText
 import android.widget.Toast
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.core.os.bundleOf
+import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.DialogFragment
 import com.simplecoil.simplecoil.R
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.databinding.GameLimitDialogBinding
 import com.simplecoil.simplecoil.databinding.StartingTimerDialogBinding
 import com.simplecoil.simplecoil.databinding.TeamRatioDialogBinding
+import com.simplecoil.simplecoil.domain.rules.GameLimitRules
 import com.simplecoil.simplecoil.domain.rules.LimitKind
 import com.simplecoil.simplecoil.domain.rules.Limits
 import com.simplecoil.simplecoil.domain.rules.TeamSizes
@@ -48,11 +51,26 @@ abstract class AppDialogFragment : DialogFragment() {
     protected val appInflater: LayoutInflater get() = LayoutInflater.from(requireContext().applicationContext)
 
     protected fun alertBuilder() = AlertDialog.Builder(requireContext(), R.style.AppDialogTheme)
+
+    /**
+     * Marks each of [fields] holding a number above [max] with an error, and greys out OK while
+     * any does. Call before the dialog shows.
+     */
+    protected fun AlertDialog.limitTo(max: Long, fields: Collection<EditText>) = setOnShowListener {
+        val ok = getButton(AlertDialog.BUTTON_POSITIVE)
+        val error = getString(R.string.error_maximum, max)
+        fun check() {
+            fields.forEach { it.error = if ((it.text.toString().toLongOrNull() ?: 0) > max) error else null }
+            ok.isEnabled = fields.none { it.error != null }
+        }
+        fields.forEach { it.doAfterTextChanged { check() } }
+        check()
+    }
 }
 
 /**
- * Every game limit at once, starting from the current ones (0 for off): the text entered for
- * each. Results under [REQUEST_KEY].
+ * Every game limit at once, starting from the current ones (0 for off); OK is greyed out while
+ * any is above the maximum. Returns the text entered for each under [REQUEST_KEY].
  */
 class GameLimitDialog : AppDialogFragment() {
     // The fields hold ASCII digits that GameLimitRules parses back; locale digits wouldn't parse.
@@ -81,6 +99,7 @@ class GameLimitDialog : AppDialogFragment() {
             }
             .setNegativeButton(R.string.cancel) { dialog, _ -> dialog.cancel() }
             .create()
+            .apply { limitTo(GameLimitRules.MAX_LIMIT.toLong(), fields.values) }
     }
 
     companion object {
@@ -166,14 +185,15 @@ class TeamRatioDialog : AppDialogFragment() {
     }
 }
 
-/** The starting timer in seconds, as entered. Results under [REQUEST_KEY]. */
+/** The starting timer in seconds, as entered; OK is greyed out while it is above the maximum. Results under [REQUEST_KEY]. */
 class StartingTimerDialog : AppDialogFragment() {
     // The field holds ASCII digits that the host parses back; locale digits wouldn't parse.
     @SuppressLint("SetTextI18n")
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         isCancelable = false
         val binding = StartingTimerDialogBinding.inflate(appInflater)
-        binding.startingTimerEt.setText(requireArguments().getLong(ARG_CURRENT).toString())
+        val args = requireArguments()
+        binding.startingTimerEt.setText(args.getLong(ARG_CURRENT).toString())
         return alertBuilder()
             .setView(binding.root)
             .setPositiveButton(R.string.ok) { dialog, _ ->
@@ -182,15 +202,18 @@ class StartingTimerDialog : AppDialogFragment() {
             }
             .setNegativeButton(R.string.cancel) { dialog, _ -> dialog.cancel() }
             .create()
+            .apply { limitTo(args.getLong(ARG_MAX), listOf(binding.startingTimerEt)) }
     }
 
     companion object {
         const val REQUEST_KEY = "startingTimer"
         private const val ARG_CURRENT = "current"
+        private const val ARG_MAX = "max"
         private const val RESULT_TEXT = "text"
 
         @JvmStatic
-        fun newInstance(currentSeconds: Long) = StartingTimerDialog().apply { arguments = bundleOf(ARG_CURRENT to currentSeconds) }
+        fun newInstance(currentSeconds: Long, maxSeconds: Long) =
+            StartingTimerDialog().apply { arguments = bundleOf(ARG_CURRENT to currentSeconds, ARG_MAX to maxSeconds) }
 
         @JvmStatic
         fun text(result: Bundle): String = result.getString(RESULT_TEXT, "")

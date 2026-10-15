@@ -106,7 +106,7 @@ class DedicatedServerActivity : AppCompatActivity() {
         }
         startingTimerButton.setOnClickListener {
             val current = vm.state.value?.startTimeSeconds ?: GameSettingsRepository.START_TIME_SECONDS
-            showDialog(StartingTimerDialog.newInstance(current), StartingTimerDialog.REQUEST_KEY)
+            showDialog(StartingTimerDialog.newInstance(current, DedicatedServerViewModel.MAX_START_TIME_SECONDS), StartingTimerDialog.REQUEST_KEY)
         }
         startGameButton.setOnClickListener { vm.onStartPressed() }
         endGameButton.setOnClickListener { vm.onEndPressed() }

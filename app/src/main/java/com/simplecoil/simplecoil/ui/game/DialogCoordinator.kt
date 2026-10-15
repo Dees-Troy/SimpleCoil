@@ -32,7 +32,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.simplecoil.simplecoil.PlayerDisplayData
 import com.simplecoil.simplecoil.R
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
-import com.simplecoil.simplecoil.domain.rules.GameLimitRules
 import com.simplecoil.simplecoil.domain.rules.Limits
 import com.simplecoil.simplecoil.domain.session.SessionToast
 import com.simplecoil.simplecoil.domain.team.TeamMode
@@ -146,7 +145,6 @@ class DialogCoordinator(
         when (message) {
             GameMessage.NOT_ENOUGH_PLAYERS -> toast(appContext.getString(R.string.not_enough_players_toast))
             GameMessage.PLAYER_SETTINGS_NOT_ALLOWED -> toast(appContext.getString(R.string.player_settings_not_allowed_toast))
-            GameMessage.LIMIT_TOO_HIGH -> toast(appContext.getString(R.string.error_limit_too_high, GameLimitRules.MAX_LIMIT))
             GameMessage.UDP_VERSION_ERROR -> toast(appContext.getString(R.string.error_udp_version))
             GameMessage.KICKED_BY_SERVER -> toast(appContext.getString(R.string.kicked_by_server_toast))
             GameMessage.INAPPROPRIATE_NAME -> toast("Please choose an appropriate player name!")
