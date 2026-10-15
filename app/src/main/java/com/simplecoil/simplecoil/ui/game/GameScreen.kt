@@ -155,6 +155,8 @@ interface GameDialogs {
     /** Every game limit at once, starting from [current]; the score limit only if [allowScoreLimit]. */
     fun showGameLimitDialog(current: Limits, allowScoreLimit: Boolean)
     fun showTeamRatioDialog(numTeams: Int, sizes: IntArray)
+    /** [team] is full: ask which of its [players] (id to name) [playerId] should trade places with. */
+    fun showTeamSwapDialog(playerId: Byte, team: Int, players: List<Pair<Byte, String>>)
     fun showLocalPlayerSettings()
     fun showScoreboard(players: Array<PlayerDisplayData?>)
     /** Update the scoreboard dialog's score matrix face, opening the dialog if needed. */

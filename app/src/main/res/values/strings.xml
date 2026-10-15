@@ -43,6 +43,11 @@
     <string name="switch_team_button">Switch Team</string>
     <string name="shuffle_teams_button">Shuffle</string>
     <string name="error_team_full">Team %1$d is full</string>
+    <string name="team_full_switch_with">Team is full. Switch with?</string>
+    <!-- The player settings dialog's team button once a player to switch with is picked: team, then that player's name. -->
+    <string name="switch_team_with_label">TEAM %1$d: switch with %2$s</string>
+    <!-- A player with no name in the team-full switch list. -->
+    <string name="team_swap_unnamed_player">Player %1$d</string>
     <string name="player_settings_recoil_default">Recoil: Let Player Choose</string>
     <string name="player_settings_recoil_enabled">Recoil: Force Enabled</string>
     <string name="player_settings_recoil_disabled">Recoil: Force Disabled</string>

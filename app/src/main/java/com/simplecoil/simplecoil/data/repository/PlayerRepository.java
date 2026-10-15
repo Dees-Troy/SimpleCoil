@@ -234,6 +234,28 @@ public class PlayerRepository {
         }
     }
 
+    /** Trades everything held under [firstId] for everything held under [secondId], in all the maps. */
+    public synchronized void swapPlayers(byte firstId, byte secondId) {
+        swapEntries(teamIPMap, firstId, secondId);
+        swapEntries(teamPlayerNameMap, firstId, secondId);
+        swapEntries(playerSettings, firstId, secondId);
+        swapEntries(gpsData, firstId, secondId);
+        swapEntries(playerMacMap, firstId, secondId);
+        for (byte id : new byte[] { firstId, secondId }) {
+            InetAddress ip = teamIPMap.get(id);
+            if (ip != null) ipTeamMap.put(ip, id);
+            String mac = playerMacMap.get(id);
+            if (mac != null && !mac.isEmpty()) macPlayerMap.put(mac, id);
+        }
+    }
+
+    private static <V> void swapEntries(Map<Byte, V> map, byte firstId, byte secondId) {
+        V first = map.remove(firstId);
+        V second = map.remove(secondId);
+        if (second != null) map.put(firstId, second);
+        if (first != null) map.put(secondId, first);
+    }
+
     /**
      * Moves every player in [oldToNew] to its new id, in all the maps. Players not in [oldToNew]
      * are dropped.

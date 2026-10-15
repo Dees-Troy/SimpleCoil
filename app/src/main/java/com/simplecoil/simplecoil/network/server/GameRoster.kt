@@ -557,6 +557,27 @@ class GameRoster @JvmOverloads constructor(
     }
 
     /**
+     * [firstId] and [secondId] trade ids, and with them teams. Returns both players, or null
+     * outside the lobby or if either id has no player.
+     */
+    @Synchronized
+    fun swapPlayers(firstId: Byte, secondId: Byte): Pair<PlayerRecord, PlayerRecord>? {
+        if (phase != SessionPhase.LOBBY || firstId == secondId) return null
+        val first = byId[firstId] ?: return null
+        val second = byId[secondId] ?: return null
+        first.playerId = secondId
+        first.team = repo.calcNetworkTeam(secondId)
+        second.playerId = firstId
+        second.team = repo.calcNetworkTeam(firstId)
+        byId[secondId] = first
+        byId[firstId] = second
+        repo.swapPlayers(firstId, secondId)
+        updateGpsTeam(firstId, second.team)
+        updateGpsTeam(secondId, first.team)
+        return first to second
+    }
+
+    /**
      * Renumbers every player for the current team mode and team sizes, in id order or shuffled.
      * Players that do not fit are removed. Lobby only; elsewhere nothing changes.
      */

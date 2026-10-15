@@ -89,6 +89,7 @@ object WireCodec {
         is ClientMessage.TeamChangeRequest -> json {
             put(WireKeys.PLAYERID, message.playerId)
             put(WireKeys.REQUEST_TEAM_CHANGE, message.team)
+            message.swapWith?.let { put(WireKeys.SWAP_WITH, it) }
         }
         is ClientMessage.GrenadePairing -> json {
             put(WireKeys.PLAYERID, message.playerId)
@@ -168,7 +169,8 @@ object WireCodec {
         json.has(WireKeys.RMSG) ->
             ClientMessage.Reliable(json.getString(WireKeys.RMSG), json.getInt(WireKeys.SEQ), json.optLong(WireKeys.GAMEID, 0))
         json.has(WireKeys.REQUEST_TEAM_CHANGE) ->
-            ClientMessage.TeamChangeRequest(json.optInt(WireKeys.PLAYERID, 0), json.getInt(WireKeys.REQUEST_TEAM_CHANGE))
+            ClientMessage.TeamChangeRequest(json.optInt(WireKeys.PLAYERID, 0), json.getInt(WireKeys.REQUEST_TEAM_CHANGE),
+                if (json.has(WireKeys.SWAP_WITH)) json.getInt(WireKeys.SWAP_WITH) else null)
         json.has(WireKeys.PAIRED_GRENADE_ID) ->
             ClientMessage.GrenadePairing(json.getInt(WireKeys.PLAYERID), json.getInt(WireKeys.PAIRED_GRENADE_ID))
         json.has(WireKeys.GPSLONGITUDE) ->

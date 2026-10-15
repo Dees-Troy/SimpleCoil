@@ -86,8 +86,11 @@ interface ServerController {
     /** [playerId]'s settings, or the defaults if it has none. */
     fun playerSettings(playerId: Byte): PlayerSettingsValues
 
-    /** Stores, moves, copies and sends a player's settings (S11); false if [targetTeam] (0: stay) is full. */
-    fun applyPlayerSettings(playerId: Byte, values: PlayerSettingsValues, applyAll: Boolean, applyTeam: Boolean, targetTeam: Int): Boolean
+    /**
+     * Stores, moves, copies and sends a player's settings (S11). If [targetTeam] (0: stay) is
+     * full, the player trades places with [swapWith] (0: nobody); false if it could do neither.
+     */
+    fun applyPlayerSettings(playerId: Byte, values: PlayerSettingsValues, applyAll: Boolean, applyTeam: Boolean, targetTeam: Int, swapWith: Byte): Boolean
 
     fun kickPlayer(playerId: Byte)
 }
@@ -204,7 +207,8 @@ class TcpServerController(
         applyAll: Boolean,
         applyTeam: Boolean,
         targetTeam: Int,
-    ): Boolean = server?.applyPlayerSettings(playerId, { values.applyTo(it) }, applyAll, applyTeam, targetTeam) ?: true
+        swapWith: Byte,
+    ): Boolean = server?.applyPlayerSettings(playerId, { values.applyTo(it) }, applyAll, applyTeam, targetTeam, swapWith) ?: true
 
     override fun kickPlayer(playerId: Byte) {
         server?.kickPlayer(playerId)

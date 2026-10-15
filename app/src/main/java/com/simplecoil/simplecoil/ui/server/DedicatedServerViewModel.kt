@@ -81,6 +81,8 @@ sealed interface ServerUiEffect {
         val teamCount: Int,
         val team: Int,
         val indexInTeam: Int,
+        /** The other teams with no open slot, and who is on each (id to name), to switch with. */
+        val fullTeams: Map<Int, List<Pair<Byte, String>>> = emptyMap(),
     ) : ServerUiEffect
 
     /** The server stopped: the screen closes. */
@@ -227,11 +229,22 @@ class DedicatedServerViewModel(
     /** A player row: that network player's settings. */
     fun onPlayerClicked(playerId: Byte) {
         if (playerId <= 0) return
-        val layout = snapshot?.settings?.teamLayout ?: return
+        val current = snapshot ?: return
+        val layout = current.settings.teamLayout
         val teamCount = if (layout.mode.isFreeForAll) 0 else layout.mode.teamCount
         val team = layout.teamOf(playerId)
         val indexInTeam = if (teamCount == 0) playerId.toInt() else playerId - layout.teamStartId(team) + 1
-        _effects.trySend(ServerUiEffect.ShowPlayerSettings(playerId, controller.playerSettings(playerId), teamCount, team, indexInTeam))
+        _effects.trySend(ServerUiEffect.ShowPlayerSettings(playerId, controller.playerSettings(playerId), teamCount, team, indexInTeam,
+            fullTeams(current, team)))
+    }
+
+    /** The teams other than [team] with no open slot and who is on them; players only switch in the lobby. */
+    private fun fullTeams(snapshot: ServerSnapshot, team: Int): Map<Int, List<Pair<Byte, String>>> {
+        val layout = snapshot.settings.teamLayout
+        if (snapshot.phase != SessionPhase.LOBBY || layout.mode.isFreeForAll) return emptyMap()
+        return (1..layout.mode.teamCount).filter { it != team }.associateWith { t ->
+            snapshot.players.filter { layout.teamOf(it.playerId) == t }.map { it.playerId to (it.name ?: "") }
+        }.filter { (t, players) -> players.size >= layout.teamEndId(t) - layout.teamStartId(t) + 1 }
     }
 
     /** The player settings dialog's result: kick, or save the settings (and move the player). */
@@ -241,7 +254,7 @@ class DedicatedServerViewModel(
             return
         }
         val values = result.values ?: return
-        if (!controller.applyPlayerSettings(result.playerId, values, result.applyToAll, result.applyToTeam, result.targetTeam)) {
+        if (!controller.applyPlayerSettings(result.playerId, values, result.applyToAll, result.applyToTeam, result.targetTeam, result.swapWith)) {
             toast(R.string.error_team_full, result.targetTeam)
         }
     }

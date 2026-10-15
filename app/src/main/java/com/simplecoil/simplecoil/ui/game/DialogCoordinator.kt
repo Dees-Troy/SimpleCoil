@@ -37,6 +37,7 @@ import com.simplecoil.simplecoil.domain.session.SessionToast
 import com.simplecoil.simplecoil.domain.team.TeamMode
 import com.simplecoil.simplecoil.ui.dialogs.GameLimitDialog
 import com.simplecoil.simplecoil.ui.dialogs.TeamRatioDialog
+import com.simplecoil.simplecoil.ui.dialogs.TeamSwapDialog
 import com.simplecoil.simplecoil.ui.playersettings.PlayerSettingsDialog
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreMatrixState
 
@@ -75,6 +76,9 @@ class DialogCoordinator(
         }
         fm.setFragmentResultListener(TeamRatioDialog.REQUEST_KEY, activity) { _, result ->
             vm.onTeamSizesEntered(TeamRatioDialog.sizes(result).map { it.toString() })
+        }
+        fm.setFragmentResultListener(TeamSwapDialog.REQUEST_KEY, activity) { _, result ->
+            TeamSwapDialog.result(result).let { vm.onTeamSwapChosen(it.team, it.swapWith) }
         }
         fm.setFragmentResultListener(PlayerSettingsDialog.REQUEST_KEY, activity) { _, result ->
             PlayerSettingsDialog.result(result).values?.let { vm.onLocalSettingsSaved(it) }
@@ -313,6 +317,9 @@ class DialogCoordinator(
 
     override fun showTeamRatioDialog(numTeams: Int, sizes: IntArray) = show(TAG_TEAM_RATIO) { TeamRatioDialog.newInstance(numTeams, sizes) }
 
+    override fun showTeamSwapDialog(playerId: Byte, team: Int, players: List<Pair<Byte, String>>) =
+        show(TAG_TEAM_SWAP) { TeamSwapDialog.newInstance(playerId, team, players) }
+
     override fun showLocalPlayerSettings() = show(TAG_PLAYER_SETTINGS) { PlayerSettingsDialog.local(vm.localPlayerSettings()) }
 
     override fun showScoreboard(players: Array<PlayerDisplayData?>) {
@@ -351,6 +358,7 @@ class DialogCoordinator(
         private const val TAG_QR_INFO = "qrInfo"
         private const val TAG_GAME_LIMIT = "gameLimit"
         private const val TAG_TEAM_RATIO = "teamRatio"
+        private const val TAG_TEAM_SWAP = "teamSwap"
         private const val TAG_PLAYER_SETTINGS = "playerSettings"
         private const val TAG_SCOREBOARD = "scoreboard"
 

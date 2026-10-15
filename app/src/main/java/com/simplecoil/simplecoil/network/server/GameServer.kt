@@ -332,6 +332,20 @@ class GameServer(
         events.publish(ServerEvent.PlayerDataChanged(null))
     }
 
+    /** [firstId] and [secondId] trade places on the teams; false outside the lobby or if either is missing. */
+    fun swapPlayers(firstId: Byte, secondId: Byte): Boolean = callOnDispatcher(false) { swapPlayersNow(firstId, secondId) }
+
+    private fun swapPlayersNow(firstId: Byte, secondId: Byte): Boolean {
+        Log.d(TAG, "swapPlayers: swapping players $firstId and $secondId")
+        val (first, second) = roster.swapPlayers(firstId, secondId) ?: return false
+        first.connection?.send(command(ServerCommand.ServerReply(first.playerId)))
+        second.connection?.send(command(ServerCommand.ServerReply(second.playerId)))
+        sendPlayerData(SEND_ALL)
+        sendAllGameInfo(SEND_ALL)
+        events.publish(ServerEvent.PlayerDataChanged(null))
+        return true
+    }
+
     fun kickPlayer(playerId: Byte): Unit = runOnDispatcher {
         Log.d(TAG, "kickPlayer: kicking player $playerId")
         roster.kick(playerId)?.let { connection ->
@@ -414,8 +428,9 @@ class GameServer(
      * The operator saved [playerId]'s settings dialog, as one operation on the dispatcher (S11):
      * stores the settings ([update] fills them in), moves the player to [targetTeam] (0: stay),
      * copies the settings to everyone ([applyAll]) or the player's new team ([applyTeam]), and
-     * sends everyone's. Returns false if [targetTeam] had no open slot; the rest is still done,
-     * under the player's old id.
+     * sends everyone's. If [targetTeam] is full, the player trades places with [swapWith] (0:
+     * nobody) on it. Returns false if it could do neither; the rest is still done, under the
+     * player's old id.
      */
     fun applyPlayerSettings(
         playerId: Byte,
@@ -423,6 +438,7 @@ class GameServer(
         applyAll: Boolean,
         applyTeam: Boolean,
         targetTeam: Int,
+        swapWith: Byte = 0,
     ): Boolean = callOnDispatcher(false) {
         synchronized(players) {
             update(players.playerSettings.getOrPut(playerId) { PlayerSettings() })
@@ -432,7 +448,8 @@ class GameServer(
         if (targetTeam != 0) {
             val newId = players.findOpenPlayerIDOnTeam(targetTeam)
             if (newId.toInt() == 0) {
-                moved = false
+                moved = swapWith > 0 && settings.teamLayout.teamOf(swapWith) == targetTeam && swapPlayersNow(playerId, swapWith)
+                if (moved) targetId = swapWith
             } else {
                 switchPlayerTeam(playerId, newId)
                 targetId = newId

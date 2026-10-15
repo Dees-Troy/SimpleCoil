@@ -149,7 +149,7 @@ class ServerMessageHandler(
                 val ack = handleReliable(client, message.rmsg, message.seq, message.gameId)
                 if (ack >= 0) client.send(command(ServerCommand.Ack(ack)))
             }
-            is ClientMessage.TeamChangeRequest -> handleTeamChangeRequest(client, message.team)
+            is ClientMessage.TeamChangeRequest -> handleTeamChangeRequest(client, message.team, message.swapWith)
             is ClientMessage.GrenadePairing -> {
                 // Pairing and announcing run on the dispatcher, so two pairings can't go out in the wrong order.
                 players.pairGrenade(message.grenadeId, message.playerId)
@@ -323,7 +323,8 @@ class ServerMessageHandler(
         }
     }
 
-    private fun handleTeamChangeRequest(client: Connection, targetTeam: Int) {
+    /** [swapWith]: the player on [targetTeam] to trade places with when it has no open slot. */
+    private fun handleTeamChangeRequest(client: Connection, targetTeam: Int, swapWith: Int?) {
         val player = client.player
         if (player == null || player.playerId <= 0) return
         if (!settings.isAllowChooseTeams) {
@@ -349,7 +350,12 @@ class ServerMessageHandler(
         }
         val moved = roster.changeTeam(client, targetTeam)
         if (moved == null) {
-            Log.w(TAG, "Team change rejected: No open slot on team $targetTeam")
+            val other = swapWith?.takeIf { it in 1..GameSettingsRepository.MAX_PLAYER_ID }?.toByte()
+            if (other == null || settings.teamLayout.teamOf(other) != targetTeam) {
+                Log.w(TAG, "Team change rejected: No open slot on team $targetTeam")
+            } else if (!server.swapPlayers(player.playerId, other)) {
+                Log.w(TAG, "Team change rejected: could not swap with player $other")
+            }
             return
         }
         client.send(command(ServerCommand.ServerReply(moved.playerId)))

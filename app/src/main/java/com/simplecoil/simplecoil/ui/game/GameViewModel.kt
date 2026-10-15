@@ -808,7 +808,26 @@ class GameViewModel(
             Log.w(TAG, "Cannot request team change while game is running")
             return
         }
+        if (playerRepo.findOpenPlayerIDOnTeam(targetTeam).toInt() == 0) {
+            // Full: offer to trade places with someone on it
+            val layout = settingsRepo.teamLayout
+            val teammates = synchronized(playerRepo) {
+                playerRepo.teamIPMap.keys.filter { layout.teamOf(it) == targetTeam }.sorted()
+                    .map { it to (playerRepo.teamPlayerNameMap[it] ?: "") }
+            }
+            if (teammates.isNotEmpty()) {
+                screen?.showTeamSwapDialog(playerRepo.playerID, targetTeam, teammates)
+                return
+            }
+        }
         client.sendTCPMessage(NetworkSessionGateway.teamChangeRequest(playerRepo.playerID, targetTeam))
+    }
+
+    /** The team-full dialog's choice: ask the server to trade places with [swapWith] on [targetTeam]. */
+    fun onTeamSwapChosen(targetTeam: Int, swapWith: Byte) {
+        val client = net.tcpClient ?: return
+        if (gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) return
+        client.sendTCPMessage(NetworkSessionGateway.teamChangeRequest(playerRepo.playerID, targetTeam, swapWith))
     }
 
     private fun setNetworkMenu(type: Int) {

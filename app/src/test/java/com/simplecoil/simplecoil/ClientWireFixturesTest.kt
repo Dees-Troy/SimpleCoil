@@ -146,6 +146,7 @@ class ClientWireFixturesTest {
     @Test
     fun teamChangeRequest() {
         WireFixtures.assertFrame("client/team_change.frame", NetworkSessionGateway.teamChangeRequest(5, 2))
+        WireFixtures.assertFrame("client/team_change_swap.frame", NetworkSessionGateway.teamChangeRequest(5, 2, 18))
     }
 
     @Test

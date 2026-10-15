@@ -189,7 +189,8 @@ sealed interface ClientMessage {
 
     /** The client's own settings; null when the frame's settings don't decode. */
     data class Settings(val playerId: Int, val settings: WirePlayerSettings?) : ClientMessage
-    data class TeamChangeRequest(val playerId: Int, val team: Int) : ClientMessage
+    /** [swapWith]: if [team] is full, the player on it to trade places with; null to only take an open slot. */
+    data class TeamChangeRequest(val playerId: Int, val team: Int, val swapWith: Int? = null) : ClientMessage
     data class GrenadePairing(val playerId: Int, val grenadeId: Int) : ClientMessage
     data class GpsLocation(val latitude: Double, val longitude: Double) : ClientMessage
 }

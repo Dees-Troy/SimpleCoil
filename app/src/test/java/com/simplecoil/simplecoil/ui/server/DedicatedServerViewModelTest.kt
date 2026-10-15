@@ -93,8 +93,11 @@ class DedicatedServerViewModelTest {
         override fun setOnlyServerSettings(only: Boolean) { calls += "onlyServer $only" }
         override fun setAllowChooseTeams(allow: Boolean) { calls += "chooseTeams $allow" }
         override fun playerSettings(playerId: Byte): PlayerSettingsValues = PlayerSettingsValues.of(PlayerSettings())
-        override fun applyPlayerSettings(playerId: Byte, values: PlayerSettingsValues, applyAll: Boolean, applyTeam: Boolean, targetTeam: Int): Boolean =
-            (!targetTeamFull).also { calls += "apply $playerId team $targetTeam" }
+        override fun applyPlayerSettings(
+            playerId: Byte, values: PlayerSettingsValues, applyAll: Boolean, applyTeam: Boolean, targetTeam: Int, swapWith: Byte,
+        ): Boolean = (!targetTeamFull || swapWith > 0).also {
+            calls += "apply $playerId team $targetTeam" + if (swapWith > 0) " swap $swapWith" else ""
+        }
         override fun kickPlayer(playerId: Byte) { calls += "kick $playerId" }
     }
 
@@ -132,9 +135,10 @@ class DedicatedServerViewModelTest {
         gameLimit: Int = GameSettingsRepository.GAME_LIMIT_NONE,
         timeLimit: Int = 0,
         mode: TeamMode = TeamMode.TWO_TEAMS,
+        sizes: IntArray? = null,
     ) {
         controller.snapshot.value = ServerSnapshot(phase, "10.0.0.2", players, playerCount, ClockState.Idle,
-            ServerSettings(defaultLayout.withMode(mode), gameLimit, timeLimit, livesLimit = 0, scoreLimit = 0, startTimeSeconds = 5,
+            ServerSettings(defaultLayout.withMode(mode).withSizes(sizes), gameLimit, timeLimit, livesLimit = 0, scoreLimit = 0, startTimeSeconds = 5,
                 gpsMode = GameSettingsRepository.GPS_ALL, useGps = true, allowJoinInProgress = false, onlyServerSettings = true,
                 allowChooseTeams = true))
     }
@@ -257,6 +261,26 @@ class DedicatedServerViewModelTest {
         vm.onPlayerSettingsSaved(PlayerSettingsDialog.Result(1, kick = true, null, applyToAll = false, applyToTeam = false, targetTeam = 0))
         assertEquals("kick 1", controller.calls.last())
         assertEquals(R.string.dedicated_player_kicked, toasts().last())
+    }
+
+    @Test
+    fun playerRow_listsTheFullTeams_andSavingSwapsWithThePickedPlayer() {
+        publish(players = listOf(player(1), player(2), player(3)), sizes = intArrayOf(1, 31))
+        vm.onPlayerClicked(2)
+        val dialog = effects.single() as ServerUiEffect.ShowPlayerSettings
+        assertEquals(mapOf(1 to listOf(1.toByte() to "P1")), dialog.fullTeams)
+        controller.targetTeamFull = true
+        val values = PlayerSettingsValues.of(PlayerSettings())
+        vm.onPlayerSettingsSaved(PlayerSettingsDialog.Result(2, kick = false, values, applyToAll = false, applyToTeam = false, targetTeam = 1, swapWith = 1))
+        assertEquals("apply 2 team 1 swap 1", controller.calls.last())
+        assertEquals(1, effects.size)
+    }
+
+    @Test
+    fun playerRow_listsNoFullTeams_withOpenSlots() {
+        publish(players = listOf(player(1), player(17)))
+        vm.onPlayerClicked(1)
+        assertEquals(emptyMap<Int, List<Pair<Byte, String>>>(), (effects.single() as ServerUiEffect.ShowPlayerSettings).fullTeams)
     }
 
     @Test

@@ -99,6 +99,7 @@ object WireKeys {
     const val ONLY_SERVER_SETTINGS = "onlyserversettings"
     const val ALLOW_CHOOSE_TEAMS = "allowchooseteams"
     const val REQUEST_TEAM_CHANGE = "requestteamchange"
+    const val SWAP_WITH = "swapwith"
     const val PAIRED_GRENADE_ID = "pairedgrenadeID"
     const val GRENADE_PAIRINGS = "grenadepairings"
     const val BLASTER_MAC = "blaster_mac"

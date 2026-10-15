@@ -30,6 +30,7 @@ import androidx.fragment.app.DialogFragment
 import com.simplecoil.simplecoil.R
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.databinding.PlayerSettingsDialogBinding
+import com.simplecoil.simplecoil.ui.dialogs.TeamSwapDialog
 
 /**
  * One player's settings, for both screens (DEDICATED_SERVER_DESIGN.md §7.2). [local] edits this
@@ -41,6 +42,8 @@ class PlayerSettingsDialog : DialogFragment() {
     private var firingMode = GameSettingsRepository.FIRING_MODE_OUTDOOR_NO_CONE
     private var recoilSetting = GameSettingsRepository.RECOIL_SETTING_DEFAULT
     private var targetTeam = 0
+    /** Who on the full [targetTeam] the player trades places with, or 0. */
+    private var swapWith: Byte = 0
     private lateinit var binding: PlayerSettingsDialogBinding
 
     private val isServer get() = requireArguments().getBoolean(ARG_SERVER)
@@ -48,12 +51,23 @@ class PlayerSettingsDialog : DialogFragment() {
     /** Teams in the game; 0 in free-for-all. */
     private val teamCount get() = requireArguments().getInt(ARG_TEAM_COUNT)
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        childFragmentManager.setFragmentResultListener(TeamSwapDialog.REQUEST_KEY, this) { _, result ->
+            val swap = TeamSwapDialog.result(result)
+            targetTeam = swap.team
+            swapWith = swap.swapWith
+            showTargetTeam()
+        }
+    }
+
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val args = requireArguments()
         val initial = valuesOf(args.getBundle(ARG_VALUES)!!)
         firingMode = savedInstanceState?.getInt(STATE_FIRING_MODE) ?: initial.firingMode
         recoilSetting = savedInstanceState?.getInt(STATE_RECOIL) ?: initial.recoilSetting
         targetTeam = savedInstanceState?.getInt(STATE_TARGET_TEAM) ?: 0
+        swapWith = savedInstanceState?.getByte(STATE_SWAP_WITH) ?: 0
 
         val builder = AlertDialog.Builder(requireContext(), R.style.AppDialogTheme)
         @Suppress("UseGetLayoutInflater") // in the dialog's theme, as the AlertDialog subclass inflated it
@@ -76,6 +90,7 @@ class PlayerSettingsDialog : DialogFragment() {
         outState.putInt(STATE_FIRING_MODE, firingMode)
         outState.putInt(STATE_RECOIL, recoilSetting)
         outState.putInt(STATE_TARGET_TEAM, targetTeam)
+        outState.putByte(STATE_SWAP_WITH, swapWith)
     }
 
     // The fields hold ASCII digits that PlayerSettingsForm parses back; locale digits wouldn't parse.
@@ -149,8 +164,21 @@ class PlayerSettingsDialog : DialogFragment() {
     }
 
     private fun showTargetTeam() {
-        if (targetTeam == 0) binding.switchTeamButton.setText(R.string.switch_team_button)
-        else binding.switchTeamButton.text = getString(R.string.team_number_label, targetTeam)
+        val swapName = fullTeam(targetTeam)?.firstOrNull { it.first == swapWith }?.second
+        binding.switchTeamButton.text = when {
+            targetTeam == 0 -> getString(R.string.switch_team_button)
+            swapWith > 0 -> getString(R.string.switch_team_with_label, targetTeam,
+                swapName?.ifBlank { null } ?: getString(R.string.team_swap_unnamed_player, swapWith.toInt()))
+            else -> getString(R.string.team_number_label, targetTeam)
+        }
+    }
+
+    /** Who is on [team] (id to name) if it had no open slot when the dialog opened; otherwise null. */
+    private fun fullTeam(team: Int): List<Pair<Byte, String>>? {
+        val args = requireArguments()
+        val ids = args.getByteArray(ARG_FULL_TEAM_IDS + team) ?: return null
+        val names = args.getStringArray(ARG_FULL_TEAM_NAMES + team) ?: return null
+        return ids.zip(names)
     }
 
     private fun popup(anchor: View) = PopupMenu(ContextThemeWrapper(requireContext(), R.style.AppTheme_PopupOverlay), anchor)
@@ -198,8 +226,16 @@ class PlayerSettingsDialog : DialogFragment() {
                 if (team != currentTeam) popup.menu.add(0, team, team * 10, getString(R.string.team_number_label, team))
             }
             popup.setOnMenuItemClickListener { item ->
-                targetTeam = item.itemId
-                showTargetTeam()
+                val full = fullTeam(item.itemId)
+                if (full != null) {
+                    // No open slot: pick who to switch with, which sets the team when chosen
+                    if (childFragmentManager.findFragmentByTag(TeamSwapDialog.REQUEST_KEY) == null)
+                        TeamSwapDialog.newInstance(playerId, item.itemId, full).show(childFragmentManager, TeamSwapDialog.REQUEST_KEY)
+                } else {
+                    targetTeam = item.itemId
+                    swapWith = 0
+                    showTargetTeam()
+                }
                 true
             }
             popup.show()
@@ -240,6 +276,7 @@ class PlayerSettingsDialog : DialogFragment() {
                     RESULT_APPLY_ALL to applyToAllSwitch.isChecked,
                     RESULT_APPLY_TEAM to applyToTeamSwitch.isChecked,
                     RESULT_TARGET_TEAM to targetTeam,
+                    RESULT_SWAP_WITH to swapWith,
                 ),
             )
         }
@@ -255,6 +292,8 @@ class PlayerSettingsDialog : DialogFragment() {
         val applyToTeam: Boolean,
         /** The team to move the player to, or 0. */
         val targetTeam: Int,
+        /** If [targetTeam] is full, the player on it to trade places with; 0 for nobody. */
+        val swapWith: Byte = 0,
     )
 
     companion object {
@@ -265,15 +304,19 @@ class PlayerSettingsDialog : DialogFragment() {
         private const val ARG_TEAM_COUNT = "teamCount"
         private const val ARG_TEAM = "team"
         private const val ARG_INDEX_IN_TEAM = "indexInTeam"
+        private const val ARG_FULL_TEAM_IDS = "fullTeamIds"
+        private const val ARG_FULL_TEAM_NAMES = "fullTeamNames"
         private const val STATE_FIRING_MODE = "firingMode"
         private const val STATE_RECOIL = "recoilSetting"
         private const val STATE_TARGET_TEAM = "targetTeam"
+        private const val STATE_SWAP_WITH = "swapWith"
         private const val RESULT_PLAYER_ID = "playerId"
         private const val RESULT_KICK = "kick"
         private const val RESULT_VALUES = "values"
         private const val RESULT_APPLY_ALL = "applyAll"
         private const val RESULT_APPLY_TEAM = "applyTeam"
         private const val RESULT_TARGET_TEAM = "targetTeam"
+        private const val RESULT_SWAP_WITH = "swapWith"
 
         /** This phone's player. */
         @JvmStatic
@@ -283,10 +326,19 @@ class PlayerSettingsDialog : DialogFragment() {
 
         /**
          * Network player [playerId] on the server; [teamCount] 0 in free-for-all, otherwise the
-         * player is number [indexInTeam] on [team].
+         * player is number [indexInTeam] on [team]. Picking one of [fullTeams] (who is on each,
+         * id to name) asks who to switch with.
          */
         @JvmStatic
-        fun server(playerId: Byte, values: PlayerSettingsValues, teamCount: Int, team: Int, indexInTeam: Int) = PlayerSettingsDialog().apply {
+        @JvmOverloads
+        fun server(
+            playerId: Byte,
+            values: PlayerSettingsValues,
+            teamCount: Int,
+            team: Int,
+            indexInTeam: Int,
+            fullTeams: Map<Int, List<Pair<Byte, String>>> = emptyMap(),
+        ) = PlayerSettingsDialog().apply {
             arguments = bundleOf(
                 ARG_SERVER to true,
                 ARG_PLAYER_ID to playerId,
@@ -294,7 +346,12 @@ class PlayerSettingsDialog : DialogFragment() {
                 ARG_TEAM_COUNT to teamCount,
                 ARG_TEAM to team,
                 ARG_INDEX_IN_TEAM to indexInTeam,
-            )
+            ).apply {
+                for ((t, players) in fullTeams) {
+                    putByteArray(ARG_FULL_TEAM_IDS + t, players.map { it.first }.toByteArray())
+                    putStringArray(ARG_FULL_TEAM_NAMES + t, players.map { it.second }.toTypedArray())
+                }
+            }
         }
 
         @JvmStatic
@@ -305,6 +362,7 @@ class PlayerSettingsDialog : DialogFragment() {
             applyToAll = bundle.getBoolean(RESULT_APPLY_ALL),
             applyToTeam = bundle.getBoolean(RESULT_APPLY_TEAM),
             targetTeam = bundle.getInt(RESULT_TARGET_TEAM),
+            swapWith = bundle.getByte(RESULT_SWAP_WITH),
         )
 
         private fun bundleOf(v: PlayerSettingsValues) = bundleOf(

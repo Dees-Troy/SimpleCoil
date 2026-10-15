@@ -141,6 +141,7 @@ class WireCodecTest {
         "client/player_settings.frame" to ClientMessage.Settings(5, settings(null)),
         "client/player_settings_lives.frame" to ClientMessage.Settings(5, settings(4)),
         "client/team_change.frame" to ClientMessage.TeamChangeRequest(5, 2),
+        "client/team_change_swap.frame" to ClientMessage.TeamChangeRequest(5, 2, swapWith = 18),
         "client/grenade_pairing.frame" to ClientMessage.GrenadePairing(5, 3),
         "client/gps_location.frame" to ClientMessage.GpsLocation(40.5, -74.25),
     )

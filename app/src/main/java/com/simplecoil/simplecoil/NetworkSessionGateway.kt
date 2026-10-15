@@ -271,9 +271,10 @@ class NetworkSessionGateway(
         @JvmStatic
         fun command(command: ClientCommand): String = WireCodec.encode(ClientMessage.Command(command))
 
-        /** Team change request for [playerId] to [targetTeam]. */
+        /** Team change request for [playerId] to [targetTeam], trading places with [swapWith] if the team is full. */
         @JvmStatic
-        fun teamChangeRequest(playerId: Byte, targetTeam: Int): String =
-            WireCodec.encode(ClientMessage.TeamChangeRequest(playerId.toInt(), targetTeam))
+        @JvmOverloads
+        fun teamChangeRequest(playerId: Byte, targetTeam: Int, swapWith: Byte? = null): String =
+            WireCodec.encode(ClientMessage.TeamChangeRequest(playerId.toInt(), targetTeam, swapWith?.toInt()))
     }
 }

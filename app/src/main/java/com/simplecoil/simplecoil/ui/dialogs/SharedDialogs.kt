@@ -220,6 +220,72 @@ class StartingTimerDialog : AppDialogFragment() {
     }
 }
 
+/**
+ * "Team is full. Switch with?" and the players on that team; OK, once one is picked, returns
+ * the player who wanted to move and the one picked under [REQUEST_KEY].
+ */
+class TeamSwapDialog : AppDialogFragment() {
+    private var choice = -1
+
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
+        val args = requireArguments()
+        val ids = args.getByteArray(ARG_IDS)!!
+        val names = args.getStringArray(ARG_NAMES)!!
+        val labels = Array(ids.size) { i -> names[i].ifBlank { getString(R.string.team_swap_unnamed_player, ids[i].toInt()) } }
+        choice = savedInstanceState?.getInt(STATE_CHOICE, -1) ?: -1
+        val dialog = alertBuilder()
+            .setTitle(R.string.team_full_switch_with)
+            .setSingleChoiceItems(labels, choice) { d, which ->
+                choice = which
+                (d as AlertDialog).getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = true
+            }
+            .setPositiveButton(R.string.ok) { _, _ ->
+                if (choice !in ids.indices) return@setPositiveButton
+                parentFragmentManager.setFragmentResult(REQUEST_KEY,
+                    bundleOf(RESULT_PLAYER to args.getByte(ARG_PLAYER), RESULT_SWAP_WITH to ids[choice], RESULT_TEAM to args.getInt(ARG_TEAM)))
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .create()
+        dialog.setOnShowListener { dialog.getButton(AlertDialog.BUTTON_POSITIVE).isEnabled = choice >= 0 }
+        return dialog
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(STATE_CHOICE, choice)
+    }
+
+    /** What OK returned: [playerId] trades places with [swapWith], who is on [team]. */
+    data class Result(val playerId: Byte, val swapWith: Byte, val team: Int)
+
+    companion object {
+        const val REQUEST_KEY = "teamSwap"
+        private const val ARG_PLAYER = "player"
+        private const val ARG_TEAM = "team"
+        private const val ARG_IDS = "ids"
+        private const val ARG_NAMES = "names"
+        private const val STATE_CHOICE = "choice"
+        private const val RESULT_PLAYER = "player"
+        private const val RESULT_SWAP_WITH = "swapWith"
+        private const val RESULT_TEAM = "team"
+
+        /** [playerId] wants to join [team], which is full of [players] (id to name). */
+        @JvmStatic
+        fun newInstance(playerId: Byte, team: Int, players: List<Pair<Byte, String>>) = TeamSwapDialog().apply {
+            arguments = bundleOf(
+                ARG_PLAYER to playerId,
+                ARG_TEAM to team,
+                ARG_IDS to players.map { it.first }.toByteArray(),
+                ARG_NAMES to players.map { it.second }.toTypedArray(),
+            )
+        }
+
+        @JvmStatic
+        fun result(result: Bundle) =
+            Result(result.getByte(RESULT_PLAYER), result.getByte(RESULT_SWAP_WITH), result.getInt(RESULT_TEAM))
+    }
+}
+
 /** A question with a confirming button and Cancel. Confirming sends an empty result under the request key it was made with. */
 class ConfirmDialog : AppDialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {

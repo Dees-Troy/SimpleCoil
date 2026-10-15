@@ -329,6 +329,7 @@ class GameRosterTest {
         assertTrue(roster.rebalance(false).assigned.isEmpty())
         roster.endGame()
         assertNull(roster.changeTeam(ca, 2))
+        assertNull(roster.swapPlayers(1, 17))
         assertEquals(1.toByte(), a.playerId)
     }
 
@@ -583,5 +584,24 @@ class GameRosterTest {
         assertEquals(2, a.team)
         assertNull(roster.record(1))
         assertEquals("Alpha", repo.getPlayerName(17))
+    }
+
+    @Test
+    fun swapPlayers_tradesIdsTeamsAndNames() {
+        val (_, a) = join("Alpha", "AA")
+        val (_, b) = join("Bravo", "BB")
+        assertEquals(1.toByte(), a.playerId)
+        assertEquals(17.toByte(), b.playerId)
+        assertEquals(a to b, roster.swapPlayers(1, 17))
+        assertEquals(17.toByte(), a.playerId)
+        assertEquals(2, a.team)
+        assertEquals(1.toByte(), b.playerId)
+        assertEquals(1, b.team)
+        assertSame(a, roster.record(17))
+        assertSame(b, roster.record(1))
+        assertEquals("Alpha", repo.getPlayerName(17))
+        assertEquals("Bravo", repo.getPlayerName(1))
+        assertEquals(17.toByte(), repo.getPlayerIdByMac("AA"))
+        assertNull(roster.swapPlayers(1, 5))
     }
 }
