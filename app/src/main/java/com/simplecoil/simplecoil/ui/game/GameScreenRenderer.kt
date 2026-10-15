@@ -395,7 +395,7 @@ class GameScreenRenderer(
             NetworkButton.USE_NETWORK -> R.string.use_network_button
             NetworkButton.MENU -> R.string.network_menu_button
             NetworkButton.SEARCHING -> R.string.network_searching_status
-            NetworkButton.CONNECTED -> R.string.network_connected_status
+            NetworkButton.DISABLE -> R.string.disable_networking_button
         })
     }
 

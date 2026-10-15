@@ -34,7 +34,6 @@
     <string name="qr_file_name">SimpleCoil-QR-%1$s.png</string>
     <string name="cd_qr_code">Blaster pairing QR code</string>
     <string name="network_searching_status">SEARCHING FOR SERVER…</string>
-    <string name="network_connected_status">CONNECTED (LEAVE)</string>
 
     <string name="team_label">TEAM</string>
     <string name="team_number_label">TEAM %1$d</string>
@@ -106,6 +105,7 @@
     <string name="server_status_searching">Searching for server&#8230;</string>
 
     <string name="use_network_button">Enable Networking</string>
+    <string name="disable_networking_button">Disable Networking</string>
     <string name="network_menu_button">Network Options</string>
     <string name="no_network_button">Disable Network</string>
     <string name="join_button">Join Lobby</string>

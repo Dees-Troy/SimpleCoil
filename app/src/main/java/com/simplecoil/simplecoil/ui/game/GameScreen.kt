@@ -26,7 +26,7 @@ import com.simplecoil.simplecoil.ui.scoreboard.ScoreMatrixState
 enum class ConnectStatus { SCANNING, CONNECTING, COMMUNICATING }
 
 /** Text of the network button. */
-enum class NetworkButton { USE_NETWORK, MENU, SEARCHING, CONNECTED }
+enum class NetworkButton { USE_NETWORK, MENU, SEARCHING, DISABLE }
 
 /** One-line messages the game shows. */
 enum class GameMessage {

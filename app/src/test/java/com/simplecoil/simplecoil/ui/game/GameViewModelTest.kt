@@ -421,7 +421,7 @@ class GameViewModelTest {
         emitNetwork(ClientEvent.ServerReply(7))
         assertEquals(7.toByte(), players.playerID)
         assertEquals(GameViewModel.NETWORK_TYPE_JOINED, vm.networkMenuType)
-        verify(screen).showNetworkButton(NetworkButton.CONNECTED)
+        verify(screen).showNetworkButton(NetworkButton.DISABLE)
         // Joined: no more automatic re-scans.
         advance(30_000)
         verify(udp, times(2)).joinServer()
@@ -436,7 +436,7 @@ class GameViewModelTest {
         vm.onTeamModeSelected(TeamMode.TWO_TEAMS)
         val entries = listOf(SwitchTeamEntry(2, TeamColors.colorOf(2)))
         assertEquals(entries, vm.switchTeamEntries())
-        assertEquals(listOf(NetworkMenuEntry.DisableNetwork), vm.networkMenuEntries())
+        assertEquals(emptyList<NetworkMenuEntry>(), vm.networkMenuEntries())
         vm.onTeamLabelPressed()
         verify(screen).showSwitchTeamMenu(entries)
         vm.onPlayerNamePressed()
@@ -512,6 +512,18 @@ class GameViewModelTest {
         vm.onTeamModeSelected(TeamMode.TWO_TEAMS)
         assertEquals(1, players.calcNetworkTeam(16))
         assertEquals(2, players.calcNetworkTeam(17))
+    }
+
+    @Test
+    fun joined_networkButtonDisablesNetworkingWithoutThePopup() {
+        vm.onNetworkButtonPressed()
+        vm.onNetworkMenuEntry(NetworkMenuEntry.Join)
+        emitNetwork(ClientEvent.ServerReply(1))
+        clearInvocations(screen)
+        vm.onNetworkButtonPressed()
+        verify(screen, never()).showNetworkMenu()
+        verify(screen).showNetworkButton(NetworkButton.USE_NETWORK)
+        assertFalse(vm.saveState().useNetwork)
     }
 
     @Test

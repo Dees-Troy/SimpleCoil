@@ -735,6 +735,11 @@ class GameViewModel(
     // ---------------------------------------------------------------------------------------
 
     fun onNetworkButtonPressed() {
+        // Joined to a dedicated server, the button disables networking; there's no popup.
+        if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINED) {
+            stopServerSearch(true)
+            return
+        }
         screen?.prepareNetworkMenu()
         if (!net.useNetwork) {
             net.useNetwork = true
@@ -753,7 +758,6 @@ class GameViewModel(
     fun networkMenuEntries(): List<NetworkMenuEntry> = when (networkMenuType) {
         NETWORK_TYPE_ENABLED -> listOf(NetworkMenuEntry.Join, NetworkMenuEntry.JoinIp, NetworkMenuEntry.DisableNetwork)
         NETWORK_TYPE_JOINING -> listOf(NetworkMenuEntry.JoinIp, NetworkMenuEntry.DisableNetwork)
-        NETWORK_TYPE_JOINED -> listOf(NetworkMenuEntry.DisableNetwork)
         else -> emptyList()
     }
 
@@ -848,7 +852,7 @@ class GameViewModel(
         when (type) {
             NETWORK_TYPE_ENABLED -> screen?.showNetworkButton(NetworkButton.MENU)
             NETWORK_TYPE_JOINING -> screen?.showNetworkButton(NetworkButton.SEARCHING)
-            NETWORK_TYPE_JOINED -> screen?.showNetworkButton(NetworkButton.CONNECTED)
+            NETWORK_TYPE_JOINED -> screen?.showNetworkButton(NetworkButton.DISABLE)
         }
         screen?.rebuildNetworkMenu()
         updatePreGameButtonVisibilities()
