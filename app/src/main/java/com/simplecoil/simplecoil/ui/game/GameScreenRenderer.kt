@@ -39,6 +39,7 @@ import com.simplecoil.simplecoil.domain.session.SessionState
 import com.simplecoil.simplecoil.domain.session.SpawnPhase
 import com.simplecoil.simplecoil.domain.team.TeamMode
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -69,6 +70,7 @@ class GameScreenRenderer(
     private val context get() = b.root.context
     private var hitAnimation: AnimationDrawable? = null
     private var hitPlayerAnimation: AnimationDrawable? = null
+    private var hitPlayerHide: Job? = null
 
     // ---------------------------------------------------------------------------------------
     // Connection
@@ -472,7 +474,9 @@ class GameScreenRenderer(
     }
 
     override fun showHitOtherPlayer(kind: HitResolver.Kind, name: String) {
-        if (hitPlayerAnimation != null) return
+        // A new hit while one is showing replaces it and restarts the timer
+        hitPlayerHide?.cancel()
+        hitPlayerAnimation?.stop()
         // Show the "you hit a player" / "you hit a player that's already out" / "you hit a player's shield" animation
         b.hitPlayerIv.visibility = View.VISIBLE
         b.hitPlayerIv.setBackgroundResource(when (kind) {
@@ -480,7 +484,7 @@ class GameScreenRenderer(
             HitResolver.Kind.OUT -> R.drawable.hit_other_player_out_animation
             HitResolver.Kind.SHIELDED -> R.drawable.hit_other_player_shielded_animation
         })
-        val fadeOut = AnimationUtils.loadAnimation(context.applicationContext, R.anim.fadeout)
+        val fadeOut = AnimationUtils.loadAnimation(context.applicationContext, R.anim.hitplayerfadeout)
         b.hitPlayerIv.startAnimation(fadeOut)
         val animation = b.hitPlayerIv.background as AnimationDrawable
         hitPlayerAnimation = animation
@@ -488,11 +492,12 @@ class GameScreenRenderer(
         b.hitPlayerNameTv.visibility = View.VISIBLE
         b.hitPlayerNameTv.text = name
         b.hitPlayerNameTv.startAnimation(fadeOut)
-        scope.launch {
-            delay(HIT_ANIMATION_DURATION_MILLISECONDS)
+        hitPlayerHide = scope.launch {
+            delay(HIT_PLAYER_DISPLAY_DURATION_MILLISECONDS)
             b.hitPlayerIv.visibility = View.GONE
             animation.stop()
             hitPlayerAnimation = null
+            hitPlayerHide = null
             b.hitPlayerNameTv.visibility = View.GONE
         }
     }
@@ -650,6 +655,7 @@ class GameScreenRenderer(
     companion object {
         // If you change these durations you will also need to change the duration in the res/anim/fadeout XML files to match
         const val HIT_ANIMATION_DURATION_MILLISECONDS = 400L
+        const val HIT_PLAYER_DISPLAY_DURATION_MILLISECONDS = 1000L // res/anim/hitplayerfadeout
         const val ELIMINATED_ANIMATION_DURATION_MILLISECONDS = 800L
     }
 }
