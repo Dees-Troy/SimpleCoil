@@ -156,6 +156,10 @@ class ServerMessageHandler(
                 // Pairing and announcing run on the dispatcher, so two pairings can't go out in the wrong order.
                 players.pairGrenade(message.grenadeId, message.playerId)
                 server.sendGrenadePairings()
+                server.sendPlayerData(GameServer.SEND_ALL) // the scoreboard shows who has a grenade
+            }
+            is ClientMessage.BlasterType -> {
+                if (roster.onBlasterType(client, message.blasterType)) server.sendPlayerData(GameServer.SEND_ALL)
             }
             is ClientMessage.GpsLocation -> {
                 val playerId = playerIdOf(client)

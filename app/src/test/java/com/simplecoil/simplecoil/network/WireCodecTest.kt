@@ -186,6 +186,15 @@ class WireCodecTest {
     }
 
     @Test
+    fun blasterType_roundTrips_andAnOlderServerReadsItAsABadHello() {
+        val message = ClientMessage.BlasterType(5, 1)
+        assertEquals(message, decodeClient(WireCodec.encode(message)))
+        assertEquals(ClientMessage.BlasterType(0, 2), clientJson("""{"blastertype":2}"""))
+        // Without the blastertype key it is a hello with no name: null, as an older server reads it
+        assertNull(clientJson("""{"playerID":5}"""))
+    }
+
+    @Test
     fun aHellosPendingEntries_skipTheIncompleteOnes() {
         val hello = clientJson("""{"playerID":1,"playername":"X","gameid":7,"pending":[{"rmsg":"ELIMINATED2"},5,{"rmsg":"ELIMINATED3","seq":4}]}""")
         assertEquals(ClientMessage.Hello(1, "X", null, false, 7, listOf(WirePending("ELIMINATED3", 4))), hello)
@@ -249,6 +258,16 @@ class WireCodecTest {
         assertEquals(ServerMessage.PlayerData(listOf(WireScore(1, "Me", null, 4, 1, null))),
             WireCodec.decodePlayerData("""{"playerdata":[{"playerID":1,"playername":"Me","points":4,"eliminated":1}]}"""))
         assertNull(WireCodec.decodePlayerData("""{"playerdata":[{"playerID":1}]}"""))
+    }
+
+    @Test
+    fun playerData_carriesTheBlasterType_andAPairedGrenade_onlyWhenKnown() {
+        val data = ServerMessage.PlayerData(listOf(WireScore(1, "Rifle", null, 0, 0, true, 1, true), WireScore(2, "Unknown", null, 0, 0, true)))
+        val json = WireCodec.playerDataJson(data)
+        assertEquals(data, WireCodec.decodePlayerData(json))
+        val second = org.json.JSONObject(json).getJSONArray("playerdata").getJSONObject(1)
+        assertFalse(second.has("blastertype"))
+        assertFalse(second.has("hasgrenade"))
     }
 
     private fun serverJson(json: String) = decodeServer(WireProtocol.TCPMESSAGE_PREFIX + WireProtocol.TCPPREFIX_JSON + json)

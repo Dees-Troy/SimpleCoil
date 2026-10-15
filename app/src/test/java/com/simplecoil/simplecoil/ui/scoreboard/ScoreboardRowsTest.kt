@@ -97,7 +97,6 @@ class ScoreboardRowsTest {
         assertEquals(17, (rows[2] as ScoreboardRow.Player).playerId.toInt())
         assertEquals(ScoreboardRow.TeamHeader(1, 2, 16, 20, true), rows[3])
         assertEquals(listOf(17, 2, 1), rows.playerIds())
-        assertEquals(listOf("2-1", "1-2", "1-1"), rows.filterIsInstance<ScoreboardRow.Player>().map { it.label })
     }
 
     @Test

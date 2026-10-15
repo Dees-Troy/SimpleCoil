@@ -257,6 +257,8 @@ class NetworkSessionGateway(
                     }
                     playerData.eliminated = player.eliminated
                     playerData.isConnected = player.connected ?: true
+                    playerData.blasterType = (player.blasterType ?: 0).toByte()
+                    playerData.hasGrenade = player.hasGrenade
                     val settings = repo.playerSettings[playerData.playerID]
                     if (settings == null) {
                         playerData.overrideLives = false

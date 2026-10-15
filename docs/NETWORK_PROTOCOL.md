@@ -56,6 +56,7 @@ nothing from the server for 3.5 s, then tries to reconnect (see §5).
    - `playerID` is the ID the player wants. `0` means "pick one for me".
    - `blaster_mac` identifies the player across reconnects.
    - `rejoin`, `gameid` and `pending` appear only when they apply (see §5).
+   - Once the blaster has reported its type, a `blastertype` message follows (see §4.2).
    - If the player has a paired grenade, a `pairedgrenadeID` message follows (see §4.2).
 2. The server picks the player's ID and team and makes the name unique. It first cleans the
    name up the same way the app does when a name is typed (`PlayerNames.sanitize`): any
@@ -139,6 +140,7 @@ Each JSON message is identified by the key it contains.
 | `playersettings` | The player's own settings: `health`, `reloadshots`, `reloadtime`, `reloadonempty`, `manualrespawn` (optional, default off), `spawntime`, `respawnshieldtime`, `damage`, `liveslimit` (optional), `shotmodesingle`/`shotmodeburst3`/`shotmodeauto`, `firingmode`. Rejected unless the server allows player settings. |
 | `requestteamchange` | The team the player wants. Only works in the lobby, in a team mode, when the server lets players choose teams, and when that team has an open slot. If the team is full, the optional `swapwith` names a player on it to trade places with; both players then get a new `SERVERREPLY` id. Older servers ignore `swapwith`. |
 | `pairedgrenadeID` | Which grenade this player paired (see `GRENADES.md`). |
+| `blastertype` | The player's blaster: `1` rifle, `2` pistol. Sent after the hello and again whenever the blaster reports its type. The server relays it in `playerdata`. Older servers drop it. |
 | `gpslongitude`, `gpslatitude` | The player's location, when GPS is on. |
 | `rmsg`, `seq`, `gameid` | A reliable message (§6). |
 
@@ -147,7 +149,7 @@ Each JSON message is identified by the key it contains.
 | Key | Contents |
 |---|---|
 | `players` | **Game info**, the full snapshot: every player's `playerID`, `playername`, `playerIP`; `limits` (`timelimit`, `liveslimit`, `scorelimit`); `gamemode`; `teamsizes`; `gamestate`; `sessionphase`; `gameid` (when not in the lobby); `timeremaining`; `usegps`; `allowplayersettings`; `onlyserversettings`; `allowchooseteams`; `starttime`; and `playersettings` for everyone. The copy sent to one player also has `playergameupdate`, which holds that player's `points`, `eliminated`, `teampoints`, `timeremaining` and `ackseq`. |
-| `playerdata` | Scoreboard: each player's `playerID`, `playername`, `points`, `eliminated`, and whether they are `connected`. |
+| `playerdata` | Scoreboard: each player's `playerID`, `playername`, `points`, `eliminated`, and whether they are `connected`; `blastertype` (left out until the player reports it) and `hasgrenade` (present, `true`, only when the player has a paired grenade). Sent again when a player reports a blaster type or pairs a grenade. Older clients ignore the new keys. |
 | `scorematrix` | Who eliminated whom in the current game, sent only to the player who asked: `players` (each player's `playerID`, `playername`, `team` (1 in free for all) and `connected`), `cells` (the non-zero cells as `[shooter, victim, count]` arrays) and `gameid` (left out in the lobby). Every applied elimination is counted, including a player's own grenade and a teammate's. Cleared when a game starts and on reset. A removed player's row and column are dropped. |
 | `playersettings` | Every player's settings (fields as above, plus `recoilsetting` and `isadmin`), and `allowplayersettings`. The settings under the client's own ID replace its local settings. |
 | `grenadepairings` | Every grenade pairing: a list of `{pairedgrenadeID, playerID}`. |

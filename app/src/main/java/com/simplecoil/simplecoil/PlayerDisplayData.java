@@ -24,4 +24,7 @@ public class PlayerDisplayData {
     public boolean overrideLives;
     public int lives;
     public boolean isConnected;
+    /** GattProtocolHandler.BLASTER_TYPE_*; 0 when the player hasn't reported one. */
+    public byte blasterType;
+    public boolean hasGrenade;
 }

@@ -173,6 +173,8 @@ class TcpClient : Service() {
 
     fun sendPlayerGrenade() = client.sendPlayerGrenade()
 
+    fun sendBlasterType() = client.sendBlasterType()
+
     /** Reports our position (the map's location updates) to the server. */
     fun sendLocation(latitude: Double, longitude: Double) = client.sendLocation(latitude, longitude)
 

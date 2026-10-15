@@ -45,6 +45,11 @@ class PlayerRecord internal constructor(playerId: Byte, team: Int, name: String?
     var eliminated: Int = 0
         internal set
 
+    /** The blaster the client reported (GattProtocolHandler.BLASTER_TYPE_*); null until it does. */
+    @Volatile
+    var blasterType: Int? = null
+        internal set
+
     /** Null while disconnected. */
     @Volatile
     var connection: Connection? = null

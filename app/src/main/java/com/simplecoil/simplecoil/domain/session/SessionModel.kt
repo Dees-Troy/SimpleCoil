@@ -61,6 +61,9 @@ data class SessionState(
     /** The player may toggle recoil: the server doesn't force it. */
     val recoilChangeable: Boolean = true,
     val battery: BatteryLevelPolicy.Level? = null,
+    /** GattProtocolHandler.BLASTER_TYPE_*; null until the blaster reports it. */
+    val blasterType: Byte? = null,
+    val grenadePaired: Boolean = false,
     val spawn: SpawnPhase = SpawnPhase.None,
     /** Name shown by the "you're hit" overlay while it plays; null when not playing. */
     val hitOverlay: String? = null,

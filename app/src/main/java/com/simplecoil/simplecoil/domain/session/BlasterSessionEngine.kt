@@ -61,6 +61,7 @@ class BlasterSessionEngine(
         health = config.fullHealth,
         maxHealth = config.fullHealth,
         shotMode = GameSettingsRepository.SHOT_MODE_SINGLE,
+        grenadePaired = config.pairedGrenadeId.toInt() != 0,
     ))
     val state: StateFlow<SessionState> = _state.asStateFlow()
 
@@ -150,7 +151,10 @@ class BlasterSessionEngine(
                     startReload()
                 }
             }
-            is BlasterEvent.TypeDiscovered -> blasterType = event.blasterType
+            is BlasterEvent.TypeDiscovered -> {
+                blasterType = event.blasterType
+                _state.update { it.copy(blasterType = event.blasterType) }
+            }
             is BlasterEvent.Telemetry -> processTelemetry(event.data)
             BlasterEvent.WriteFinished -> onWriteFinished()
             else -> Unit
@@ -657,11 +661,15 @@ class BlasterSessionEngine(
                 // This is a grenade trying to pair
                 if (config.pairedGrenadeId.toInt() == 0) {
                     config.pairedGrenadeId = GrenadeDecoder.grenadeId(shotIdByte).toByte()
+                    _state.update { it.copy(grenadePaired = true) }
                     if (useNetwork) network?.sendPlayerGrenade()
                     emit(SessionEffect.Toast(SessionToast.GRENADE_PAIRED))
                 }
             }
-            GrenadeDecoder.PairingAction.UNPAIR -> config.pairedGrenadeId = 0
+            GrenadeDecoder.PairingAction.UNPAIR -> {
+                config.pairedGrenadeId = 0
+                _state.update { it.copy(grenadePaired = false) }
+            }
             GrenadeDecoder.PairingAction.NONE -> Unit
         }
     }

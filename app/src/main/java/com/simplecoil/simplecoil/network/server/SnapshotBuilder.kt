@@ -100,9 +100,11 @@ class SnapshotBuilder(
     /** The scoreboard; null when there is nobody to send it to. */
     fun playerData(): ServerMessage.PlayerData? {
         if (nobodyThere()) return null
+        val withGrenade = grenadeHolders()
         return ServerMessage.PlayerData(players.teamIPMap.entries.map { (id, address) ->
             val score = roster.score(id)
-            WireScore(id.toInt(), players.getPlayerName(id), ipString(address), score?.points ?: 0, score?.eliminated ?: 0, score?.connected)
+            WireScore(id.toInt(), players.getPlayerName(id), ipString(address), score?.points ?: 0, score?.eliminated ?: 0, score?.connected,
+                roster.record(id)?.blasterType, id.toInt() in withGrenade)
         })
     }
 
@@ -142,6 +144,9 @@ class SnapshotBuilder(
             return positions
         }
     }
+
+    /** The ids of the players with a paired grenade. */
+    fun grenadeHolders(): Set<Int> = players.grenadePairings.filter { it != PlayerRepository.INVALID_PLAYER_ID }.toSet()
 
     /** Every grenade's owner; null when no grenade is paired. */
     fun grenadePairings(): ServerMessage.GrenadePairings? {

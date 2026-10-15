@@ -24,6 +24,7 @@ import com.simplecoil.simplecoil.domain.team.TeamMode
 import com.simplecoil.simplecoil.hardware.blaster.BlasterEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -658,15 +659,19 @@ class BlasterSessionEngineTest {
         assertEquals(9.toByte(), h.config.pairedGrenadeId)
         assertEquals(listOf("GRENADE"), h.rec.net)
         assertEquals(listOf(SessionToast.GRENADE_PAIRED), h.toasts())
+        assertTrue(h.state.grenadePaired)
         h.telemetry(Packet().hit1(167, 0x9D)) // disarm
         assertEquals(0.toByte(), h.config.pairedGrenadeId)
+        assertFalse(h.state.grenadePaired)
     }
 
     @Test
     fun battery_isAveragedAndClassifiedByBlasterType() {
         h.connected(Packet().battery(0x10))
         assertEquals(BatteryLevelPolicy.Level.FULL, h.state.battery)
+        assertNull(h.state.blasterType)
         h.engine.onBlasterEvent(BlasterEvent.TypeDiscovered(1)) // rifle: 16 is only MEDIUM
+        assertEquals(1.toByte(), h.state.blasterType)
         h.telemetry(Packet().battery(0x10))
         assertEquals(BatteryLevelPolicy.Level.MEDIUM, h.state.battery)
     }

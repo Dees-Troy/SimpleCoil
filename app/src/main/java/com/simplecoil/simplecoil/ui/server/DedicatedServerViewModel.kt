@@ -303,6 +303,8 @@ class DedicatedServerViewModel(
                     isConnected = row.connected
                     overrideLives = row.overrideLives
                     lives = row.lives
+                    blasterType = (row.blasterType ?: 0).toByte()
+                    hasGrenade = row.hasGrenade
                 }
             }
             val context = ScoreboardContext(settings.teamLayout, settings.gameLimit, settings.livesLimit,

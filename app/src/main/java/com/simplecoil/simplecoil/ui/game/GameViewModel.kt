@@ -365,7 +365,11 @@ class GameViewModel(
                 setConnectStatus(ConnectStatus.COMMUNICATING)
                 hideWeaponDisconnect()
             }
-            is BlasterEvent.TypeDiscovered -> screen?.showBlasterType(event.blasterType == GattProtocolHandler.BLASTER_TYPE_RIFLE, deviceAddress)
+            is BlasterEvent.TypeDiscovered -> {
+                screen?.showBlasterType(event.blasterType == GattProtocolHandler.BLASTER_TYPE_RIFLE, deviceAddress)
+                playerRepo.blasterType = event.blasterType
+                if (net.useNetwork) net.tcpClient?.sendBlasterType()
+            }
             else -> Unit
         }
     }

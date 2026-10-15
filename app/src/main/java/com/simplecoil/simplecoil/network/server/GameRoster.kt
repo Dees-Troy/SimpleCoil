@@ -378,6 +378,15 @@ class GameRoster @JvmOverloads constructor(
         return record.name
     }
 
+    /** Records the blaster [connection]'s player uses; false when it has no player or nothing changed. */
+    @Synchronized
+    fun onBlasterType(connection: Connection, blasterType: Int): Boolean {
+        val record = connection.player ?: return false
+        if (record.blasterType == blasterType) return false
+        record.blasterType = blasterType
+        return true
+    }
+
     /** The connection was dropped or closed. */
     enum class Disconnect { NO_PLAYER, KEPT, REMOVED }
 

@@ -42,6 +42,7 @@ public class PlayerRepository {
     private volatile String playerName = "";
     private volatile boolean isAdmin = false;
     private volatile String deviceAddress = "";
+    private volatile byte blasterType = 0;
 
     private final Map<InetAddress, Byte> ipTeamMap = new ConcurrentHashMap<>();
     private final Map<Byte, InetAddress> teamIPMap = new ConcurrentHashMap<>();
@@ -76,6 +77,10 @@ public class PlayerRepository {
     public void setDeviceAddress(String deviceAddress) {
         this.deviceAddress = deviceAddress != null ? deviceAddress : "";
     }
+
+    /** The connected blaster's GattProtocolHandler.BLASTER_TYPE_*, sent to the server for the scoreboard; 0 until known. */
+    public byte getBlasterType() { return blasterType; }
+    public void setBlasterType(byte blasterType) { this.blasterType = blasterType; }
 
     public boolean isAdmin() { return isAdmin; }
     public void setAdmin(boolean admin) { isAdmin = admin; }

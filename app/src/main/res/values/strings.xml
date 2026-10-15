@@ -182,7 +182,6 @@
     <!-- One score in the score readout's spoken description, e.g. "SCORE (50): 12". -->
     <string name="cd_score_entry">%1$s: %2$s</string>
 
-    <string name="player_list_id_label">ID</string>
     <string name="player_list_name_label">Name</string>
     <string name="player_list_points_label">Score</string>
     <string name="player_list_eliminated_label">Eliminated</string>
@@ -209,6 +208,9 @@
     <string name="cd_blaster_battery">Blaster battery</string>
     <string name="cd_network_status">Network status</string>
     <string name="cd_kick_player">Kick player</string>
+    <string name="cd_blaster_rifle">Rifle</string>
+    <string name="cd_blaster_pistol">Pistol</string>
+    <string name="cd_grenade_paired">Grenade paired</string>
     <string name="scoreboard_disconnected">Disconnected</string>
     <!-- The score matrix (who eliminated whom) on the scoreboard dialog. -->
     <string name="score_matrix">SCORE MATRIX</string>

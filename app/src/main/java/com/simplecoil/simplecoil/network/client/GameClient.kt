@@ -98,11 +98,18 @@ class GameClient(
         send(ClientMessage.NameChange(players.playerID.toInt(), players.playerName))
     }
 
-    /** The hello, then our grenade's pairing if there is one. */
+    /** The hello, then our blaster's type and our grenade's pairing if we know them. */
     fun sendPlayerInfo(rejoin: Boolean) {
         if (rejoin) Log.d(TAG, "Attempting to rejoin server")
         send(hello(players.playerID, players.playerName, players.deviceAddress, rejoin, outbox))
+        sendBlasterType()
         if (players.pairedGrenadeID.toInt() != 0) sendPlayerGrenade()
+    }
+
+    /** Our blaster's type, for the scoreboard; nothing until the blaster has reported it. */
+    fun sendBlasterType() {
+        val type = players.blasterType.toInt()
+        if (type != 0) send(ClientMessage.BlasterType(players.playerID.toInt(), type))
     }
 
     /** Our own settings, for the server to apply when it allows player settings. */

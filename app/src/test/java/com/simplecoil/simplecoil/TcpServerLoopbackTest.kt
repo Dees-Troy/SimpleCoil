@@ -122,6 +122,23 @@ class TcpServerLoopbackTest {
     // ------------------------------------------------------------------------------------------
 
     @Test
+    fun blasterTypeAndGrenade_reachEveryonesScoreboard_andTheServerScreen() {
+        val (a, idA) = join("Alpha", "AA:00")
+        val (b, idB) = join("Bravo", "BB:00")
+        a.json(org.json.JSONObject().put(WireKeys.PLAYERID, idA).put(WireKeys.BLASTER_TYPE, 1))
+        b.json(org.json.JSONObject().put(WireKeys.PLAYERID, idB).put(WireKeys.PAIRED_GRENADE_ID, 3))
+        awaitTrue(3000, "rifle and grenade in B's player data") {
+            val rows = b.lastJson(WireKeys.PLAYERDATA)?.getJSONArray(WireKeys.PLAYERDATA) ?: return@awaitTrue false
+            val byId = (0 until rows.length()).associate { rows.getJSONObject(it).let { r -> r.getInt(WireKeys.PLAYERID) to r } }
+            byId[idA]?.optInt(WireKeys.BLASTER_TYPE) == 1 && byId[idB]?.optBoolean(WireKeys.HAS_GRENADE) == true
+        }
+        awaitTrue(3000, "the server screen's rows") {
+            val rows = server.snapshot.value.players.associateBy { it.playerId.toInt() }
+            rows[idA]?.blasterType == 1 && rows[idB]?.hasGrenade == true
+        }
+    }
+
+    @Test
     fun lobbyJoin_autoSortsIntoTeams_andRepliesWithIdAndGameInfo() {
         val (a, idA) = join("Alpha", "AA:00")
         val (b, idB) = join("Bravo", "BB:00")

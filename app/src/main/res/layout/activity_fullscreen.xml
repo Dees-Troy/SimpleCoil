@@ -200,6 +200,26 @@
             app:srcCompat="@drawable/ic_battery_full_green_24dp" />
 
         <ImageView
+            android:id="@+id/blaster_type_iv"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginTop="5dp"
+            android:layout_marginStart="6dp"
+            android:layout_toEndOf="@id/battery_iv"
+            android:contentDescription="@null"
+            android:visibility="gone" />
+
+        <ImageView
+            android:id="@+id/grenade_iv"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginTop="5dp"
+            android:layout_marginStart="6dp"
+            android:layout_toEndOf="@id/blaster_type_iv"
+            android:contentDescription="@null"
+            android:visibility="gone" />
+
+        <ImageView
             android:id="@+id/network_status_iv"
             android:contentDescription="@string/cd_network_status"
             android:layout_width="wrap_content"

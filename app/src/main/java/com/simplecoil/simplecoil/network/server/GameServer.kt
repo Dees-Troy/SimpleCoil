@@ -190,6 +190,7 @@ class GameServer(
     /** Reads the roster first, then the repositories, in the lock order (GameRoster → PlayerRepository). */
     private fun buildSnapshot(): ServerSnapshot {
         val records = roster.records()
+        val withGrenade = snapshots.grenadeHolders()
         val rows = synchronized(players) {
             records.map { record ->
                 val id = record.playerId
@@ -202,6 +203,8 @@ class GameServer(
                     connected = record.isConnected,
                     overrideLives = playerSettings?.overrideLives ?: false,
                     lives = playerSettings?.lives ?: 0,
+                    blasterType = record.blasterType,
+                    hasGrenade = id.toInt() in withGrenade,
                 )
             }
         }

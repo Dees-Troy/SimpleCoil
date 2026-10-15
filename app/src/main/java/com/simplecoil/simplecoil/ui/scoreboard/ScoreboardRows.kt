@@ -36,8 +36,6 @@ sealed interface ScoreboardRow {
 
     data class Player(
         val playerId: Byte,
-        /** "team-index" in a team game, the player id in free-for-all. */
-        val label: String,
         val name: String?,
         val points: Int,
         /** Lives remaining when the player has a lives limit, eliminations otherwise. */
@@ -46,6 +44,9 @@ sealed interface ScoreboardRow {
         /** This phone's own player. */
         val isSelf: Boolean,
         val kickable: Boolean,
+        /** GattProtocolHandler.BLASTER_TYPE_*; 0 when unknown. */
+        val blasterType: Byte = 0,
+        val hasGrenade: Boolean = false,
     ) : ScoreboardRow
 }
 
@@ -81,7 +82,7 @@ object ScoreboardRows {
         if (layout.mode.isFreeForAll) {
             rows += ScoreboardRow.TeamHeader(0, 0, 0, 0, canEdit)
             val list = (1..GameSettingsRepository.MAX_PLAYER_ID).mapNotNull { at(it) }.sortedWith(playerOrder(context))
-            list.forEach { rows += playerRow(it, (it.playerID.toInt() and 0xFF).toString(), context) }
+            list.forEach { rows += playerRow(it, context) }
             return rows
         }
 
@@ -119,15 +120,12 @@ object ScoreboardRows {
         for (team in teams.sortedWith(teamOrder)) {
             val capacity = sizes.getOrElse(team.number - 1) { 16 }
             rows += ScoreboardRow.TeamHeader(team.number, team.members.size, capacity, team.points, canEdit)
-            val startId = layout.teamStartId(team.number)
-            for (p in team.members.sortedWith(playerOrder(context))) {
-                rows += playerRow(p, "${team.number}-${(p.playerID.toInt() and 0xFF) - startId + 1}", context)
-            }
+            for (p in team.members.sortedWith(playerOrder(context))) rows += playerRow(p, context)
         }
         return rows
     }
 
-    private fun playerRow(p: PlayerDisplayData, label: String, context: ScoreboardContext): ScoreboardRow.Player {
+    private fun playerRow(p: PlayerDisplayData, context: ScoreboardContext): ScoreboardRow.Player {
         val id = p.playerID
         val stat = when {
             p.overrideLives -> if (p.lives != 0) p.lives - p.eliminated else p.eliminated
@@ -138,13 +136,14 @@ object ScoreboardRows {
         val idInt = id.toInt()
         return ScoreboardRow.Player(
             playerId = id,
-            label = label,
             name = p.playerName,
             points = p.points,
             livesOrEliminations = stat,
             connected = p.isConnected,
             isSelf = id == context.selfId,
             kickable = canKick && idInt in 1..GameSettingsRepository.MAX_PLAYER_ID && id != context.selfId,
+            blasterType = p.blasterType,
+            hasGrenade = p.hasGrenade,
         )
     }
 

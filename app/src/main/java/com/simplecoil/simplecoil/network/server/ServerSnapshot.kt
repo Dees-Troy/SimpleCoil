@@ -46,6 +46,9 @@ data class ServerPlayerRow(
     /** The player has its own lives limit, [lives] (0: none). */
     val overrideLives: Boolean,
     val lives: Int,
+    /** GattProtocolHandler.BLASTER_TYPE_*; null until the client reports it. */
+    val blasterType: Int? = null,
+    val hasGrenade: Boolean = false,
 )
 
 /** The game settings the operator controls (or an admin, for the team layout). */

@@ -23,6 +23,7 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.ImageView
 import android.view.ViewGroup
 import android.view.animation.AnimationUtils
 import android.widget.TextView
@@ -34,6 +35,7 @@ import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.databinding.ActivityFullscreenBinding
 import com.simplecoil.simplecoil.databinding.HitPlayerRowBinding
 import com.simplecoil.simplecoil.domain.session.BatteryLevelPolicy
+import com.simplecoil.simplecoil.hardware.blaster.GattProtocolHandler
 import com.simplecoil.simplecoil.domain.session.ClockFormat
 import com.simplecoil.simplecoil.domain.session.GameClock
 import com.simplecoil.simplecoil.domain.session.HitResolver
@@ -589,6 +591,16 @@ class GameScreenRenderer(
                 else -> R.drawable.ic_battery_alert_red_24dp
             })
         }
+        if (p == null || p.blasterType != s.blasterType) {
+            when (s.blasterType) {
+                GattProtocolHandler.BLASTER_TYPE_RIFLE -> showIcon(b.blasterTypeIv, R.drawable.ic_blaster_rifle, R.string.cd_blaster_rifle)
+                null -> b.blasterTypeIv.visibility = View.GONE
+                else -> showIcon(b.blasterTypeIv, R.drawable.ic_blaster_pistol, R.string.cd_blaster_pistol)
+            }
+        }
+        if (p == null || p.grenadePaired != s.grenadePaired) {
+            if (s.grenadePaired) showIcon(b.grenadeIv, R.drawable.ic_grenade, R.string.cd_grenade_paired) else b.grenadeIv.visibility = View.GONE
+        }
         if (p == null || p.hitOverlay != s.hitOverlay) renderHitOverlay(s)
         if (p == null || p.spawn != s.spawn) renderSpawn(s.spawn)
         if (p == null || p.shieldSeconds != s.shieldSeconds) {
@@ -601,6 +613,12 @@ class GameScreenRenderer(
             }
         }
         if (p == null || p.clock != s.clock) renderClock(s.clock)
+    }
+
+    private fun showIcon(view: ImageView, icon: Int, description: Int) {
+        view.setImageResource(icon)
+        view.contentDescription = context.getString(description)
+        view.visibility = View.VISIBLE
     }
 
     private fun renderHitOverlay(s: SessionState) {

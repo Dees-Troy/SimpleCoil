@@ -198,6 +198,9 @@ sealed interface ClientMessage {
     /** [swapWith]: if [team] is full, the player on it to trade places with; null to only take an open slot. */
     data class TeamChangeRequest(val playerId: Int, val team: Int, val swapWith: Int? = null) : ClientMessage
     data class GrenadePairing(val playerId: Int, val grenadeId: Int) : ClientMessage
+
+    /** The kind of blaster the player uses (GattProtocolHandler.BLASTER_TYPE_*); sent after the hello and when it changes. */
+    data class BlasterType(val playerId: Int, val blasterType: Int) : ClientMessage
     data class GpsLocation(val latitude: Double, val longitude: Double) : ClientMessage
 }
 
@@ -219,8 +222,21 @@ data class WirePlayerGameUpdate(
     val ackSeq: Int?,
 )
 
-/** A scoreboard row. [connected] is left out for a player the server has no score for. */
-data class WireScore(val playerId: Int, val name: String, val ip: String?, val points: Int, val eliminated: Int, val connected: Boolean?)
+/**
+ * A scoreboard row. [connected] is left out for a player the server has no score for,
+ * [blasterType] (GattProtocolHandler.BLASTER_TYPE_*) when the player hasn't reported one, and
+ * [hasGrenade] unless the player has a paired grenade.
+ */
+data class WireScore(
+    val playerId: Int,
+    val name: String,
+    val ip: String?,
+    val points: Int,
+    val eliminated: Int,
+    val connected: Boolean?,
+    val blasterType: Int? = null,
+    val hasGrenade: Boolean = false,
+)
 
 /** A player's position; [team] is only read for a player the client hasn't placed yet. */
 data class WireGpsPosition(val playerId: Int, val team: Int?, val longitude: Double, val latitude: Double)

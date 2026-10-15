@@ -28,6 +28,7 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.simplecoil.simplecoil.R
 import com.simplecoil.simplecoil.domain.team.TeamColors
+import com.simplecoil.simplecoil.hardware.blaster.GattProtocolHandler
 
 /**
  * The scoreboard of the dedicated server and of the play screen's scoreboard dialog. Updates are
@@ -102,20 +103,23 @@ class ScoreboardAdapter(
     }
 
     private inner class PlayerHolder(view: View) : RecyclerView.ViewHolder(view) {
-        private val id: TextView = view.findViewById(R.id.player_id_tv)
         private val name: TextView = view.findViewById(R.id.player_name_tv)
         private val points: TextView = view.findViewById(R.id.player_points_tv)
         private val stat: TextView = view.findViewById(R.id.player_eliminated_tv)
+        private val blaster: ImageView = view.findViewById(R.id.blaster_type_iv)
+        private val grenade: ImageView = view.findViewById(R.id.grenade_iv)
         private val networkStatus: ImageView? = view.findViewById(R.id.network_status_iv)
         private val kick: ImageView? = view.findViewById(R.id.kick_player_iv)
         private val defaultNameColors: ColorStateList = name.textColors
 
         fun bindColumnHeader(row: ScoreboardRow.ColumnHeader) {
-            id.setText(R.string.player_list_id_label)
             name.setText(R.string.player_list_name_label)
             name.setTextColor(defaultNameColors)
             points.setText(R.string.player_list_points_label)
             stat.setText(if (row.livesColumn) R.string.scoreboard_lives else R.string.player_list_eliminated_label)
+            // Invisible, not gone: the icons keep their space so the columns line up
+            blaster.visibility = View.INVISIBLE
+            grenade.visibility = View.INVISIBLE
             networkStatus?.visibility = View.GONE
             kick?.visibility = View.GONE
             kick?.setOnClickListener(null)
@@ -125,11 +129,16 @@ class ScoreboardAdapter(
 
         fun bind(row: ScoreboardRow.Player) {
             val context = itemView.context
-            id.text = row.label
             name.setTextColor(if (row.isSelf) ScoreboardColors.SELF_NAME else Color.WHITE)
             name.text = row.name
             points.text = context.getString(R.string.number, row.points)
             stat.text = context.getString(R.string.number, row.livesOrEliminations)
+            when (row.blasterType) {
+                GattProtocolHandler.BLASTER_TYPE_RIFLE -> showIcon(blaster, R.drawable.ic_blaster_rifle, R.string.cd_blaster_rifle)
+                GattProtocolHandler.BLASTER_TYPE_PISTOL -> showIcon(blaster, R.drawable.ic_blaster_pistol, R.string.cd_blaster_pistol)
+                else -> blaster.visibility = View.INVISIBLE
+            }
+            if (row.hasGrenade) showIcon(grenade, R.drawable.ic_grenade, R.string.cd_grenade_paired) else grenade.visibility = View.INVISIBLE
             networkStatus?.let {
                 it.visibility = View.VISIBLE
                 it.setImageResource(if (row.connected) R.drawable.ic_network_connected_24dp else R.drawable.ic_network_disconnected_24dp)
@@ -151,6 +160,12 @@ class ScoreboardAdapter(
                 itemView.setOnClickListener { listener.onPlayerClicked(row.playerId) }
             }
         }
+    }
+
+    private fun showIcon(view: ImageView, icon: Int, description: Int) {
+        view.setImageResource(icon)
+        view.contentDescription = view.context.getString(description)
+        view.visibility = View.VISIBLE
     }
 
     private object Diff : DiffUtil.ItemCallback<ScoreboardRow>() {

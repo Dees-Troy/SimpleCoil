@@ -96,6 +96,10 @@ object WireCodec {
             put(WireKeys.PLAYERID, message.playerId)
             put(WireKeys.PAIRED_GRENADE_ID, message.grenadeId)
         }
+        is ClientMessage.BlasterType -> json {
+            put(WireKeys.PLAYERID, message.playerId)
+            put(WireKeys.BLASTER_TYPE, message.blasterType)
+        }
         is ClientMessage.GpsLocation -> json {
             put(WireKeys.GPSLONGITUDE, message.longitude)
             put(WireKeys.GPSLATITUDE, message.latitude)
@@ -174,6 +178,9 @@ object WireCodec {
                 if (json.has(WireKeys.SWAP_WITH)) json.getInt(WireKeys.SWAP_WITH) else null)
         json.has(WireKeys.PAIRED_GRENADE_ID) ->
             ClientMessage.GrenadePairing(json.getInt(WireKeys.PLAYERID), json.getInt(WireKeys.PAIRED_GRENADE_ID))
+        // Older servers read this as a hello without a name, which doesn't decode, and drop it
+        json.has(WireKeys.BLASTER_TYPE) ->
+            ClientMessage.BlasterType(json.optInt(WireKeys.PLAYERID, 0), json.getInt(WireKeys.BLASTER_TYPE))
         json.has(WireKeys.GPSLONGITUDE) ->
             ClientMessage.GpsLocation(json.getDouble(WireKeys.GPSLATITUDE), json.getDouble(WireKeys.GPSLONGITUDE))
         json.has(WireKeys.PLAYERSETTINGS) -> {
@@ -325,6 +332,8 @@ object WireCodec {
                 put(WireKeys.PLAYERPOINTS, it.points)
                 put(WireKeys.PLAYERELIMINATED, it.eliminated)
                 it.connected?.let { connected -> put(WireKeys.CONNECTED, connected) }
+                it.blasterType?.let { type -> put(WireKeys.BLASTER_TYPE, type) }
+                if (it.hasGrenade) put(WireKeys.HAS_GRENADE, true)
             }
         }))
     }
@@ -336,7 +345,8 @@ object WireCodec {
             WireScore(player.getInt(WireKeys.PLAYERID), player.getString(WireKeys.PLAYERNAME),
                 if (player.has(WireKeys.PLAYERIP)) player.optString(WireKeys.PLAYERIP) else null,
                 player.getInt(WireKeys.PLAYERPOINTS), player.getInt(WireKeys.PLAYERELIMINATED),
-                if (player.has(WireKeys.CONNECTED)) player.optBoolean(WireKeys.CONNECTED, true) else null)
+                if (player.has(WireKeys.CONNECTED)) player.optBoolean(WireKeys.CONNECTED, true) else null,
+                player.optIntOrNull(WireKeys.BLASTER_TYPE, 0), player.optBoolean(WireKeys.HAS_GRENADE, false))
         })
     }
 

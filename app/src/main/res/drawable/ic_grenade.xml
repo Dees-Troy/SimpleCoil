@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original artwork for SimpleCoil: a generic round grenade with a lever and pull ring. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Body, cap and lever -->
+    <path
+        android:fillColor="#FFFF9800"
+        android:pathData="M4.5,15a6.5,6.5 0,1 0,13 0a6.5,6.5 0,1 0,-13 0Z M8.5,6L13.5,6L13.5,9L8.5,9Z M13.5,6L16.5,6L19.5,12.5L18.3,13L15.5,8L13.5,8Z" />
+    <!-- Segment grooves on the body -->
+    <path
+        android:pathData="M4.5,15L17.5,15M11,8.5L11,21.5"
+        android:strokeWidth="1"
+        android:strokeColor="#FF080808" />
+    <!-- Pull ring -->
+    <path
+        android:pathData="M5,5.5a2,2 0,1 0,4 0a2,2 0,1 0,-4 0Z"
+        android:strokeWidth="1.2"
+        android:strokeColor="#FFFF9800" />
+</vector>

@@ -104,6 +104,8 @@ object WireKeys {
     const val PAIRED_GRENADE_ID = "pairedgrenadeID"
     const val GRENADE_PAIRINGS = "grenadepairings"
     const val BLASTER_MAC = "blaster_mac"
+    const val BLASTER_TYPE = "blastertype"
+    const val HAS_GRENADE = "hasgrenade"
 
     const val GPSLONGITUDE = "gpslongitude"
     const val GPSLATITUDE = "gpslatitude"

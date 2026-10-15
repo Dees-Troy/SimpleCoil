@@ -15,4 +15,6 @@
     <dimen name="score_matrix_text">14sp</dimen>
     <dimen name="score_matrix_header_text">14sp</dimen>
     <dimen name="score_matrix_min_height">160dp</dimen>
+    <!-- The blaster and grenade icons on a scoreboard row; all the same size. -->
+    <dimen name="scoreboard_icon_size">20dp</dimen>
 </resources>
