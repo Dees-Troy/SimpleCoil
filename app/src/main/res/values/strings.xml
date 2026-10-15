@@ -160,6 +160,7 @@
     <string name="dedicated_game_over">Game Over</string>
     <string name="dedicated_start_button">Start</string>
     <string name="dedicated_end_button">End</string>
+    <string name="dedicated_end_confirm">End the game for all players?</string>
     <string name="dedicated_reset_button">↺ Reset</string>
     <string name="dedicated_settings_label">Game / Server Settings</string>
     <string name="dedicated_phase_arrow" translatable="false">→</string>

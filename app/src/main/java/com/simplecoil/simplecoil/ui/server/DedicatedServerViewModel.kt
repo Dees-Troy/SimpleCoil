@@ -73,6 +73,7 @@ sealed interface ServerUiEffect {
     data class Toast(@StringRes val text: Int, val args: List<Any> = emptyList()) : ServerUiEffect
     data class ConfirmReset(val disconnectedPlayers: Int) : ServerUiEffect
     data class ConfirmStop(val players: Int) : ServerUiEffect
+    data object ConfirmEnd : ServerUiEffect
     class ShowTeamRatio(val teamCount: Int, val sizes: IntArray) : ServerUiEffect
     data class ShowPlayerSettings(
         val playerId: Byte,
@@ -138,7 +139,12 @@ class DedicatedServerViewModel(
         controller.startGame()
     }
 
-    fun onEndPressed() = controller.endGame()
+    /** Ending a game can't be undone, so it asks first. */
+    fun onEndPressed() {
+        _effects.trySend(ServerUiEffect.ConfirmEnd)
+    }
+
+    fun onEndConfirmed() = controller.endGame()
 
     /** Reset drops the players who are away, so it asks first, with their count. */
     fun onResetPressed() {

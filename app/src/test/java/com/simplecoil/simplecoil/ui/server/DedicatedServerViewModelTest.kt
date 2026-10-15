@@ -47,6 +47,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -177,6 +178,16 @@ class DedicatedServerViewModelTest {
         assertEquals(ServerUiEffect.ConfirmReset(2), effects.single())
         vm.onResetConfirmed()
         assertEquals("reset", controller.calls.last())
+    }
+
+    @Test
+    fun end_asksBeforeEndingTheGame() {
+        publish(SessionPhase.RUNNING)
+        vm.onEndPressed()
+        assertEquals(ServerUiEffect.ConfirmEnd, effects.single())
+        assertFalse("endGame" in controller.calls)
+        vm.onEndConfirmed()
+        assertEquals("endGame", controller.calls.last())
     }
 
     @Test

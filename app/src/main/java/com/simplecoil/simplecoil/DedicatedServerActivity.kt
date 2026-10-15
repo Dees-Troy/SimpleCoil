@@ -153,6 +153,7 @@ class DedicatedServerActivity : AppCompatActivity() {
         }
         fm.setFragmentResultListener(REQUEST_RESET, this) { _, _ -> vm.onResetConfirmed() }
         fm.setFragmentResultListener(REQUEST_STOP, this) { _, _ -> vm.onStopConfirmed() }
+        fm.setFragmentResultListener(REQUEST_END, this) { _, _ -> vm.onEndConfirmed() }
     }
 
     private fun onEffect(effect: ServerUiEffect) {
@@ -163,6 +164,8 @@ class DedicatedServerActivity : AppCompatActivity() {
                 quantity(R.plurals.dedicated_reset_confirm, effect.disconnectedPlayers), R.string.reset_game_button), REQUEST_RESET)
             is ServerUiEffect.ConfirmStop -> showDialog(ConfirmDialog.newInstance(REQUEST_STOP,
                 quantity(R.plurals.dedicated_stop_confirm, effect.players), R.string.dedicated_stop_button), REQUEST_STOP)
+            ServerUiEffect.ConfirmEnd -> showDialog(ConfirmDialog.newInstance(REQUEST_END,
+                getString(R.string.dedicated_end_confirm), R.string.dedicated_end_button), REQUEST_END)
             is ServerUiEffect.ShowTeamRatio ->
                 showDialog(TeamRatioDialog.newInstance(effect.teamCount, effect.sizes), TeamRatioDialog.REQUEST_KEY)
             is ServerUiEffect.ShowPlayerSettings -> showDialog(PlayerSettingsDialog.server(effect.playerId, effect.playerName, effect.values,
@@ -183,5 +186,6 @@ class DedicatedServerActivity : AppCompatActivity() {
     private companion object {
         const val REQUEST_RESET = "serverReset"
         const val REQUEST_STOP = "serverStop"
+        const val REQUEST_END = "serverEnd"
     }
 }
