@@ -35,6 +35,7 @@ import com.simplecoil.simplecoil.domain.rules.LimitKind
 import com.simplecoil.simplecoil.domain.rules.Limits
 import com.simplecoil.simplecoil.domain.rules.TeamSizes
 import com.simplecoil.simplecoil.domain.session.BlasterSessionEngine
+import com.simplecoil.simplecoil.domain.session.HitResolver
 import com.simplecoil.simplecoil.domain.session.SessionEffect
 import com.simplecoil.simplecoil.domain.session.SessionSound
 import com.simplecoil.simplecoil.domain.session.SessionState
@@ -1179,8 +1180,9 @@ class GameViewModel(
                 engine.onRemoteShotFired() // Keeps us from spamming shots fired messages
                 screen?.showShotsFired()
             }
-            is ClientEvent.Hit -> screen?.showHitOtherPlayer(false, playerName(event.playerId))
-            is ClientEvent.Out -> screen?.showHitOtherPlayer(true, playerName(event.playerId))
+            is ClientEvent.Hit -> onHitOtherPlayer(HitResolver.Kind.HIT, event.playerId)
+            is ClientEvent.Out -> onHitOtherPlayer(HitResolver.Kind.OUT, event.playerId)
+            is ClientEvent.ShieldHit -> onHitOtherPlayer(HitResolver.Kind.SHIELDED, event.playerId)
             is ClientEvent.Eliminated -> {
                 onEliminatedSomeone(event.playerId)
                 refreshScoreMatrix()
@@ -1267,6 +1269,16 @@ class GameViewModel(
             ClientEvent.PlayerSettingsUpdate -> updatePlayerSettings()
             is ClientEvent.GpsData, ClientEvent.GpsSettingChanged -> Unit // the map's
         }
+    }
+
+    /** The server says our shot hit [playerId]: show who and play the matching sound. */
+    private fun onHitOtherPlayer(kind: HitResolver.Kind, playerId: Byte) {
+        screen?.showHitOtherPlayer(kind, playerName(playerId))
+        sounds.play(when (kind) {
+            HitResolver.Kind.HIT -> SessionSound.HIT_CONFIRM
+            HitResolver.Kind.OUT -> SessionSound.HIT_ELIMINATED
+            HitResolver.Kind.SHIELDED -> SessionSound.HIT_SHIELDED
+        })
     }
 
     private fun onEliminatedSomeone(playerId: Byte) {

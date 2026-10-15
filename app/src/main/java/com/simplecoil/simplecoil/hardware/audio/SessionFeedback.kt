@@ -57,6 +57,9 @@ class AudioHapticsPlayer(private val manager: AudioHapticsManager) : SoundEffect
             SessionSound.SCORE -> AudioHapticsManager.SoundEffect.SCORE
             SessionSound.SHOT -> AudioHapticsManager.SoundEffect.SHOT
             SessionSound.SPAWN -> AudioHapticsManager.SoundEffect.SPAWN
+            SessionSound.HIT_CONFIRM -> AudioHapticsManager.SoundEffect.HIT_CONFIRM
+            SessionSound.HIT_ELIMINATED -> AudioHapticsManager.SoundEffect.HIT_ELIMINATED
+            SessionSound.HIT_SHIELDED -> AudioHapticsManager.SoundEffect.HIT_SHIELDED
         }
     }
 }

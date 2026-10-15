@@ -34,6 +34,9 @@ sealed interface ClientCommand {
     /** The sender is out of health, from [shooterId]'s shot. */
     data class Out(val shooterId: Byte?) : ClientCommand
 
+    /** The sender's respawn shield blocked a hit from [shooterId]. */
+    data class ShieldHit(val shooterId: Byte?) : ClientCommand
+
     /** The sender was eliminated by [shooterId]. Sent reliably since v07 (as a reliable message's rmsg). */
     data class Eliminated(val shooterId: Byte?) : ClientCommand
     data object TeamEliminated : ClientCommand
@@ -71,6 +74,9 @@ sealed interface ServerCommand {
 
     /** The receiver's shot took [targetId] out of health. */
     data class Out(val targetId: Byte?) : ServerCommand
+
+    /** The receiver's shot hit [targetId]'s respawn shield. */
+    data class ShieldHit(val targetId: Byte?) : ServerCommand
 
     /** The receiver eliminated [victimId]. */
     data class Eliminated(val victimId: Byte?) : ServerCommand

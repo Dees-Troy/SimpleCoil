@@ -87,6 +87,7 @@ consecutive blocks, sized by the team sizes.
 | `SHOTFIRED` | I fired (sent at most every 400 ms). | Relays `SHOTFIRED` to everyone, so their phones play the sound. |
 | `HIT<shooter>` | I was hit by `<shooter>` (rate limited to 400 ms). | Sends `HIT<me>` to the shooter only. |
 | `OUT<shooter>` | That hit took my health to zero. | Sends `OUT<me>` to the shooter only. |
+| `SHIELDHIT<shooter>` | My respawn shield blocked a hit from `<shooter>` (shares the 400 ms limit with `HIT`/`OUT`). Older servers ignore it. | Sends `SHIELDHIT<me>` to the shooter only. |
 | `ELIMINATED<shooter>` | I was eliminated by `<shooter>`. Sent reliably (§6). | Scores it (§6.2), then tells the shooter `ELIMINATED<me>` and the shooter's teammates `TEAMELIMINATED`. |
 | `TEAMELIMINATED` | I scored. | Relays it to my teammates. |
 | `PLAYERDATAREQUEST` | Send me the scoreboard. | Replies with `playerdata` (§4.2). |
@@ -118,6 +119,7 @@ game, they reset to the lobby first.
 | `STARTGAME` / `ENDGAME` | The game started or ended. |
 | `SHOTFIRED` | Someone fired. |
 | `HIT<id>` / `OUT<id>` | You hit player `<id>`, or knocked them out. |
+| `SHIELDHIT<id>` | You hit player `<id>`, but their respawn shield blocked it. Older clients ignore it. |
 | `ELIMINATED<id>` | You eliminated player `<id>`. Your score goes up by one. |
 | `TEAMELIMINATED` | A teammate scored. |
 | `ACK<seq>` | All of your reliable messages up to `<seq>` have been applied (§6). |

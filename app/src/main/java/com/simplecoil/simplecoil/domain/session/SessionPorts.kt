@@ -32,6 +32,9 @@ interface SessionNetwork {
     val useNetwork: Boolean
     fun sendHit(playerId: Byte)
     fun sendOut(playerId: Byte)
+
+    /** Our respawn shield blocked a hit from [playerId]. */
+    fun sendShieldHit(playerId: Byte)
     fun sendShotFired()
     fun sendEliminated(playerId: Byte)
 

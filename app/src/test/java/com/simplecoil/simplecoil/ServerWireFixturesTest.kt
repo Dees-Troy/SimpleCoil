@@ -186,6 +186,8 @@ class ServerWireFixturesTest {
         bravo.awaitMesg(WireProtocol.NETMSG_HIT)
         alpha.mesg(WireProtocol.NETMSG_OUT + 17)
         bravo.awaitMesg(WireProtocol.NETMSG_OUT)
+        alpha.mesg(WireProtocol.NETMSG_SHIELDHIT + 17)
+        bravo.awaitMesg(WireProtocol.NETMSG_SHIELDHIT)
         bravo.mesg(WireProtocol.NETMSG_SHOTFIRED)
         charlie.awaitMesg(WireProtocol.NETMSG_SHOTFIRED)
         val outbox = ClientOutbox()

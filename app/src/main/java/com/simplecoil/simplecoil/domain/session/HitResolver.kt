@@ -21,7 +21,7 @@ import com.simplecoil.simplecoil.data.repository.PlayerRepository
 
 /**
  * Turns the two hit slots of a telemetry packet into the damage to apply, the shooter to credit
- * and the HIT/OUT network message to send. Owns the cross-packet state: the (player, shot id)
+ * and the HIT/OUT/SHIELDHIT network message to send. Owns the cross-packet state: the (player, shot id)
  * de-dup memory for both slots and the 400 ms hit-message rate limit.
  *
  * Extracted verbatim from FullscreenActivity.processTelemetryData(). Grenade pairing side effects
@@ -51,8 +51,18 @@ class HitResolver @JvmOverloads constructor(
         fun damage(playerId: Byte): Int?
     }
 
-    /** A HIT (or OUT, when the hit takes health to 0 or below) message crediting [playerId]. */
-    data class Message(val out: Boolean, val playerId: Byte)
+    enum class Kind {
+        HIT,
+
+        /** The hit takes health to 0 or below. */
+        OUT,
+
+        /** The respawn shield blocked the hit. */
+        SHIELDED,
+    }
+
+    /** A HIT, OUT or SHIELDHIT message crediting [playerId]. */
+    data class Message(val kind: Kind, val playerId: Byte)
 
     class Result(
         /** Slot 1 registered a (non grenade-control) hit; counts toward hits taken. */
@@ -76,7 +86,8 @@ class HitResolver @JvmOverloads constructor(
             lastPlayerId2 = PlayerRepository.INVALID_PLAYER_ID
             return NO_HIT
         }
-        if (!context.gameActive || context.shielded) return NO_HIT
+        // In a network game a shielded hit still goes through, so the shooter hears it was shielded
+        if (!context.gameActive || (context.shielded && !context.useNetwork)) return NO_HIT
 
         var healthRemoved = 0
         var hitById: Byte = 0
@@ -102,7 +113,7 @@ class HitResolver @JvmOverloads constructor(
                             hitById = grenadeShooter(shotIdByte1, hitById, lookups)
                         }
                         lookups.damage(hitById)?.let { healthRemoved = it }
-                        rateLimitedMessage(context.currentHealth + healthRemoved, hitById, messages)
+                        rateLimitedMessage(context.currentHealth + healthRemoved, hitById, context.shielded, messages)
                     }
                 }
             }
@@ -125,7 +136,7 @@ class HitResolver @JvmOverloads constructor(
                         }
                         // The shooter's configured damage replaces the default, as for slot 1
                         lookups.damage(hitById)?.let { healthRemoved += it - GameSettingsRepository.DAMAGE_PER_HIT }
-                        rateLimitedMessage(context.currentHealth + healthRemoved, hitById, messages)
+                        rateLimitedMessage(context.currentHealth + healthRemoved, hitById, context.shielded, messages)
                     }
                 }
             }
@@ -142,6 +153,8 @@ class HitResolver @JvmOverloads constructor(
         } else {
             lastPlayerId2 = PlayerRepository.INVALID_PLAYER_ID
         }
+        // Shielded: the shooter is told, but the hit costs nothing and isn't counted
+        if (context.shielded) return Result(false, 0, hitById, messages)
         return Result(countedHit, healthRemoved, hitById, messages)
     }
 
@@ -154,10 +167,15 @@ class HitResolver @JvmOverloads constructor(
         return hitById
     }
 
-    private fun rateLimitedMessage(healthAfter: Int, hitById: Byte, messages: MutableList<Message>) {
+    private fun rateLimitedMessage(healthAfter: Int, hitById: Byte, shielded: Boolean, messages: MutableList<Message>) {
         if (lastHitMessage < clock()) {
             lastHitMessage = clock() + HIT_MESSAGE_INTERVAL_MILLISECONDS
-            messages.add(Message(out = healthAfter <= 0, playerId = hitById))
+            val kind = when {
+                shielded -> Kind.SHIELDED
+                healthAfter <= 0 -> Kind.OUT
+                else -> Kind.HIT
+            }
+            messages.add(Message(kind, hitById))
         }
     }
 

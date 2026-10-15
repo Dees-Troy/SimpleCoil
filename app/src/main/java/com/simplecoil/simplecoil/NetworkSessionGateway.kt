@@ -197,6 +197,10 @@ class NetworkSessionGateway(
         tcpClient?.sendTCPMessage(command(ClientCommand.Out(playerId)))
     }
 
+    override fun sendShieldHit(playerId: Byte) {
+        tcpClient?.sendTCPMessage(command(ClientCommand.ShieldHit(playerId)))
+    }
+
     override fun sendShotFired() {
         tcpClient?.sendTCPMessage(command(ClientCommand.ShotFired))
     }

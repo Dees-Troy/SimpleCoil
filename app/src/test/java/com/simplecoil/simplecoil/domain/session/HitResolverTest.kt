@@ -135,11 +135,28 @@ class HitResolverTest {
     // --- game state gating ------------------------------------------------------------------
 
     @Test
-    fun inactiveOrShielded_ignoresHitWithoutRememberingIt() {
+    fun inactiveOrShieldedLocal_ignoresHitWithoutRememberingIt() {
         assertNoHit(resolve(GOLDEN_HIT_BY_PLAYER_2, context(gameActive = false)))
         assertNoHit(resolve(GOLDEN_HIT_BY_PLAYER_2, context(shielded = true)))
         // Nothing was recorded for de-dup, so the same shot counts once the game is live.
         assertEquals(GameSettingsRepository.DAMAGE_PER_HIT, resolve(GOLDEN_HIT_BY_PLAYER_2).healthRemoved)
+    }
+
+    @Test
+    fun shieldedNetworkHit_costsNothingAndSendsShieldHit() {
+        val r = resolve(GOLDEN_HIT_BY_PLAYER_2, context(shielded = true, useNetwork = true))
+        assertFalse(r.countedHit)
+        assertEquals(0, r.healthRemoved)
+        assertEquals(listOf(HitResolver.Message(HitResolver.Kind.SHIELDED, playerId = 2)), r.messages)
+        // The shielded shot is remembered, so it doesn't count when reported again after the shield
+        assertNoHit(resolve(GOLDEN_HIT_BY_PLAYER_2, context(useNetwork = true)))
+    }
+
+    @Test
+    fun shieldedNetworkHit_fromTeammate_sendsNothing() {
+        val r = resolve(GOLDEN_HIT_BY_PLAYER_2, context(shielded = true, useNetwork = true, myNetworkTeam = 7),
+            FakeLookups(teams = mapOf(2.toByte() to 7)))
+        assertTrue(r.messages.isEmpty())
     }
 
     // --- de-dup -----------------------------------------------------------------------------
@@ -188,13 +205,13 @@ class HitResolverTest {
         assertTrue(r.countedHit)
         assertEquals(GameSettingsRepository.DAMAGE_PER_HIT, r.healthRemoved)
         assertEquals(2.toByte(), r.hitById)
-        assertEquals(listOf(HitResolver.Message(out = false, playerId = 2)), r.messages)
+        assertEquals(listOf(HitResolver.Message(HitResolver.Kind.HIT, playerId = 2)), r.messages)
     }
 
     @Test
     fun networkHit_takingHealthToZero_sendsOut() {
         val r = resolve(GOLDEN_HIT_BY_PLAYER_2, context(useNetwork = true, currentHealth = 1))
-        assertEquals(listOf(HitResolver.Message(out = true, playerId = 2)), r.messages)
+        assertEquals(listOf(HitResolver.Message(HitResolver.Kind.OUT, playerId = 2)), r.messages)
     }
 
     @Test
@@ -225,7 +242,7 @@ class HitResolverTest {
         val r = resolve(GOLDEN_GRENADE_DAMAGE, context(useNetwork = true, myNetworkTeam = 1), lookups)
         assertEquals(5.toByte(), r.hitById)
         assertEquals(GameSettingsRepository.DAMAGE_PER_HIT, r.healthRemoved)
-        assertEquals(listOf(HitResolver.Message(out = false, playerId = 5)), r.messages)
+        assertEquals(listOf(HitResolver.Message(HitResolver.Kind.HIT, playerId = 5)), r.messages)
     }
 
     @Test
@@ -281,7 +298,7 @@ class HitResolverTest {
         val r = resolve(GOLDEN_DOUBLE_HIT, context(useNetwork = true, myNetworkTeam = 7), lookups)
         assertEquals(GameSettingsRepository.DAMAGE_PER_HIT, r.healthRemoved)
         assertEquals(3.toByte(), r.hitById)
-        assertEquals(listOf(HitResolver.Message(out = false, playerId = 3)), r.messages)
+        assertEquals(listOf(HitResolver.Message(HitResolver.Kind.HIT, playerId = 3)), r.messages)
     }
 
     @Test

@@ -36,6 +36,7 @@ object WireProtocol {
     const val NETMSG_SHOTFIRED = "SHOTFIRED"
     const val NETMSG_HIT = "HIT"
     const val NETMSG_OUT = "OUT"
+    const val NETMSG_SHIELDHIT = "SHIELDHIT"
     const val NETMSG_ELIMINATED = "ELIMINATED"
     const val NETMSG_LEAVE = "LEAVE"
     const val NETMSG_STARTGAME = "STARTGAME"

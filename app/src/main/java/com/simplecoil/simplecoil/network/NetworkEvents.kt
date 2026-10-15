@@ -31,6 +31,7 @@ sealed interface ClientEvent {
     data object ShotFired : ClientEvent
     data class Hit(val playerId: Byte) : ClientEvent
     data class Out(val playerId: Byte) : ClientEvent
+    data class ShieldHit(val playerId: Byte) : ClientEvent
     data class Eliminated(val playerId: Byte) : ClientEvent
     data object TeamEliminated : ClientEvent
 

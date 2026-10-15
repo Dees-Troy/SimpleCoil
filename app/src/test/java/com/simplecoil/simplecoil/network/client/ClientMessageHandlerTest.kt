@@ -112,6 +112,8 @@ class ClientMessageHandlerTest {
         assertEquals(listOf(ClientEvent.Hit(0)), eventsFor(mesg + WireProtocol.NETMSG_HIT))
         assertEquals(listOf(ClientEvent.Out(17)), eventsFor(mesg + WireProtocol.NETMSG_OUT + "17"))
         assertEquals(listOf(ClientEvent.Out(0)), eventsFor(mesg + WireProtocol.NETMSG_OUT + "x"))
+        assertEquals(listOf(ClientEvent.ShieldHit(5)), eventsFor(mesg + WireProtocol.NETMSG_SHIELDHIT + "5"))
+        assertEquals(listOf(ClientEvent.ShieldHit(0)), eventsFor(mesg + WireProtocol.NETMSG_SHIELDHIT))
     }
 
     @Test

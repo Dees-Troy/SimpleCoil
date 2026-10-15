@@ -86,6 +86,8 @@ class ServerMessageHandler(
                 command.shooterId?.let { server.sendToPlayer(command(ServerCommand.Hit(playerIdOf(client))), it) }
             command is ClientCommand.Out ->
                 command.shooterId?.let { server.sendToPlayer(command(ServerCommand.Out(playerIdOf(client))), it) }
+            command is ClientCommand.ShieldHit ->
+                command.shooterId?.let { server.sendToPlayer(command(ServerCommand.ShieldHit(playerIdOf(client))), it) }
             command == ClientCommand.TeamEliminated ->
                 server.sendToTeam(command(ServerCommand.TeamEliminated), playerIdOf(client), includePlayer = false)
             command == ClientCommand.PlayerDataRequest -> server.sendPlayerData(playerIdOf(client).toInt())

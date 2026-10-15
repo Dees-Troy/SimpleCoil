@@ -452,9 +452,10 @@ class BlasterSessionEngineTest {
         h.advance(10_000)
         assertEquals(GameStateRepository.GAME_STATE_RUNNING, h.config.gameState)
         assertTrue(h.state.shieldSeconds != null)
-        // Shielded: hits are ignored
+        // Shielded: hits cost nothing, but the shooter is told
         h.telemetry(Packet().hit1(0x08, 0x3B))
         assertEquals(1, h.state.health)
+        assertEquals("SHIELDHIT2", h.rec.net.last())
         h.advance(3_000)
         assertEquals(null, h.state.shieldSeconds)
         h.telemetry(Packet().noHit())

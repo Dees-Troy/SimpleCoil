@@ -31,6 +31,7 @@ import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_ERROR
 import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_HIT
 import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_LEAVE
 import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_OUT
+import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_SHIELDHIT
 import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_PLAYERDATAREQUEST
 import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_SCOREMATRIXREQUEST
 import com.simplecoil.simplecoil.network.WireProtocol.NETMSG_SERVERCANCEL
@@ -439,6 +440,7 @@ object WireCodec {
         ClientCommand.ShotFired -> NETMSG_SHOTFIRED
         is ClientCommand.Hit -> NETMSG_HIT + command.shooterId.argument()
         is ClientCommand.Out -> NETMSG_OUT + command.shooterId.argument()
+        is ClientCommand.ShieldHit -> NETMSG_SHIELDHIT + command.shooterId.argument()
         is ClientCommand.Eliminated -> NETMSG_ELIMINATED + command.shooterId.argument()
         ClientCommand.TeamEliminated -> NETMSG_TEAMELIMINATED
         ClientCommand.PlayerDataRequest -> NETMSG_PLAYERDATAREQUEST
@@ -463,6 +465,7 @@ object WireCodec {
         ServerCommand.ShotFired -> NETMSG_SHOTFIRED
         is ServerCommand.Hit -> NETMSG_HIT + command.targetId.argument()
         is ServerCommand.Out -> NETMSG_OUT + command.targetId.argument()
+        is ServerCommand.ShieldHit -> NETMSG_SHIELDHIT + command.targetId.argument()
         is ServerCommand.Eliminated -> NETMSG_ELIMINATED + command.victimId.argument()
         ServerCommand.TeamEliminated -> NETMSG_TEAMELIMINATED
         is ServerCommand.ServerReply -> NETMSG_SERVERREPLY + command.playerId.argument()
@@ -480,6 +483,7 @@ object WireCodec {
         text == NETMSG_SHOTFIRED -> ClientCommand.ShotFired
         text.startsWith(NETMSG_HIT) -> ClientCommand.Hit(strictId(text.after(NETMSG_HIT)))
         text.startsWith(NETMSG_OUT) -> ClientCommand.Out(strictId(text.after(NETMSG_OUT)))
+        text.startsWith(NETMSG_SHIELDHIT) -> ClientCommand.ShieldHit(strictId(text.after(NETMSG_SHIELDHIT)))
         text == NETMSG_TEAMELIMINATED -> ClientCommand.TeamEliminated
         text == NETMSG_PLAYERDATAREQUEST -> ClientCommand.PlayerDataRequest
         text == NETMSG_SCOREMATRIXREQUEST -> ClientCommand.ScoreMatrixRequest
@@ -511,6 +515,7 @@ object WireCodec {
         text.startsWith(NETMSG_ELIMINATED) -> ServerCommand.Eliminated(lenientId(text.after(NETMSG_ELIMINATED)))
         text.startsWith(NETMSG_HIT) -> ServerCommand.Hit(lenientId(text.after(NETMSG_HIT)))
         text.startsWith(NETMSG_OUT) -> ServerCommand.Out(lenientId(text.after(NETMSG_OUT)))
+        text.startsWith(NETMSG_SHIELDHIT) -> ServerCommand.ShieldHit(lenientId(text.after(NETMSG_SHIELDHIT)))
         text == NETMSG_SHOTFIRED -> ServerCommand.ShotFired
         text.startsWith(NETMSG_SERVERREPLY) -> ServerCommand.ServerReply(lenientId(text.after(NETMSG_SERVERREPLY)))
         text == NETMSG_TEAMELIMINATED -> ServerCommand.TeamEliminated

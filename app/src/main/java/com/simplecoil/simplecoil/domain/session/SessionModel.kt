@@ -70,7 +70,12 @@ data class SessionState(
 )
 
 /** Game sounds. SCORE is played by the network side, the rest by the session. */
-enum class SessionSound { BEEP, ELIMINATED, EMPTY, HIT, RELOAD, SCORE, SHOT, SPAWN }
+enum class SessionSound {
+    BEEP, ELIMINATED, EMPTY, HIT, RELOAD, SCORE, SHOT, SPAWN,
+
+    /** Our shot hit another player (HIT, OUT or SHIELDHIT from the server). */
+    HIT_CONFIRM, HIT_ELIMINATED, HIT_SHIELDED,
+}
 
 enum class SessionToast { GRENADE_PAIRED, OUT_OF_LIVES, RECOIL_FORCED_ENABLED, RECOIL_FORCED_DISABLED, GAME_TIME_EXPIRED }
 

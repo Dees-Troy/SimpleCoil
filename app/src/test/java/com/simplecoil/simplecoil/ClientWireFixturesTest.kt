@@ -170,6 +170,7 @@ class ClientWireFixturesTest {
             gateway.sendShotFired()
             gateway.sendHit(17)
             gateway.sendOut(17)
+            gateway.sendShieldHit(17)
             // The play screen's own commands (GameViewModel), built the same way
             for (command in listOf(ClientCommand.TeamEliminated, ClientCommand.PlayerDataRequest,
                     ClientCommand.ScoreMatrixRequest, ClientCommand.StartGame, ClientCommand.AdminStartGame, ClientCommand.AdminEndGame, ClientCommand.AdminSortTeams, ClientCommand.AdminReset,

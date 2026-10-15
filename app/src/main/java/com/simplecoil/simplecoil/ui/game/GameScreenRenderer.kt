@@ -34,6 +34,7 @@ import com.simplecoil.simplecoil.databinding.ActivityFullscreenBinding
 import com.simplecoil.simplecoil.domain.session.BatteryLevelPolicy
 import com.simplecoil.simplecoil.domain.session.ClockFormat
 import com.simplecoil.simplecoil.domain.session.GameClock
+import com.simplecoil.simplecoil.domain.session.HitResolver
 import com.simplecoil.simplecoil.domain.session.SessionState
 import com.simplecoil.simplecoil.domain.session.SpawnPhase
 import com.simplecoil.simplecoil.domain.team.TeamMode
@@ -470,11 +471,15 @@ class GameScreenRenderer(
         }
     }
 
-    override fun showHitOtherPlayer(out: Boolean, name: String) {
+    override fun showHitOtherPlayer(kind: HitResolver.Kind, name: String) {
         if (hitPlayerAnimation != null) return
-        // Show the "you hit a player" / "you hit a player that's already out" animation
+        // Show the "you hit a player" / "you hit a player that's already out" / "you hit a player's shield" animation
         b.hitPlayerIv.visibility = View.VISIBLE
-        b.hitPlayerIv.setBackgroundResource(if (out) R.drawable.hit_other_player_out_animation else R.drawable.hit_other_player_animation)
+        b.hitPlayerIv.setBackgroundResource(when (kind) {
+            HitResolver.Kind.HIT -> R.drawable.hit_other_player_animation
+            HitResolver.Kind.OUT -> R.drawable.hit_other_player_out_animation
+            HitResolver.Kind.SHIELDED -> R.drawable.hit_other_player_shielded_animation
+        })
         val fadeOut = AnimationUtils.loadAnimation(context.applicationContext, R.anim.fadeout)
         b.hitPlayerIv.startAnimation(fadeOut)
         val animation = b.hitPlayerIv.background as AnimationDrawable

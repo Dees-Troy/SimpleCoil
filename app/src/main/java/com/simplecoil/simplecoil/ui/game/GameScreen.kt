@@ -18,6 +18,7 @@ package com.simplecoil.simplecoil.ui.game
 
 import com.simplecoil.simplecoil.PlayerDisplayData
 import com.simplecoil.simplecoil.domain.rules.Limits
+import com.simplecoil.simplecoil.domain.session.HitResolver
 import com.simplecoil.simplecoil.domain.session.SessionToast
 import com.simplecoil.simplecoil.domain.team.TeamMode
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreMatrixState
@@ -129,7 +130,7 @@ interface GameView {
     fun hideStartButton()
     fun showNetworkConnected(connected: Boolean)
     fun showShotsFired()
-    fun showHitOtherPlayer(out: Boolean, name: String)
+    fun showHitOtherPlayer(kind: HitResolver.Kind, name: String)
     fun showScoreIncrease(name: String)
 }
 

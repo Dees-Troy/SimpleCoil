@@ -75,6 +75,7 @@ class Recorder : BlasterCommands, SessionNetwork, SessionPreferences {
 
     override fun sendHit(playerId: Byte) { net += "HIT$playerId" }
     override fun sendOut(playerId: Byte) { net += "OUT$playerId" }
+    override fun sendShieldHit(playerId: Byte) { net += "SHIELDHIT$playerId" }
     override fun sendShotFired() { net += "SHOTFIRED" }
     override fun sendEliminated(playerId: Byte) { net += "ELIMINATED$playerId" }
     override fun sendPlayerGrenade() { net += "GRENADE" }

@@ -556,7 +556,11 @@ class BlasterSessionEngine(
             _state.update { it.copy(hitsTaken = hitsTaken) }
         }
         for (message in hit.messages) {
-            if (message.out) network?.sendOut(message.playerId) else network?.sendHit(message.playerId)
+            when (message.kind) {
+                HitResolver.Kind.HIT -> network?.sendHit(message.playerId)
+                HitResolver.Kind.OUT -> network?.sendOut(message.playerId)
+                HitResolver.Kind.SHIELDED -> network?.sendShieldHit(message.playerId)
+            }
         }
         if (hit.healthRemoved != 0 && config.gameState == GameStateRepository.GAME_STATE_RUNNING) {
             applyDamage(hit.healthRemoved, hit.hitById, useNetwork)

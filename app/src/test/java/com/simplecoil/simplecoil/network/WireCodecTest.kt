@@ -37,7 +37,7 @@ class WireCodecTest {
     // ------------------------------------------------------------------------------------------
 
     private val clientCommands = listOf(
-        ClientCommand.ShotFired, ClientCommand.Hit(17), ClientCommand.Out(17), ClientCommand.TeamEliminated,
+        ClientCommand.ShotFired, ClientCommand.Hit(17), ClientCommand.Out(17), ClientCommand.ShieldHit(17), ClientCommand.TeamEliminated,
         ClientCommand.PlayerDataRequest, ClientCommand.ScoreMatrixRequest, ClientCommand.StartGame, ClientCommand.AdminStartGame, ClientCommand.AdminEndGame,
         ClientCommand.AdminSortTeams, ClientCommand.AdminReset, ClientCommand.AdminGameMode(4), ClientCommand.AdminKick(17),
         ClientCommand.AdminTeamSizes(listOf(10, 6, 8, 8)), ClientCommand.Leave,
@@ -53,7 +53,7 @@ class WireCodecTest {
     private val serverCommands = listOf(
         ServerCommand.Ack(1), ServerCommand.Eliminated(1), ServerCommand.EndGame, ServerCommand.Error("Reset the game first"),
         ServerCommand.Hit(1), ServerCommand.Out(1), ServerCommand.ServerCancel, ServerCommand.ServerReply(1),
-        ServerCommand.ServerReply(17), ServerCommand.ServerReply(2), ServerCommand.ShotFired, ServerCommand.StartGame,
+        ServerCommand.ServerReply(17), ServerCommand.ServerReply(2), ServerCommand.ShieldHit(1), ServerCommand.ShotFired, ServerCommand.StartGame,
         ServerCommand.TeamEliminated,
     )
 

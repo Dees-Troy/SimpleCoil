@@ -87,6 +87,7 @@ class ClientMessageHandler(
             // Without an id the screen names player 0, as the broadcast's default did
             is ServerCommand.Hit -> events.publish(ClientEvent.Hit(command.targetId ?: 0))
             is ServerCommand.Out -> events.publish(ClientEvent.Out(command.targetId ?: 0))
+            is ServerCommand.ShieldHit -> events.publish(ClientEvent.ShieldHit(command.targetId ?: 0))
             ServerCommand.ShotFired -> events.publish(ClientEvent.ShotFired)
             is ServerCommand.ServerReply -> {
                 command.playerId?.let { players.playerID = it }
