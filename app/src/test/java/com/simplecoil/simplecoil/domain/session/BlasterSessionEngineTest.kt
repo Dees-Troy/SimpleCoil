@@ -228,8 +228,22 @@ class BlasterSessionEngineTest {
     }
 
     @Test
-    fun reloadOnEmpty_reloadsWhenLastShotIsFired_withoutReloadSound() {
+    fun reloadOnEmpty_withShortReloadTime_reloadsWhenLastShotIsFired_withoutReloadSound() {
         h.config.reloadOnEmpty = true
+        h.config.reloadTimeMillis = BlasterSessionEngine.RELOAD_ON_EMPTY_SILENT_MAX_MILLIS
+        reloadOnEmpty()
+        assertFalse(h.sounds().contains(SessionSound.RELOAD))
+    }
+
+    @Test
+    fun reloadOnEmpty_withLongReloadTime_playsReloadSound() {
+        h.config.reloadOnEmpty = true
+        h.config.reloadTimeMillis = BlasterSessionEngine.RELOAD_ON_EMPTY_SILENT_MAX_MILLIS + 1
+        reloadOnEmpty()
+        assertTrue(h.sounds().contains(SessionSound.RELOAD))
+    }
+
+    private fun reloadOnEmpty() {
         h.connected()
         h.startedAndSpawned()
         h.telemetry(Packet().shots(1))
@@ -237,9 +251,9 @@ class BlasterSessionEngineTest {
         h.telemetry(Packet().shots(0))
         assertEquals(listOf("startReload:5"), h.rec.ble)
         h.writeFinished()
-        h.advance(1_500)
+        h.advance(h.config.reloadTimeMillis)
         h.writeFinished()
-        assertFalse(h.sounds().contains(SessionSound.RELOAD))
+        assertEquals(listOf("startReload:5", "finishReload:5/30"), h.rec.ble)
     }
 
     @Test

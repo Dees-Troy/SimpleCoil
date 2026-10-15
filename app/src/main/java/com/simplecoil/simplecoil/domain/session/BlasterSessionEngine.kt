@@ -372,7 +372,10 @@ class BlasterSessionEngine(
         } else if (reloading == RELOADING_FINISHING) {
             reloading = RELOADING_NONE
             _state.update { it.copy(reloadBarShown = false) }
-            if (!config.reloadOnEmpty) emit(SessionEffect.Sound(SessionSound.RELOAD))
+            // A quick automatic reload is barely noticeable, so it's not worth a sound
+            if (!config.reloadOnEmpty || config.reloadTimeMillis > RELOAD_ON_EMPTY_SILENT_MAX_MILLIS) {
+                emit(SessionEffect.Sound(SessionSound.RELOAD))
+            }
             Log.d(TAG, "Reload finished")
         }
     }
@@ -719,6 +722,9 @@ class BlasterSessionEngine(
 
         /** Automatically reloads after this many empty trigger pulls (for young players). */
         const val MAX_EMPTY_TRIGGER_PULLS = 3
+
+        /** With reload on empty, reloads this short or shorter finish without the reload sound. */
+        const val RELOAD_ON_EMPTY_SILENT_MAX_MILLIS = 1000L
 
         /** §1.6: first packet of a connection → set team after this delay (if a player id is set). */
         const val FIRST_PACKET_TEAM_DELAY_MILLIS = 250L
