@@ -153,6 +153,7 @@ class GameViewModelTest {
         vm.onEndGameConfirmed()
         assertEquals(GameStateRepository.GAME_STATE_NONE, gameState.gameState)
         verify(screen).showGameEnded(false, false)
+        assertTrue(SessionSound.GAME_END in sounds)
         verify(client, never()).sendTCPMessage("SimpleCoil:07MESGPLAYERDATAREQUEST") // no scoreboard after a local game
     }
 
@@ -552,6 +553,7 @@ class GameViewModelTest {
         verify(screen).showGameStarted(true, false, false)
         emitNetwork(ClientEvent.EndGame)
         assertEquals(GameStateRepository.GAME_STATE_NONE, gameState.gameState)
+        assertTrue(SessionSound.GAME_END in sounds)
         verify(client).sendTCPMessage("SimpleCoil:07MESGPLAYERDATAREQUEST")
     }
 

@@ -44,7 +44,7 @@ class SessionFeedbackTest {
             SessionSound.HIT to R.raw.hit, SessionSound.RELOAD to R.raw.reload, SessionSound.SCORE to R.raw.score,
             SessionSound.SHOT to R.raw.shootingshort, SessionSound.SPAWN to R.raw.spawn,
             SessionSound.HIT_CONFIRM to R.raw.hit_confirm, SessionSound.HIT_ELIMINATED to R.raw.hit_eliminated,
-            SessionSound.HIT_SHIELDED to R.raw.hit_shielded)
+            SessionSound.HIT_SHIELDED to R.raw.hit_shielded, SessionSound.GAME_END to R.raw.game_end)
         for (sound in SessionSound.values()) {
             assertEquals(sound.name, expected[sound], AudioHapticsPlayer.effect(sound).rawResId)
         }

@@ -695,11 +695,13 @@ class GameViewModel(
     }
 
     private fun endGame() {
-        val wasInNetworkGame = net.useNetwork && gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE
+        val wasInGame = gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE
+        val wasInNetworkGame = net.useNetwork && wasInGame
         // Game state NONE, timers, spawn/shield/clock display, reload lock
         engine.endGame()
         hideWeaponDisconnect()
         screen?.showGameEnded(net.useNetwork, freeForAll())
+        if (wasInGame) sounds.play(SessionSound.GAME_END)
         updatePreGameButtonVisibilities()
         if (ready && net.useNetwork) {
             setNetworkMenu(NETWORK_TYPE_JOINED)

@@ -58,7 +58,8 @@ public class AudioHapticsManager {
         SCORE(R.raw.score),
         HIT_CONFIRM(R.raw.hit_confirm),
         HIT_ELIMINATED(R.raw.hit_eliminated),
-        HIT_SHIELDED(R.raw.hit_shielded);
+        HIT_SHIELDED(R.raw.hit_shielded),
+        GAME_END(R.raw.game_end);
 
         private final int rawResId;
 

@@ -75,6 +75,9 @@ enum class SessionSound {
 
     /** Our shot hit another player (HIT, OUT or SHIELDHIT from the server). */
     HIT_CONFIRM, HIT_ELIMINATED, HIT_SHIELDED,
+
+    /** A running game ended, offline or networked. */
+    GAME_END,
 }
 
 enum class SessionToast { GRENADE_PAIRED, OUT_OF_LIVES, RECOIL_FORCED_ENABLED, RECOIL_FORCED_DISABLED, GAME_TIME_EXPIRED }
