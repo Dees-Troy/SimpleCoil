@@ -676,7 +676,7 @@ class GameScreenRenderer(
     companion object {
         // If you change these durations you will also need to change the duration in the res/anim/fadeout XML files to match
         const val HIT_ANIMATION_DURATION_MILLISECONDS = 400L
-        const val HIT_PLAYER_DISPLAY_DURATION_MILLISECONDS = 1000L // res/anim/hitplayerfadeout
+        const val HIT_PLAYER_DISPLAY_DURATION_MILLISECONDS = 2000L // res/anim/hitplayerfadeout
         const val HIT_PLAYER_STACK_LIMIT = 3
         const val ELIMINATED_ANIMATION_DURATION_MILLISECONDS = 800L
     }
