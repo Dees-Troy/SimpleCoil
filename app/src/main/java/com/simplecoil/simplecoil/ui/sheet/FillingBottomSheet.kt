@@ -17,6 +17,7 @@
 package com.simplecoil.simplecoil.ui.sheet
 
 import android.view.View
+import android.view.ViewGroup
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.bottomsheet.BottomSheetBehavior
@@ -27,16 +28,19 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
  * [coordinator], and Back or another tap collapses it again.
  *
  * [scroll] holds [content] and is padded by the peek height, so nothing hides behind the sheet;
- * it needs clipToPadding off. [onCollapsed] runs each time the sheet settles collapsed.
+ * it needs clipToPadding off. Expanded, the sheet stops below [keepAbove], a view in [content],
+ * and the controls scroll back to the top so it shows. [onCollapsed] runs each time the sheet
+ * settles collapsed.
  */
 class FillingBottomSheet(
     activity: AppCompatActivity,
-    sheet: View,
+    private val sheet: View,
     header: View,
     private val coordinator: View,
     private val content: View,
     private val scroll: View,
     private val minPeek: Int,
+    private val keepAbove: View? = null,
     onCollapsed: () -> Unit = {},
 ) {
     private val behavior = BottomSheetBehavior.from(sheet)
@@ -62,7 +66,9 @@ class FillingBottomSheet(
                 if (newState == BottomSheetBehavior.STATE_COLLAPSED) onCollapsed()
             }
 
-            override fun onSlide(bottomSheet: View, slideOffset: Float) = Unit
+            override fun onSlide(bottomSheet: View, slideOffset: Float) {
+                if (keepAbove != null && slideOffset > 0 && scroll.scrollY != 0) scroll.scrollTo(0, 0)
+            }
         })
         // Registered after the activity's own Back handling, so it goes first while expanded.
         activity.onBackPressedDispatcher.addCallback(activity, collapseOnBack)
@@ -79,5 +85,20 @@ class FillingBottomSheet(
         if (scroll.paddingBottom != peek) {
             scroll.post { scroll.setPadding(0, 0, 0, peek) }
         }
+        val height = keepAbove?.let { maxOf(peek, coordinator.height - bottomOf(it)) } ?: ViewGroup.LayoutParams.MATCH_PARENT
+        if (sheet.layoutParams.height != height) {
+            sheet.post { sheet.layoutParams = sheet.layoutParams.apply { this.height = height } }
+        }
+    }
+
+    /** [view]'s bottom in [coordinator] with the controls scrolled to the top. */
+    private fun bottomOf(view: View): Int {
+        var bottom = view.bottom
+        var parent = view.parent as View
+        while (parent !== scroll) {
+            bottom += parent.top
+            parent = parent.parent as View
+        }
+        return bottom + scroll.top
     }
 }

@@ -83,15 +83,6 @@
                         android:layout_below="@+id/server_ip_tv"
                         android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
-                    <Button
-                        android:id="@+id/team_mode_toggle_button"
-                        style="@style/Widget.AppCompat.Button.Colored"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="10dp"
-                        android:layout_below="@id/player_count_tv"
-                        android:text="@string/team_mode_toggle_button" />
-
                     <TextView
                         android:id="@+id/game_limit_tv"
                         android:layout_width="wrap_content"
@@ -101,62 +92,46 @@
                         android:layout_alignTop="@id/player_count_tv"
                         android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
-                    <Button
-                        android:id="@+id/game_limit_button"
-                        style="@style/Widget.AppCompat.Button.Colored"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginEnd="10dp"
-                        android:layout_alignParentEnd="true"
-                        android:layout_below="@id/player_count_tv"
-                        android:text="@string/game_limit_button" />
-
-                    <Button
-                        android:id="@+id/starting_timer_button"
-                        style="@style/Widget.AppCompat.Button.Colored"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginEnd="10dp"
-                        android:layout_alignParentEnd="true"
-                        android:layout_below="@id/game_limit_button"
-                        android:text="@string/starting_timer_button" />
-
-                    <Button
-                        android:id="@+id/gps_mode_button"
-                        style="@style/Widget.AppCompat.Button.Colored"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="10dp"
-                        android:layout_below="@id/team_mode_toggle_button"
-                        android:text="@string/gps_mode_disabled" />
-
-                    <!-- The game's lifecycle, below the settings: its phase, then Start → End → Reset in
-                         order. Only the step to the next phase is enabled. -->
-                    <View
+                    <!-- The game's lifecycle: its phase on the divider, then Start → End → Reset in order. Only the
+                         step to the next phase is enabled. The expanded player sheet stops below it. -->
+                    <LinearLayout
                         android:id="@+id/phase_divider"
                         android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:layout_below="@id/gps_mode_button"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@id/player_count_tv"
                         android:layout_marginStart="10dp"
                         android:layout_marginEnd="10dp"
-                        android:layout_marginTop="5dp"
-                        android:background="#444444" />
+                        android:layout_marginTop="10dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
 
-                    <TextView
-                        android:id="@+id/game_status_tv"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_below="@id/phase_divider"
-                        android:layout_centerHorizontal="true"
-                        android:layout_marginTop="8dp"
-                        android:text="@string/dedicated_game_waiting"
-                        android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+                        <View
+                            android:layout_width="0dp"
+                            android:layout_height="1dp"
+                            android:layout_weight="1"
+                            android:background="#444444" />
+
+                        <TextView
+                            android:id="@+id/game_status_tv"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginEnd="8dp"
+                            android:text="@string/dedicated_game_waiting"
+                            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+                        <View
+                            android:layout_width="0dp"
+                            android:layout_height="1dp"
+                            android:layout_weight="1"
+                            android:background="#444444" />
+                    </LinearLayout>
 
                     <LinearLayout
                         android:id="@+id/phase_controls"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_below="@id/game_status_tv"
+                        android:layout_below="@id/phase_divider"
                         android:layout_marginStart="10dp"
                         android:layout_marginEnd="10dp"
                         android:gravity="center_vertical"
@@ -215,11 +190,82 @@
                             android:text="@string/dedicated_reset_button" />
                     </LinearLayout>
 
+                    <!-- Everything below sets up the game and the server. -->
+                    <LinearLayout
+                        android:id="@+id/settings_divider"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@id/phase_controls"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginEnd="10dp"
+                        android:layout_marginTop="5dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <View
+                            android:layout_width="0dp"
+                            android:layout_height="1dp"
+                            android:layout_weight="1"
+                            android:background="#444444" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="8dp"
+                            android:layout_marginEnd="8dp"
+                            android:text="@string/dedicated_settings_label"
+                            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+                        <View
+                            android:layout_width="0dp"
+                            android:layout_height="1dp"
+                            android:layout_weight="1"
+                            android:background="#444444" />
+                    </LinearLayout>
+
+                    <Button
+                        android:id="@+id/team_mode_toggle_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:layout_below="@id/settings_divider"
+                        android:text="@string/team_mode_toggle_button" />
+
+                    <Button
+                        android:id="@+id/game_limit_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="10dp"
+                        android:layout_alignParentEnd="true"
+                        android:layout_below="@id/settings_divider"
+                        android:text="@string/game_limit_button" />
+
+                    <Button
+                        android:id="@+id/starting_timer_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="10dp"
+                        android:layout_alignParentEnd="true"
+                        android:layout_below="@id/game_limit_button"
+                        android:text="@string/starting_timer_button" />
+
+                    <Button
+                        android:id="@+id/gps_mode_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:layout_below="@id/team_mode_toggle_button"
+                        android:text="@string/gps_mode_disabled" />
+
                     <androidx.appcompat.widget.SwitchCompat
                         android:id="@+id/allow_join_switch"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_below="@id/phase_controls"
+                        android:layout_below="@id/gps_mode_button"
                         android:layout_marginStart="10dp"
                         android:layout_marginEnd="10dp"
                         android:layout_marginTop="5dp"

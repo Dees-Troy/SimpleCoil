@@ -117,12 +117,12 @@ class DedicatedServerActivity : AppCompatActivity() {
         allowChooseTeamsSwitch.setOnClickListener { vm.onAllowChooseTeamsChanged(allowChooseTeamsSwitch.isChecked) }
     }
 
-    /** The players in a bottom sheet under the controls; the large-screen layout shows them beside the controls instead. */
+    /** The players in a bottom sheet under the controls, never over Start/End/Reset; the large-screen layout shows them beside the controls instead. */
     private fun attachPlayerSheet() {
         val b = binding
         val sheet = b.playerSheet ?: return
         FillingBottomSheet(this, sheet, b.playerSheetHeader!!, b.serverCoordinator!!, b.serverContent!!, b.serverScroll!!,
-            resources.getDimensionPixelSize(R.dimen.player_sheet_min_peek)) { b.playerList.scrollToPosition(0) }
+            resources.getDimensionPixelSize(R.dimen.player_sheet_min_peek), keepAbove = b.phaseControls) { b.playerList.scrollToPosition(0) }
     }
 
     private fun showMenu(anchor: View, menu: Int) {
