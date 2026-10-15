@@ -121,9 +121,8 @@ class PlayerSettingsDialog : DialogFragment() {
         applyToAllSwitch.isChecked = false
         applyToTeamSwitch.isChecked = false
         applyToTeamSwitch.visibility = if (teamCount == 0) View.GONE else View.VISIBLE
-        adminSwitch.visibility = View.VISIBLE
+        playerSection.visibility = View.VISIBLE
         adminSwitch.isChecked = values.isAdmin
-        kickPlayerButton.visibility = View.VISIBLE
         recoilSettingButton.visibility = View.VISIBLE
         showRecoilSetting()
         if (teamCount == 0) {
@@ -135,11 +134,11 @@ class PlayerSettingsDialog : DialogFragment() {
     }
 
     private fun hideServerControls() = with(binding) {
-        adminSwitch.visibility = View.GONE
-        kickPlayerButton.visibility = View.GONE
+        playerSection.visibility = View.GONE
         recoilSettingButton.visibility = View.GONE
-        switchTeamButton.visibility = View.GONE
         firingModeButton.visibility = View.GONE
+        // Reset Defaults stays under the divider, with no apply switches to label
+        applySectionTitle.visibility = View.GONE
         applyToAllSwitch.visibility = View.GONE
         applyToTeamSwitch.visibility = View.GONE
     }
@@ -202,9 +201,12 @@ class PlayerSettingsDialog : DialogFragment() {
             Toast.makeText(requireContext(), R.string.firing_mode_cone_toast, Toast.LENGTH_LONG).show()
         }
         resetDefaultsButton.setOnClickListener {
-            show(PlayerSettingsValues())
-            firingMode = GameSettingsRepository.FIRING_MODE_OUTDOOR_NO_CONE
+            val defaults = PlayerSettingsValues()
+            show(defaults)
+            firingMode = defaults.firingMode
             showFiringMode()
+            recoilSetting = defaults.recoilSetting
+            showRecoilSetting()
         }
         applyToAllSwitch.setOnClickListener { if (applyToAllSwitch.isChecked) applyToTeamSwitch.isChecked = false }
         applyToTeamSwitch.setOnClickListener { if (applyToTeamSwitch.isChecked) applyToAllSwitch.isChecked = false }

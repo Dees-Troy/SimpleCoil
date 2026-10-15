@@ -21,218 +21,122 @@
             android:textColor="#FFFFFF"
             android:textAppearance="?android:attr/textAppearanceLarge" />
 
-        <View
-            android:layout_width="fill_parent"
-            android:layout_height="1dip"
-            android:background="#444444" />
+        <TextView
+            style="@style/PlayerSettingsSection"
+            android:text="@string/player_settings_section_health" />
+
+        <View style="@style/PlayerSettingsDivider" />
 
         <TextView
+            style="@style/PlayerSettingsLabel"
             android:id="@+id/health_title"
             android:labelFor="@+id/health_et"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:text="@string/player_settings_health_title"
-            android:textColor="#FFFFFF"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
+            android:text="@string/player_settings_health_title" />
 
         <EditText
+            style="@style/PlayerSettingsField"
             android:id="@+id/health_et"
             android:importantForAutofill="no"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:digits="0123456789"
             android:maxLength="3"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#AAAAAA"
-            android:backgroundTint="@color/colorPrimary"
             android:inputType="number" >
         <requestFocus />
         </EditText>
 
         <TextView
-            android:id="@+id/shots_title"
-            android:labelFor="@+id/reload_shots_et"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/player_settings_reload_shots"
-            android:textColor="#FFFFFF"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
-
-        <EditText
-            android:id="@+id/reload_shots_et"
-            android:importantForAutofill="no"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:digits="0123456789"
-            android:maxLength="3"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#AAAAAA"
-            android:backgroundTint="@color/colorPrimary"
-            android:inputType="number" >
-        </EditText>
-
-        <TextView
-            android:id="@+id/reload_time_title"
-            android:labelFor="@+id/reload_time_et"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/player_settings_reload_time"
-            android:textColor="#FFFFFF"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
-
-        <EditText
-            android:id="@+id/reload_time_et"
-            android:importantForAutofill="no"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:digits="0123456789"
-            android:maxLength="5"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#AAAAAA"
-            android:backgroundTint="@color/colorPrimary"
-            android:inputType="number" >
-        </EditText>
-
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/reload_on_empty_switch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:textColor="#FFFFFF"
-            android:text="@string/player_settings_reload_on_empty" />
-
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/manual_respawn_switch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:textColor="#FFFFFF"
-            android:text="@string/player_settings_manual_respawn" />
-
-        <TextView
-            android:id="@+id/spawn_time_title"
-            android:labelFor="@+id/spawn_time_et"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/player_settings_spawn_time"
-            android:textColor="#FFFFFF"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
-
-        <EditText
-            android:id="@+id/spawn_time_et"
-            android:importantForAutofill="no"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:digits="0123456789"
-            android:maxLength="3"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#AAAAAA"
-            android:backgroundTint="@color/colorPrimary"
-            android:inputType="number" >
-        </EditText>
-
-        <TextView
-            android:id="@+id/respawn_shield_time_title"
-            android:labelFor="@+id/respawn_shield_time_et"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/player_settings_respawn_shield_time"
-            android:textColor="#FFFFFF"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
-
-        <EditText
-            android:id="@+id/respawn_shield_time_et"
-            android:importantForAutofill="no"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:digits="0123456789"
-            android:maxLength="3"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#AAAAAA"
-            android:backgroundTint="@color/colorPrimary"
-            android:inputType="number" >
-        </EditText>
-
-        <TextView
+            style="@style/PlayerSettingsLabel"
             android:id="@+id/damage_title"
             android:labelFor="@+id/damage_et"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/player_settings_damage"
-            android:textColor="#FFFFFF"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
+            android:text="@string/player_settings_damage" />
 
         <EditText
+            style="@style/PlayerSettingsField"
             android:id="@+id/damage_et"
             android:importantForAutofill="no"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:digits="0123456789"
             android:maxLength="3"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#AAAAAA"
-            android:backgroundTint="@color/colorPrimary"
             android:inputType="number" >
         </EditText>
 
         <androidx.appcompat.widget.SwitchCompat
+            style="@style/PlayerSettingsSwitch"
             android:id="@+id/override_lives_limit_switch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:textColor="#FFFFFF"
             android:text="@string/player_settings_override_lives" />
 
         <TextView
+            style="@style/PlayerSettingsLabel"
             android:id="@+id/lives_title"
             android:labelFor="@+id/lives_et"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/player_settings_lives"
-            android:textColor="#FFFFFF"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
+            android:text="@string/player_settings_lives" />
 
         <EditText
+            style="@style/PlayerSettingsField"
             android:id="@+id/lives_et"
             android:importantForAutofill="no"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:digits="0123456789"
             android:maxLength="3"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#AAAAAA"
-            android:backgroundTint="@color/colorPrimary"
             android:inputType="number" >
         </EditText>
 
         <TextView
-            android:id="@+id/shot_mode_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/player_settings_shot_modes_allowed"
-            android:textColor="#FFFFFF"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
+            style="@style/PlayerSettingsSection"
+            android:text="@string/player_settings_section_blaster" />
+
+        <View style="@style/PlayerSettingsDivider" />
+
+        <TextView
+            style="@style/PlayerSettingsLabel"
+            android:id="@+id/shots_title"
+            android:labelFor="@+id/reload_shots_et"
+            android:text="@string/player_settings_reload_shots" />
+
+        <EditText
+            style="@style/PlayerSettingsField"
+            android:id="@+id/reload_shots_et"
+            android:importantForAutofill="no"
+            android:digits="0123456789"
+            android:maxLength="3"
+            android:inputType="number" >
+        </EditText>
+
+        <TextView
+            style="@style/PlayerSettingsLabel"
+            android:id="@+id/reload_time_title"
+            android:labelFor="@+id/reload_time_et"
+            android:text="@string/player_settings_reload_time" />
+
+        <EditText
+            style="@style/PlayerSettingsField"
+            android:id="@+id/reload_time_et"
+            android:importantForAutofill="no"
+            android:digits="0123456789"
+            android:maxLength="5"
+            android:inputType="number" >
+        </EditText>
 
         <androidx.appcompat.widget.SwitchCompat
+            style="@style/PlayerSettingsSwitch"
+            android:id="@+id/reload_on_empty_switch"
+            android:text="@string/player_settings_reload_on_empty" />
+
+        <TextView
+            style="@style/PlayerSettingsLabel"
+            android:id="@+id/shot_mode_title"
+            android:text="@string/player_settings_shot_modes_allowed" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            style="@style/PlayerSettingsSwitch"
             android:id="@+id/shot_mode_single"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="#FFFFFF"
             android:text="@string/shot_mode_single" />
 
         <androidx.appcompat.widget.SwitchCompat
+            style="@style/PlayerSettingsSwitch"
             android:id="@+id/shot_mode_burst3"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="#FFFFFF"
             android:text="@string/shot_mode_burst3" />
 
         <androidx.appcompat.widget.SwitchCompat
+            style="@style/PlayerSettingsSwitch"
             android:id="@+id/shot_mode_auto"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:textColor="#FFFFFF"
             android:text="@string/shot_mode_auto" />
 
         <Button
@@ -254,25 +158,104 @@
             android:visibility="gone"
             android:text="@string/player_settings_recoil_default" />
 
-        <Button
-            android:id="@+id/switch_team_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:textColor="#FFFFFF"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:visibility="gone"
-            android:text="@string/switch_team_button" />
+        <TextView
+            style="@style/PlayerSettingsSection"
+            android:text="@string/player_settings_section_respawn" />
 
-        <Button
-            android:id="@+id/kick_player_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:textColor="#FFFFFF"
-            android:layout_width="wrap_content"
+        <View style="@style/PlayerSettingsDivider" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            style="@style/PlayerSettingsSwitch"
+            android:id="@+id/manual_respawn_switch"
+            android:text="@string/player_settings_manual_respawn" />
+
+        <TextView
+            style="@style/PlayerSettingsLabel"
+            android:id="@+id/spawn_time_title"
+            android:labelFor="@+id/spawn_time_et"
+            android:text="@string/player_settings_spawn_time" />
+
+        <EditText
+            style="@style/PlayerSettingsField"
+            android:id="@+id/spawn_time_et"
+            android:importantForAutofill="no"
+            android:digits="0123456789"
+            android:maxLength="3"
+            android:inputType="number" >
+        </EditText>
+
+        <TextView
+            style="@style/PlayerSettingsLabel"
+            android:id="@+id/respawn_shield_time_title"
+            android:labelFor="@+id/respawn_shield_time_et"
+            android:text="@string/player_settings_respawn_shield_time" />
+
+        <EditText
+            style="@style/PlayerSettingsField"
+            android:id="@+id/respawn_shield_time_et"
+            android:importantForAutofill="no"
+            android:digits="0123456789"
+            android:maxLength="3"
+            android:inputType="number" >
+        </EditText>
+
+        <!-- Server only -->
+        <LinearLayout
+            android:id="@+id/player_section"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:visibility="gone"
-            android:text="@string/kick_player_button" />
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                style="@style/PlayerSettingsSection"
+                android:text="@string/player_settings_section_player" />
+
+            <View style="@style/PlayerSettingsDivider" />
+
+            <Button
+                android:id="@+id/switch_team_button"
+                style="@style/Widget.AppCompat.Button.Colored"
+                android:textColor="#FFFFFF"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:visibility="gone"
+                android:text="@string/switch_team_button" />
+
+            <androidx.appcompat.widget.SwitchCompat
+                style="@style/PlayerSettingsSwitch"
+                android:id="@+id/admin_switch"
+                android:text="@string/player_settings_admin" />
+
+            <Button
+                android:id="@+id/kick_player_button"
+                style="@style/Widget.AppCompat.Button.Colored"
+                android:textColor="#FFFFFF"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="5dp"
+                android:visibility="gone"
+                android:text="@string/kick_player_button" />
+
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/apply_section_title"
+            style="@style/PlayerSettingsSection"
+            android:text="@string/player_settings_section_apply" />
+
+        <View style="@style/PlayerSettingsDivider" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            style="@style/PlayerSettingsSwitch"
+            android:id="@+id/apply_to_all_switch"
+            android:text="@string/player_settings_apply_to_all" />
+
+        <androidx.appcompat.widget.SwitchCompat
+            style="@style/PlayerSettingsSwitch"
+            android:id="@+id/apply_to_team_switch"
+            android:text="@string/player_settings_apply_to_team" />
 
         <Button
             android:id="@+id/reset_defaults_button"
@@ -282,30 +265,6 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
             android:text="@string/player_settings_reset" />
-
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/apply_to_all_switch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:textColor="#FFFFFF"
-            android:text="@string/player_settings_apply_to_all" />
-
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/apply_to_team_switch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:textColor="#FFFFFF"
-            android:text="@string/player_settings_apply_to_team" />
-
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/admin_switch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:textColor="#FFFFFF"
-            android:text="@string/player_settings_admin" />
 
     </LinearLayout>
 </ScrollView>

@@ -240,6 +240,11 @@
     <string name="player_settings_team_title">%1$s Settings (%2$d-%3$d)</string>
     <string name="player_settings_unnamed_player">Player</string>
     <string name="player_settings_button">Player Settings</string>
+    <string name="player_settings_section_health">Health &amp; Lives</string>
+    <string name="player_settings_section_blaster">Blaster Settings</string>
+    <string name="player_settings_section_respawn">Respawn</string>
+    <string name="player_settings_section_player">Player</string>
+    <string name="player_settings_section_apply">Apply</string>
     <string name="player_settings_health_title">Health</string>
     <string name="player_settings_manual_respawn">Manual respawn?</string>
     <string name="player_settings_spawn_time">Respawn Time (Seconds)</string>
