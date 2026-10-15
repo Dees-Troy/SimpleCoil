@@ -111,15 +111,6 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
                         android:text="@string/dedicated_server_button" />
-
-                    <View
-                        android:id="@+id/dedicated_server_bottom_divider"
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:layout_marginTop="16dp"
-                        android:layout_marginStart="24dp"
-                        android:layout_marginEnd="24dp"
-                        android:background="#444444" />
                 </LinearLayout>
             </ScrollView>
 
