@@ -73,6 +73,7 @@ data class PlayerSettingsValues(
         settings.isAllowSingleShotMode = allowSingle
         settings.isAllowBurst3ShotMode = allowBurst3
         settings.isAllowAutoShotMode = allowAuto
+        settings.currentFiringMode = firingMode
     }
 
     companion object {

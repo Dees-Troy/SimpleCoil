@@ -119,7 +119,6 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
         binding.startRespawnButton.setOnClickListener { vm.onStartRespawnPressed() }
         binding.generateQrButton.setOnClickListener { vm.onGenerateQrPressed() }
         InfoSheet(this, binding)
-        binding.firingModeButton.setOnClickListener(dialogs::showFiringModeMenu)
 
         try {
             // Display app version

@@ -73,6 +73,7 @@ class PlayerSettingsDialog : DialogFragment() {
         @Suppress("UseGetLayoutInflater") // in the dialog's theme, as the AlertDialog subclass inflated it
         binding = PlayerSettingsDialogBinding.inflate(LayoutInflater.from(builder.context))
         show(initial)
+        showFiringMode()
         if (isServer) showServerControls(initial) else hideServerControls()
         wireControls()
         return builder
@@ -116,8 +117,6 @@ class PlayerSettingsDialog : DialogFragment() {
         val name = args.getString(ARG_PLAYER_NAME)?.ifBlank { null } ?: getString(R.string.player_settings_unnamed_player)
         titleTv.text = if (teamCount == 0) getString(R.string.player_settings_id_title, name, playerId)
         else getString(R.string.player_settings_team_title, name, args.getInt(ARG_TEAM), args.getInt(ARG_INDEX_IN_TEAM))
-        firingModeButton.visibility = View.VISIBLE
-        showFiringMode()
         applyToAllSwitch.isChecked = false
         applyToTeamSwitch.isChecked = false
         applyToTeamSwitch.visibility = if (teamCount == 0) View.GONE else View.VISIBLE
@@ -136,7 +135,6 @@ class PlayerSettingsDialog : DialogFragment() {
     private fun hideServerControls() = with(binding) {
         playerSection.visibility = View.GONE
         recoilSettingButton.visibility = View.GONE
-        firingModeButton.visibility = View.GONE
         // Reset Defaults stays under the divider, with no apply switches to label
         applySectionTitle.visibility = View.GONE
         applyToAllSwitch.visibility = View.GONE

@@ -203,7 +203,6 @@ class GameViewModel(
         settingsRepo.currentFiringMode = prefs.firingMode(GameSettingsRepository.FIRING_MODE_OUTDOOR_NO_CONE)
         selectedPlayerId = prefs.selectedPlayerId().toByte()
         playerRepo.playerID = selectedPlayerId
-        screen?.showFiringMode(settingsRepo.currentFiringMode)
         engine.restore(prefs.shotMode(GameSettingsRepository.SHOT_MODE_SINGLE), prefs.recoilEnabled())
         settingsRepo.setTeamMode(prefs.teamMode())
         screen?.showTeamMode(settingsRepo.teamMode)
@@ -583,16 +582,15 @@ class GameViewModel(
 
     /** The player settings dialog's OK: keep them, tell the server, and apply them. */
     fun onLocalSettingsSaved(values: PlayerSettingsValues) {
+        val firingModeChanged = values.firingMode != settingsRepo.currentFiringMode
         values.applyTo(settingsRepo)
+        if (firingModeChanged) {
+            // The blaster takes the firing mode with the shot mode
+            engine.setShotMode(engine.shotMode)
+            prefs.saveFiringMode(settingsRepo.currentFiringMode)
+        }
         net.tcpClient?.sendPlayerSettings()
         updatePlayerSettings()
-    }
-
-    fun onFiringModeSelected(firingMode: Int) {
-        settingsRepo.currentFiringMode = firingMode
-        screen?.showFiringMode(firingMode)
-        engine.setShotMode(engine.shotMode)
-        prefs.saveFiringMode(settingsRepo.currentFiringMode)
     }
 
     /** The team mode button: a player not on a server picks 2 teams / 4 teams / FFA locally. */
@@ -613,7 +611,6 @@ class GameViewModel(
         setGameLimit()
         updateAdminButtonVisibility()
         engine.applyPlayerSettings()
-        screen?.showFiringMode(settingsRepo.currentFiringMode)
     }
 
     // ---------------------------------------------------------------------------------------

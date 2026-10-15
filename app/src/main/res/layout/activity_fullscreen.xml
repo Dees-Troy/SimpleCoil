@@ -461,10 +461,10 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="5dp"
             android:layout_marginStart="15dp"
-            android:layout_below="@+id/firing_mode_button"
+            android:layout_below="@+id/player_settings_button"
             android:text="@string/start_game_button" />
 
-        <!-- Start Game's row, on the right, so it stays clear of the server status line. -->
+        <!-- Player Settings' row, on the right, so it stays clear of the server status line. -->
         <Button
             android:id="@+id/game_limit_button"
             style="@style/Widget.AppCompat.Button.Colored"
@@ -473,7 +473,7 @@
             android:layout_marginTop="5dp"
             android:layout_marginEnd="15dp"
             android:layout_alignParentEnd="true"
-            android:layout_below="@+id/firing_mode_button"
+            android:layout_below="@id/use_network_button"
             android:text="@string/game_limit_button" />
 
         <!-- Offline, or for a network admin. Above the eliminations count. -->
@@ -526,14 +526,14 @@
 
         <!-- Right under the network button, offline and on a server alike. -->
         <Button
-            android:id="@+id/firing_mode_button"
+            android:id="@+id/player_settings_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_below="@id/use_network_button"
             android:layout_marginStart="15dp"
             android:layout_marginTop="5dp"
-            android:text="@string/firing_mode_outdoor_no_cone" />
+            android:text="@string/player_settings_button" />
 
         <Button
             android:id="@+id/shuffle_teams_button"
@@ -593,18 +593,6 @@
                 android:layout_gravity="center"
                 android:text="@string/team_mode_2teams" />
         </FrameLayout>
-
-        <!-- The firing mode's row, on the right. -->
-        <Button
-            android:id="@+id/player_settings_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/use_network_button"
-            android:layout_marginTop="5dp"
-            android:layout_marginEnd="15dp"
-            android:layout_alignParentEnd="true"
-            android:text="@string/player_settings_button" />
 
         <!-- The score readout. Once connected to a server it becomes a tappable chip that opens the
              scoreboard; GameScreenRenderer.setScoreboardAvailable adds the background and click. -->

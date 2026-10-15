@@ -233,15 +233,6 @@ class DialogCoordinator(
         popup.show()
     }
 
-    /** The firing mode button. */
-    fun showFiringModeMenu(anchor: View) {
-        val popup = popup(anchor)
-        popup.menuInflater.inflate(R.menu.firing_mode_menu, popup.menu)
-        popup.setOnMenuItemClickListener(this)
-        popup.show()
-        Toast.makeText(appContext, appContext.getString(R.string.firing_mode_cone_toast), Toast.LENGTH_LONG).show()
-    }
-
     /** The admin controls button. */
     fun showAdminMenu(anchor: View) {
         val popup = popup(anchor)
@@ -285,9 +276,6 @@ class DialogCoordinator(
             R.id.disable_network_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.DisableNetwork)
             R.id.join_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.Join)
             R.id.join_ip_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.JoinIp)
-            R.id.firing_mode_outdoor_no_cone_item -> vm.onFiringModeSelected(GameSettingsRepository.FIRING_MODE_OUTDOOR_NO_CONE)
-            R.id.firing_mode_outdoor_with_cone_item -> vm.onFiringModeSelected(GameSettingsRepository.FIRING_MODE_OUTDOOR_WITH_CONE)
-            R.id.firing_mode_indoor_no_cone_item -> vm.onFiringModeSelected(GameSettingsRepository.FIRING_MODE_INDOOR_NO_CONE)
             R.id.team_mode_2teams_item -> vm.onTeamModeSelected(TeamMode.TWO_TEAMS)
             R.id.team_mode_4teams_item -> vm.onTeamModeSelected(TeamMode.FOUR_TEAMS)
             R.id.team_mode_ffa_item -> vm.onTeamModeSelected(TeamMode.FREE_FOR_ALL)

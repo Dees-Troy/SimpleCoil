@@ -77,7 +77,7 @@ data class PreGameButtons(
     val ready: Boolean,
     /** Networking is off: the offline controls (team +/-, Start Game, Game Limit, team mode button) show. */
     val offline: Boolean,
-    /** Joined to a server: Player Settings and the firing mode show too, unless [serverSettingsOnly]. */
+    /** Joined to a server: Player Settings shows too, unless [serverSettingsOnly]. */
     val joined: Boolean,
     val startVisible: Boolean,
     val serverSettingsOnly: Boolean,
@@ -111,7 +111,6 @@ interface GameView {
     fun showTeamScore(teamScore: Int)
     fun showGameLimit(timeLimitMinutes: Int?, livesLabel: Boolean, scoreLimit: Int?)
     fun showPlayerSettings(fullHealth: Int, fullReload: Byte, damage: Int)
-    fun showFiringMode(firingMode: Int)
     fun showTeamMode(mode: TeamMode)
     fun showTeam(team: TeamDisplay)
     fun showPreGameButtons(buttons: PreGameButtons)

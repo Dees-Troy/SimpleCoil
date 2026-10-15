@@ -129,7 +129,7 @@ class GameScreenRenderer(
         b.teamMinusButton.visibility = View.INVISIBLE
         b.teamPlusButton.visibility = View.INVISIBLE
         b.gameLimitButton.visibility = View.GONE
-        b.playerSettingsButton.visibility = View.GONE
+        b.playerSettingsButton.visibility = View.INVISIBLE
         b.shuffleTeamsButton.isEnabled = false
         b.shuffleTeamsButton.visibility = View.GONE
         b.generateQrButton.visibility = View.GONE
@@ -141,7 +141,6 @@ class GameScreenRenderer(
             b.endGameButton.visibility = View.VISIBLE
         }
         b.useNetworkButton.visibility = View.INVISIBLE
-        b.firingModeButton.visibility = View.INVISIBLE
     }
 
     override fun showGameEnded(useNetwork: Boolean, freeForAll: Boolean) {
@@ -203,14 +202,6 @@ class GameScreenRenderer(
     override fun showPlayerSettings(fullHealth: Int, fullReload: Byte, damage: Int) {
         b.healthLabelTv.text = context.getString(R.string.health_label, fullHealth)
         b.shotsLabelTv.text = context.getString(R.string.shots_remaining_label, fullReload.toInt() and 0xFF, damage)
-    }
-
-    override fun showFiringMode(firingMode: Int) {
-        when (firingMode) {
-            GameSettingsRepository.FIRING_MODE_OUTDOOR_NO_CONE -> b.firingModeButton.setText(R.string.firing_mode_outdoor_no_cone)
-            GameSettingsRepository.FIRING_MODE_OUTDOOR_WITH_CONE -> b.firingModeButton.setText(R.string.firing_mode_outdoor_with_cone)
-            GameSettingsRepository.FIRING_MODE_INDOOR_NO_CONE -> b.firingModeButton.setText(R.string.firing_mode_indoor_no_cone)
-        }
     }
 
     override fun showTeamMode(mode: TeamMode) {
@@ -370,9 +361,7 @@ class GameScreenRenderer(
         b.teamPlusButton.visibility = lobbyVisibility
         b.gameLimitButton.visibility = if (offlineLobby) View.VISIBLE else View.GONE
         b.startGameButton.visibility = if (buttons.offline && buttons.startVisible) View.VISIBLE else View.GONE
-        val playerSettingsVisibility = if ((buttons.offline || buttons.joined) && !buttons.serverSettingsOnly) View.VISIBLE else View.GONE
-        b.firingModeButton.visibility = playerSettingsVisibility
-        b.playerSettingsButton.visibility = playerSettingsVisibility
+        b.playerSettingsButton.visibility = if ((buttons.offline || buttons.joined) && !buttons.serverSettingsOnly) View.VISIBLE else View.GONE
         b.shuffleTeamsButton.visibility = View.GONE
         showTeamModeSelectable(buttons.offline, shown = buttons.offline || buttons.joined)
     }

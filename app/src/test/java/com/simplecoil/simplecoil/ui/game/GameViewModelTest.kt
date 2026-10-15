@@ -460,7 +460,7 @@ class GameViewModelTest {
     }
 
     @Test
-    fun disableNetwork_dropsTheServersShotModeAndRecoilRestrictions_showsItsFiringMode() {
+    fun disableNetwork_dropsTheServersShotModeAndRecoilRestrictions_keepsItsFiringMode() {
         vm.onNetworkButtonPressed()
         vm.onNetworkMenuEntry(NetworkMenuEntry.Join)
         emitNetwork(ClientEvent.ServerReply(1))
@@ -472,10 +472,9 @@ class GameViewModelTest {
         assertFalse(engine.state.value.shotModeChangeable)
         assertFalse(engine.state.value.recoilChangeable)
 
-        clearInvocations(screen)
         vm.onNetworkMenuEntry(NetworkMenuEntry.DisableNetwork)
-        // The server's firing mode stays, and the firing mode button shows it.
-        verify(screen).showFiringMode(GameSettingsRepository.FIRING_MODE_INDOOR_NO_CONE)
+        // The server's firing mode stays, and Player Settings shows it.
+        assertEquals(GameSettingsRepository.FIRING_MODE_INDOOR_NO_CONE, vm.localPlayerSettings().firingMode)
         assertTrue(settings.isAllowSingleShotMode && settings.isAllowBurst3ShotMode && settings.isAllowAutoShotMode)
         assertEquals(GameSettingsRepository.RECOIL_SETTING_DEFAULT, settings.serverRecoilSetting)
         assertTrue(engine.state.value.shotModeChangeable)
@@ -679,8 +678,10 @@ class GameViewModelTest {
 
     @Test
     fun localPlayerSettings_areKeptSentAndApplied() {
-        val values = vm.localPlayerSettings().copy(health = 40, shots = 12, damage = -2)
+        val values = vm.localPlayerSettings().copy(health = 40, shots = 12, damage = -2,
+            firingMode = GameSettingsRepository.FIRING_MODE_OUTDOOR_WITH_CONE)
         vm.onLocalSettingsSaved(values)
+        assertEquals(GameSettingsRepository.FIRING_MODE_OUTDOOR_WITH_CONE, settings.currentFiringMode)
         assertEquals(40, settings.fullHealth)
         assertEquals(12.toByte(), settings.fullReload)
         assertEquals(-2, settings.damage)
