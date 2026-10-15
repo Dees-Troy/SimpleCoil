@@ -428,7 +428,7 @@ class GameViewModelTest {
     }
 
     @Test
-    fun joined_teamLabelOffersTheOtherTeams_networkMenuDoesNot() {
+    fun joined_teamLabelOffersTheOtherTeams_nameTileRenames_networkMenuDoesNeither() {
         settings.isAllowChooseTeams = true
         vm.onNetworkButtonPressed()
         vm.onNetworkMenuEntry(NetworkMenuEntry.Join)
@@ -436,9 +436,11 @@ class GameViewModelTest {
         vm.onTeamModeSelected(TeamMode.TWO_TEAMS)
         val entries = listOf(SwitchTeamEntry(2, TeamColors.colorOf(2)))
         assertEquals(entries, vm.switchTeamEntries())
-        assertEquals(listOf(NetworkMenuEntry.PlayerName("Tester"), NetworkMenuEntry.DisableNetwork), vm.networkMenuEntries())
+        assertEquals(listOf(NetworkMenuEntry.DisableNetwork), vm.networkMenuEntries())
         vm.onTeamLabelPressed()
         verify(screen).showSwitchTeamMenu(entries)
+        vm.onPlayerNamePressed()
+        verify(screen).showPlayerNameDialog("Tester")
 
         settings.isAllowChooseTeams = false
         assertEquals(emptyList<SwitchTeamEntry>(), vm.switchTeamEntries())
@@ -491,8 +493,7 @@ class GameViewModelTest {
 
     @Test
     fun networkMenuEntries_followTheMenuState() {
-        assertEquals(listOf(NetworkMenuEntry.Join, NetworkMenuEntry.JoinIp, NetworkMenuEntry.PlayerName("Tester"),
-            NetworkMenuEntry.DisableNetwork), vm.networkMenuEntries())
+        assertEquals(listOf(NetworkMenuEntry.Join, NetworkMenuEntry.JoinIp, NetworkMenuEntry.DisableNetwork), vm.networkMenuEntries())
         vm.onNetworkButtonPressed()
         assertEquals(listOf(NetworkMenuEntry.JoinIp, NetworkMenuEntry.DisableNetwork), vm.networkMenuEntries())
     }

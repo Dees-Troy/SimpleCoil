@@ -751,11 +751,9 @@ class GameViewModel(
 
     /** What the network popup lists for the current menu state. */
     fun networkMenuEntries(): List<NetworkMenuEntry> = when (networkMenuType) {
-        NETWORK_TYPE_ENABLED -> listOf(
-            NetworkMenuEntry.Join, NetworkMenuEntry.JoinIp, NetworkMenuEntry.PlayerName(playerRepo.playerName), NetworkMenuEntry.DisableNetwork,
-        )
+        NETWORK_TYPE_ENABLED -> listOf(NetworkMenuEntry.Join, NetworkMenuEntry.JoinIp, NetworkMenuEntry.DisableNetwork)
         NETWORK_TYPE_JOINING -> listOf(NetworkMenuEntry.JoinIp, NetworkMenuEntry.DisableNetwork)
-        NETWORK_TYPE_JOINED -> listOf(NetworkMenuEntry.PlayerName(playerRepo.playerName), NetworkMenuEntry.DisableNetwork)
+        NETWORK_TYPE_JOINED -> listOf(NetworkMenuEntry.DisableNetwork)
         else -> emptyList()
     }
 
@@ -772,6 +770,11 @@ class GameViewModel(
     fun onTeamLabelPressed() {
         val entries = switchTeamEntries()
         if (entries.isNotEmpty()) screen?.showSwitchTeamMenu(entries)
+    }
+
+    /** The player name tile, shown while joined to a dedicated server: offer to rename. */
+    fun onPlayerNamePressed() {
+        screen?.showPlayerNameDialog(playerRepo.playerName)
     }
 
     fun onSwitchTeamChosen(team: Int) = requestSwitchTeam(team)
@@ -791,7 +794,6 @@ class GameViewModel(
                 if (networkMenuType == NETWORK_TYPE_JOINED) return
                 screen?.showServerIpDialog(serverIpSuggestion())
             }
-            is NetworkMenuEntry.PlayerName -> screen?.showPlayerNameDialog(playerRepo.playerName)
         }
     }
 

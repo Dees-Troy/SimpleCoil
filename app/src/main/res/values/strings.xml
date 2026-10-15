@@ -110,7 +110,6 @@
     <string name="no_network_button">Disable Network</string>
     <string name="join_button">Join Lobby</string>
     <string name="join_ip_button">Join IP&#8230;</string>
-    <string name="player_name_button">Player Name: %1$s</string>
     <string name="team_mode_label">Team Mode</string>
     <string name="team_mode_ffa">Free For All</string>
     <string name="team_mode_2teams">2 Teams</string>
@@ -122,7 +121,7 @@
     <string name="network_team">Player %1$d</string>
     <string name="player_id_team_label">(%1$d-%2$d)</string>
     <string name="player_id_ffa_label">(%1$d)</string>
-    <string name="player_name">Player Name:</string>
+    <string name="player_name">Change Player Name:</string>
     <string name="server_ip">Server IP:</string>
     <string name="game_limit_button">Game Limits</string>
     <string name="game_limit_title">When should the game end?</string>
@@ -176,6 +175,7 @@
     <!-- TalkBack's name for tapping the score readout ("double-tap to open scoreboard"). -->
     <string name="scores_chip_action">open scoreboard</string>
     <string name="team_label_action">switch teams</string>
+    <string name="player_name_action">change player name</string>
     <!-- One score in the score readout's spoken description, e.g. "SCORE (50): 12". -->
     <string name="cd_score_entry">%1$s: %2$s</string>
 

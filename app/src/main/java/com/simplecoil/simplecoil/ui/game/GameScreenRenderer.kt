@@ -22,6 +22,7 @@ import android.graphics.drawable.AnimationDrawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.view.View
+import android.view.ViewGroup
 import android.view.animation.AnimationUtils
 import androidx.core.view.ViewCompat
 import androidx.core.view.accessibility.AccessibilityNodeInfoCompat.AccessibilityActionCompat
@@ -53,6 +54,8 @@ class GameScreenRenderer(
     private val serverOnly: Boolean = false,
     /** The team label was tapped while joined to a dedicated server. */
     private val onTeamTapped: () -> Unit = {},
+    /** The player name tile was tapped while joined to a dedicated server. */
+    private val onPlayerNameTapped: () -> Unit = {},
     /** The score readout was tapped while a scoreboard is available. */
     private val onScoresTapped: () -> Unit = {},
 ) : GameView {
@@ -230,9 +233,11 @@ class GameScreenRenderer(
             setTeamLabelTappable(team.switchable)
             if (team.playerName != null) {
                 b.teamTv.text = team.playerName
+                setPlayerNameTile(true)
                 showPlayerId(context.getString(R.string.player_id_team_label, team.team, team.player))
             } else {
                 b.teamTv.text = context.getString(R.string.network_team, team.player)
+                setPlayerNameTile(false)
             }
             setTeamScoreVisible(team.teamScoreVisible)
             return
@@ -243,11 +248,14 @@ class GameScreenRenderer(
         if (team is TeamDisplay.FreeForAll && team.playerName != null) {
             b.teamLabelTv.visibility = View.INVISIBLE
             b.teamTv.text = team.playerName
+            setPlayerNameTile(true)
             showPlayerId(context.getString(R.string.player_id_ffa_label, team.playerId.toInt()))
         } else if (team is TeamDisplay.FreeForAll) {
             b.teamTv.text = number(team.playerId.toInt())
+            setPlayerNameTile(false)
         } else {
             b.teamTv.setText(R.string.auto_sort_team)
+            setPlayerNameTile(false)
         }
         setTeamScoreVisible(false)
     }
@@ -270,6 +278,32 @@ class GameScreenRenderer(
             label.isClickable = false
         }
         label.isFocusable = tappable
+    }
+
+    /**
+     * On a dedicated server the player name is a tile like the score readout's that opens the
+     * player name dialog. The tile's padding comes out of the top margin so the name stays put.
+     */
+    private fun setPlayerNameTile(tile: Boolean) {
+        val name = b.teamTv
+        val params = name.layoutParams as ViewGroup.MarginLayoutParams
+        val dp = context.resources.displayMetrics.density
+        if (tile) {
+            name.setBackgroundResource(R.drawable.scores_chip_background)
+            name.setPadding((12 * dp).toInt(), (2 * dp).toInt(), (12 * dp).toInt(), (2 * dp).toInt())
+            params.topMargin = (38 * dp).toInt()
+            name.setOnClickListener { onPlayerNameTapped() }
+            ViewCompat.replaceAccessibilityAction(name, AccessibilityActionCompat.ACTION_CLICK,
+                context.getString(R.string.player_name_action), null)
+        } else {
+            name.background = null
+            name.setPadding(0, 0, 0, 0)
+            params.topMargin = (40 * dp).toInt()
+            name.setOnClickListener(null)
+            name.isClickable = false
+        }
+        name.isFocusable = tile
+        name.layoutParams = params
     }
 
     private fun clearTeamLabelStyle() {

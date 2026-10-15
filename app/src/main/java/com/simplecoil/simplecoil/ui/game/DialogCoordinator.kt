@@ -191,7 +191,6 @@ class DialogCoordinator(
             when (entry) {
                 NetworkMenuEntry.Join -> menu.add(0, R.id.join_item, 20, R.string.join_button)
                 NetworkMenuEntry.JoinIp -> menu.add(0, R.id.join_ip_item, 30, R.string.join_ip_button)
-                is NetworkMenuEntry.PlayerName -> menu.add(0, R.id.player_name_item, 50, activity.getString(R.string.player_name_button, entry.name))
                 NetworkMenuEntry.DisableNetwork -> menu.add(0, R.id.disable_network_item, 70, R.string.no_network_button)
             }
         }
@@ -286,7 +285,6 @@ class DialogCoordinator(
             R.id.disable_network_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.DisableNetwork)
             R.id.join_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.Join)
             R.id.join_ip_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.JoinIp)
-            R.id.player_name_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.PlayerName(""))
             R.id.firing_mode_outdoor_no_cone_item -> vm.onFiringModeSelected(GameSettingsRepository.FIRING_MODE_OUTDOOR_NO_CONE)
             R.id.firing_mode_outdoor_with_cone_item -> vm.onFiringModeSelected(GameSettingsRepository.FIRING_MODE_OUTDOOR_WITH_CONE)
             R.id.firing_mode_indoor_no_cone_item -> vm.onFiringModeSelected(GameSettingsRepository.FIRING_MODE_INDOOR_NO_CONE)

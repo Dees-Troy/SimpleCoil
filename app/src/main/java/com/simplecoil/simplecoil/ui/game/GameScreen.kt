@@ -44,7 +44,6 @@ enum class GameMessage {
 sealed interface NetworkMenuEntry {
     data object Join : NetworkMenuEntry
     data object JoinIp : NetworkMenuEntry
-    data class PlayerName(val name: String) : NetworkMenuEntry
     data object DisableNetwork : NetworkMenuEntry
 }
 
