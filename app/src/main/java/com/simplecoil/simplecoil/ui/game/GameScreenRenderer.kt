@@ -21,6 +21,7 @@ import android.graphics.Color
 import android.graphics.drawable.AnimationDrawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
+import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AnimationUtils
@@ -31,6 +32,7 @@ import androidx.core.view.isVisible
 import com.simplecoil.simplecoil.R
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.databinding.ActivityFullscreenBinding
+import com.simplecoil.simplecoil.databinding.HitPlayerRowBinding
 import com.simplecoil.simplecoil.domain.session.BatteryLevelPolicy
 import com.simplecoil.simplecoil.domain.session.ClockFormat
 import com.simplecoil.simplecoil.domain.session.GameClock
@@ -69,8 +71,16 @@ class GameScreenRenderer(
 
     private val context get() = b.root.context
     private var hitAnimation: AnimationDrawable? = null
-    private var hitPlayerAnimation: AnimationDrawable? = null
-    private var hitPlayerHide: Job? = null
+    /** The players our shots hit that are on screen, by player ID, in the order they appear. */
+    private val hitPlayerRows = LinkedHashMap<Byte, HitPlayerRow>()
+    private var hitPlayerSequence = 0L
+
+    private class HitPlayerRow(val binding: HitPlayerRowBinding) {
+        var kind: HitResolver.Kind? = null
+        var hide: Job? = null
+        /** When this player was last hit, to pick the row to drop when the stack is full. */
+        var lastHit = 0L
+    }
 
     // ---------------------------------------------------------------------------------------
     // Connection
@@ -138,8 +148,7 @@ class GameScreenRenderer(
         b.generateQrButton.visibility = View.VISIBLE
         displayAllNetworkingOptions(useNetwork, freeForAll)
         b.useNetworkButton.visibility = View.VISIBLE
-        b.hitPlayerIv.visibility = View.GONE
-        b.hitPlayerNameTv.visibility = View.GONE
+        hitPlayerRows.keys.toList().forEach(::removeHitPlayer)
         b.shotsFiredIv.visibility = View.GONE
     }
 
@@ -473,33 +482,45 @@ class GameScreenRenderer(
         }
     }
 
-    override fun showHitOtherPlayer(kind: HitResolver.Kind, name: String) {
-        // A new hit while one is showing replaces it and restarts the timer
-        hitPlayerHide?.cancel()
-        hitPlayerAnimation?.stop()
-        // Show the "you hit a player" / "you hit a player that's already out" / "you hit a player's shield" animation
-        b.hitPlayerIv.visibility = View.VISIBLE
-        b.hitPlayerIv.setBackgroundResource(when (kind) {
-            HitResolver.Kind.HIT -> R.drawable.hit_other_player_animation
-            HitResolver.Kind.OUT -> R.drawable.hit_other_player_out_animation
-            HitResolver.Kind.SHIELDED -> R.drawable.hit_other_player_shielded_animation
-        })
-        val fadeOut = AnimationUtils.loadAnimation(context.applicationContext, R.anim.hitplayerfadeout)
-        b.hitPlayerIv.startAnimation(fadeOut)
-        val animation = b.hitPlayerIv.background as AnimationDrawable
-        hitPlayerAnimation = animation
-        animation.start()
-        b.hitPlayerNameTv.visibility = View.VISIBLE
-        b.hitPlayerNameTv.text = name
-        b.hitPlayerNameTv.startAnimation(fadeOut)
-        hitPlayerHide = scope.launch {
-            delay(HIT_PLAYER_DISPLAY_DURATION_MILLISECONDS)
-            b.hitPlayerIv.visibility = View.GONE
-            animation.stop()
-            hitPlayerAnimation = null
-            hitPlayerHide = null
-            b.hitPlayerNameTv.visibility = View.GONE
+    override fun showHitOtherPlayer(kind: HitResolver.Kind, playerId: Byte, name: String) {
+        // Each player we hit gets a row below the ones already showing. Hitting a player again
+        // updates their row in place and restarts its timer.
+        val row = hitPlayerRows[playerId] ?: run {
+            if (hitPlayerRows.size >= HIT_PLAYER_STACK_LIMIT) {
+                // Full: drop the player hit longest ago to make room
+                removeHitPlayer(hitPlayerRows.entries.minBy { it.value.lastHit }.key)
+            }
+            val binding = HitPlayerRowBinding.inflate(LayoutInflater.from(context), b.hitPlayersLl, false)
+            b.hitPlayersLl.addView(binding.root)
+            HitPlayerRow(binding).also { hitPlayerRows[playerId] = it }
         }
+        row.hide?.cancel()
+        row.lastHit = ++hitPlayerSequence
+        if (row.kind != kind) {
+            // Show the "you hit a player" / "you hit a player that's already out" / "you hit a player's shield" animation
+            row.kind = kind
+            (row.binding.hitPlayerIv.background as? AnimationDrawable)?.stop()
+            row.binding.hitPlayerIv.setBackgroundResource(when (kind) {
+                HitResolver.Kind.HIT -> R.drawable.hit_other_player_animation
+                HitResolver.Kind.OUT -> R.drawable.hit_other_player_out_animation
+                HitResolver.Kind.SHIELDED -> R.drawable.hit_other_player_shielded_animation
+            })
+            (row.binding.hitPlayerIv.background as AnimationDrawable).start()
+        }
+        row.binding.hitPlayerNameTv.text = name
+        row.binding.root.startAnimation(AnimationUtils.loadAnimation(context.applicationContext, R.anim.hitplayerfadeout))
+        row.hide = scope.launch {
+            delay(HIT_PLAYER_DISPLAY_DURATION_MILLISECONDS)
+            removeHitPlayer(playerId)
+        }
+    }
+
+    private fun removeHitPlayer(playerId: Byte) {
+        val row = hitPlayerRows.remove(playerId) ?: return
+        row.hide?.cancel()
+        (row.binding.hitPlayerIv.background as? AnimationDrawable)?.stop()
+        row.binding.root.clearAnimation()
+        b.hitPlayersLl.removeView(row.binding.root)
     }
 
     override fun showScoreIncrease(name: String) {
@@ -656,6 +677,7 @@ class GameScreenRenderer(
         // If you change these durations you will also need to change the duration in the res/anim/fadeout XML files to match
         const val HIT_ANIMATION_DURATION_MILLISECONDS = 400L
         const val HIT_PLAYER_DISPLAY_DURATION_MILLISECONDS = 1000L // res/anim/hitplayerfadeout
+        const val HIT_PLAYER_STACK_LIMIT = 3
         const val ELIMINATED_ANIMATION_DURATION_MILLISECONDS = 800L
     }
 }

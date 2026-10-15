@@ -1275,7 +1275,7 @@ class GameViewModel(
 
     /** The server says our shot hit [playerId]: show who and play the matching sound. */
     private fun onHitOtherPlayer(kind: HitResolver.Kind, playerId: Byte) {
-        screen?.showHitOtherPlayer(kind, playerName(playerId))
+        screen?.showHitOtherPlayer(kind, playerId, playerName(playerId))
         sounds.play(when (kind) {
             HitResolver.Kind.HIT -> SessionSound.HIT_CONFIRM
             HitResolver.Kind.OUT -> SessionSound.HIT_ELIMINATED

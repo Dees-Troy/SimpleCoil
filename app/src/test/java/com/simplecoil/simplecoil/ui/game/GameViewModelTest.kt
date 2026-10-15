@@ -385,9 +385,9 @@ class GameViewModelTest {
         emitNetwork(ClientEvent.Hit(2))
         emitNetwork(ClientEvent.Out(3))
         emitNetwork(ClientEvent.ShieldHit(4))
-        verify(screen).showHitOtherPlayer(HitResolver.Kind.HIT, "") // no names known
-        verify(screen).showHitOtherPlayer(HitResolver.Kind.OUT, "")
-        verify(screen).showHitOtherPlayer(HitResolver.Kind.SHIELDED, "")
+        verify(screen).showHitOtherPlayer(HitResolver.Kind.HIT, 2, "") // no names known
+        verify(screen).showHitOtherPlayer(HitResolver.Kind.OUT, 3, "")
+        verify(screen).showHitOtherPlayer(HitResolver.Kind.SHIELDED, 4, "")
         assertEquals(listOf(SessionSound.HIT_CONFIRM, SessionSound.HIT_ELIMINATED, SessionSound.HIT_SHIELDED), sounds)
     }
 

@@ -130,7 +130,7 @@ interface GameView {
     fun hideStartButton()
     fun showNetworkConnected(connected: Boolean)
     fun showShotsFired()
-    fun showHitOtherPlayer(kind: HitResolver.Kind, name: String)
+    fun showHitOtherPlayer(kind: HitResolver.Kind, playerId: Byte, name: String)
     fun showScoreIncrease(name: String)
 }
 
