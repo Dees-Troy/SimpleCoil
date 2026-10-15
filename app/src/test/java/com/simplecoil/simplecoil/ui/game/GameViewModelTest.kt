@@ -378,12 +378,35 @@ class GameViewModelTest {
     }
 
     @Test
-    fun networkButton_withoutWifi_refuses() {
+    fun firstPacket_withoutWifi_staysOffline() {
+        wifi = false
+        engine.onBlasterEvent(BlasterEvent.Connected("AA"))
+        engine.onBlasterEvent(BlasterEvent.Telemetry(com.simplecoil.simplecoil.hardware.blaster.GattProtocolHandler
+            .parseTelemetry(com.simplecoil.simplecoil.hardware.blaster.RecoilProtocolFixtures.GOLDEN_IDLE)!!))
+        scope.testScheduler.runCurrent()
+        assertFalse(net.useNetwork)
+        verify(udp, never()).joinServer()
+        // Set up like the menu's Disable Network: the offline lobby controls show.
+        val order = inOrder(screen)
+        order.verify(screen).showPlayScreen()
+        order.verify(screen).showNetworkOptions(false, false)
+        order.verify(screen).showNetworkButton(NetworkButton.USE_NETWORK)
+        order.verify(screen).showPreGameButtons(PreGameButtons(
+            ready = false, offline = true, joined = false, startVisible = true, serverSettingsOnly = false))
+
+        // A later UDP service (re)bind doesn't search either.
+        emitNetwork(ClientEvent.UdpServiceConnected)
+        verify(udp, never()).joinServer()
+    }
+
+    @Test
+    fun networkButton_withoutWifi_stillEnablesNetwork() {
         wifi = false
         vm.onNetworkButtonPressed()
-        verify(screen).showMessage(GameMessage.NO_WIFI, 0)
-        assertFalse(net.useNetwork)
-        verify(screen, never()).showNetworkMenu()
+        assertTrue(net.useNetwork)
+        assertEquals(GameViewModel.NETWORK_TYPE_JOINING, vm.networkMenuType)
+        verify(udp).joinServer()
+        verify(screen).showNetworkMenu()
     }
 
     @Test

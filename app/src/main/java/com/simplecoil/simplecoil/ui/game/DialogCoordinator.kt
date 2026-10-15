@@ -144,7 +144,6 @@ class DialogCoordinator(
         when (message) {
             GameMessage.NOT_ENOUGH_PLAYERS -> toast(appContext.getString(R.string.not_enough_players_toast))
             GameMessage.PLAYER_SETTINGS_NOT_ALLOWED -> toast(appContext.getString(R.string.player_settings_not_allowed_toast))
-            GameMessage.NO_WIFI -> toast(appContext.getString(R.string.error_no_wifi))
             GameMessage.LIMIT_TOO_HIGH -> toast(appContext.getString(R.string.error_limit_too_high))
             GameMessage.UDP_VERSION_ERROR -> toast(appContext.getString(R.string.error_udp_version))
             GameMessage.KICKED_BY_SERVER -> toast(appContext.getString(R.string.kicked_by_server_toast))

@@ -736,11 +736,6 @@ class GameViewModel(
     // ---------------------------------------------------------------------------------------
 
     fun onNetworkButtonPressed() {
-        if (!wifiConnected()) {
-            screen?.showMessage(GameMessage.NO_WIFI)
-            net.useNetwork = false
-            return
-        }
         screen?.prepareNetworkMenu()
         if (!net.useNetwork) {
             net.useNetwork = true
@@ -892,7 +887,11 @@ class GameViewModel(
         val udp = net.udp
         if (!autoScanStarted && udp != null) {
             if (!wifiConnected()) {
-                Log.d(TAG, "autoStartServerScan: Wi-Fi not connected, skipping auto-scan")
+                // No LAN to search: start offline, set up just like the menu's Disable Network.
+                // The user can still turn networking on.
+                Log.d(TAG, "autoStartServerScan: Wi-Fi not connected, skipping auto-scan and disabling network")
+                stopServerSearch(true)
+                autoScanStarted = true // after stopServerSearch, which clears it
                 return
             }
             autoScanStarted = true
