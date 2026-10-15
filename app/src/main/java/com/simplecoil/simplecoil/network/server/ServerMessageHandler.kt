@@ -195,6 +195,7 @@ class ServerMessageHandler(
     private fun handleHello(client: Connection, hello: ClientMessage.Hello) {
         server.requestFullGpsUpdate() // Send all GPS info because of the new client
         val blasterMac = hello.mac ?: ""
+        val oldTeam = client.player?.team // null for a new player
         val result = roster.onHello(client, hello.playerId.toByte(), hello.name, blasterMac, client.inetAddress)
         when (result.kind) {
             GameRoster.HelloResult.Kind.REFUSED_IN_PROGRESS -> {
@@ -220,6 +221,7 @@ class ServerMessageHandler(
             GameRoster.HelloResult.Kind.JOINED -> {
                 val record = result.record!!
                 val id = record.playerId
+                server.applyPreset(id, record.team, oldTeam)
                 applyPending(client, hello)
                 client.send(command(ServerCommand.ServerReply(id)))
                 Log.d(TAG, "client ${client.connectionId} player '${record.name}' ($id, team ${record.team}) found at ${client.inetAddress}")
@@ -348,6 +350,7 @@ class ServerMessageHandler(
             Log.d(TAG, "Client ${player.playerId} is already on team $targetTeam")
             return
         }
+        val oldTeam = player.team
         val moved = roster.changeTeam(client, targetTeam)
         if (moved == null) {
             val other = swapWith?.takeIf { it in 1..GameSettingsRepository.MAX_PLAYER_ID }?.toByte()
@@ -358,6 +361,7 @@ class ServerMessageHandler(
             }
             return
         }
+        server.applyPreset(moved.playerId, targetTeam, oldTeam)
         client.send(command(ServerCommand.ServerReply(moved.playerId)))
         server.sendPlayerData(GameServer.SEND_ALL)
         server.sendAllGameInfo(GameServer.SEND_ALL)

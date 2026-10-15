@@ -835,6 +835,56 @@ class TcpServerLoopbackTest {
         assertEquals(55, players.playerSettings[mover.toByte()]!!.health)
     }
 
+    @Test
+    fun applyPlayerSettings_toAll_isGivenToPlayersWhoJoinLater() {
+        val (_, idA) = join("Alpha", "AA:00")
+        server.applyPlayerSettings(idA.toByte(), { it.health = 66 }, applyAll = true, applyTeam = false, targetTeam = 0)
+        players.playerSettings.clear() // nothing left in the empty slots to inherit
+        val (b, idB) = join("Bravo", "BB:00")
+        assertEquals(66, players.playerSettings[idB.toByte()]!!.health)
+        val sent = b.awaitJson(WireKeys.PLAYERSETTINGS).getJSONArray(WireKeys.PLAYERSETTINGS)
+        assertTrue((0 until sent.length()).any { sent.getJSONObject(it).getInt(WireKeys.PLAYERID) == idB })
+    }
+
+    @Test
+    fun applyPlayerSettings_toTeam_isGivenToPlayersWhoJoinThatTeamLater() {
+        val (_, idA) = join("Alpha", "AA:00")
+        server.applyPlayerSettings(idA.toByte(), { it.health = 44 }, applyAll = false, applyTeam = true, targetTeam = 0)
+        players.playerSettings.clear()
+        val layout = settings.teamLayout
+        val (_, idB) = join("Bravo", "BB:00")
+        val (_, idC) = join("Charlie", "CC:00")
+        assertEquals(layout.teamOf(idA), layout.teamOf(idC))
+        assertEquals(44, players.playerSettings[idC.toByte()]!!.health)
+        assertTrue((players.playerSettings[idB.toByte()]?.health ?: 0) != 44)
+    }
+
+    @Test
+    fun applyPlayerSettings_toTeam_isGivenToAPlayerWhoSwitchesToThatTeam() {
+        settings.setAllowChooseTeams(true)
+        val (_, idA) = join("Alpha", "AA:00")
+        val (b, idB) = join("Bravo", "BB:00")
+        val layout = settings.teamLayout
+        val teamA = layout.teamOf(idA)
+        server.applyPlayerSettings(idA.toByte(), { it.health = 33 }, applyAll = false, applyTeam = true, targetTeam = 0)
+        server.applyPlayerSettings(idB.toByte(), { it.health = 88 }, applyAll = false, applyTeam = false, targetTeam = 0)
+        b.send(NetworkSessionGateway.teamChangeRequest(idB.toByte(), teamA))
+        awaitTrue { layout.teamOf(players.getPlayerIdByMac("BB:00")) == teamA }
+        awaitTrue { players.playerSettings[players.getPlayerIdByMac("BB:00")]?.health == 33 }
+    }
+
+    @Test
+    fun applyPlayerSettings_toAll_replacesTheTeams() {
+        val (_, idA) = join("Alpha", "AA:00")
+        server.applyPlayerSettings(idA.toByte(), { it.health = 44 }, applyAll = false, applyTeam = true, targetTeam = 0)
+        server.applyPlayerSettings(idA.toByte(), { it.health = 22 }, applyAll = true, applyTeam = false, targetTeam = 0)
+        players.playerSettings.clear()
+        val (_, idB) = join("Bravo", "BB:00")
+        val (_, idC) = join("Charlie", "CC:00") // on Alpha's team
+        assertEquals(22, players.playerSettings[idB.toByte()]!!.health)
+        assertEquals(22, players.playerSettings[idC.toByte()]!!.health)
+    }
+
     // ------------------------------------------------------------------------------------------
     // The snapshot and the operator's settings (dedicated server design §5.2, §6.1)
     // ------------------------------------------------------------------------------------------

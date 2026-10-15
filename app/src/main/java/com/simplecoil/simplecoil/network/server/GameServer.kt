@@ -116,6 +116,15 @@ class GameServer(
     /** Where the server listens, for the screen; set on the dispatcher. */
     private var serverIp: String? = null
 
+    /**
+     * The settings the operator last applied to every player, which players who join later get
+     * too (unless their team has its own); touched only on the dispatcher.
+     */
+    private var presetForAll: PlayerSettings? = null
+
+    /** The settings the operator last applied to each team, which players who join it later get; dispatcher only. */
+    private val presetForTeam = HashMap<Int, PlayerSettings>()
+
     private val _snapshot = MutableStateFlow(buildSnapshot())
 
     /**
@@ -332,12 +341,19 @@ class GameServer(
         events.publish(ServerEvent.PlayerDataChanged(null))
     }
 
-    /** [firstId] and [secondId] trade places on the teams; false outside the lobby or if either is missing. */
+    /**
+     * [firstId] and [secondId] trade places on the teams, each getting its new team's settings;
+     * false outside the lobby or if either is missing.
+     */
     fun swapPlayers(firstId: Byte, secondId: Byte): Boolean = callOnDispatcher(false) { swapPlayersNow(firstId, secondId) }
 
-    private fun swapPlayersNow(firstId: Byte, secondId: Byte): Boolean {
+    /** [presetForFirst]: [firstId] gets its new team's settings too (not when the operator just set its own). */
+    private fun swapPlayersNow(firstId: Byte, secondId: Byte, presetForFirst: Boolean = true): Boolean {
         Log.d(TAG, "swapPlayers: swapping players $firstId and $secondId")
         val (first, second) = roster.swapPlayers(firstId, secondId) ?: return false
+        // They traded teams: each one's old team is now the other's
+        if (presetForFirst) applyPreset(first.playerId, first.team, oldTeam = second.team)
+        applyPreset(second.playerId, second.team, oldTeam = first.team)
         first.connection?.send(command(ServerCommand.ServerReply(first.playerId)))
         second.connection?.send(command(ServerCommand.ServerReply(second.playerId)))
         sendPlayerData(SEND_ALL)
@@ -365,7 +381,9 @@ class GameServer(
             return@runOnDispatcher
         }
         resetSessionNow() // after a game: the roster renumbers only in the lobby
+        val oldTeams = roster.records().associateWith { it.team }
         val result = roster.rebalance(randomize)
+        for (record in result.assigned) applyPreset(record.playerId, record.team, oldTeams[record])
         for (connection in result.dropped) {
             Log.w(TAG, "Server full during rebalance! Closing client ${connection.connectionId}")
             connection.close()
@@ -430,7 +448,7 @@ class GameServer(
      * copies the settings to everyone ([applyAll]) or the player's new team ([applyTeam]), and
      * sends everyone's. If [targetTeam] is full, the player trades places with [swapWith] (0:
      * nobody) on it. Returns false if it could do neither; the rest is still done, under the
-     * player's old id.
+     * player's old id. The moved player keeps the settings just saved, not its new team's.
      */
     fun applyPlayerSettings(
         playerId: Byte,
@@ -448,7 +466,8 @@ class GameServer(
         if (targetTeam != 0) {
             val newId = players.findOpenPlayerIDOnTeam(targetTeam)
             if (newId.toInt() == 0) {
-                moved = swapWith > 0 && settings.teamLayout.teamOf(swapWith) == targetTeam && swapPlayersNow(playerId, swapWith)
+                moved = swapWith > 0 && settings.teamLayout.teamOf(swapWith) == targetTeam &&
+                    swapPlayersNow(playerId, swapWith, presetForFirst = false)
                 if (moved) targetId = swapWith
             } else {
                 switchPlayerTeam(playerId, newId)
@@ -459,7 +478,10 @@ class GameServer(
         moved
     }
 
-    /** Copies [playerId]'s settings to every other id, or to its teammates' ids. */
+    /**
+     * Copies [playerId]'s settings to every other id, or to its teammates' ids, and keeps them for
+     * players who join later: applying to everyone replaces every team's.
+     */
     private fun copyPlayerSettings(playerId: Int, applyAll: Boolean, applyTeam: Boolean) {
         if (playerId == SEND_ALL || !(applyAll || applyTeam)) return
         val layout = settings.teamLayout
@@ -467,25 +489,36 @@ class GameServer(
         synchronized(players) {
             val src = players.playerSettings[playerId.toByte()] ?: return
             val sourceTeam = layout.teamOf(playerId)
+            val preset = PlayerSettings().also { copySettings(src, it) }
+            if (applyAll) {
+                presetForAll = preset
+                presetForTeam.clear()
+            } else {
+                presetForTeam[sourceTeam] = preset
+            }
             for (x in 1..GameSettingsRepository.MAX_PLAYER_ID) {
                 if (x == playerId || (!applyAll && layout.teamOf(x) != sourceTeam)) continue
-                val target = players.playerSettings.getOrPut(x.toByte()) { PlayerSettings() }
-                target.health = src.health
-                target.shots = src.shots
-                target.reloadTime = src.reloadTime
-                target.reloadOnEmpty = src.reloadOnEmpty
-                target.manualRespawn = src.manualRespawn
-                target.spawnTime = src.spawnTime
-                target.respawnShieldTime = src.respawnShieldTime
-                target.damage = src.damage
-                target.overrideLives = src.overrideLives
-                target.lives = src.lives
-                target.allowShotModeSingle = src.allowShotModeSingle
-                target.allowShotModeBurst3 = src.allowShotModeBurst3
-                target.allowShotModeAuto = src.allowShotModeAuto
-                target.recoilSetting = src.recoilSetting
-                target.firingMode = src.firingMode
+                copySettings(src, players.playerSettings.getOrPut(x.toByte()) { PlayerSettings() })
             }
+        }
+    }
+
+    /** The settings the operator last applied to [team], or to everyone; null if neither. */
+    private fun presetFor(team: Int): PlayerSettings? =
+        if (settings.teamLayout.mode.isFreeForAll) presetForAll else presetForTeam[team] ?: presetForAll
+
+    /**
+     * Gives [playerId], who just joined [team] or switched to it from [oldTeam] (null: a new
+     * player), the settings the operator applied to that team or to everyone. A player who stayed
+     * on its team, or was only renumbered in free for all, keeps its own. Runs on the dispatcher,
+     * before the game info goes out.
+     */
+    fun applyPreset(playerId: Byte, team: Int, oldTeam: Int? = null) {
+        if (oldTeam != null && (oldTeam == team || settings.teamLayout.mode.isFreeForAll)) return
+        val preset = presetFor(team) ?: return
+        Log.d(TAG, "applyPreset: player $playerId gets the settings applied to team $team")
+        synchronized(players) {
+            copySettings(preset, players.playerSettings.getOrPut(playerId) { PlayerSettings() })
         }
     }
 
@@ -798,6 +831,25 @@ class GameServer(
 
         /** A MESG frame carrying [command]. */
         private fun command(command: ServerCommand): String = WireCodec.encode(ServerMessage.Command(command))
+
+        /** Copies every setting but admin rights from [src] to [target]. */
+        private fun copySettings(src: PlayerSettings, target: PlayerSettings) {
+            target.health = src.health
+            target.shots = src.shots
+            target.reloadTime = src.reloadTime
+            target.reloadOnEmpty = src.reloadOnEmpty
+            target.manualRespawn = src.manualRespawn
+            target.spawnTime = src.spawnTime
+            target.respawnShieldTime = src.respawnShieldTime
+            target.damage = src.damage
+            target.overrideLives = src.overrideLives
+            target.lives = src.lives
+            target.allowShotModeSingle = src.allowShotModeSingle
+            target.allowShotModeBurst3 = src.allowShotModeBurst3
+            target.allowShotModeAuto = src.allowShotModeAuto
+            target.recoilSetting = src.recoilSetting
+            target.firingMode = src.firingMode
+        }
 
         /** A thread whose body can't crash the process: a RuntimeException is logged and ends it (N5). */
         private fun containedThread(name: String, body: () -> Unit): Thread = Thread({
