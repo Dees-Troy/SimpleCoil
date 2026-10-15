@@ -540,6 +540,17 @@ class GameViewModelTest {
     }
 
     @Test
+    fun joined_disablingNetworking_forgetsOurGrenade() {
+        vm.onNetworkButtonPressed()
+        vm.onNetworkMenuEntry(NetworkMenuEntry.Join)
+        emitNetwork(ClientEvent.ServerReply(1))
+        players.pairedGrenadeID = 3
+        vm.onNetworkButtonPressed()
+        assertEquals(0.toByte(), players.pairedGrenadeID)
+        assertFalse(engine.state.value.grenadePaired)
+    }
+
+    @Test
     fun networkMenuEntries_followTheMenuState() {
         assertEquals(listOf(NetworkMenuEntry.Join, NetworkMenuEntry.JoinIp, NetworkMenuEntry.DisableNetwork), vm.networkMenuEntries())
         vm.onNetworkButtonPressed()

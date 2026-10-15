@@ -139,6 +139,21 @@ class TcpServerLoopbackTest {
     }
 
     @Test
+    fun leaving_unpairsTheLeaversGrenade_forEveryone() {
+        val (a, _) = join("Alpha", "AA:00")
+        val (b, idB) = join("Bravo", "BB:00")
+        b.json(org.json.JSONObject().put(WireKeys.PLAYERID, idB).put(WireKeys.PAIRED_GRENADE_ID, 3))
+        awaitTrue(3000, "B's grenade announced") {
+            a.lastJson(WireKeys.GRENADE_PAIRINGS)?.getJSONArray(WireKeys.GRENADE_PAIRINGS)?.length() == 1
+        }
+        b.mesg(WireProtocol.NETMSG_LEAVE)
+        awaitTrue(3000, "B's grenade unpaired") {
+            a.lastJson(WireKeys.GRENADE_PAIRINGS)?.getJSONArray(WireKeys.GRENADE_PAIRINGS)?.length() == 0
+        }
+        assertEquals(PlayerRepository.INVALID_PLAYER_ID, players.getGrenadePairing(3))
+    }
+
+    @Test
     fun lobbyJoin_autoSortsIntoTeams_andRepliesWithIdAndGameInfo() {
         val (a, idA) = join("Alpha", "AA:00")
         val (b, idB) = join("Bravo", "BB:00")

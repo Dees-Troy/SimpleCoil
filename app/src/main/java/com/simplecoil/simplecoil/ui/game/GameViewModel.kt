@@ -273,6 +273,11 @@ class GameViewModel(
         screen = null
     }
 
+    /** The play screen is closing for good; the app-scoped session outlives it, so drop our grenade. */
+    override fun onCleared() {
+        engine.forgetGrenade()
+    }
+
     private fun setDeviceAddress(address: String?) {
         deviceAddress = address ?: ""
         playerRepo.deviceAddress = deviceAddress
@@ -408,6 +413,7 @@ class GameViewModel(
         screen?.setConnectButtonsEnabled(true)
         setConnectStatus(null)
         engine.onBlasterReset()
+        engine.forgetGrenade()
     }
 
     /** Reconnecting mid-game is covered by the disconnected dialog, so the popup stays closed then. */
@@ -745,6 +751,7 @@ class GameViewModel(
         // Joined to a dedicated server, the button disables networking; there's no popup.
         if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINED) {
             stopServerSearch(true)
+            engine.forgetGrenade() // leaving the server on our own ends the grenade's pairing too
             return
         }
         screen?.prepareNetworkMenu()

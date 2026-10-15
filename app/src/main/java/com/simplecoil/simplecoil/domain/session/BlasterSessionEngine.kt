@@ -339,6 +339,12 @@ class BlasterSessionEngine(
         battery.reset()
     }
 
+    /** Unpairs our grenade; a pairing lasts from game to game, but not past the connect screen or the app. */
+    fun forgetGrenade() {
+        config.pairedGrenadeId = 0
+        _state.update { it.copy(grenadePaired = false) }
+    }
+
     val eliminations: Int get() = eliminationCount
 
     // ---------------------------------------------------------------------------------------
@@ -666,10 +672,7 @@ class BlasterSessionEngine(
                     emit(SessionEffect.Toast(SessionToast.GRENADE_PAIRED))
                 }
             }
-            GrenadeDecoder.PairingAction.UNPAIR -> {
-                config.pairedGrenadeId = 0
-                _state.update { it.copy(grenadePaired = false) }
-            }
+            GrenadeDecoder.PairingAction.UNPAIR -> forgetGrenade()
             GrenadeDecoder.PairingAction.NONE -> Unit
         }
     }

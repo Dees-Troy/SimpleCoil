@@ -429,9 +429,9 @@ class GameServer(
         client.send(WireCodec.encode(snapshots.scoreMatrix()))
     }
 
-    /** Announces every grenade's owner, if any grenade is paired. Runs on the dispatcher. */
+    /** Announces every grenade's owner. Runs on the dispatcher. */
     fun sendGrenadePairings() {
-        snapshots.grenadePairings()?.let { sendToAll(WireCodec.encode(it)) }
+        sendToAll(WireCodec.encode(snapshots.grenadePairings()))
     }
 
     /**

@@ -75,8 +75,14 @@ class ServerMessageHandler(
         when {
             command == ClientCommand.Leave || command == ClientCommand.EndGame -> {
                 // Leaving; a plain ENDGAME from a client is treated as the client leaving too. A
-                // player in the game's roster stays on the scoreboard, disconnected (Q12)
+                // player in the game's roster stays on the scoreboard, disconnected (Q12), but
+                // without their grenade: it's paired again if they come back and pair it
+                val playerId = client.player?.playerId
                 removeClient(client)
+                if (playerId != null && players.removeGrenadePairings(playerId)) {
+                    server.sendGrenadePairings()
+                    server.sendPlayerData(GameServer.SEND_ALL)
+                }
                 if (roster.isRunning() && roster.connectedCount() <= 1) server.endGame()
             }
             // Sent reliably since v07; a bare one is applied the same way, without de-dup

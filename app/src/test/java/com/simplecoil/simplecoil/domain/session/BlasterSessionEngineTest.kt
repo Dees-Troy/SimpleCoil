@@ -666,6 +666,16 @@ class BlasterSessionEngineTest {
     }
 
     @Test
+    fun forgetGrenade_unpairsIt() {
+        h.connected()
+        h.telemetry(Packet().hit1(167, 0x9F))
+        assertTrue(h.state.grenadePaired)
+        h.engine.forgetGrenade()
+        assertEquals(0.toByte(), h.config.pairedGrenadeId)
+        assertFalse(h.state.grenadePaired)
+    }
+
+    @Test
     fun battery_isAveragedAndClassifiedByBlasterType() {
         h.connected(Packet().battery(0x10))
         assertEquals(BatteryLevelPolicy.Level.FULL, h.state.battery)

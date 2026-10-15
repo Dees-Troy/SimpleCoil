@@ -148,13 +148,13 @@ class SnapshotBuilder(
     /** The ids of the players with a paired grenade. */
     fun grenadeHolders(): Set<Int> = players.grenadePairings.filter { it != PlayerRepository.INVALID_PLAYER_ID }.toSet()
 
-    /** Every grenade's owner; null when no grenade is paired. */
-    fun grenadePairings(): ServerMessage.GrenadePairings? {
+    /** Every grenade's owner; empty when none is paired, so clients drop the last one too. */
+    fun grenadePairings(): ServerMessage.GrenadePairings {
         val pairings = players.grenadePairings
         val paired = (1 until PlayerRepository.MAX_GRENADE_IDS)
             .filter { pairings[it] != PlayerRepository.INVALID_PLAYER_ID }
             .map { WireGrenadePairing(it, pairings[it]) }
-        return if (paired.isEmpty()) null else ServerMessage.GrenadePairings(paired)
+        return ServerMessage.GrenadePairings(paired)
     }
 
     private companion object {

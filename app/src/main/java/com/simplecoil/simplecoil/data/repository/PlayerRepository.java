@@ -122,11 +122,16 @@ public class PlayerRepository {
         Arrays.fill(grenadePairings, INVALID_PLAYER_ID);
     }
 
-    /** Unpairs every grenade paired with [playerId]. */
-    public synchronized void removeGrenadePairings(byte playerId) {
+    /** Unpairs every grenade paired with [playerId]; returns whether any was paired. */
+    public synchronized boolean removeGrenadePairings(byte playerId) {
+        boolean removed = false;
         for (int i = 0; i < grenadePairings.length; i++) {
-            if (grenadePairings[i] == playerId) grenadePairings[i] = INVALID_PLAYER_ID;
+            if (grenadePairings[i] == playerId) {
+                grenadePairings[i] = INVALID_PLAYER_ID;
+                removed = true;
+            }
         }
+        return removed;
     }
 
     public synchronized void addOrUpdatePlayer(byte playerId, InetAddress ip, String name) {
