@@ -79,8 +79,8 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="5dp"
-                        android:layout_marginStart="10dp"
                         android:layout_below="@+id/server_ip_tv"
+                        android:layout_alignStart="@id/server_ip_tv"
                         android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
                     <TextView
