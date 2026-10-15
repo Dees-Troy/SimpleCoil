@@ -8,186 +8,242 @@
     tools:context="com.simplecoil.simplecoil.FullscreenActivity">
 
     <!-- This FrameLayout insets its children based on system windows using
-         android:fitsSystemWindows. -->
-    <RelativeLayout
+         android:fitsSystemWindows; the CoordinatorLayout would handle that flag its own way. -->
+    <FrameLayout
         android:id="@+id/connect_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="visible"
-        android:fitsSystemWindows="true">
+        android:fitsSystemWindows="true"
+        tools:ignore="UselessParent">
 
-        <TextView
-            android:id="@+id/version_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:layout_marginEnd="5dp"
-            android:layout_alignParentEnd="true"
-            android:text=""
-            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
-
-        <TextView
-            android:id="@+id/server_ip_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignParentStart="true"
-            android:layout_marginTop="10dp"
-            android:layout_marginStart="5dp"
-            android:text=""
-            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
-
-        <Chronometer
-            android:id="@+id/game_timer_chronometer"
-            style="@android:style/TextAppearance.Material.Small.Inverse"
-            android:format="%s"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignTop="@+id/server_ip_tv"
-            android:layout_centerHorizontal="true"
-            android:layout_marginStart="15dp"/>
-
-        <TextView
-            android:id="@+id/game_countdown_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignTop="@+id/server_ip_tv"
-            android:layout_centerHorizontal="true"
-            android:layout_marginStart="15dp"
-            android:text=""
-            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
-
-        <TextView
-            android:id="@+id/player_count_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="5dp"
-            android:layout_marginStart="10dp"
-            android:layout_below="@+id/server_ip_tv"
-            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
-
-        <Button
-            android:id="@+id/team_mode_toggle_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_below="@id/player_count_tv"
-            android:text="@string/team_mode_toggle_button" />
-
-        <TextView
-            android:id="@+id/game_limit_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="5dp"
-            android:layout_alignParentEnd="true"
-            android:layout_below="@id/server_ip_tv"
-            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
-
-        <Button
-            android:id="@+id/game_limit_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="10dp"
-            android:layout_alignParentEnd="true"
-            android:layout_below="@id/player_count_tv"
-            android:text="@string/game_limit_button" />
-
-        <Button
-            android:id="@+id/starting_timer_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="10dp"
-            android:layout_alignParentEnd="true"
-            android:layout_below="@id/game_limit_button"
-            android:text="@string/starting_timer_button" />
-
-        <TextView
-            android:id="@+id/game_status_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignBaseline="@id/team_mode_toggle_button"
-            android:layout_centerHorizontal="true"
-            android:text="@string/dedicated_game_waiting"
-            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
-
-        <Button
-            android:id="@+id/gps_mode_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_below="@id/team_mode_toggle_button"
-            android:text="@string/gps_mode_disabled" />
-
-        <Button
-            android:id="@+id/start_game_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_below="@id/gps_mode_button"
-            android:enabled="true"
-            android:text="@string/start_game_button" />
-
-        <Button
-            android:id="@+id/reset_game_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="10dp"
-            android:layout_below="@id/gps_mode_button"
-            android:visibility="invisible"
-            android:text="@string/reset_game_button" />
-
-        <Button
-            android:id="@+id/end_game_button"
-            style="@style/Widget.AppCompat.Button.Colored"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginEnd="10dp"
-            android:layout_alignParentEnd="true"
-            android:layout_below="@id/starting_timer_button"
-            android:layout_alignBaseline="@id/start_game_button"
-            android:enabled="false"
-            android:text="@string/end_game_button" />
-
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/allow_join_switch"
+        <androidx.coordinatorlayout.widget.CoordinatorLayout
+            android:id="@+id/server_coordinator"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/start_game_button"
-            android:layout_marginStart="10dp"
-            android:layout_marginEnd="10dp"
-            android:layout_marginTop="5dp"
-            android:text="@string/dedicated_allow_join"
-            android:textColor="#FFFFFF"/>
+            android:layout_height="match_parent">
 
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/only_server_settings_switch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/allow_join_switch"
-            android:layout_marginStart="10dp"
-            android:layout_marginEnd="10dp"
-            android:text="@string/dedicated_server_settings_only"
-            android:textColor="#FFFFFF"/>
+            <!-- Bottom padding is set to the player sheet's peek height, so no control hides behind it. -->
+            <ScrollView
+                android:id="@+id/server_scroll"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false">
 
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/allow_choose_teams_switch"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/only_server_settings_switch"
-            android:layout_marginStart="10dp"
-            android:layout_marginEnd="10dp"
-            android:text="@string/dedicated_allow_choose_teams"
-            android:textColor="#FFFFFF"/>
+                <RelativeLayout
+                    android:id="@+id/server_content"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingBottom="10dp">
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/player_list"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_below="@id/allow_choose_teams_switch" />
-    </RelativeLayout>
+                    <TextView
+                        android:id="@+id/version_tv"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="5dp"
+                        android:layout_marginEnd="5dp"
+                        android:layout_alignParentEnd="true"
+                        android:text=""
+                        android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+                    <TextView
+                        android:id="@+id/server_ip_tv"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignParentStart="true"
+                        android:layout_marginTop="10dp"
+                        android:layout_marginStart="5dp"
+                        android:text=""
+                        android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+                    <Chronometer
+                        android:id="@+id/game_timer_chronometer"
+                        style="@android:style/TextAppearance.Material.Small.Inverse"
+                        android:format="%s"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignTop="@+id/server_ip_tv"
+                        android:layout_centerHorizontal="true"
+                        android:layout_marginStart="15dp"/>
+
+                    <TextView
+                        android:id="@+id/game_countdown_tv"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignTop="@+id/server_ip_tv"
+                        android:layout_centerHorizontal="true"
+                        android:layout_marginStart="15dp"
+                        android:text=""
+                        android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+                    <TextView
+                        android:id="@+id/player_count_tv"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="5dp"
+                        android:layout_marginStart="10dp"
+                        android:layout_below="@+id/server_ip_tv"
+                        android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+                    <Button
+                        android:id="@+id/team_mode_toggle_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:layout_below="@id/player_count_tv"
+                        android:text="@string/team_mode_toggle_button" />
+
+                    <TextView
+                        android:id="@+id/game_limit_tv"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="5dp"
+                        android:layout_alignParentEnd="true"
+                        android:layout_below="@id/server_ip_tv"
+                        android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+                    <Button
+                        android:id="@+id/game_limit_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="10dp"
+                        android:layout_alignParentEnd="true"
+                        android:layout_below="@id/player_count_tv"
+                        android:text="@string/game_limit_button" />
+
+                    <Button
+                        android:id="@+id/starting_timer_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="10dp"
+                        android:layout_alignParentEnd="true"
+                        android:layout_below="@id/game_limit_button"
+                        android:text="@string/starting_timer_button" />
+
+                    <TextView
+                        android:id="@+id/game_status_tv"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_alignBaseline="@id/team_mode_toggle_button"
+                        android:layout_centerHorizontal="true"
+                        android:text="@string/dedicated_game_waiting"
+                        android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+                    <Button
+                        android:id="@+id/gps_mode_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:layout_below="@id/team_mode_toggle_button"
+                        android:text="@string/gps_mode_disabled" />
+
+                    <Button
+                        android:id="@+id/start_game_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:layout_below="@id/gps_mode_button"
+                        android:enabled="true"
+                        android:text="@string/start_game_button" />
+
+                    <Button
+                        android:id="@+id/reset_game_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="10dp"
+                        android:layout_below="@id/gps_mode_button"
+                        android:visibility="invisible"
+                        android:text="@string/reset_game_button" />
+
+                    <Button
+                        android:id="@+id/end_game_button"
+                        style="@style/Widget.AppCompat.Button.Colored"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="10dp"
+                        android:layout_alignParentEnd="true"
+                        android:layout_below="@id/starting_timer_button"
+                        android:layout_alignBaseline="@id/start_game_button"
+                        android:enabled="false"
+                        android:text="@string/end_game_button" />
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/allow_join_switch"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@id/start_game_button"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginEnd="10dp"
+                        android:layout_marginTop="5dp"
+                        android:text="@string/dedicated_allow_join"
+                        android:textColor="#FFFFFF"/>
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/only_server_settings_switch"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@id/allow_join_switch"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginEnd="10dp"
+                        android:text="@string/dedicated_server_settings_only"
+                        android:textColor="#FFFFFF"/>
+
+                    <androidx.appcompat.widget.SwitchCompat
+                        android:id="@+id/allow_choose_teams_switch"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@id/only_server_settings_switch"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginEnd="10dp"
+                        android:text="@string/dedicated_allow_choose_teams"
+                        android:textColor="#FFFFFF"/>
+                </RelativeLayout>
+            </ScrollView>
+
+            <!-- The players: peeks into the space left below the controls; drag or tap the header to expand. -->
+            <LinearLayout
+                android:id="@+id/player_sheet"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="vertical"
+                android:background="@drawable/bottom_sheet_background"
+                app:behavior_peekHeight="@dimen/player_sheet_min_peek"
+                app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
+
+                <LinearLayout
+                    android:id="@+id/player_sheet_header"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp"
+                    android:background="?android:attr/selectableItemBackground">
+
+                    <View
+                        android:layout_width="36dp"
+                        android:layout_height="4dp"
+                        android:background="@drawable/bottom_sheet_handle" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:text="@string/player_sheet_title"
+                        android:textColor="#CCCCCC"
+                        android:textAppearance="@android:style/TextAppearance.Material.Small" />
+                </LinearLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/player_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+            </LinearLayout>
+        </androidx.coordinatorlayout.widget.CoordinatorLayout>
+    </FrameLayout>
 </FrameLayout>

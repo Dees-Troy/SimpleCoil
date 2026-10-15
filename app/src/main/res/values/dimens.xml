@@ -4,6 +4,8 @@
     <dimen name="dialog_inset">24dp</dimen>
     <!-- The least the About sheet on the connect screen peeks up: its header and a few lines. -->
     <dimen name="info_sheet_min_peek">120dp</dimen>
+    <!-- The least the player sheet on the server screen peeks up: its header and a couple of rows. -->
+    <dimen name="player_sheet_min_peek">120dp</dimen>
     <!-- The score matrix (SCORE_MATRIX_DESIGN.md §6.1). -->
     <dimen name="score_matrix_cell">40dp</dimen>
     <dimen name="score_matrix_header_max">120dp</dimen>

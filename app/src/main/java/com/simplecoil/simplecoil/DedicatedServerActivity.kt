@@ -42,6 +42,7 @@ import com.simplecoil.simplecoil.ui.scoreboard.ScoreboardAdapter
 import com.simplecoil.simplecoil.ui.server.DedicatedServerRenderer
 import com.simplecoil.simplecoil.ui.server.DedicatedServerViewModel
 import com.simplecoil.simplecoil.ui.server.ServerUiEffect
+import com.simplecoil.simplecoil.ui.sheet.FillingBottomSheet
 import kotlinx.coroutines.launch
 
 /**
@@ -75,6 +76,8 @@ class DedicatedServerActivity : AppCompatActivity() {
         binding.versionTv.text = packageManager.getPackageInfo(packageName, 0).versionName
 
         onBackPressedDispatcher.addCallback(this) { vm.onBackPressed() }
+        // After the Back above, so an expanded sheet collapses before Back asks to stop the server
+        attachPlayerSheet()
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 launch { vm.state.collect { state -> state?.let { renderer.render(it) } } }
@@ -109,6 +112,14 @@ class DedicatedServerActivity : AppCompatActivity() {
         allowJoinSwitch.setOnClickListener { vm.onAllowJoinChanged(allowJoinSwitch.isChecked) }
         onlyServerSettingsSwitch.setOnClickListener { vm.onOnlyServerSettingsChanged(onlyServerSettingsSwitch.isChecked) }
         allowChooseTeamsSwitch.setOnClickListener { vm.onAllowChooseTeamsChanged(allowChooseTeamsSwitch.isChecked) }
+    }
+
+    /** The players in a bottom sheet under the controls; the large-screen layout shows them beside the controls instead. */
+    private fun attachPlayerSheet() {
+        val b = binding
+        val sheet = b.playerSheet ?: return
+        FillingBottomSheet(this, sheet, b.playerSheetHeader!!, b.serverCoordinator!!, b.serverContent!!, b.serverScroll!!,
+            resources.getDimensionPixelSize(R.dimen.player_sheet_min_peek)) { b.playerList.scrollToPosition(0) }
     }
 
     private fun showMenu(anchor: View, menu: Int) {

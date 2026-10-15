@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The About sheet on the connect screen: a little lighter than the screen, rounded on top. -->
+<!-- A bottom sheet (the About sheet, the server's players): a little lighter than the screen, rounded on top. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="#161616" />
