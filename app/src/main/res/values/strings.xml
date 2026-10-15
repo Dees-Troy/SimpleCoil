@@ -153,6 +153,10 @@
     <string name="dedicated_game_running">Game Running</string>
     <string name="dedicated_game_waiting">Waiting to Start</string>
     <string name="dedicated_game_over">Game Over</string>
+    <string name="dedicated_start_button">Start</string>
+    <string name="dedicated_end_button">End</string>
+    <string name="dedicated_reset_button">↺ Reset</string>
+    <string name="dedicated_phase_arrow" translatable="false">→</string>
     <string name="reset_game_button">Reset</string>
     <string name="reset_game_admin">Reset game</string>
     <string name="dedicated_game_reset_toast">Game reset</string>

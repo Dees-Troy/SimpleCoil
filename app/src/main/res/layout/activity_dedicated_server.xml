@@ -122,15 +122,6 @@
                         android:layout_below="@id/game_limit_button"
                         android:text="@string/starting_timer_button" />
 
-                    <TextView
-                        android:id="@+id/game_status_tv"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_alignBaseline="@id/team_mode_toggle_button"
-                        android:layout_centerHorizontal="true"
-                        android:text="@string/dedicated_game_waiting"
-                        android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
-
                     <Button
                         android:id="@+id/gps_mode_button"
                         style="@style/Widget.AppCompat.Button.Colored"
@@ -140,43 +131,96 @@
                         android:layout_below="@id/team_mode_toggle_button"
                         android:text="@string/gps_mode_disabled" />
 
-                    <Button
-                        android:id="@+id/start_game_button"
-                        style="@style/Widget.AppCompat.Button.Colored"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="10dp"
+                    <!-- The game's lifecycle, below the settings: its phase, then Start → End → Reset in
+                         order. Only the step to the next phase is enabled. -->
+                    <View
+                        android:id="@+id/phase_divider"
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
                         android:layout_below="@id/gps_mode_button"
-                        android:enabled="true"
-                        android:text="@string/start_game_button" />
-
-                    <Button
-                        android:id="@+id/reset_game_button"
-                        style="@style/Widget.AppCompat.Button.Colored"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
                         android:layout_marginStart="10dp"
-                        android:layout_below="@id/gps_mode_button"
-                        android:visibility="invisible"
-                        android:text="@string/reset_game_button" />
-
-                    <Button
-                        android:id="@+id/end_game_button"
-                        style="@style/Widget.AppCompat.Button.Colored"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
                         android:layout_marginEnd="10dp"
-                        android:layout_alignParentEnd="true"
-                        android:layout_below="@id/starting_timer_button"
-                        android:layout_alignBaseline="@id/start_game_button"
-                        android:enabled="false"
-                        android:text="@string/end_game_button" />
+                        android:layout_marginTop="5dp"
+                        android:background="#444444" />
+
+                    <TextView
+                        android:id="@+id/game_status_tv"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@id/phase_divider"
+                        android:layout_centerHorizontal="true"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/dedicated_game_waiting"
+                        android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+                    <LinearLayout
+                        android:id="@+id/phase_controls"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_below="@id/game_status_tv"
+                        android:layout_marginStart="10dp"
+                        android:layout_marginEnd="10dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <Button
+                            android:id="@+id/start_game_button"
+                            style="@style/Widget.AppCompat.Button.Colored"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:maxLines="1"
+                            android:textSize="12sp"
+                            android:text="@string/dedicated_start_button" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:importantForAccessibility="no"
+                            android:paddingStart="4dp"
+                            android:paddingEnd="4dp"
+                            android:text="@string/dedicated_phase_arrow"
+                            android:textColor="#AAAAAA"
+                            android:textSize="24sp" />
+
+                        <Button
+                            android:id="@+id/end_game_button"
+                            style="@style/Widget.AppCompat.Button.Colored"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:maxLines="1"
+                            android:textSize="12sp"
+                            android:enabled="false"
+                            android:text="@string/dedicated_end_button" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:importantForAccessibility="no"
+                            android:paddingStart="4dp"
+                            android:paddingEnd="4dp"
+                            android:text="@string/dedicated_phase_arrow"
+                            android:textColor="#AAAAAA"
+                            android:textSize="24sp" />
+
+                        <Button
+                            android:id="@+id/reset_game_button"
+                            style="@style/Widget.AppCompat.Button.Colored"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:maxLines="1"
+                            android:textSize="12sp"
+                            android:enabled="false"
+                            android:text="@string/dedicated_reset_button" />
+                    </LinearLayout>
 
                     <androidx.appcompat.widget.SwitchCompat
                         android:id="@+id/allow_join_switch"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_below="@id/start_game_button"
+                        android:layout_below="@id/phase_controls"
                         android:layout_marginStart="10dp"
                         android:layout_marginEnd="10dp"
                         android:layout_marginTop="5dp"

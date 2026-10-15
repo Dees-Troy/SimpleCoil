@@ -93,11 +93,10 @@ class DedicatedServerRenderer(
     private fun renderPhase(phase: SessionPhase) = with(binding) {
         val running = phase == SessionPhase.RUNNING
         val postGame = phase == SessionPhase.POST_GAME
-        // Reset takes Start's place after a game. Invisible, not gone: other views are laid out against Start.
-        startGameButton.visibility = if (phase == SessionPhase.LOBBY) View.VISIBLE else View.INVISIBLE
+        // All three steps stay in view; only the one to the next phase is enabled
         startGameButton.isEnabled = phase == SessionPhase.LOBBY
-        resetGameButton.visibility = if (postGame) View.VISIBLE else View.INVISIBLE
         endGameButton.isEnabled = running
+        resetGameButton.isEnabled = postGame
         teamModeToggleButton.isEnabled = !running
         gameLimitButton.isEnabled = !running
         startingTimerButton.isEnabled = !running
