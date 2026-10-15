@@ -115,7 +115,7 @@ class ScoreboardAdapter(
             name.setText(R.string.player_list_name_label)
             name.setTextColor(defaultNameColors)
             points.setText(R.string.player_list_points_label)
-            stat.setText(if (row.livesColumn) R.string.game_limit_lives else R.string.player_list_eliminated_label)
+            stat.setText(if (row.livesColumn) R.string.scoreboard_lives else R.string.player_list_eliminated_label)
             networkStatus?.visibility = View.GONE
             kick?.visibility = View.GONE
             kick?.setOnClickListener(null)

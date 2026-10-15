@@ -175,13 +175,14 @@ class GameViewModelTest {
 
     @Test
     fun gameLimit_parsesAndRejectsTooHigh() {
-        vm.onGameLimitEntered("10", LimitKind.TIME)
+        vm.onGameLimitsEntered(mapOf(LimitKind.TIME to "10", LimitKind.LIVES to "0"))
         assertEquals(GameSettingsRepository.GAME_LIMIT_TIME, settings.gameLimit)
         assertEquals(10, prefs.values["TimeLimit"])
         verify(screen).showGameLimit(10, false, null)
-        vm.onGameLimitEntered("101", LimitKind.LIVES)
+        vm.onGameLimitsEntered(mapOf(LimitKind.TIME to "20", LimitKind.LIVES to "1001"))
         verify(screen).showMessage(GameMessage.LIMIT_TOO_HIGH, 0)
-        vm.onGameLimitEntered("abc", LimitKind.LIVES)
+        assertEquals(10, settings.timeLimit)
+        vm.onGameLimitsEntered(mapOf(LimitKind.LIVES to "abc"))
         assertEquals(GameSettingsRepository.GAME_LIMIT_TIME, settings.gameLimit)
     }
 
@@ -503,7 +504,7 @@ class GameViewModelTest {
 
     @Test
     fun localScoreLimit_endsTheGame() {
-        vm.onGameLimitEntered("1", LimitKind.SCORE)
+        vm.onGameLimitsEntered(mapOf(LimitKind.SCORE to "1"))
         vm.onStartGamePressed()
         emitNetwork(ClientEvent.Eliminated(2))
         assertEquals(GameStateRepository.GAME_STATE_NONE, gameState.gameState)

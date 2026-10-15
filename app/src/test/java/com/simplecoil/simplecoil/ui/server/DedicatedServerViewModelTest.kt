@@ -201,12 +201,16 @@ class DedicatedServerViewModelTest {
     @Test
     fun gameLimit_appliesThroughTheRules_savesIt_andRejectsTooHigh() {
         publish()
-        vm.onGameLimitEntered("15", LimitKind.TIME)
-        assertEquals("limits ${Limits(GameSettingsRepository.GAME_LIMIT_TIME, 15, 0, 0)}", controller.calls.last())
+        vm.onGameLimitsEntered(mapOf(LimitKind.TIME to "15", LimitKind.LIVES to "3", LimitKind.SCORE to "0"))
+        val both = GameSettingsRepository.GAME_LIMIT_TIME or GameSettingsRepository.GAME_LIMIT_LIVES
+        assertEquals("limits ${Limits(both, 15, 3, 0)}", controller.calls.last())
         assertEquals(15, prefs.timeLimit())
-        vm.onGameLimitEntered("101", LimitKind.LIVES)
+        assertEquals(3, prefs.livesLimit())
+        val calls = controller.calls.size
+        vm.onGameLimitsEntered(mapOf(LimitKind.TIME to "20", LimitKind.LIVES to "1001"))
         assertEquals(listOf(R.string.error_limit_too_high), toasts())
-        vm.onGameLimitEntered("0", LimitKind.SCORE) // S9: 0 leaves an unset limit off
+        assertEquals(calls, controller.calls.size)
+        vm.onGameLimitsEntered(mapOf(LimitKind.SCORE to "0")) // S9: 0 leaves an unset limit off
         assertEquals("limits ${Limits(GameSettingsRepository.GAME_LIMIT_NONE, 0, 0, 0)}", controller.calls.last())
     }
 

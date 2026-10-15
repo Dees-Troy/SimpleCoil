@@ -32,6 +32,7 @@ import com.simplecoil.simplecoil.databinding.GameLimitDialogBinding
 import com.simplecoil.simplecoil.databinding.StartingTimerDialogBinding
 import com.simplecoil.simplecoil.databinding.TeamRatioDialogBinding
 import com.simplecoil.simplecoil.domain.rules.LimitKind
+import com.simplecoil.simplecoil.domain.rules.Limits
 import com.simplecoil.simplecoil.domain.rules.TeamSizes
 
 /*
@@ -49,45 +50,33 @@ abstract class AppDialogFragment : DialogFragment() {
     protected fun alertBuilder() = AlertDialog.Builder(requireContext(), R.style.AppDialogTheme)
 }
 
-/** A game limit: the text entered and which limit it is for. Results under [REQUEST_KEY]. */
+/**
+ * Every game limit at once, starting from the current ones (0 for off): the text entered for
+ * each. Results under [REQUEST_KEY].
+ */
 class GameLimitDialog : AppDialogFragment() {
+    // The fields hold ASCII digits that GameLimitRules parses back; locale digits wouldn't parse.
+    @SuppressLint("SetTextI18n")
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         isCancelable = false
+        val args = requireArguments()
         val binding = GameLimitDialogBinding.inflate(appInflater)
-        val time = binding.gameLimitTimeRadio
-        val lives = binding.gameLimitLivesRadio
-        val score = binding.gameLimitScoreRadio
-        time.isChecked = true
-        lives.isChecked = false
-        score.isChecked = false
-        score.visibility = if (requireArguments().getBoolean(ARG_ALLOW_SCORE)) View.VISIBLE else View.GONE
-        time.setOnClickListener {
-            time.isChecked = true
-            lives.isChecked = false
-            score.isChecked = false
+        val fields = mapOf(
+            LimitKind.TIME to binding.gameLimitTimeEt,
+            LimitKind.LIVES to binding.gameLimitLivesEt,
+            LimitKind.SCORE to binding.gameLimitScoreEt,
+        ).filterKeys { it != LimitKind.SCORE || args.getBoolean(ARG_ALLOW_SCORE) }
+        if (LimitKind.SCORE !in fields) {
+            binding.gameLimitScoreLabel.visibility = View.GONE
+            binding.gameLimitScoreEt.visibility = View.GONE
         }
-        lives.setOnClickListener {
-            time.isChecked = false
-            lives.isChecked = true
-            score.isChecked = false
-        }
-        score.setOnClickListener {
-            time.isChecked = false
-            lives.isChecked = false
-            score.isChecked = true
-        }
+        val current = args.getIntArray(ARG_CURRENT)!!
+        fields.forEach { (kind, field) -> field.setText(current[kind.ordinal].toString()) }
         return alertBuilder()
             .setView(binding.root)
             .setPositiveButton(R.string.ok) { dialog, _ ->
-                val kind = when {
-                    time.isChecked -> LimitKind.TIME
-                    lives.isChecked -> LimitKind.LIVES
-                    else -> LimitKind.SCORE
-                }
-                parentFragmentManager.setFragmentResult(
-                    REQUEST_KEY,
-                    bundleOf(RESULT_TEXT to binding.gameLimitEt.text.toString(), RESULT_KIND to kind.name),
-                )
+                val texts = fields.map { (kind, field) -> kind.name to field.text.toString() }
+                parentFragmentManager.setFragmentResult(REQUEST_KEY, bundleOf(*texts.toTypedArray()))
                 dialog.dismiss()
             }
             .setNegativeButton(R.string.cancel) { dialog, _ -> dialog.cancel() }
@@ -97,17 +86,20 @@ class GameLimitDialog : AppDialogFragment() {
     companion object {
         const val REQUEST_KEY = "gameLimit"
         private const val ARG_ALLOW_SCORE = "allowScoreLimit"
-        private const val RESULT_TEXT = "text"
-        private const val RESULT_KIND = "kind"
+        private const val ARG_CURRENT = "current"
 
         @JvmStatic
-        fun newInstance(allowScoreLimit: Boolean) = GameLimitDialog().apply { arguments = bundleOf(ARG_ALLOW_SCORE to allowScoreLimit) }
+        fun newInstance(current: Limits, allowScoreLimit: Boolean) = GameLimitDialog().apply {
+            arguments = bundleOf(
+                ARG_ALLOW_SCORE to allowScoreLimit,
+                ARG_CURRENT to LimitKind.entries.map(current::shown).toIntArray(),
+            )
+        }
 
+        /** The text entered for each limit the dialog showed. */
         @JvmStatic
-        fun text(result: Bundle): String = result.getString(RESULT_TEXT, "")
-
-        @JvmStatic
-        fun kind(result: Bundle): LimitKind = LimitKind.valueOf(result.getString(RESULT_KIND, LimitKind.TIME.name))
+        fun texts(result: Bundle): Map<LimitKind, String> =
+            LimitKind.entries.mapNotNull { kind -> result.getString(kind.name)?.let { kind to it } }.toMap()
     }
 }
 

@@ -18,15 +18,22 @@ package com.simplecoil.simplecoil.domain.rules
 
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 
-/** Which game limit the operator or player is setting. */
+/** One of the game limits. */
 enum class LimitKind { TIME, LIVES, SCORE }
 
 /** The game limits: which ones are on ([gameLimit] flags) and their values. */
-data class Limits(val gameLimit: Int, val timeLimit: Int, val livesLimit: Int, val scoreLimit: Int)
+data class Limits(val gameLimit: Int, val timeLimit: Int, val livesLimit: Int, val scoreLimit: Int) {
+    /** [kind]'s value as the dialog shows it: 0 when that limit is off. */
+    fun shown(kind: LimitKind): Int = when (kind) {
+        LimitKind.TIME -> if (gameLimit and GameSettingsRepository.GAME_LIMIT_TIME != 0) timeLimit else 0
+        LimitKind.LIVES -> if (gameLimit and GameSettingsRepository.GAME_LIMIT_LIVES != 0) livesLimit else 0
+        LimitKind.SCORE -> if (gameLimit and GameSettingsRepository.GAME_LIMIT_SCORE != 0) scoreLimit else 0
+    }
+}
 
 /** The game limit dialog's rules, shared by the play screen and the dedicated server. Pure. */
 object GameLimitRules {
-    const val MAX_LIMIT = 100
+    const val MAX_LIMIT = 1000
 
     sealed interface Result {
         data class Applied(val limits: Limits) : Result
@@ -54,5 +61,25 @@ object GameLimitRules {
                 LimitKind.SCORE -> current.copy(gameLimit = gameLimit, scoreLimit = limit)
             }
         )
+    }
+
+    /**
+     * Every limit the dialog entered, at once. Any one above [MAX_LIMIT] and nothing changes; an
+     * empty or non-numeric field keeps its limit as it was.
+     */
+    fun apply(current: Limits, texts: Map<LimitKind, String>): Result {
+        var limits = current
+        var changed = false
+        for ((kind, text) in texts) {
+            when (val result = apply(limits, kind, text)) {
+                Result.TooHigh -> return Result.TooHigh
+                Result.Ignored -> {}
+                is Result.Applied -> {
+                    limits = result.limits
+                    changed = true
+                }
+            }
+        }
+        return if (changed) Result.Applied(limits) else Result.Ignored
     }
 }

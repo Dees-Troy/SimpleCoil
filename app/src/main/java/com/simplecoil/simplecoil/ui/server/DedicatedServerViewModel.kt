@@ -175,10 +175,10 @@ class DedicatedServerViewModel(
         prefs.saveGpsMode(mode)
     }
 
-    /** The game limit dialog's result. */
-    fun onGameLimitEntered(text: String, kind: LimitKind) {
+    /** The game limit dialog's result: the text entered for each limit. */
+    fun onGameLimitsEntered(texts: Map<LimitKind, String>) {
         val current = snapshot?.settings ?: return
-        when (val result = GameLimitRules.apply(Limits(current.gameLimit, current.timeLimit, current.livesLimit, current.scoreLimit), kind, text)) {
+        when (val result = GameLimitRules.apply(Limits(current.gameLimit, current.timeLimit, current.livesLimit, current.scoreLimit), texts)) {
             GameLimitRules.Result.TooHigh -> toast(R.string.error_limit_too_high)
             GameLimitRules.Result.Ignored -> {}
             is GameLimitRules.Result.Applied -> {

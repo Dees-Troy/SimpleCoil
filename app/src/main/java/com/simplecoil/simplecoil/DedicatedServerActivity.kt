@@ -100,7 +100,10 @@ class DedicatedServerActivity : AppCompatActivity() {
     private fun wireControls() = with(binding) {
         teamModeToggleButton.setOnClickListener { showMenu(it, R.menu.team_mode_menu) }
         gpsModeButton.setOnClickListener { showMenu(it, R.menu.gps_mode_menu) }
-        gameLimitButton.setOnClickListener { showDialog(GameLimitDialog.newInstance(true), GameLimitDialog.REQUEST_KEY) }
+        gameLimitButton.setOnClickListener {
+            val limits = vm.state.value?.limits ?: return@setOnClickListener
+            showDialog(GameLimitDialog.newInstance(limits, true), GameLimitDialog.REQUEST_KEY)
+        }
         startingTimerButton.setOnClickListener {
             val current = vm.state.value?.startTimeSeconds ?: GameSettingsRepository.START_TIME_SECONDS
             showDialog(StartingTimerDialog.newInstance(current), StartingTimerDialog.REQUEST_KEY)
@@ -144,7 +147,7 @@ class DedicatedServerActivity : AppCompatActivity() {
     private fun listenForDialogResults() {
         val fm = supportFragmentManager
         fm.setFragmentResultListener(GameLimitDialog.REQUEST_KEY, this) { _, result ->
-            vm.onGameLimitEntered(GameLimitDialog.text(result), GameLimitDialog.kind(result))
+            vm.onGameLimitsEntered(GameLimitDialog.texts(result))
         }
         fm.setFragmentResultListener(StartingTimerDialog.REQUEST_KEY, this) { _, result ->
             vm.onStartTimeEntered(StartingTimerDialog.text(result))

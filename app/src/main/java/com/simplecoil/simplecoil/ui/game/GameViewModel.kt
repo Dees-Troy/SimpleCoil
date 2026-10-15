@@ -608,13 +608,15 @@ class GameViewModel(
     // Game limits
     // ---------------------------------------------------------------------------------------
 
+    private val currentLimits get() = Limits(settingsRepo.gameLimit, settingsRepo.timeLimit, settingsRepo.livesLimit, settingsRepo.scoreLimit)
+
     fun onGameLimitPressed() {
-        screen?.showGameLimitDialog(net.useNetwork)
+        screen?.showGameLimitDialog(currentLimits, net.useNetwork)
     }
 
-    fun onGameLimitEntered(text: String, kind: LimitKind) {
-        val current = Limits(settingsRepo.gameLimit, settingsRepo.timeLimit, settingsRepo.livesLimit, settingsRepo.scoreLimit)
-        when (val result = GameLimitRules.apply(current, kind, text)) {
+    /** The game limit dialog's result: the text entered for each limit. */
+    fun onGameLimitsEntered(texts: Map<LimitKind, String>) {
+        when (val result = GameLimitRules.apply(currentLimits, texts)) {
             GameLimitRules.Result.Ignored -> return
             GameLimitRules.Result.TooHigh -> {
                 screen?.showMessage(GameMessage.LIMIT_TOO_HIGH)

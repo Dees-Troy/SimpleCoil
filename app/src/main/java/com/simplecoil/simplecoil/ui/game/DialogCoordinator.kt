@@ -32,6 +32,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.simplecoil.simplecoil.PlayerDisplayData
 import com.simplecoil.simplecoil.R
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
+import com.simplecoil.simplecoil.domain.rules.Limits
 import com.simplecoil.simplecoil.domain.session.SessionToast
 import com.simplecoil.simplecoil.domain.team.TeamMode
 import com.simplecoil.simplecoil.ui.dialogs.GameLimitDialog
@@ -70,7 +71,7 @@ class DialogCoordinator(
             }
         })
         fm.setFragmentResultListener(GameLimitDialog.REQUEST_KEY, activity) { _, result ->
-            vm.onGameLimitEntered(GameLimitDialog.text(result), GameLimitDialog.kind(result))
+            vm.onGameLimitsEntered(GameLimitDialog.texts(result))
         }
         fm.setFragmentResultListener(TeamRatioDialog.REQUEST_KEY, activity) { _, result ->
             vm.onTeamSizesEntered(TeamRatioDialog.sizes(result).map { it.toString() })
@@ -308,7 +309,8 @@ class DialogCoordinator(
 
     override fun showServerIpDialog(suggestion: String) = show(TAG_SERVER_IP) { ServerIpDialog.newInstance(suggestion) }
 
-    override fun showGameLimitDialog(allowScoreLimit: Boolean) = show(TAG_GAME_LIMIT) { GameLimitDialog.newInstance(allowScoreLimit) }
+    override fun showGameLimitDialog(current: Limits, allowScoreLimit: Boolean) =
+        show(TAG_GAME_LIMIT) { GameLimitDialog.newInstance(current, allowScoreLimit) }
 
     override fun showTeamRatioDialog(numTeams: Int, sizes: IntArray) = show(TAG_TEAM_RATIO) { TeamRatioDialog.newInstance(numTeams, sizes) }
 

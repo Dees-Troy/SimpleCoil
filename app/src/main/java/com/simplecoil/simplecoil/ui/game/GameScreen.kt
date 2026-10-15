@@ -17,6 +17,7 @@
 package com.simplecoil.simplecoil.ui.game
 
 import com.simplecoil.simplecoil.PlayerDisplayData
+import com.simplecoil.simplecoil.domain.rules.Limits
 import com.simplecoil.simplecoil.domain.session.SessionToast
 import com.simplecoil.simplecoil.domain.team.TeamMode
 import com.simplecoil.simplecoil.ui.scoreboard.ScoreMatrixState
@@ -151,7 +152,8 @@ interface GameDialogs {
     fun showQrNameDialog(current: String)
     /** A pairing QR code for [payload], labeled with [playerName] (may be blank). */
     fun showQrCode(payload: String, playerName: String)
-    fun showGameLimitDialog(allowScoreLimit: Boolean)
+    /** Every game limit at once, starting from [current]; the score limit only if [allowScoreLimit]. */
+    fun showGameLimitDialog(current: Limits, allowScoreLimit: Boolean)
     fun showTeamRatioDialog(numTeams: Int, sizes: IntArray)
     fun showLocalPlayerSettings()
     fun showScoreboard(players: Array<PlayerDisplayData?>)

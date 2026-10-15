@@ -118,10 +118,10 @@
     <string name="player_name">Player Name:</string>
     <string name="server_ip">Server IP:</string>
     <string name="game_limit_button">Game Limit</string>
-    <string name="game_limit_title">Set Game Limit (0 for unlimited):</string>
-    <string name="game_limit_time">Time in minutes</string>
-    <string name="game_limit_lives">Lives</string>
-    <string name="game_limit_score">Score</string>
+    <string name="game_limit_title">When should the game end?</string>
+    <string name="game_limit_time">Timed game in minutes (0 for unlimited)</string>
+    <string name="game_limit_lives">Lives Per Player (0 for unlimited) - Players will stop respawning when they run out of lives. Game ends when all opponents are out of lives.</string>
+    <string name="game_limit_score">Score (0 for unlimited, team score for team games)</string>
     <string name="starting_timer_button">Starting Timer</string>
     <string name="starting_timer_title">Set Game Start Countdown (Seconds):</string>
 
@@ -184,6 +184,7 @@
     <string name="team_ratio_min_one">Team limits must be at least 1 player slot</string>
     <string name="team_ratio_total">Total player slots across all teams must equal %1$d (current sum: %2$d)</string>
     <string name="scoreboard_players_header">PLAYERS</string>
+    <string name="scoreboard_lives">Lives</string>
     <string name="scoreboard_edit_ratio">Tap to edit ratio</string>
     <!-- A number shown on its own, in the locale's digits. -->
     <string name="number">%1$d</string>
