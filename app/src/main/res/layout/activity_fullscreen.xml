@@ -466,7 +466,7 @@
 
         <!-- Start Game's row, on the right, so it stays clear of the server status line. -->
         <Button
-            android:id="@+id/player_settings_button"
+            android:id="@+id/game_limit_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -474,7 +474,7 @@
             android:layout_marginEnd="15dp"
             android:layout_alignParentEnd="true"
             android:layout_below="@+id/firing_mode_button"
-            android:text="@string/player_settings_button" />
+            android:text="@string/game_limit_button" />
 
         <!-- Offline, or for a network admin. Above the eliminations count. -->
         <Button
@@ -540,7 +540,7 @@
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_below="@+id/player_settings_button"
+            android:layout_below="@+id/game_limit_button"
             android:layout_marginEnd="15dp"
             android:layout_alignParentEnd="true"
             android:layout_marginTop="5dp"
@@ -596,7 +596,7 @@
 
         <!-- The firing mode's row, on the right. -->
         <Button
-            android:id="@+id/game_limit_button"
+            android:id="@+id/player_settings_button"
             style="@style/Widget.AppCompat.Button.Colored"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -604,7 +604,7 @@
             android:layout_marginTop="5dp"
             android:layout_marginEnd="15dp"
             android:layout_alignParentEnd="true"
-            android:text="@string/game_limit_button" />
+            android:text="@string/player_settings_button" />
 
         <!-- The score readout. Once connected to a server it becomes a tappable chip that opens the
              scoreboard; GameScreenRenderer.setScoreboardAvailable adds the background and click. -->
