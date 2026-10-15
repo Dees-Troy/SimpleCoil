@@ -165,7 +165,7 @@ class DedicatedServerActivity : AppCompatActivity() {
                 quantity(R.plurals.dedicated_stop_confirm, effect.players), R.string.dedicated_stop_button), REQUEST_STOP)
             is ServerUiEffect.ShowTeamRatio ->
                 showDialog(TeamRatioDialog.newInstance(effect.teamCount, effect.sizes), TeamRatioDialog.REQUEST_KEY)
-            is ServerUiEffect.ShowPlayerSettings -> showDialog(PlayerSettingsDialog.server(effect.playerId, effect.values,
+            is ServerUiEffect.ShowPlayerSettings -> showDialog(PlayerSettingsDialog.server(effect.playerId, effect.playerName, effect.values,
                 effect.teamCount, effect.team, effect.indexInTeam, effect.fullTeams), PlayerSettingsDialog.REQUEST_KEY)
             ServerUiEffect.Finish -> finish()
         }

@@ -76,6 +76,8 @@ sealed interface ServerUiEffect {
     class ShowTeamRatio(val teamCount: Int, val sizes: IntArray) : ServerUiEffect
     data class ShowPlayerSettings(
         val playerId: Byte,
+        /** Blank if the player has no name. */
+        val playerName: String,
         val values: PlayerSettingsValues,
         /** 0 in free for all. */
         val teamCount: Int,
@@ -234,8 +236,9 @@ class DedicatedServerViewModel(
         val teamCount = if (layout.mode.isFreeForAll) 0 else layout.mode.teamCount
         val team = layout.teamOf(playerId)
         val indexInTeam = if (teamCount == 0) playerId.toInt() else playerId - layout.teamStartId(team) + 1
-        _effects.trySend(ServerUiEffect.ShowPlayerSettings(playerId, controller.playerSettings(playerId), teamCount, team, indexInTeam,
-            fullTeams(current, team)))
+        val name = current.players.firstOrNull { it.playerId == playerId }?.name ?: ""
+        _effects.trySend(ServerUiEffect.ShowPlayerSettings(playerId, name, controller.playerSettings(playerId), teamCount, team,
+            indexInTeam, fullTeams(current, team)))
     }
 
     /** The teams other than [team] with no open slot and who is on them; players only switch in the lobby. */

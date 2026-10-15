@@ -113,8 +113,9 @@ class PlayerSettingsDialog : DialogFragment() {
 
     private fun showServerControls(values: PlayerSettingsValues) = with(binding) {
         val args = requireArguments()
-        titleTv.text = if (teamCount == 0) getString(R.string.player_settings_id_title, playerId)
-        else getString(R.string.player_settings_team_title, args.getInt(ARG_TEAM), args.getInt(ARG_INDEX_IN_TEAM))
+        val name = args.getString(ARG_PLAYER_NAME)?.ifBlank { null } ?: getString(R.string.player_settings_unnamed_player)
+        titleTv.text = if (teamCount == 0) getString(R.string.player_settings_id_title, name, playerId)
+        else getString(R.string.player_settings_team_title, name, args.getInt(ARG_TEAM), args.getInt(ARG_INDEX_IN_TEAM))
         firingModeButton.visibility = View.VISIBLE
         showFiringMode()
         applyToAllSwitch.isChecked = false
@@ -300,6 +301,7 @@ class PlayerSettingsDialog : DialogFragment() {
         const val REQUEST_KEY = "playerSettings"
         private const val ARG_SERVER = "server"
         private const val ARG_PLAYER_ID = "playerId"
+        private const val ARG_PLAYER_NAME = "playerName"
         private const val ARG_VALUES = "values"
         private const val ARG_TEAM_COUNT = "teamCount"
         private const val ARG_TEAM = "team"
@@ -325,7 +327,7 @@ class PlayerSettingsDialog : DialogFragment() {
         }
 
         /**
-         * Network player [playerId] on the server; [teamCount] 0 in free-for-all, otherwise the
+         * Network player [playerId], named [playerName] (blank for none), on the server; [teamCount] 0 in free-for-all, otherwise the
          * player is number [indexInTeam] on [team]. Picking one of [fullTeams] (who is on each,
          * id to name) asks who to switch with.
          */
@@ -333,6 +335,7 @@ class PlayerSettingsDialog : DialogFragment() {
         @JvmOverloads
         fun server(
             playerId: Byte,
+            playerName: String,
             values: PlayerSettingsValues,
             teamCount: Int,
             team: Int,
@@ -342,6 +345,7 @@ class PlayerSettingsDialog : DialogFragment() {
             arguments = bundleOf(
                 ARG_SERVER to true,
                 ARG_PLAYER_ID to playerId,
+                ARG_PLAYER_NAME to playerName,
                 ARG_VALUES to bundleOf(values),
                 ARG_TEAM_COUNT to teamCount,
                 ARG_TEAM to team,

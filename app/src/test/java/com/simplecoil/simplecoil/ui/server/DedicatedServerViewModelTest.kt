@@ -245,6 +245,7 @@ class DedicatedServerViewModelTest {
         publish(players = listOf(player(18)))
         vm.onPlayerClicked(18)
         val dialog = effects.single() as ServerUiEffect.ShowPlayerSettings
+        assertEquals("P18", dialog.playerName)
         assertEquals(2, dialog.teamCount)
         assertEquals(2, dialog.team)
         assertEquals(2, dialog.indexInTeam)
