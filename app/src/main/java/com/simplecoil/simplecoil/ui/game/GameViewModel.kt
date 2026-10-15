@@ -523,7 +523,8 @@ class GameViewModel(
             playerRepo.playerID = if (selectedPlayerId.toInt() != 0) selectedPlayerId else 1
         }
         val layout = settingsRepo.teamLayout
-        val dedicatedName = if (net.useNetwork && networkMenuType == NETWORK_TYPE_JOINED) {
+        val dedicated = net.useNetwork && networkMenuType == NETWORK_TYPE_JOINED
+        val dedicatedName = if (dedicated) {
             playerRepo.playerName?.takeIf { it.isNotEmpty() }
         } else null
         if (!layout.mode.isFreeForAll) {
@@ -531,7 +532,7 @@ class GameViewModel(
             engine.networkTeam = networkTeam
             val startID = layout.teamStartId(networkTeam)
             val player = playerRepo.playerID - startID + 1
-            screen?.showTeam(TeamDisplay.Team(networkTeam, player, TeamColors.colorOf(networkTeam), net.useNetwork, dedicatedName))
+            screen?.showTeam(TeamDisplay.Team(networkTeam, player, TeamColors.colorOf(networkTeam), net.useNetwork, dedicatedName, dedicated))
         } else {
             screen?.showTeam(TeamDisplay.FreeForAll(playerRepo.playerID, dedicatedName))
         }
@@ -754,21 +755,26 @@ class GameViewModel(
             NetworkMenuEntry.Join, NetworkMenuEntry.JoinIp, NetworkMenuEntry.PlayerName(playerRepo.playerName), NetworkMenuEntry.DisableNetwork,
         )
         NETWORK_TYPE_JOINING -> listOf(NetworkMenuEntry.JoinIp, NetworkMenuEntry.DisableNetwork)
-        NETWORK_TYPE_JOINED -> buildList {
-            add(NetworkMenuEntry.PlayerName(playerRepo.playerName))
-            if (settingsRepo.isAllowChooseTeams && gameStateRepo.gameState == GameStateRepository.GAME_STATE_NONE) {
-                val layout = settingsRepo.teamLayout
-                if (!layout.mode.isFreeForAll) {
-                    val currentTeam = layout.teamOf(playerRepo.playerID)
-                    for (t in 1..layout.mode.teamCount) {
-                        if (t != currentTeam) add(NetworkMenuEntry.SwitchTeam(t, TeamColors.colorOf(t)))
-                    }
-                }
-            }
-            add(NetworkMenuEntry.DisableNetwork)
-        }
+        NETWORK_TYPE_JOINED -> listOf(NetworkMenuEntry.PlayerName(playerRepo.playerName), NetworkMenuEntry.DisableNetwork)
         else -> emptyList()
     }
+
+    /** The teams the team label's popup offers: the others, while a dedicated server's lobby allows choosing. */
+    fun switchTeamEntries(): List<SwitchTeamEntry> {
+        if (!net.useNetwork || networkMenuType != NETWORK_TYPE_JOINED) return emptyList()
+        if (!settingsRepo.isAllowChooseTeams || gameStateRepo.gameState != GameStateRepository.GAME_STATE_NONE) return emptyList()
+        val layout = settingsRepo.teamLayout
+        if (layout.mode.isFreeForAll) return emptyList()
+        val currentTeam = layout.teamOf(playerRepo.playerID)
+        return (1..layout.mode.teamCount).filter { it != currentTeam }.map { SwitchTeamEntry(it, TeamColors.colorOf(it)) }
+    }
+
+    fun onTeamLabelPressed() {
+        val entries = switchTeamEntries()
+        if (entries.isNotEmpty()) screen?.showSwitchTeamMenu(entries)
+    }
+
+    fun onSwitchTeamChosen(team: Int) = requestSwitchTeam(team)
 
     fun onNetworkMenuEntry(entry: NetworkMenuEntry) {
         when (entry) {
@@ -786,7 +792,6 @@ class GameViewModel(
                 screen?.showServerIpDialog(serverIpSuggestion())
             }
             is NetworkMenuEntry.PlayerName -> screen?.showPlayerNameDialog(playerRepo.playerName)
-            is NetworkMenuEntry.SwitchTeam -> requestSwitchTeam(entry.team)
         }
     }
 

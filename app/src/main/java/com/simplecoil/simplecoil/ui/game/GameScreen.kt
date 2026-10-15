@@ -45,9 +45,11 @@ sealed interface NetworkMenuEntry {
     data object Join : NetworkMenuEntry
     data object JoinIp : NetworkMenuEntry
     data class PlayerName(val name: String) : NetworkMenuEntry
-    data class SwitchTeam(val team: Int, val color: Int) : NetworkMenuEntry
     data object DisableNetwork : NetworkMenuEntry
 }
+
+/** An entry of the team label's popup menu: switch to [team], drawn in [color]. */
+data class SwitchTeamEntry(val team: Int, val color: Int)
 
 /** Entries of the admin popup menu. */
 enum class AdminAction { START_GAME, END_GAME, TWO_TEAMS, FOUR_TEAMS, FREE_FOR_ALL, SHUFFLE_TEAMS, RESET_GAME }
@@ -57,8 +59,14 @@ sealed interface TeamDisplay {
     /** No player id yet: the server will sort the player into a team. */
     data object AutoSort : TeamDisplay
 
-    /** [playerName] when joined to a dedicated server; "(team-player)" then goes under the player count. */
-    data class Team(val team: Int, val player: Int, val color: Int, val teamScoreVisible: Boolean, val playerName: String?) : TeamDisplay
+    /**
+     * [playerName] when joined to a dedicated server; "(team-player)" then goes under the player count.
+     * [switchable]: joined to a dedicated server, so tapping the team label offers to switch teams.
+     */
+    data class Team(
+        val team: Int, val player: Int, val color: Int, val teamScoreVisible: Boolean, val playerName: String?,
+        val switchable: Boolean = false,
+    ) : TeamDisplay
 
     /** [playerName] when joined to a dedicated server; "(playerId)" then goes under the player count. */
     data class FreeForAll(val playerId: Byte, val playerName: String? = null) : TeamDisplay
@@ -146,6 +154,8 @@ interface GameDialogs {
     fun prepareNetworkMenu()
     fun showNetworkMenu()
     fun showTeamModeMenu()
+    /** The team label's popup: switch to one of [entries]. */
+    fun showSwitchTeamMenu(entries: List<SwitchTeamEntry>)
     fun showServerIpDialog(suggestion: String)
     fun showPlayerNameDialog(current: String)
     /** Ask for the name to put in a pairing QR code, after explaining what it is for. */

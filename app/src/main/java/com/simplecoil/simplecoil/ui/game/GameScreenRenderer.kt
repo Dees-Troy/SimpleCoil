@@ -16,9 +16,11 @@
 
 package com.simplecoil.simplecoil.ui.game
 
+import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.drawable.AnimationDrawable
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
 import android.view.View
 import android.view.animation.AnimationUtils
 import androidx.core.view.ViewCompat
@@ -49,6 +51,8 @@ class GameScreenRenderer(
     private val scope: CoroutineScope,
     /** No blaster on this device (a Chromebook): the connect screen shows only the dedicated server. */
     private val serverOnly: Boolean = false,
+    /** The team label was tapped while joined to a dedicated server. */
+    private val onTeamTapped: () -> Unit = {},
     /** The score readout was tapped while a scoreboard is available. */
     private val onScoresTapped: () -> Unit = {},
 ) : GameView {
@@ -213,15 +217,17 @@ class GameScreenRenderer(
         if (team is TeamDisplay.Team) {
             b.teamLabelTv.text = context.getString(R.string.team_number_label, team.team)
             if (team.color != Color.TRANSPARENT) {
-                b.teamLabelTv.background = GradientDrawable().apply {
+                val box = GradientDrawable().apply {
                     setColor(team.color)
                     cornerRadius = 8f
                 }
+                b.teamLabelTv.background = if (team.switchable) RippleDrawable(ColorStateList.valueOf(0x55FFFFFF), box, null) else box
                 b.teamLabelTv.setPadding(24, 12, 24, 12)
                 b.teamLabelTv.setTextColor(if (team.team == 4) Color.BLACK else Color.WHITE)
             } else {
                 clearTeamLabelStyle()
             }
+            setTeamLabelTappable(team.switchable)
             if (team.playerName != null) {
                 b.teamTv.text = team.playerName
                 showPlayerId(context.getString(R.string.player_id_team_label, team.team, team.player))
@@ -233,6 +239,7 @@ class GameScreenRenderer(
         }
         b.teamLabelTv.setText(R.string.team_label)
         clearTeamLabelStyle()
+        setTeamLabelTappable(false)
         if (team is TeamDisplay.FreeForAll && team.playerName != null) {
             b.teamLabelTv.visibility = View.INVISIBLE
             b.teamTv.text = team.playerName
@@ -249,6 +256,20 @@ class GameScreenRenderer(
     private fun showPlayerId(text: String) {
         b.playerIdTv.text = text
         b.playerIdTv.visibility = View.VISIBLE
+    }
+
+    /** On a dedicated server the team label is a button that offers to switch teams. */
+    private fun setTeamLabelTappable(tappable: Boolean) {
+        val label = b.teamLabelTv
+        if (tappable) {
+            label.setOnClickListener { onTeamTapped() }
+            ViewCompat.replaceAccessibilityAction(label, AccessibilityActionCompat.ACTION_CLICK,
+                context.getString(R.string.team_label_action), null)
+        } else {
+            label.setOnClickListener(null)
+            label.isClickable = false
+        }
+        label.isFocusable = tappable
     }
 
     private fun clearTeamLabelStyle() {

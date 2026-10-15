@@ -32,6 +32,7 @@ import com.simplecoil.simplecoil.domain.session.BlasterSessionEngine
 import com.simplecoil.simplecoil.domain.session.Recorder
 import com.simplecoil.simplecoil.domain.session.RepositoryGameConfig
 import com.simplecoil.simplecoil.domain.session.SessionSound
+import com.simplecoil.simplecoil.domain.team.TeamColors
 import com.simplecoil.simplecoil.domain.team.TeamMode
 import com.simplecoil.simplecoil.hardware.audio.SoundEffectPlayer
 import com.simplecoil.simplecoil.hardware.blaster.BlasterEvent
@@ -424,6 +425,23 @@ class GameViewModelTest {
         // Joined: no more automatic re-scans.
         advance(30_000)
         verify(udp, times(2)).joinServer()
+    }
+
+    @Test
+    fun joined_teamLabelOffersTheOtherTeams_networkMenuDoesNot() {
+        settings.isAllowChooseTeams = true
+        vm.onNetworkButtonPressed()
+        vm.onNetworkMenuEntry(NetworkMenuEntry.Join)
+        emitNetwork(ClientEvent.ServerReply(1))
+        vm.onTeamModeSelected(TeamMode.TWO_TEAMS)
+        val entries = listOf(SwitchTeamEntry(2, TeamColors.colorOf(2)))
+        assertEquals(entries, vm.switchTeamEntries())
+        assertEquals(listOf(NetworkMenuEntry.PlayerName("Tester"), NetworkMenuEntry.DisableNetwork), vm.networkMenuEntries())
+        vm.onTeamLabelPressed()
+        verify(screen).showSwitchTeamMenu(entries)
+
+        settings.isAllowChooseTeams = false
+        assertEquals(emptyList<SwitchTeamEntry>(), vm.switchTeamEntries())
     }
 
     @Test

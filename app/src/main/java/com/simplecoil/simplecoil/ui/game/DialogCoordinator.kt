@@ -52,6 +52,7 @@ class DialogCoordinator(
     private val vm: GameViewModel,
     private val networkButton: View,
     private val teamModeView: View,
+    private val teamLabelView: View,
 ) : GameDialogs, PopupMenu.OnMenuItemClickListener {
 
     private val fm get() = activity.supportFragmentManager
@@ -186,19 +187,11 @@ class DialogCoordinator(
         val menu = networkPopup?.also { it.setForceShowIcon(true) }?.menu ?: return
         menu.close()
         menu.clear()
-        var switchOrder = 51
         for (entry in vm.networkMenuEntries()) {
             when (entry) {
                 NetworkMenuEntry.Join -> menu.add(0, R.id.join_item, 20, R.string.join_button)
                 NetworkMenuEntry.JoinIp -> menu.add(0, R.id.join_ip_item, 30, R.string.join_ip_button)
                 is NetworkMenuEntry.PlayerName -> menu.add(0, R.id.player_name_item, 50, activity.getString(R.string.player_name_button, entry.name))
-                is NetworkMenuEntry.SwitchTeam -> {
-                    val itemId = switchTeamItemId(entry.team)
-                    if (itemId != 0) {
-                        val item = menu.add(0, itemId, switchOrder++, activity.getString(R.string.switch_to_team, entry.team))
-                        if (entry.color != Color.TRANSPARENT) item.icon = createTeamColorSquare(entry.color)
-                    }
-                }
                 NetworkMenuEntry.DisableNetwork -> menu.add(0, R.id.disable_network_item, 70, R.string.no_network_button)
             }
         }
@@ -217,6 +210,19 @@ class DialogCoordinator(
 
     override fun showNetworkMenu() {
         networkPopup!!.show()
+    }
+
+    override fun showSwitchTeamMenu(entries: List<SwitchTeamEntry>) {
+        val popup = popup(teamLabelView).also { it.setForceShowIcon(true) }
+        for ((order, entry) in entries.withIndex()) {
+            val item = popup.menu.add(0, entry.team, order, activity.getString(R.string.switch_to_team, entry.team))
+            if (entry.color != Color.TRANSPARENT) item.icon = createTeamColorSquare(entry.color)
+        }
+        popup.setOnMenuItemClickListener { item ->
+            vm.onSwitchTeamChosen(item.itemId)
+            true
+        }
+        popup.show()
     }
 
     override fun showTeamModeMenu() {
@@ -281,10 +287,6 @@ class DialogCoordinator(
             R.id.join_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.Join)
             R.id.join_ip_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.JoinIp)
             R.id.player_name_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.PlayerName(""))
-            R.id.switch_team_1_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.SwitchTeam(1, 0))
-            R.id.switch_team_2_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.SwitchTeam(2, 0))
-            R.id.switch_team_3_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.SwitchTeam(3, 0))
-            R.id.switch_team_4_item -> vm.onNetworkMenuEntry(NetworkMenuEntry.SwitchTeam(4, 0))
             R.id.firing_mode_outdoor_no_cone_item -> vm.onFiringModeSelected(GameSettingsRepository.FIRING_MODE_OUTDOOR_NO_CONE)
             R.id.firing_mode_outdoor_with_cone_item -> vm.onFiringModeSelected(GameSettingsRepository.FIRING_MODE_OUTDOOR_WITH_CONE)
             R.id.firing_mode_indoor_no_cone_item -> vm.onFiringModeSelected(GameSettingsRepository.FIRING_MODE_INDOOR_NO_CONE)
@@ -361,13 +363,5 @@ class DialogCoordinator(
         private const val TAG_TEAM_SWAP = "teamSwap"
         private const val TAG_PLAYER_SETTINGS = "playerSettings"
         private const val TAG_SCOREBOARD = "scoreboard"
-
-        private fun switchTeamItemId(team: Int) = when (team) {
-            1 -> R.id.switch_team_1_item
-            2 -> R.id.switch_team_2_item
-            3 -> R.id.switch_team_3_item
-            4 -> R.id.switch_team_4_item
-            else -> 0
-        }
     }
 }

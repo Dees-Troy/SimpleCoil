@@ -175,6 +175,7 @@
     <string name="gps_mode_all">All</string>
     <!-- TalkBack's name for tapping the score readout ("double-tap to open scoreboard"). -->
     <string name="scores_chip_action">open scoreboard</string>
+    <string name="team_label_action">switch teams</string>
     <!-- One score in the score readout's spoken description, e.g. "SCORE (50): 12". -->
     <string name="cd_score_entry">%1$s: %2$s</string>
 

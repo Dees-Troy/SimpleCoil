@@ -80,9 +80,10 @@ class FullscreenActivity : AppCompatActivity(), GameNavigator {
             }
         })
         serverOnly = BlasterSupport.isServerOnly(packageManager)
-        renderer = GameScreenRenderer(binding, WindowController(window), lifecycleScope, serverOnly) { vm.openScoreboard() }
+        renderer = GameScreenRenderer(binding, WindowController(window), lifecycleScope, serverOnly,
+            onTeamTapped = { vm.onTeamLabelPressed() }) { vm.openScoreboard() }
         vm = ViewModelProvider(this, GameViewModelFactory(application as SimpleCoilApp))[GameViewModel::class.java]
-        dialogs = DialogCoordinator(this, vm, binding.useNetworkButton, binding.teamModeButton)
+        dialogs = DialogCoordinator(this, vm, binding.useNetworkButton, binding.teamModeButton, binding.teamLabelTv)
         vm.screen = CompositeGameScreen(renderer, dialogs, this)
         permissions = BlePermissionController(this, vm, ::startQRScan)
         val saved = savedInstanceState?.let {
