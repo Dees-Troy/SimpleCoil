@@ -38,7 +38,7 @@
                         android:id="@+id/version_tv"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="5dp"
+                        android:layout_alignTop="@+id/server_ip_tv"
                         android:layout_marginEnd="5dp"
                         android:layout_alignParentEnd="true"
                         android:text=""
@@ -98,7 +98,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginEnd="5dp"
                         android:layout_alignParentEnd="true"
-                        android:layout_below="@id/server_ip_tv"
+                        android:layout_alignTop="@id/player_count_tv"
                         android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
 
                     <Button

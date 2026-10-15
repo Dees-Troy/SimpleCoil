@@ -149,7 +149,7 @@
     <string name="dedicated_team_ratio_ffa">Team ratios are not applicable in Free For All mode</string>
     <string name="dedicated_stop_button">Stop</string>
     <string name="dedicated_unlimited">Unlimited</string>
-    <string name="dedicated_limit_separator">, </string>
+    <string name="dedicated_limit_separator">", "</string>
     <string name="dedicated_game_running">Game Running</string>
     <string name="dedicated_game_waiting">Waiting to Start</string>
     <string name="dedicated_game_over">Game Over</string>
