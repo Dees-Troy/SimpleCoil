@@ -224,49 +224,70 @@
                             android:background="#444444" />
                     </LinearLayout>
 
-                    <Button
-                        android:id="@+id/team_mode_toggle_button"
-                        style="@style/Widget.AppCompat.Button.Colored"
-                        android:layout_width="wrap_content"
+                    <!-- The settings buttons in two rows of equal halves, so all four are the same width. -->
+                    <LinearLayout
+                        android:id="@+id/settings_buttons"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="10dp"
                         android:layout_below="@id/settings_divider"
-                        android:text="@string/team_mode_toggle_button" />
-
-                    <Button
-                        android:id="@+id/game_limit_button"
-                        style="@style/Widget.AppCompat.Button.Colored"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginEnd="10dp"
-                        android:layout_alignParentEnd="true"
-                        android:layout_below="@id/settings_divider"
-                        android:text="@string/game_limit_button" />
-
-                    <Button
-                        android:id="@+id/starting_timer_button"
-                        style="@style/Widget.AppCompat.Button.Colored"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginEnd="10dp"
-                        android:layout_alignParentEnd="true"
-                        android:layout_below="@id/game_limit_button"
-                        android:text="@string/starting_timer_button" />
-
-                    <Button
-                        android:id="@+id/gps_mode_button"
-                        style="@style/Widget.AppCompat.Button.Colored"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
                         android:layout_marginStart="10dp"
-                        android:layout_below="@id/team_mode_toggle_button"
-                        android:text="@string/gps_mode_disabled" />
+                        android:layout_marginEnd="10dp"
+                        android:orientation="vertical">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+
+                            <Button
+                                android:id="@+id/team_mode_toggle_button"
+                                style="@style/Widget.AppCompat.Button.Colored"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:layout_marginEnd="5dp"
+                                android:text="@string/team_mode_toggle_button" />
+
+                            <Button
+                                android:id="@+id/game_limit_button"
+                                style="@style/Widget.AppCompat.Button.Colored"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:layout_marginStart="5dp"
+                                android:text="@string/game_limit_button" />
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+
+                            <Button
+                                android:id="@+id/gps_mode_button"
+                                style="@style/Widget.AppCompat.Button.Colored"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:layout_marginEnd="5dp"
+                                android:text="@string/gps_mode_disabled" />
+
+                            <Button
+                                android:id="@+id/starting_timer_button"
+                                style="@style/Widget.AppCompat.Button.Colored"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:layout_marginStart="5dp"
+                                android:text="@string/starting_timer_button" />
+                        </LinearLayout>
+                    </LinearLayout>
 
                     <androidx.appcompat.widget.SwitchCompat
                         android:id="@+id/allow_join_switch"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_below="@id/gps_mode_button"
+                        android:layout_below="@id/settings_buttons"
                         android:layout_marginStart="10dp"
                         android:layout_marginEnd="10dp"
                         android:layout_marginTop="5dp"
