@@ -224,7 +224,8 @@
                             android:background="#444444" />
                     </LinearLayout>
 
-                    <!-- The settings buttons in two rows of equal halves, so all four are the same width. -->
+                    <!-- Team and GPS modes as segmented controls, so every choice and the current one are in view; then the
+                         limit and timer buttons in equal halves. -->
                     <LinearLayout
                         android:id="@+id/settings_buttons"
                         android:layout_width="match_parent"
@@ -234,19 +235,112 @@
                         android:layout_marginEnd="10dp"
                         android:orientation="vertical">
 
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="5dp"
+                            android:text="@string/team_mode_label"
+                            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <com.google.android.material.button.MaterialButtonToggleGroup
+                                android:id="@+id/team_mode_group"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                app:selectionRequired="true"
+                                app:singleSelection="true">
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/team_mode_2teams_button"
+                                    style="@style/ServerSegment"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="@string/team_mode_2teams" />
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/team_mode_4teams_button"
+                                    style="@style/ServerSegment"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="@string/team_mode_4teams" />
+
+                                <com.google.android.material.button.MaterialButton
+                                    android:id="@+id/team_mode_ffa_button"
+                                    style="@style/ServerSegment"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="@string/team_mode_ffa_short" />
+                            </com.google.android.material.button.MaterialButtonToggleGroup>
+
+                            <!-- Sets the one-off Sort apart from the modes. -->
+                            <View
+                                android:layout_width="1dp"
+                                android:layout_height="32dp"
+                                android:layout_marginStart="8dp"
+                                android:layout_marginEnd="8dp"
+                                android:background="#444444" />
+
+                            <Button
+                                android:id="@+id/sort_teams_button"
+                                style="@style/Widget.AppCompat.Button.Colored"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:maxLines="1"
+                                android:textSize="12sp"
+                                android:text="@string/shuffle_teams_button" />
+                        </LinearLayout>
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/gps_mode_label"
+                            android:textAppearance="@android:style/TextAppearance.Material.Small.Inverse" />
+
+                        <com.google.android.material.button.MaterialButtonToggleGroup
+                            android:id="@+id/gps_mode_group"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            app:selectionRequired="true"
+                            app:singleSelection="true">
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/gps_mode_disabled_button"
+                                style="@style/ServerSegment"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/gps_mode_disabled" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/gps_mode_teammate_button"
+                                style="@style/ServerSegment"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/gps_mode_teammate" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/gps_mode_all_button"
+                                style="@style/ServerSegment"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="@string/gps_mode_all" />
+                        </com.google.android.material.button.MaterialButtonToggleGroup>
+
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:orientation="horizontal">
-
-                            <Button
-                                android:id="@+id/team_mode_toggle_button"
-                                style="@style/Widget.AppCompat.Button.Colored"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:layout_marginEnd="5dp"
-                                android:text="@string/team_mode_toggle_button" />
 
                             <Button
                                 android:id="@+id/game_limit_button"
@@ -254,23 +348,8 @@
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
-                                android:layout_marginStart="5dp"
-                                android:text="@string/game_limit_button" />
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal">
-
-                            <Button
-                                android:id="@+id/gps_mode_button"
-                                style="@style/Widget.AppCompat.Button.Colored"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
                                 android:layout_marginEnd="5dp"
-                                android:text="@string/gps_mode_disabled" />
+                                android:text="@string/game_limit_button" />
 
                             <Button
                                 android:id="@+id/starting_timer_button"

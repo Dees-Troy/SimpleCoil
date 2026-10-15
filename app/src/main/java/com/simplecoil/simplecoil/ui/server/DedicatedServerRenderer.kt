@@ -18,6 +18,8 @@ package com.simplecoil.simplecoil.ui.server
 
 import android.os.SystemClock
 import android.view.View
+import androidx.core.view.children
+import com.google.android.material.button.MaterialButtonToggleGroup
 import com.simplecoil.simplecoil.R
 import com.simplecoil.simplecoil.data.repository.GameSettingsRepository
 import com.simplecoil.simplecoil.databinding.ActivityDedicatedServerBinding
@@ -44,19 +46,19 @@ class DedicatedServerRenderer(
     fun render(state: ServerUiState) = with(binding) {
         serverIpTv.text = state.serverIp?.let { resources.getString(R.string.server_status_serving_on, it) } ?: ""
         playerCountTv.text = quantity(R.plurals.network_player_count, state.playerCount)
-        teamModeToggleButton.setText(when (state.teamMode) {
-            TeamMode.TWO_TEAMS -> R.string.team_mode_2teams
-            TeamMode.FOUR_TEAMS -> R.string.team_mode_4teams
-            TeamMode.FREE_FOR_ALL -> R.string.team_mode_ffa
+        checkSegment(teamModeGroup, when (state.teamMode) {
+            TeamMode.TWO_TEAMS -> R.id.team_mode_2teams_button
+            TeamMode.FOUR_TEAMS -> R.id.team_mode_4teams_button
+            TeamMode.FREE_FOR_ALL -> R.id.team_mode_ffa_button
         })
-        gpsModeButton.setText(when {
-            !state.useGps -> R.string.gps_mode_disabled
-            state.gpsMode == GameSettingsRepository.GPS_TEAMMATE -> R.string.gps_mode_teammate
-            else -> R.string.gps_mode_all
+        checkSegment(gpsModeGroup, when {
+            !state.useGps -> R.id.gps_mode_disabled_button
+            state.gpsMode == GameSettingsRepository.GPS_TEAMMATE -> R.id.gps_mode_teammate_button
+            else -> R.id.gps_mode_all_button
         })
         renderLimits(state)
         renderSwitches(state)
-        renderPhase(state.phase)
+        renderPhase(state.phase, state.teamMode)
         renderClock(state)
         // A diffed update keeps the scroll position (S10)
         scoreboard.submitList(state.scoreboard)
@@ -90,17 +92,20 @@ class DedicatedServerRenderer(
     }
 
     /** Buttons and status for the server's session phase (reconnect design §3.1). */
-    private fun renderPhase(phase: SessionPhase) = with(binding) {
+    private fun renderPhase(phase: SessionPhase, teamMode: TeamMode) = with(binding) {
         val running = phase == SessionPhase.RUNNING
         val postGame = phase == SessionPhase.POST_GAME
         // All three steps stay in view; only the one to the next phase is enabled
         startGameButton.isEnabled = phase == SessionPhase.LOBBY
         endGameButton.isEnabled = running
         resetGameButton.isEnabled = postGame
-        teamModeToggleButton.isEnabled = !running
+        teamModeGroup.children.forEach { it.isEnabled = !running }
+        sortTeamsButton.isEnabled = !running
         gameLimitButton.isEnabled = !running
         startingTimerButton.isEnabled = !running
-        gpsModeButton.isEnabled = !running
+        gpsModeGroup.children.forEach { it.isEnabled = !running }
+        // Free for all has no teammates: the server treats teammate GPS as off (shown as Off)
+        gpsModeTeammateButton.isEnabled = !running && !teamMode.isFreeForAll
         gameStatusTv.setText(when {
             running -> R.string.dedicated_game_running
             postGame -> R.string.dedicated_game_over
@@ -138,6 +143,10 @@ class DedicatedServerRenderer(
         val minutes = TimeUnit.MILLISECONDS.toMinutes(millisLeft)
         binding.gameCountdownTv.text = ClockFormat.minutesSeconds(minutes, TimeUnit.MILLISECONDS.toSeconds(millisLeft) - TimeUnit.MINUTES.toSeconds(minutes))
         if (millisLeft > 0) binding.gameCountdownTv.postDelayed(countdownTicker, 1000 - millisLeft % 1000 + 1)
+    }
+
+    private fun checkSegment(group: MaterialButtonToggleGroup, id: Int) {
+        if (group.checkedButtonId != id) group.check(id)
     }
 
     private fun quantity(id: Int, count: Int): String = resources.getQuantityString(id, count, count)

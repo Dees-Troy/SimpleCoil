@@ -41,7 +41,7 @@
     <string name="no_team">Auto Sort</string>
     <string name="auto_sort_team">Auto Sort</string>
     <string name="switch_team_button">Switch Team</string>
-    <string name="shuffle_teams_button">Sort Teams</string>
+    <string name="shuffle_teams_button">Shuffle</string>
     <string name="error_team_full">Team %1$d is full</string>
     <string name="player_settings_recoil_default">Recoil: Let Player Choose</string>
     <string name="player_settings_recoil_enabled">Recoil: Force Enabled</string>
@@ -106,11 +106,12 @@
     <string name="join_button">Join Lobby</string>
     <string name="join_ip_button">Join IP&#8230;</string>
     <string name="player_name_button">Player Name: %1$s</string>
-    <string name="team_mode_toggle_button">Set Team Mode</string>
     <string name="team_mode_label">Team Mode</string>
     <string name="team_mode_ffa">Free For All</string>
     <string name="team_mode_2teams">2 Teams</string>
     <string name="team_mode_4teams">4 Teams</string>
+    <!-- Free For All on the server's team mode control, where the full name doesn't fit. -->
+    <string name="team_mode_ffa_short">FFA</string>
     <string name="network_player_1count">1 Player</string>
     <string name="not_enough_players_toast">Not enough players!</string>
     <string name="network_team">Player %1$d</string>
@@ -118,7 +119,7 @@
     <string name="player_id_ffa_label">(%1$d)</string>
     <string name="player_name">Player Name:</string>
     <string name="server_ip">Server IP:</string>
-    <string name="game_limit_button">Game Limit</string>
+    <string name="game_limit_button">Game Limits</string>
     <string name="game_limit_title">When should the game end?</string>
     <string name="game_limit_time">Timed game in minutes (0 for unlimited)</string>
     <string name="game_limit_lives">Lives Per Player (0 for unlimited) - Players will stop respawning when they run out of lives. Game ends when all opponents are out of lives.</string>
@@ -143,7 +144,7 @@
     <string name="notification_quit">Quit</string>
     <string name="blaster_notification_health">Health %1$d/%2$d</string>
     <string name="blaster_notification_game_text_reloading">Health %1$d/%2$d · Reloading</string>
-    <string name="dedicated_teams_sorted">Teams Sorted &amp; Randomized!</string>
+    <string name="dedicated_teams_sorted">Teams Balanced &amp; Randomized!</string>
     <string name="dedicated_player_kicked">Player kicked</string>
     <string name="dedicated_team_ratio_running">Cannot edit team ratios while a game is in progress</string>
     <string name="dedicated_team_ratio_ffa">Team ratios are not applicable in Free For All mode</string>
@@ -163,9 +164,10 @@
     <string name="dedicated_game_reset_toast">Game reset</string>
     <string name="dedicated_allow_join">Allow players to join after game has started?</string>
     <string name="dedicated_server_settings_only">Only allow server settings?</string>
-    <string name="gps_mode_disabled">GPS Disabled</string>
-    <string name="gps_mode_teammate">GPS Teammates Only</string>
-    <string name="gps_mode_all">GPS All Enabled</string>
+    <string name="gps_mode_label">GPS</string>
+    <string name="gps_mode_disabled">Off</string>
+    <string name="gps_mode_teammate">Teammates</string>
+    <string name="gps_mode_all">All</string>
     <!-- TalkBack's name for tapping the score readout ("double-tap to open scoreboard"). -->
     <string name="scores_chip_action">open scoreboard</string>
     <!-- One score in the score readout's spoken description, e.g. "SCORE (50): 12". -->
@@ -250,7 +252,7 @@
     <string name="blaster_disconnected_suggestion">You can power cycle your blaster if the reconnect process is taking too long.</string>
     <string name="blaster_disconnected_disconnect_quit">Disconnect &amp; Quit</string>
 
-    <string name="dedicated_allow_choose_teams">Allow players to choose teams</string>
+    <string name="dedicated_allow_choose_teams">Allow players to choose teams?</string>
     <string name="switch_to_team">Switch to Team %1$d</string>
     <string name="permission_rationale_title">Permissions needed</string>
     <string name="permission_rationale_ble">SimpleCoil needs these permissions to find and connect to your blaster: Bluetooth, location (for Bluetooth scanning and the game map) and notifications (to keep the blaster connected while the app is in the background).</string>

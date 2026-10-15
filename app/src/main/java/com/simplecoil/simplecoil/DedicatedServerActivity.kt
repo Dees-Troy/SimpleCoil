@@ -17,10 +17,7 @@
 package com.simplecoil.simplecoil
 
 import android.os.Bundle
-import android.view.ContextThemeWrapper
-import android.view.View
 import android.view.WindowManager
-import android.widget.PopupMenu
 import android.widget.Toast
 import androidx.activity.addCallback
 import androidx.activity.viewModels
@@ -98,8 +95,14 @@ class DedicatedServerActivity : AppCompatActivity() {
     }
 
     private fun wireControls() = with(binding) {
-        teamModeToggleButton.setOnClickListener { showMenu(it, R.menu.team_mode_menu) }
-        gpsModeButton.setOnClickListener { showMenu(it, R.menu.gps_mode_menu) }
+        // Click, not checked-change: the renderer checks the segments from the server's state
+        teamMode2teamsButton.setOnClickListener { onTeamModeClicked(TeamMode.TWO_TEAMS) }
+        teamMode4teamsButton.setOnClickListener { onTeamModeClicked(TeamMode.FOUR_TEAMS) }
+        teamModeFfaButton.setOnClickListener { onTeamModeClicked(TeamMode.FREE_FOR_ALL) }
+        sortTeamsButton.setOnClickListener { vm.onSortTeams() }
+        gpsModeDisabledButton.setOnClickListener { onGpsModeClicked(GameSettingsRepository.GPS_DISABLED) }
+        gpsModeTeammateButton.setOnClickListener { onGpsModeClicked(GameSettingsRepository.GPS_TEAMMATE) }
+        gpsModeAllButton.setOnClickListener { onGpsModeClicked(GameSettingsRepository.GPS_ALL) }
         gameLimitButton.setOnClickListener {
             val limits = vm.state.value?.limits ?: return@setOnClickListener
             showDialog(GameLimitDialog.newInstance(limits, true), GameLimitDialog.REQUEST_KEY)
@@ -125,23 +128,15 @@ class DedicatedServerActivity : AppCompatActivity() {
             resources.getDimensionPixelSize(R.dimen.player_sheet_min_peek), keepAbove = b.phaseControls) { b.playerList.scrollToPosition(0) }
     }
 
-    private fun showMenu(anchor: View, menu: Int) {
-        val popup = PopupMenu(ContextThemeWrapper(this, R.style.AppTheme_PopupOverlay), anchor)
-        popup.menuInflater.inflate(menu, popup.menu)
-        popup.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                R.id.team_mode_2teams_item -> vm.onTeamModeSelected(TeamMode.TWO_TEAMS)
-                R.id.team_mode_4teams_item -> vm.onTeamModeSelected(TeamMode.FOUR_TEAMS)
-                R.id.team_mode_ffa_item -> vm.onTeamModeSelected(TeamMode.FREE_FOR_ALL)
-                R.id.sort_teams_item -> vm.onSortTeams()
-                R.id.gps_mode_disabled -> vm.onGpsModeSelected(GameSettingsRepository.GPS_DISABLED)
-                R.id.gps_mode_teammate -> vm.onGpsModeSelected(GameSettingsRepository.GPS_TEAMMATE)
-                R.id.gps_mode_all -> vm.onGpsModeSelected(GameSettingsRepository.GPS_ALL)
-                else -> return@setOnMenuItemClickListener false
-            }
-            true
-        }
-        popup.show()
+    /** Tapping the chosen segment again changes nothing, so it doesn't reset the game. */
+    private fun onTeamModeClicked(mode: TeamMode) {
+        if (vm.state.value?.teamMode != mode) vm.onTeamModeSelected(mode)
+    }
+
+    private fun onGpsModeClicked(mode: Int) {
+        val state = vm.state.value ?: return
+        val current = if (state.useGps) state.gpsMode else GameSettingsRepository.GPS_DISABLED
+        if (current != mode) vm.onGpsModeSelected(mode)
     }
 
     private fun listenForDialogResults() {
