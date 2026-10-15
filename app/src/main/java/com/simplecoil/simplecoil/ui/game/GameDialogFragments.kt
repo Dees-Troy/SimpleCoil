@@ -99,7 +99,7 @@ class BlasterDisconnectedDialog : GameDialogFragment() {
 
 class EndGameConfirmDialog : GameDialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
-        AlertDialog.Builder(requireContext())
+        alertBuilder()
             .setTitle(R.string.end_game_dialog_title)
             .setMessage(R.string.end_game_dialog_message)
             .setPositiveButton(R.string.yes) { _, _ -> vm.onEndGameConfirmed() }
@@ -110,7 +110,7 @@ class EndGameConfirmDialog : GameDialogFragment() {
 /** An admin asked to reset the server after a game. */
 class ResetConfirmDialog : GameDialogFragment() {
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
-        AlertDialog.Builder(requireContext())
+        alertBuilder()
             .setMessage(requireArguments().getInt(ARG_DISCONNECTED).let { resources.getQuantityString(R.plurals.dedicated_reset_confirm, it, it) })
             .setPositiveButton(R.string.reset_game_button) { _, _ -> vm.onResetConfirmed() }
             .setNegativeButton(R.string.cancel) { dialog, _ -> dialog.dismiss() }

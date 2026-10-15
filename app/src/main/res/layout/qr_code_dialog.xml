@@ -8,12 +8,9 @@
     android:padding="10dp" >
 
     <TextView
+        style="@style/DialogTitle"
         android:id="@+id/title_tv"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/qr_code_title"
-        android:textColor="#FFFFFF"
-        android:textAppearance="?android:attr/textAppearanceLarge" />
+        android:text="@string/qr_code_title" />
 
     <ImageView
         android:id="@+id/qr_code_iv"
@@ -25,12 +22,8 @@
         android:scaleType="fitCenter" />
 
     <TextView
+        style="@style/DialogHint"
         android:id="@+id/print_hint_tv"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:text="@string/qr_code_print_hint"
-        android:textColor="#AAAAAA"
-        android:textAppearance="?android:attr/textAppearanceSmall" />
+        android:text="@string/qr_code_print_hint" />
 
 </LinearLayout>

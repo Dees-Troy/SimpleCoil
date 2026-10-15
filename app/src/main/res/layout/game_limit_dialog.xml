@@ -12,32 +12,22 @@
         android:padding="10dp" >
 
         <TextView
+            style="@style/DialogTitle"
             android:id="@+id/title_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/game_limit_title"
-            android:textColor="#FFFFFF"
-            android:textAppearance="?android:attr/textAppearanceLarge" />
+            android:text="@string/game_limit_title" />
 
         <TextView
+            style="@style/DialogLabel"
             android:id="@+id/game_limit_time_label"
             android:labelFor="@+id/game_limit_time_et"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="@string/game_limit_time"
-            android:textColor="#FFFFFF" />
+            android:text="@string/game_limit_time" />
 
         <EditText
+            style="@style/DialogField"
             android:id="@+id/game_limit_time_et"
             android:importantForAutofill="no"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:digits="0123456789"
             android:maxLength="4"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#AAAAAA"
-            android:backgroundTint="@color/colorPrimary"
             android:inputType="number" >
 
             <requestFocus />
@@ -45,45 +35,31 @@
         </EditText>
 
         <TextView
+            style="@style/DialogLabel"
             android:id="@+id/game_limit_lives_label"
             android:labelFor="@+id/game_limit_lives_et"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="@string/game_limit_lives"
-            android:textColor="#FFFFFF" />
+            android:text="@string/game_limit_lives" />
 
         <EditText
+            style="@style/DialogField"
             android:id="@+id/game_limit_lives_et"
             android:importantForAutofill="no"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:digits="0123456789"
             android:maxLength="4"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#AAAAAA"
-            android:backgroundTint="@color/colorPrimary"
             android:inputType="number" />
 
         <TextView
+            style="@style/DialogLabel"
             android:id="@+id/game_limit_score_label"
             android:labelFor="@+id/game_limit_score_et"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="@string/game_limit_score"
-            android:textColor="#FFFFFF" />
+            android:text="@string/game_limit_score" />
 
         <EditText
+            style="@style/DialogField"
             android:id="@+id/game_limit_score_et"
             android:importantForAutofill="no"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:digits="0123456789"
             android:maxLength="4"
-            android:textColor="#FFFFFF"
-            android:textColorHint="#AAAAAA"
-            android:backgroundTint="@color/colorPrimary"
             android:inputType="number" />
 
     </LinearLayout>

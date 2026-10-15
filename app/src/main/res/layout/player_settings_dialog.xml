@@ -14,27 +14,24 @@
         android:padding="10dp" >
 
         <TextView
+            style="@style/DialogTitle"
             android:id="@+id/title_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/player_settings_title"
-            android:textColor="#FFFFFF"
-            android:textAppearance="?android:attr/textAppearanceLarge" />
+            android:text="@string/player_settings_title" />
 
         <TextView
-            style="@style/PlayerSettingsSection"
+            style="@style/DialogSection"
             android:text="@string/player_settings_section_health" />
 
-        <View style="@style/PlayerSettingsDivider" />
+        <View style="@style/DialogDivider" />
 
         <TextView
-            style="@style/PlayerSettingsLabel"
+            style="@style/DialogLabel"
             android:id="@+id/health_title"
             android:labelFor="@+id/health_et"
             android:text="@string/player_settings_health_title" />
 
         <EditText
-            style="@style/PlayerSettingsField"
+            style="@style/DialogField"
             android:id="@+id/health_et"
             android:importantForAutofill="no"
             android:digits="0123456789"
@@ -44,13 +41,13 @@
         </EditText>
 
         <TextView
-            style="@style/PlayerSettingsLabel"
+            style="@style/DialogLabel"
             android:id="@+id/damage_title"
             android:labelFor="@+id/damage_et"
             android:text="@string/player_settings_damage" />
 
         <EditText
-            style="@style/PlayerSettingsField"
+            style="@style/DialogField"
             android:id="@+id/damage_et"
             android:importantForAutofill="no"
             android:digits="0123456789"
@@ -59,18 +56,18 @@
         </EditText>
 
         <androidx.appcompat.widget.SwitchCompat
-            style="@style/PlayerSettingsSwitch"
+            style="@style/DialogSwitch"
             android:id="@+id/override_lives_limit_switch"
             android:text="@string/player_settings_override_lives" />
 
         <TextView
-            style="@style/PlayerSettingsLabel"
+            style="@style/DialogLabel"
             android:id="@+id/lives_title"
             android:labelFor="@+id/lives_et"
             android:text="@string/player_settings_lives" />
 
         <EditText
-            style="@style/PlayerSettingsField"
+            style="@style/DialogField"
             android:id="@+id/lives_et"
             android:importantForAutofill="no"
             android:digits="0123456789"
@@ -79,19 +76,19 @@
         </EditText>
 
         <TextView
-            style="@style/PlayerSettingsSection"
+            style="@style/DialogSection"
             android:text="@string/player_settings_section_blaster" />
 
-        <View style="@style/PlayerSettingsDivider" />
+        <View style="@style/DialogDivider" />
 
         <TextView
-            style="@style/PlayerSettingsLabel"
+            style="@style/DialogLabel"
             android:id="@+id/shots_title"
             android:labelFor="@+id/reload_shots_et"
             android:text="@string/player_settings_reload_shots" />
 
         <EditText
-            style="@style/PlayerSettingsField"
+            style="@style/DialogField"
             android:id="@+id/reload_shots_et"
             android:importantForAutofill="no"
             android:digits="0123456789"
@@ -100,13 +97,13 @@
         </EditText>
 
         <TextView
-            style="@style/PlayerSettingsLabel"
+            style="@style/DialogLabel"
             android:id="@+id/reload_time_title"
             android:labelFor="@+id/reload_time_et"
             android:text="@string/player_settings_reload_time" />
 
         <EditText
-            style="@style/PlayerSettingsField"
+            style="@style/DialogField"
             android:id="@+id/reload_time_et"
             android:importantForAutofill="no"
             android:digits="0123456789"
@@ -115,27 +112,27 @@
         </EditText>
 
         <androidx.appcompat.widget.SwitchCompat
-            style="@style/PlayerSettingsSwitch"
+            style="@style/DialogSwitch"
             android:id="@+id/reload_on_empty_switch"
             android:text="@string/player_settings_reload_on_empty" />
 
         <TextView
-            style="@style/PlayerSettingsLabel"
+            style="@style/DialogLabel"
             android:id="@+id/shot_mode_title"
             android:text="@string/player_settings_shot_modes_allowed" />
 
         <androidx.appcompat.widget.SwitchCompat
-            style="@style/PlayerSettingsSwitch"
+            style="@style/DialogSwitch"
             android:id="@+id/shot_mode_single"
             android:text="@string/shot_mode_single" />
 
         <androidx.appcompat.widget.SwitchCompat
-            style="@style/PlayerSettingsSwitch"
+            style="@style/DialogSwitch"
             android:id="@+id/shot_mode_burst3"
             android:text="@string/shot_mode_burst3" />
 
         <androidx.appcompat.widget.SwitchCompat
-            style="@style/PlayerSettingsSwitch"
+            style="@style/DialogSwitch"
             android:id="@+id/shot_mode_auto"
             android:text="@string/shot_mode_auto" />
 
@@ -159,24 +156,24 @@
             android:text="@string/player_settings_recoil_default" />
 
         <TextView
-            style="@style/PlayerSettingsSection"
+            style="@style/DialogSection"
             android:text="@string/player_settings_section_respawn" />
 
-        <View style="@style/PlayerSettingsDivider" />
+        <View style="@style/DialogDivider" />
 
         <androidx.appcompat.widget.SwitchCompat
-            style="@style/PlayerSettingsSwitch"
+            style="@style/DialogSwitch"
             android:id="@+id/manual_respawn_switch"
             android:text="@string/player_settings_manual_respawn" />
 
         <TextView
-            style="@style/PlayerSettingsLabel"
+            style="@style/DialogLabel"
             android:id="@+id/spawn_time_title"
             android:labelFor="@+id/spawn_time_et"
             android:text="@string/player_settings_spawn_time" />
 
         <EditText
-            style="@style/PlayerSettingsField"
+            style="@style/DialogField"
             android:id="@+id/spawn_time_et"
             android:importantForAutofill="no"
             android:digits="0123456789"
@@ -185,13 +182,13 @@
         </EditText>
 
         <TextView
-            style="@style/PlayerSettingsLabel"
+            style="@style/DialogLabel"
             android:id="@+id/respawn_shield_time_title"
             android:labelFor="@+id/respawn_shield_time_et"
             android:text="@string/player_settings_respawn_shield_time" />
 
         <EditText
-            style="@style/PlayerSettingsField"
+            style="@style/DialogField"
             android:id="@+id/respawn_shield_time_et"
             android:importantForAutofill="no"
             android:digits="0123456789"
@@ -208,10 +205,10 @@
             android:visibility="gone">
 
             <TextView
-                style="@style/PlayerSettingsSection"
+                style="@style/DialogSection"
                 android:text="@string/player_settings_section_player" />
 
-            <View style="@style/PlayerSettingsDivider" />
+            <View style="@style/DialogDivider" />
 
             <Button
                 android:id="@+id/switch_team_button"
@@ -224,7 +221,7 @@
                 android:text="@string/switch_team_button" />
 
             <androidx.appcompat.widget.SwitchCompat
-                style="@style/PlayerSettingsSwitch"
+                style="@style/DialogSwitch"
                 android:id="@+id/admin_switch"
                 android:text="@string/player_settings_admin" />
 
@@ -242,18 +239,18 @@
 
         <TextView
             android:id="@+id/apply_section_title"
-            style="@style/PlayerSettingsSection"
+            style="@style/DialogSection"
             android:text="@string/player_settings_section_apply" />
 
-        <View style="@style/PlayerSettingsDivider" />
+        <View style="@style/DialogDivider" />
 
         <androidx.appcompat.widget.SwitchCompat
-            style="@style/PlayerSettingsSwitch"
+            style="@style/DialogSwitch"
             android:id="@+id/apply_to_all_switch"
             android:text="@string/player_settings_apply_to_all" />
 
         <androidx.appcompat.widget.SwitchCompat
-            style="@style/PlayerSettingsSwitch"
+            style="@style/DialogSwitch"
             android:id="@+id/apply_to_team_switch"
             android:text="@string/player_settings_apply_to_team" />
 

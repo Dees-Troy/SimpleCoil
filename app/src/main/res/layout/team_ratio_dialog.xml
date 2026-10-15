@@ -6,12 +6,11 @@
     android:padding="16dp">
 
     <TextView
+        style="@style/DialogBody"
         android:id="@+id/team_ratio_instructions_tv"
+        android:layout_marginTop="0dp"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
         android:text="@string/team_ratio_instructions"
-        android:textColor="#FFFFFF"
-        android:textSize="14sp"
         android:layout_marginBottom="12dp" />
 
     <LinearLayout
@@ -30,12 +29,10 @@
             android:textSize="16sp" />
 
         <EditText
+            style="@style/DialogField"
             android:id="@+id/team1_ratio_et"
             android:importantForAutofill="no"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:inputType="number"
-            android:textColor="#FFFFFF"
             android:hint="@string/team_ratio_hint_two_teams" />
     </LinearLayout>
 
@@ -55,12 +52,10 @@
             android:textSize="16sp" />
 
         <EditText
+            style="@style/DialogField"
             android:id="@+id/team2_ratio_et"
             android:importantForAutofill="no"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:inputType="number"
-            android:textColor="#FFFFFF"
             android:hint="@string/team_ratio_hint_two_teams" />
     </LinearLayout>
 
@@ -81,12 +76,10 @@
             android:textSize="16sp" />
 
         <EditText
+            style="@style/DialogField"
             android:id="@+id/team3_ratio_et"
             android:importantForAutofill="no"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:inputType="number"
-            android:textColor="#FFFFFF"
             android:hint="@string/team_ratio_hint_four_teams" />
     </LinearLayout>
 
@@ -107,12 +100,10 @@
             android:textSize="16sp" />
 
         <EditText
+            style="@style/DialogField"
             android:id="@+id/team4_ratio_et"
             android:importantForAutofill="no"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
             android:inputType="number"
-            android:textColor="#FFFFFF"
             android:hint="@string/team_ratio_hint_four_teams" />
     </LinearLayout>
 

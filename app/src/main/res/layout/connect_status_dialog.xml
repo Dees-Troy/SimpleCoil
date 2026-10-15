@@ -16,11 +16,9 @@
         android:indeterminateTint="@color/colorPrimary" />
 
     <TextView
+        style="@style/DialogBody"
         android:id="@+id/connect_status_tv"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="20dp"
-        android:textColor="#FFFFFF"
-        android:textAppearance="?android:attr/textAppearanceLarge" />
+        android:layout_marginTop="0dp"
+        android:layout_marginStart="20dp" />
 
 </LinearLayout>

@@ -39,14 +39,12 @@
             android:visibility="gone" />
 
         <TextView
+            style="@style/DialogBody"
             android:id="@+id/score_matrix_message"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_marginTop="0dp"
             android:layout_gravity="center"
             android:gravity="center"
             android:padding="16dp"
-            android:textColor="#FFFFFF"
-            android:textSize="16sp"
             android:visibility="gone" />
     </FrameLayout>
 

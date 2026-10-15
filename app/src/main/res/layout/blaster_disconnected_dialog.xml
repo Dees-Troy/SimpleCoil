@@ -22,24 +22,18 @@
             android:indeterminateTint="@color/colorPrimary" />
 
         <TextView
+            style="@style/DialogTitle"
             android:id="@+id/title_tv"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
             android:layout_weight="1"
             android:layout_marginStart="20dp"
-            android:text="@string/blaster_disconnected_dialog"
-            android:textColor="#FFFFFF"
-            android:textSize="20sp" />
+            android:text="@string/blaster_disconnected_dialog" />
 
     </LinearLayout>
 
     <TextView
+        style="@style/DialogBody"
         android:id="@+id/suggestion_tv"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:text="@string/blaster_disconnected_suggestion"
-        android:textColor="#CCCCCC"
-        android:textAppearance="?android:attr/textAppearanceMedium" />
+        android:text="@string/blaster_disconnected_suggestion" />
 
 </LinearLayout>

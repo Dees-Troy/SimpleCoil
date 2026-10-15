@@ -8,40 +8,25 @@
     android:padding="10dp" >
 
     <TextView
+        style="@style/DialogTitle"
         android:id="@+id/title_tv"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/qr_generate_title"
-        android:textColor="#FFFFFF"
-        android:textAppearance="?android:attr/textAppearanceLarge" />
+        android:text="@string/qr_generate_title" />
 
     <TextView
+        style="@style/DialogBody"
         android:id="@+id/explanation_tv"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:text="@string/qr_generate_explanation"
-        android:textColor="#FFFFFF"
-        android:textAppearance="?android:attr/textAppearanceMedium" />
+        android:text="@string/qr_generate_explanation" />
 
     <TextView
+        style="@style/DialogLabel"
         android:id="@+id/name_label_tv"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="15dp"
-        android:text="@string/qr_player_name_label"
-        android:textColor="#FFFFFF"
-        android:textAppearance="?android:attr/textAppearanceMedium" />
+        android:text="@string/qr_player_name_label" />
 
     <EditText
+        style="@style/DialogField"
         android:id="@+id/qr_player_name_et"
         android:autofillHints="username"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
         android:inputType="textPersonName"
-        android:hint="@string/qr_player_name_hint"
-        android:textColor="#FFFFFF"
-        android:textColorHint="#AAAAAA"
-        android:backgroundTint="@color/colorPrimary" />
+        android:hint="@string/qr_player_name_hint" />
 
 </LinearLayout>

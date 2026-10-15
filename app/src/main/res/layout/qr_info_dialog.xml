@@ -12,20 +12,13 @@
         android:orientation="vertical" >
 
         <TextView
+            style="@style/DialogTitle"
             android:id="@+id/title_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/qr_info_title"
-            android:textColor="#FFFFFF"
-            android:textAppearance="?android:attr/textAppearanceLarge" />
+            android:text="@string/qr_info_title" />
 
         <TextView
+            style="@style/DialogBody"
             android:id="@+id/body_tv"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:text="@string/qr_info_body"
-            android:textColor="#FFFFFF"
-            android:textAppearance="?android:attr/textAppearanceMedium" />
+            android:text="@string/qr_info_body" />
     </LinearLayout>
 </ScrollView>
